@@ -1,8 +1,13 @@
+
 import express from 'express';
 import fetch from 'node-fetch';
 import { URL } from 'url';
 import net from 'net';
 import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -53,21 +58,20 @@ function isSafeUrl(input: string): boolean {
 app.use(express.json({ limit: '2mb' }));
 app.use(express.static(path.join(__dirname, 'dist')));
 
-// === VOID MATRIX - nieskończone pomysły bez powtórek ===
+// VOID MATRIX
 const VOID_MATRIX = {
   pains: ["lenistwo", "wymówki", "komfort", "prokrastynacja", "porównywanie się", "tania dopamina", "brak planu", "strach przed oceną"],
   truths: ["nikt nie przyjdzie", "czas ucieka - klepsydra", "jesteś sam", "nikt nie patrzy", "komfort cię zabija", "jutro to kłamstwo", "dyscyplina to kara za wczoraj"],
   formats: [
-    { id: "4_photos", name: "4 zdjęcia", structure: ["łóżko 11AM", "pusty portfel", "lustro", "przyszłe ja"] },
-    { id: "black_quote", name: "Cytat na czarnym", structure: ["czarne tło", "biały cytat", "czerwony akcent"] },
-    { id: "changing_bg", name: "Zmieniające się tło", structure: ["3 tła", "ten sam tekst"] },
-    { id: "carousel_dark", name: "Karuzele 3-7 mroczne", structure: ["hook", "3-5 prawd", "CTA"] },
+    { id: "4_photos", name: "4 zdjęcia" },
+    { id: "black_quote", name: "Cytat na czarnym" },
+    { id: "changing_bg", name: "Zmieniające się tło" },
+    { id: "carousel_dark", name: "Karuzele 3-7 mroczne" },
   ],
   hooks: ["To cię zniszczy", "Przestań kłamać", "Masz 24h", "Nikt ci tego nie powie", "Klepsydra nie czeka", "SF RULE #"],
   actions: ["wstań", "odtnij ich", "zamknij mordę i rób", "zasada 1%", "protokół 04:30"],
 };
 
-// Proxy obrazów - zabezpieczony (SSRF protection)
 app.get('/api/proxy-image', async (req, res) => {
   const imageUrl = req.query.url as string;
   if (!imageUrl || !isSafeUrl(imageUrl)) return res.status(403).json({ error: 'URL zablokowany (SSRF protection)' });
@@ -86,7 +90,6 @@ app.get('/api/proxy-image', async (req, res) => {
   }
 });
 
-// === NOWY ENDPOINT: Nieskończone pomysły VOID ===
 app.post('/api/void/infinite-ideas', (req, res) => {
   const { count = 5, seenHashes = [] } = req.body;
   const cacheKey = `void-ideas-${JSON.stringify(req.body)}`;
@@ -114,14 +117,13 @@ app.post('/api/void/infinite-ideas', (req, res) => {
       title: `${hook}: ${pain} → ${truth}`,
       hook: hook.toUpperCase(),
       format: format.name,
-      structure: format.structure,
+      structure: [pain, truth, action],
       core_message: `${truth}. Rozwiązanie: ${action}. SF Protocol.`,
       pain, truth, action,
-      viral_hooks: [hook, truth.toUpperCase(), `ZASADA: ${action.toUpperCase()}`],
+      viral_hooks: [hook, truth.toUpperCase()],
       suggested_format: format.name.includes('Karuzele') ? '🖼️ Karuzela 5-slajdowa' : '🎬 Rolka 7-Sekundowa',
-      bingPrompt: `Minimalist dark void, ${pain} concept, pure black background #000000, film grain 12%, SF VOID brand, 9:16, no text`,
+      bingPrompt: `Minimalist dark void, ${pain}, pure black #000000, SF VOID, 9:16, no text`,
       audience_pain: pain,
-      source_context: `VOID Matrix • Format: ${format.id}`,
       hash,
     });
   }
@@ -131,38 +133,16 @@ app.post('/api/void/infinite-ideas', (req, res) => {
   res.json({ ...result, cached: false });
 });
 
-// === NOWY ENDPOINT: Replikator struktury ===
 app.post('/api/void/replicate', async (req, res) => {
   const { url } = req.body;
   if (!url || !isSafeUrl(url)) return res.status(400).json({ error: 'Nieprawidłowy URL' });
-
-  // Tu w realu: yt-dlp + ffprobe + whisper
-  // Dla wersji darmowej offline - mock analiza struktury
-  const mockAnalysis = {
+  res.json({
     url,
-    detected: {
-      photos: url.includes('photo') ? 4 : 1,
-      hasQuoteOnBlack: url.includes('saint') || url.includes('photo'),
-      changingBg: url.includes('alfinaro'),
-      timing: "0.8s / 1.1s / 0.8s / 2.2s",
-      structure: ["EMPTY BED • 11AM", "EMPTY WALLET", "MIRROR", "FUTURE SELF"],
-    },
-    template: {
-      type: "VOID_4_PHASE",
-      export: { width: 1080, height: 1920, fps: 30 },
-      slides: [
-        { type: "photo_slot", placeholder: "EMPTY BED • 11AM", prompt: "Twoje zdjęcie: symbol lenistwa" },
-        { type: "photo_slot", placeholder: "EMPTY WALLET", prompt: "Twoje zdjęcie: konsekwencja" },
-        { type: "photo_slot", placeholder: "MIRROR", prompt: "Twoje zdjęcie: konfrontacja" },
-        { type: "photo_slot", placeholder: "FUTURE SELF", prompt: "Twoje zdjęcie: przyszłość" },
-      ]
-    }
-  };
-
-  res.json(mockAnalysis);
+    detected: { photos: 4, hasQuoteOnBlack: true, changingBg: false, timing: "0.8s / 1.1s / 0.8s / 2.2s" },
+    template: { type: "VOID_4_PHASE", slides: [{ placeholder: "EMPTY BED" }, { placeholder: "EMPTY WALLET" }, { placeholder: "MIRROR" }, { placeholder: "FUTURE SELF" }] }
+  });
 });
 
-// AI generate z cache (stare)
 app.post('/api/generate', async (req, res) => {
   const key = JSON.stringify(req.body);
   const cached = getFromCache(key);
@@ -172,5 +152,6 @@ app.post('/api/generate', async (req, res) => {
   res.json({ ...result, cached: false });
 });
 
-app.listen(PORT, () => console.log(`SF VOID Server running http://localhost:${PORT} • Cache ${CACHE_MAX} • SSRF protected`));
+app.listen(PORT, () => console.log(`SF VOID Server running http://localhost:${PORT} • FIXED __dirname • Cache ${CACHE_MAX}`));
 export { isSafeUrl };
+

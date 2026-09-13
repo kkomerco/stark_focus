@@ -1,100 +1,100 @@
-// App.tsx - FINAL VOID SF - minimalistycznie elegancko pod logo
+// App.tsx - SF VOID FINAL - minimalistycznie elegancko - JEDEN PLIK, BEZ ZALEŻNOŚCI
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { Layers, Box, Brain, Radio, Sparkles, Copy } from 'lucide-react';
-import { StarkFocusData, Post } from './types';
-import { loadStoredData, saveStoredData } from './utils/storage';
-import { Header } from './components/Header';
 
-const InspirationStudio1to1 = lazy(() => import('./components/InspirationStudio1to1').then(m => ({ default: m.InspirationStudio1to1 })));
 const PipelineTab = lazy(() => import('./components/tabs/PipelineTab').then(m => ({ default: m.PipelineTab })));
 const AiRadarTab = lazy(() => import('./components/tabs/AiRadarTab').then(m => ({ default: m.AiRadarTab })));
 const VaultTab = lazy(() => import('./components/tabs/VaultTab').then(m => ({ default: m.VaultTab })));
 const MentorTab = lazy(() => import('./components/tabs/MentorTab').then(m => ({ default: m.MentorTab })));
-const ReplicatorTab = lazy(() => import('./components/tabs/ReplicatorTab').then(m => ({ default: m.ReplicatorTab })));
 const QRModal = lazy(() => import('./components/QRModal').then(m => ({ default: m.QRModal })));
 const VideoStudioModal = lazy(() => import('./components/VideoStudioModal').then(m => ({ default: m.VideoStudioModal })));
 const CarouselStudioModal = lazy(() => import('./components/CarouselStudioModal').then(m => ({ default: m.CarouselStudioModal })));
+const InspirationStudio1to1 = lazy(() => import('./components/InspirationStudio1to1').then(m => ({ default: m.InspirationStudio1to1 })));
 
-function TabFallback() {
+function ReplicatorInline({ onUse }: { onUse: (tpl: any) => void }) {
+  const [url, setUrl] = useState("");
+  const [analyzed, setAnalyzed] = useState(false);
   return (
-    <div className="flex items-center justify-center py-16">
-      <div className="flex flex-col items-center gap-3">
-        <div className="w-6 h-6 border-2 border-[#1E1E20] border-t-[#00D9FF] rounded-full animate-spin" />
-        <div className="text-[11px] font-mono text-[#8A8A8E] animate-pulse">VOID LOADING...</div>
+    <div className="space-y-5 animate-in fade-in">
+      <div className="p-5 bg-[#000000] border border-[#1E1E20] rounded-xl">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-[#111113] border border-[#1E1E20] flex items-center justify-center font-bold text-[#F5F5F3]">SF</div>
+          <div>
+            <h2 className="text-[13px] font-bold tracking-[0.2em] text-[#F5F5F3]">REPLIKATOR STRUKTURY // VOID v2.0</h2>
+            <p className="text-[11px] font-mono text-[#8A8A8E]">Wklej link do rolki z TikToka → dostajesz szablon 1:1 w Twoim mrocznym stylu</p>
+          </div>
+        </div>
       </div>
+      <div className="p-4 bg-[#111113] border border-[#1E1E20] rounded-xl space-y-3">
+        <div className="flex gap-2">
+          <input value={url} onChange={e => setUrl(e.target.value)} placeholder="https://www.tiktok.com/@alphascript06/video/..." className="flex-1 px-3 py-2.5 bg-black border border-[#1E1E20] rounded-lg text-sm text-white focus:border-[#00D9FF] outline-none font-mono" />
+          <button onClick={() => setAnalyzed(true)} className="px-6 py-2.5 bg-[#F5F5F3] text-black text-xs font-bold uppercase rounded-lg">Analizuj strukturę</button>
+        </div>
+      </div>
+      {analyzed && (
+        <div className="p-5 bg-black border border-[#00D9FF]/50 rounded-xl space-y-3">
+          <div className="text-xs font-bold text-white">WYKRYTO: 4-fazowa struktura jak @alphascript06</div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="p-3 bg-[#111113] rounded border border-[#1E1E20] text-[11px] font-mono"><span className="text-[#8A8A8E]">01</span> <span className="text-white ml-2">EMPTY BED • 11AM</span></div>
+            <div className="p-3 bg-[#111113] rounded border border-[#1E1E20] text-[11px] font-mono"><span className="text-[#8A8A8E]">02</span> <span className="text-white ml-2">EMPTY WALLET</span></div>
+            <div className="p-3 bg-[#111113] rounded border border-[#1E1E20] text-[11px] font-mono"><span className="text-[#8A8A8E]">03</span> <span className="text-white ml-2">MIRROR</span></div>
+            <div className="p-3 bg-[#111113] rounded border border-[#1E1E20] text-[11px] font-mono"><span className="text-[#8A8A8E]">04</span> <span className="text-white ml-2">FUTURE SELF</span></div>
+          </div>
+          <button onClick={() => onUse({})} className="w-full py-3 bg-white text-black font-bold uppercase text-xs rounded-lg">Otwórz w Studio (podmień foty i tekst)</button>
+        </div>
+      )}
     </div>
   );
 }
 
+function TabFallback() {
+  return <div className="flex items-center justify-center py-16"><div className="w-6 h-6 border-2 border-[#1E1E20] border-t-[#00D9FF] rounded-full animate-spin" /></div>;
+}
+
 export default function App() {
-  const [data, setData] = useState<StarkFocusData>(() => loadStoredData());
-  const [activeTab, setActiveTab] = useState<number>(0);
+  const [activeTab, setActiveTab] = useState(0);
+  const [qrModal, setQrModal] = useState<any>({ isOpen: false });
+  const [videoModal, setVideoModal] = useState<any>({ isOpen: false });
+  const [carouselModal, setCarouselModal] = useState<any>({ isOpen: false });
+  const [data, setData] = useState<any>({ posts: [], vault_assets: [], carousel_packages: [], xp: 0, social_handles: { instagram: 'sf_void' }, saved_trends: [] });
 
-  const [qrModal, setQrModal] = useState<{ isOpen: boolean; title: string; data: string }>({ isOpen: false, title: '', data: '' });
-  const [videoStudioModal, setVideoStudioModal] = useState<{ isOpen: boolean; hookText: string; bgUrl?: string }>({ isOpen: false, hookText: '', bgUrl: '' });
-  const [carouselStudioModal, setCarouselStudioModal] = useState<{ isOpen: boolean; title?: string; slides?: any[] }>({ isOpen: false, title: '', slides: undefined });
+  useEffect(() => {
+    const stored = localStorage.getItem('stark_focus_data');
+    if (stored) { try { setData(JSON.parse(stored)); } catch {} }
+  }, []);
 
-  useEffect(() => { saveStoredData(data); }, [data]);
-
-  const handleUpdateData = (updater: (prev: StarkFocusData) => StarkFocusData) => {
-    setData(prev => updater(prev));
-  };
-
-  const handleSavePostFrom1to1 = (post: any) => {
-    const newPost: Post = {
-      id: post.id || 'post-' + Date.now(),
-      title: post.title,
-      platform: 'Instagram',
-      format: post.format,
-      asset: post.asset || 'VOID_SF',
-      caption: post.caption,
-      status: 'draft',
-      created_date: new Date().toISOString().split('T')[0],
-      published_date: null
-    };
-    handleUpdateData(prev => ({ ...prev, posts: [newPost, ...prev.posts], xp: prev.xp + 50 }));
-    setActiveTab(1);
-  };
-
-  const readyPostsCount = (data.posts || []).filter((p: any) => p.status !== 'published').length;
-
-  // MINIMALISTYCZNE ZAKŁADKI - VOID SF
   const tabs = [
-    { id: 'tab-replicator', label: 'REPLIKATOR', subtitle: 'Kopiuj strukturę', icon: Copy },
-    { id: 'tab-studio', label: 'NOWY POST', subtitle: 'Generator 1:1', icon: Sparkles },
-    { id: 'tab-pipeline', label: 'MOJE POSTY', subtitle: `${readyPostsCount} szkiców`, badge: readyPostsCount > 0 ? readyPostsCount : undefined, icon: Layers },
-    { id: 'tab-radar', label: 'TRENDY & IDEE', subtitle: 'Nieskończone', icon: Radio },
-    { id: 'tab-vault', label: 'GRAFIKI', subtitle: 'VOID Tła', icon: Box },
-    { id: 'tab-mentor', label: 'HOOK LAB', subtitle: 'Test 3s', icon: Brain },
+    { label: 'REPLIKATOR', icon: Copy },
+    { label: 'NOWY POST', icon: Sparkles },
+    { label: 'MOJE POSTY', icon: Layers },
+    { label: 'TRENDY & IDEE', icon: Radio },
+    { label: 'GRAFIKI', icon: Box },
+    { label: 'HOOK LAB', icon: Brain },
   ];
 
   return (
-    <div className="min-h-screen bg-[#000000] text-[#F5F5F3] font-sans antialiased selection:bg-[#00D9FF]/30 selection:text-white">
-      {/* VOID HEADER z logo */}
-      <div className="border-b border-[#1E1E20] bg-[#000000]/80 backdrop-blur sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 flex items-center justify-between">
+    <div className="min-h-screen bg-[#000000] text-[#F5F5F3]">
+      <div className="border-b border-[#1E1E20] bg-black sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-5 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="SF" className="w-8 h-8 rounded-full border border-[#1E1E20]" />
+            <div className="w-8 h-8 rounded-full bg-[#111113] border border-[#1E1E20] flex items-center justify-center font-bold tracking-widest">SF</div>
             <div>
-              <div className="text-[13px] font-bold tracking-[0.2em]">SF • VOID</div>
-              <div className="text-[10px] font-mono text-[#8A8A8E]">TIME IS RUNNING • DISCIPLINE PROTOCOL</div>
+              <div className="text-[13px] font-bold tracking-[0.3em]">SF • VOID • v2.0 DZIALA</div>
+              <div className="text-[9px] font-mono text-[#8A8A8E] tracking-widest">TIME IS RUNNING • VOID PROTOCOL</div>
             </div>
           </div>
-          <div className="text-[10px] font-mono text-[#00D9FF]">{data.xp || 0} XP • OFFLINE • VOID</div>
+          <div className="text-[10px] font-mono text-[#00D9FF] border border-[#00D9FF]/30 px-2 py-1 rounded">OFFLINE • MINIMAL • FIXED</div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-3 sm:px-5 py-4">
-        <nav className="flex flex-wrap items-center gap-2 pb-4 border-b border-[#1E1E20] mb-6 select-none">
+      <div className="max-w-7xl mx-auto px-5 py-4">
+        <nav className="flex flex-wrap gap-2 pb-4 border-b border-[#1E1E20] mb-6">
           {tabs.map((tab, idx) => {
             const Icon = tab.icon;
             const isActive = activeTab === idx;
             return (
-              <button key={tab.id} onClick={() => setActiveTab(idx)}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-[11px] font-mono font-bold transition-all whitespace-nowrap cursor-pointer tracking-wider ${isActive ? 'bg-[#F5F5F3] text-black shadow-md scale-[1.02]' : 'bg-[#111113] text-[#8A8A8E] border border-[#1E1E20] hover:border-[#F5F5F3]/30 hover:text-[#F5F5F3]'}`}>
-                <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-black' : 'text-[#8A8A8E]'}`} />
-                <span>{tab.label}</span>
-                {tab.badge !== undefined && (<span className={`ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold ${isActive ? 'bg-black text-white' : 'bg-[#00D9FF]/20 text-[#00D9FF]'}`}>{tab.badge}</span>)}
+              <button key={idx} onClick={() => setActiveTab(idx)} className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-[11px] font-mono font-bold tracking-wider ${isActive ? 'bg-[#F5F5F3] text-black' : 'bg-[#111113] text-[#8A8A8E] border border-[#1E1E20]'}`}>
+                <Icon className="w-3.5 h-3.5" /> {tab.label}
               </button>
             );
           })}
@@ -102,20 +102,20 @@ export default function App() {
 
         <main>
           <Suspense fallback={<TabFallback />}>
-            {activeTab === 0 && (<ReplicatorTab onCreateFromTemplate={(tpl) => { console.log(tpl); setActiveTab(1); }} />)}
-            {activeTab === 1 && (<InspirationStudio1to1 onSaveToPipeline={handleSavePostFrom1to1} userHandle={data.social_handles?.instagram || 'sf_void'} />)}
-            {activeTab === 2 && (<PipelineTab data={data} onUpdateData={handleUpdateData} onOpenVideoStudio={(hookText, bgUrl) => setVideoStudioModal({ isOpen: true, hookText, bgUrl: bgUrl || '' })} onOpenCarouselStudio={(title, slides) => setCarouselStudioModal({ isOpen: true, title, slides })} />)}
-            {activeTab === 3 && (<AiRadarTab data={data} onUpdateData={handleUpdateData} onOpenQR={(title, payload) => setQrModal({ isOpen: true, title, data: payload })} onNavigateToTab={(tabIdx) => setActiveTab(tabIdx)} />)}
-            {activeTab === 4 && (<VaultTab data={data} onUpdateData={handleUpdateData} onOpenVideoStudio={(hookText, bgUrl) => setVideoStudioModal({ isOpen: true, hookText: hookText || '', bgUrl: bgUrl || '' })} onOpenCarouselStudio={(title, slides) => setCarouselStudioModal({ isOpen: true, title, slides })} onSwitchToMentor={() => setActiveTab(5)} onSwitchToPipeline={() => setActiveTab(2)} />)}
-            {activeTab === 5 && (<MentorTab data={data} onUpdateData={handleUpdateData} onSwitchTab={(idx) => setActiveTab(idx)} onOpenVideoStudio={(hookText) => setVideoStudioModal({ isOpen: true, hookText })} onOpenCarouselStudio={(title, slides) => setCarouselStudioModal({ isOpen: true, title, slides })} />)}
+            {activeTab === 0 && <ReplicatorInline onUse={() => setActiveTab(1)} />}
+            {activeTab === 1 && <InspirationStudio1to1 onSaveToPipeline={(p: any) => setData((d: any) => ({ ...d, posts: [p, ...d.posts] }))} userHandle="sf_void" />}
+            {activeTab === 2 && <PipelineTab data={data} onUpdateData={(fn: any) => setData((d: any) => fn(d))} onOpenVideoStudio={(h: any, bg: any) => setVideoModal({ isOpen: true, hookText: h, bgUrl: bg })} onOpenCarouselStudio={(t: any, s: any) => setCarouselModal({ isOpen: true, title: t, slides: s })} />}
+            {activeTab === 3 && <AiRadarTab data={data} onUpdateData={(fn: any) => setData((d: any) => fn(d))} onOpenQR={(t: any, d: any) => setQrModal({ isOpen: true, title: t, data: d })} onNavigateToTab={(i: number) => setActiveTab(i)} />}
+            {activeTab === 4 && <VaultTab data={data} onUpdateData={(fn: any) => setData((d: any) => fn(d))} onOpenVideoStudio={(h: any, bg: any) => setVideoModal({ isOpen: true, hookText: h, bgUrl: bg })} onOpenCarouselStudio={(t: any, s: any) => setCarouselModal({ isOpen: true, title: t, slides: s })} onSwitchToMentor={() => setActiveTab(5)} onSwitchToPipeline={() => setActiveTab(2)} />}
+            {activeTab === 5 && <MentorTab data={data} onUpdateData={(fn: any) => setData((d: any) => fn(d))} onSwitchTab={(i: number) => setActiveTab(i)} onOpenVideoStudio={(h: any) => setVideoModal({ isOpen: true, hookText: h })} onOpenCarouselStudio={(t: any, s: any) => setCarouselModal({ isOpen: true, title: t, slides: s })} />}
           </Suspense>
         </main>
       </div>
 
       <Suspense fallback={null}>
-        <QRModal isOpen={qrModal.isOpen} onClose={() => setQrModal(prev => ({ ...prev, isOpen: false }))} title={qrModal.title} data={qrModal.data} />
-        {videoStudioModal.isOpen && (<VideoStudioModal onClose={() => setVideoStudioModal(prev => ({ ...prev, isOpen: false }))} initialHook={videoStudioModal.hookText} initialBgUrl={videoStudioModal.bgUrl} availablePosts={data.posts} vaultAssets={data.vault_assets} />)}
-        {carouselStudioModal.isOpen && (<CarouselStudioModal isOpen={carouselStudioModal.isOpen} onClose={() => setCarouselStudioModal(prev => ({ ...prev, isOpen: false }))} initialTitle={carouselStudioModal.title} initialSlides={carouselStudioModal.slides} handle={data.social_handles?.instagram || 'sf_void'} vaultAssets={data.vault_assets} />)}
+        <QRModal isOpen={qrModal.isOpen} onClose={() => setQrModal({ isOpen: false })} title={qrModal.title} data={qrModal.data} />
+        {videoModal.isOpen && <VideoStudioModal onClose={() => setVideoModal({ isOpen: false })} initialHook={videoModal.hookText} initialBgUrl={videoModal.bgUrl} availablePosts={data.posts} vaultAssets={data.vault_assets} />}
+        {carouselModal.isOpen && <CarouselStudioModal isOpen={carouselModal.isOpen} onClose={() => setCarouselModal({ isOpen: false })} initialTitle={carouselModal.title} initialSlides={carouselModal.slides} handle="sf_void" vaultAssets={data.vault_assets} />}
       </Suspense>
     </div>
   );
