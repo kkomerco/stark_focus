@@ -4,12 +4,11 @@
   "sideEffects": false,
   "type": "module",
   "scripts": {
-    "dev": "vite dev",
-    "build": "vite build",
-    "build:dev": "vite build --mode development",
-    "preview": "vite preview",
-    "lint": "eslint .",
-    "format": "prettier --write ."
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "client": "vite",
+    "server": "tsx watch server.ts",
+    "build": "tsc && vite build",
+    "start": "NODE_ENV=production tsx server.ts"
   },
   "overrides": {
     "rolldown": "1.2.1"
@@ -53,7 +52,9 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
+    "cors": "^2.8.6",
     "date-fns": "^4.1.0",
+    "dotenv": "^17.4.2",
     "embla-carousel-react": "^8.6.0",
     "express": "^5.2.1",
     "input-otp": "^1.4.2",
@@ -79,6 +80,7 @@
   "devDependencies": {
     "@eslint/js": "^9.32.0",
     "@tailwindcss/postcss": "^4.3.3",
+    "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^22.16.5",
     "@types/react": "^19.2.0",

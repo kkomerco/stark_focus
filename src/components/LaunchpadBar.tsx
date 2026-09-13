@@ -86,15 +86,15 @@ export const LaunchpadBar: React.FC<LaunchpadBarProps> = ({
           </div>
 
           <div className="flex items-center gap-1">
-            <a
-              href={`https://www.instagram.com/${igHandle}/`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex-1 text-center py-1 rounded bg-[#1D2333] hover:bg-[#E1306C]/20 text-[10px] font-bold text-white border border-[#2C354B] transition-colors flex items-center justify-center gap-1"
-              title={`Otwórz oficjalny profil @${igHandle} na Instagramie`}
-            >
-              Profil <ExternalLink className="w-2.5 h-2.5 text-slate-400" />
-            </a>
+           <a
+  href="https://studio.youtube.com"
+  target="_blank"
+  rel="noopener noreferrer"
+  className="p-1 px-2 rounded bg-[#1D2333] hover:bg-[#FF0000]/20 text-[10px] font-bold text-[#FF0000] border border-[#2C354B] transition-colors cursor-pointer"
+  title="Prześlij film lub Short na YouTube"
+>
+  +
+</a>
             <a
               href="https://business.facebook.com/latest/posts/published_posts/?business_id=1039822805509351&asset_id=1357138857472560"
               target="_blank"
