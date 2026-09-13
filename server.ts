@@ -17,7 +17,7 @@ function getFromCache(key: string) {
   const e = AI_CACHE.get(key);
   if (!e) return null;
   if (Date.now() > e.expiresAt) { AI_CACHE.delete(key); return null; }
-  AI_CACHE.delete(key); AI_CACHE.set(key, e); // LRU
+  AI_CACHE.delete(key); AI_CACHE.set(key, e);
   return e.value;
 }
 function setToCache(key: string, value: any) {
@@ -28,7 +28,6 @@ function setToCache(key: string, value: any) {
   AI_CACHE.set(key, { value, expiresAt: Date.now() + CACHE_TTL_MS });
 }
 
-// === SSRF PROTECTION ===
 function isPrivateIPv4(ip: string): boolean {
   const p = ip.split('.').map(Number);
   if (p.length !== 4) return false;
@@ -51,10 +50,24 @@ function isSafeUrl(input: string): boolean {
   } catch { return false; }
 }
 
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '2mb' }));
 app.use(express.static(path.join(__dirname, 'dist')));
 
-// Proxy obrazów - zabezpieczony
+// === VOID MATRIX - nieskończone pomysły bez powtórek ===
+const VOID_MATRIX = {
+  pains: ["lenistwo", "wymówki", "komfort", "prokrastynacja", "porównywanie się", "tania dopamina", "brak planu", "strach przed oceną"],
+  truths: ["nikt nie przyjdzie", "czas ucieka - klepsydra", "jesteś sam", "nikt nie patrzy", "komfort cię zabija", "jutro to kłamstwo", "dyscyplina to kara za wczoraj"],
+  formats: [
+    { id: "4_photos", name: "4 zdjęcia", structure: ["łóżko 11AM", "pusty portfel", "lustro", "przyszłe ja"] },
+    { id: "black_quote", name: "Cytat na czarnym", structure: ["czarne tło", "biały cytat", "czerwony akcent"] },
+    { id: "changing_bg", name: "Zmieniające się tło", structure: ["3 tła", "ten sam tekst"] },
+    { id: "carousel_dark", name: "Karuzele 3-7 mroczne", structure: ["hook", "3-5 prawd", "CTA"] },
+  ],
+  hooks: ["To cię zniszczy", "Przestań kłamać", "Masz 24h", "Nikt ci tego nie powie", "Klepsydra nie czeka", "SF RULE #"],
+  actions: ["wstań", "odtnij ich", "zamknij mordę i rób", "zasada 1%", "protokół 04:30"],
+};
+
+// Proxy obrazów - zabezpieczony (SSRF protection)
 app.get('/api/proxy-image', async (req, res) => {
   const imageUrl = req.query.url as string;
   if (!imageUrl || !isSafeUrl(imageUrl)) return res.status(403).json({ error: 'URL zablokowany (SSRF protection)' });
@@ -73,16 +86,91 @@ app.get('/api/proxy-image', async (req, res) => {
   }
 });
 
-// AI generate z cache
+// === NOWY ENDPOINT: Nieskończone pomysły VOID ===
+app.post('/api/void/infinite-ideas', (req, res) => {
+  const { count = 5, seenHashes = [] } = req.body;
+  const cacheKey = `void-ideas-${JSON.stringify(req.body)}`;
+  const cached = getFromCache(cacheKey);
+  if (cached) return res.json({ ...cached, cached: true });
+
+  const ideas = [];
+  const used = new Set(seenHashes);
+  let attempts = 0;
+
+  while (ideas.length < count && attempts < count * 10) {
+    attempts++;
+    const pain = VOID_MATRIX.pains[Math.floor(Math.random() * VOID_MATRIX.pains.length)];
+    const truth = VOID_MATRIX.truths[Math.floor(Math.random() * VOID_MATRIX.truths.length)];
+    const format = VOID_MATRIX.formats[Math.floor(Math.random() * VOID_MATRIX.formats.length)];
+    const hook = VOID_MATRIX.hooks[Math.floor(Math.random() * VOID_MATRIX.hooks.length)];
+    const action = VOID_MATRIX.actions[Math.floor(Math.random() * VOID_MATRIX.actions.length)];
+
+    const hash = `${pain}-${truth}-${format.id}-${hook}`.toLowerCase().replace(/\s+/g, '-');
+    if (used.has(hash)) continue;
+    used.add(hash);
+
+    ideas.push({
+      id: `void-${Date.now()}-${attempts}`,
+      title: `${hook}: ${pain} → ${truth}`,
+      hook: hook.toUpperCase(),
+      format: format.name,
+      structure: format.structure,
+      core_message: `${truth}. Rozwiązanie: ${action}. SF Protocol.`,
+      pain, truth, action,
+      viral_hooks: [hook, truth.toUpperCase(), `ZASADA: ${action.toUpperCase()}`],
+      suggested_format: format.name.includes('Karuzele') ? '🖼️ Karuzela 5-slajdowa' : '🎬 Rolka 7-Sekundowa',
+      bingPrompt: `Minimalist dark void, ${pain} concept, pure black background #000000, film grain 12%, SF VOID brand, 9:16, no text`,
+      audience_pain: pain,
+      source_context: `VOID Matrix • Format: ${format.id}`,
+      hash,
+    });
+  }
+
+  const result = { ideas, seenHashes: Array.from(used), message: `Wygenerowano ${ideas.length} unikalnych pomysłów VOID` };
+  setToCache(cacheKey, result);
+  res.json({ ...result, cached: false });
+});
+
+// === NOWY ENDPOINT: Replikator struktury ===
+app.post('/api/void/replicate', async (req, res) => {
+  const { url } = req.body;
+  if (!url || !isSafeUrl(url)) return res.status(400).json({ error: 'Nieprawidłowy URL' });
+
+  // Tu w realu: yt-dlp + ffprobe + whisper
+  // Dla wersji darmowej offline - mock analiza struktury
+  const mockAnalysis = {
+    url,
+    detected: {
+      photos: url.includes('photo') ? 4 : 1,
+      hasQuoteOnBlack: url.includes('saint') || url.includes('photo'),
+      changingBg: url.includes('alfinaro'),
+      timing: "0.8s / 1.1s / 0.8s / 2.2s",
+      structure: ["EMPTY BED • 11AM", "EMPTY WALLET", "MIRROR", "FUTURE SELF"],
+    },
+    template: {
+      type: "VOID_4_PHASE",
+      export: { width: 1080, height: 1920, fps: 30 },
+      slides: [
+        { type: "photo_slot", placeholder: "EMPTY BED • 11AM", prompt: "Twoje zdjęcie: symbol lenistwa" },
+        { type: "photo_slot", placeholder: "EMPTY WALLET", prompt: "Twoje zdjęcie: konsekwencja" },
+        { type: "photo_slot", placeholder: "MIRROR", prompt: "Twoje zdjęcie: konfrontacja" },
+        { type: "photo_slot", placeholder: "FUTURE SELF", prompt: "Twoje zdjęcie: przyszłość" },
+      ]
+    }
+  };
+
+  res.json(mockAnalysis);
+});
+
+// AI generate z cache (stare)
 app.post('/api/generate', async (req, res) => {
   const key = JSON.stringify(req.body);
   const cached = getFromCache(key);
   if (cached) return res.json({ ...cached, cached: true });
-  // TU podmień na prawdziwe wywołanie Gemini
   const result = { text: 'mock', prompt: req.body.prompt };
   setToCache(key, result);
   res.json({ ...result, cached: false });
 });
 
-app.listen(PORT, () => console.log(`Server running http://localhost:${PORT}`));
+app.listen(PORT, () => console.log(`SF VOID Server running http://localhost:${PORT} • Cache ${CACHE_MAX} • SSRF protected`));
 export { isSafeUrl };
