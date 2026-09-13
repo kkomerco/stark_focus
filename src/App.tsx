@@ -1,13 +1,11 @@
-// App.tsx - VOID v3.1 INFINITE ENGLISH - mindset / dark motivation - OFFLINE / FREE / MINIMAL
-import React, { useState, useEffect } from 'react';
-import { Copy, Sparkles, Layers, Radio, Box, Brain, Search, Download, Trash2, Settings2, Zap, BarChart3, Infinity as InfinityIcon } from 'lucide-react';
+// App.tsx - VOID v4.0 IMAGE GENERATOR - ENGLISH - Generates ready images, not just text
+import React, { useState, useEffect, useRef } from 'react';
+import { Copy, Layers, Radio, Box, Brain, Search, Download, Trash2, Settings2, Zap, BarChart3, Infinity as InfinityIcon, Image as ImageIcon, Film, Check } from 'lucide-react';
 
 type BrandKit = {
   niche: string;
   tone: 'brutal' | 'cinematic' | 'minimal' | 'sigma';
-  colors: { bg: string; card: string; accent: string };
   referenceProfiles: string[];
-  favoriteHooks: string[];
 };
 
 type Idea = {
@@ -20,84 +18,208 @@ type Idea = {
   hashtags: string[];
   source: string;
   score: number;
+  generatedImages?: string[]; // data URLs
 };
 
 const HOOKS_POOL = [
-  "No one is coming.",
-  "Time is running.",
-  "Your excuses are killing you.",
-  "Wolves don't care about sheep opinions.",
-  "Discipline is freedom.",
-  "Pain is temporary. Regret is forever.",
-  "You're not tired. You're undisciplined.",
-  "Everyone is watching. No one will help.",
-  "Your old self must die.",
-  "Success is silent. Failure is loud.",
-  "Stop waiting for motivation.",
-  "Loneliness is the price.",
-  "Every day is 11:59 on the clock.",
-  "You don't need more time. You need less excuses.",
-  "Your bed at 11 AM tells everything.",
-  "Empty wallet doesn't lie.",
-  "The mirror has no filter.",
-  "Future you is watching right now.",
-  "1% daily > 100% once.",
-  "Disappear for 6 months.",
-  "Don't tell. Show with results.",
-  "Comfort will kill you.",
-  "Plan without execution is hallucination.",
-  "You are the sum of your habits.",
-  "No one will remember your excuses.",
-  "Your comfort zone is your coffin.",
-  "The clock doesn't stop for anyone.",
+  "No one is coming.", "Time is running.", "Your excuses are killing you.",
+  "Wolves don't care about sheep opinions.", "Discipline is freedom.",
+  "Pain is temporary. Regret is forever.", "You're not tired. You're undisciplined.",
+  "Everyone is watching. No one will help.", "Your old self must die.",
+  "Success is silent. Failure is loud.", "Stop waiting for motivation.",
+  "Loneliness is the price.", "Every day is 11:59 on the clock.",
+  "You don't need more time. You need less excuses.", "Your bed at 11 AM tells everything.",
+  "Empty wallet doesn't lie.", "The mirror has no filter.", "Future you is watching right now.",
+  "1% daily > 100% once.", "Disappear for 6 months.", "Don't tell. Show with results.",
+  "Comfort will kill you.", "Plan without execution is hallucination.",
+  "You are the sum of your habits.", "No one will remember your excuses.",
+  "Your comfort zone is your coffin.", "The clock doesn't stop for anyone.",
   "Weak men make excuses. Strong men make results.",
-  "You are exactly where you deserve to be.",
-  "If it's easy, you're doing it wrong.",
 ];
 
-const ANGLES = ["Discipline", "Time", "Pain", "Loneliness", "Focus", "Money", "Habits", "Morning", "Night", "Courage", "Consistency", "Ego", "Sacrifice", "Legacy"];
+const ANGLES = ["Discipline", "Time", "Pain", "Loneliness", "Focus", "Money", "Habits", "Morning", "Night", "Courage", "Consistency", "Ego"];
 const STRUCTURES: Idea['structure'][] = ['ALPHA_4_PHASE', 'SIGMA_OVERLAY', 'LIST_7', 'CINEMATIC_QUOTE', 'PAIN_AGITATE'];
 
 const VISUAL_TEMPLATES: Record<Idea['structure'], string[]> = {
-  ALPHA_4_PHASE: [
-    "SCENE 1: Empty bed 11:00 AM - SCENE 2: Empty wallet - SCENE 3: Bathroom mirror - SCENE 4: You in 5 years",
-    "SCENE 1: Clock 4:59 AM - SCENE 2: Empty gym - SCENE 3: Others sleeping - SCENE 4: Your transformation",
-    "SCENE 1: Closed door - SCENE 2: Lonely road - SCENE 3: Dark forest / wolf - SCENE 4: Mountain peak",
-  ],
-  SIGMA_OVERLAY: [
-    "Dark room, smoke, bold text overlay: HOOK in center, fast cuts 0.3s, bass boosted",
-    "Black & white city at night, glitch effect on hook, zoom in on face",
-    "POV: You at 5:00 AM, others partying - split screen",
-  ],
-  LIST_7: [
-    "7 things you must quit to get rich - list 1-7 with icons - carousel",
-    "7 lies your brain tells you - IG carousel 7 slides",
-    "7 habits destroying your future",
-  ],
-  CINEMATIC_QUOTE: [
-    "Black background, silver SF letters, hourglass center, quote bottom, film grain",
-    "Wolves / lions / mountains, epic voiceover, minimal text center",
-    "Ticking clock, sand in hourglass falling, blue glow",
-  ],
-  PAIN_AGITATE: [
-    "Pain: Show problem (empty bank) -> Agitate: What you lose -> Solution: Discipline",
-    "Hook: Mirror -> Agitate: What do you see? -> Solution: Disappear for 6 months",
-  ],
+  ALPHA_4_PHASE: ["4 scenes: Empty bed 11:00 AM / Empty wallet / Bathroom mirror / You in 5 years"],
+  SIGMA_OVERLAY: ["Dark room, smoke, bold text overlay, fast cuts 0.3s"],
+  LIST_7: ["7 things you must quit to get rich - carousel 7 slides"],
+  CINEMATIC_QUOTE: ["Black bg, silver SF letters, hourglass center, film grain"],
+  PAIN_AGITATE: ["Pain -> Agitate -> Solution"],
 };
 
 const CAPTION_TEMPLATES = [
-  (hook: string) => `${hook}\n\nYou don't need motivation.\nYou need a system.\n\n1. Wake up.\n2. Do the hard thing.\n3. Repeat.\n\nThe rest is noise.\n\nSave this. You'll come back at 11:47 PM.`,
+  (hook: string) => `${hook}\n\nYou don't need motivation.\nYou need a system.\n\n1. Wake up.\n2. Do the hard thing.\n3. Repeat.\n\nSave this. You'll come back at 11:47 PM.`,
   (hook: string) => `${hook}\n\nYour future self is looking at you through the mirror.\nWhat will you tell him?\n\nDiscipline > Motivation.\nSilence > Excuses.\nWork > Talking.\n\nDisappear for 6 months and come back unrecognizable.`,
   (hook: string) => `${hook}\n\nComfort kills more dreams than failure.\n\nIf you're comfortable, you're losing.\n\nChoose the pain of discipline today,\nso you don't feel the pain of regret tomorrow.`,
-  (hook: string) => `${hook}\n\nNo one is coming to save you.\n\nNot your parents.\nNot your friends.\nNot motivation.\n\nIt's just you vs you.\nEvery single day.`,
 ];
+
+// --- IMAGE GENERATION CORE - OFFLINE CANVAS ---
+async function loadLogo(): Promise<HTMLImageElement | null> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.src = '/logo.png';
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+  });
+}
+
+function wrapText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, maxWidth: number, lineHeight: number) {
+  const words = text.split(' ');
+  let line = '';
+  let currentY = y;
+  for (let n = 0; n < words.length; n++) {
+    const testLine = line + words[n] + ' ';
+    const metrics = ctx.measureText(testLine);
+    if (metrics.width > maxWidth && n > 0) {
+      ctx.fillText(line.trim(), x, currentY);
+      line = words[n] + ' ';
+      currentY += lineHeight;
+    } else {
+      line = testLine;
+    }
+  }
+  ctx.fillText(line.trim(), x, currentY);
+  return currentY + lineHeight;
+}
+
+async function generateSingleImage(hook: string, structure: Idea['structure'], slideIndex: number = 0, totalSlides: number = 1): Promise<string> {
+  const isReel = structure === 'SIGMA_OVERLAY' || structure === 'CINEMATIC_QUOTE';
+  const W = 1080;
+  const H = isReel ? 1920 : 1350;
+  
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d')!;
+  
+  // Background - dark gradient
+  const bgGrad = ctx.createRadialGradient(W/2, H/2, 0, W/2, H/2, W*0.8);
+  bgGrad.addColorStop(0, '#1C1C1F');
+  bgGrad.addColorStop(0.5, '#121214');
+  bgGrad.addColorStop(1, '#0A0A0B');
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, W, H);
+  
+  // Subtle vignette
+  const vignette = ctx.createRadialGradient(W/2, H/2, H*0.3, W/2, H/2, H);
+  vignette.addColorStop(0, 'rgba(0,0,0,0)');
+  vignette.addColorStop(1, 'rgba(0,0,0,0.6)');
+  ctx.fillStyle = vignette;
+  ctx.fillRect(0, 0, W, H);
+  
+  // Top bar - SF branding
+  ctx.fillStyle = '#18181B';
+  ctx.fillRect(0, 0, W, 80);
+  ctx.fillStyle = '#27272A';
+  ctx.fillRect(0, 79, W, 1);
+  
+  ctx.fillStyle = '#F5F5F3';
+  ctx.font = 'bold 22px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('SF • VOID', 40, 50);
+  ctx.fillStyle = '#71717A';
+  ctx.font = '12px monospace';
+  ctx.fillText(`${structure} • ${slideIndex+1}/${totalSlides}`, W - 300, 50);
+  
+  // Logo - center top
+  const logo = await loadLogo();
+  if (logo) {
+    const logoSize = 220;
+    const logoX = (W - logoSize) / 2;
+    const logoY = isReel ? 280 : 200;
+    ctx.globalAlpha = 0.95;
+    ctx.drawImage(logo, logoX, logoY, logoSize, logoSize);
+    ctx.globalAlpha = 1;
+    
+    // Glow effect behind logo
+    ctx.shadowColor = '#00D9FF';
+    ctx.shadowBlur = 20;
+    ctx.beginPath();
+    ctx.arc(W/2, logoY + logoSize/2, 5, 0, Math.PI*2);
+    ctx.fillStyle = '#00D9FF';
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+  
+  // Main hook text - centered
+  const textY = isReel ? 700 : 550;
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = 'bold 84px Inter, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.shadowColor = 'rgba(0,0,0,0.8)';
+  ctx.shadowBlur = 20;
+  ctx.shadowOffsetY = 4;
+  
+  // Auto adjust font size based on length
+  let fontSize = 84;
+  if (hook.length > 30) fontSize = 68;
+  if (hook.length > 50) fontSize = 54;
+  ctx.font = `bold ${fontSize}px Inter, sans-serif`;
+  
+  const maxWidth = W - 120;
+  wrapText(ctx, hook.toUpperCase(), W/2, textY, maxWidth, fontSize * 1.15);
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetY = 0;
+  
+  // Bottom accent line
+  ctx.fillStyle = '#00D9FF';
+  ctx.fillRect(W/2 - 40, H - 180, 80, 3);
+  
+  // Footer - TIME IS RUNNING
+  ctx.fillStyle = '#71717A';
+  ctx.font = '11px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('TIME IS RUNNING • VOID PROTOCOL', W/2, H - 120);
+  ctx.fillStyle = '#3F3F46';
+  ctx.font = '10px monospace';
+  ctx.fillText('OFFLINE • FREE • READY TO POST', W/2, H - 90);
+  
+  // For LIST_7 structure, add number
+  if (structure === 'LIST_7') {
+    ctx.fillStyle = 'rgba(255,255,255,0.04)';
+    ctx.font = 'bold 400px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`${slideIndex+1}`, W/2, H/2 + 100);
+    // Bring hook back on top
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = `bold ${fontSize}px Inter, sans-serif`;
+    ctx.shadowColor = 'rgba(0,0,0,0.8)';
+    ctx.shadowBlur = 20;
+    wrapText(ctx, hook.toUpperCase(), W/2, textY, maxWidth, fontSize * 1.15);
+    ctx.shadowBlur = 0;
+  }
+  
+  return canvas.toDataURL('image/jpeg', 0.92);
+}
+
+async function generateImagesForIdea(idea: Idea): Promise<string[]> {
+  let count = 1;
+  if (idea.structure === 'ALPHA_4_PHASE') count = 4;
+  if (idea.structure === 'LIST_7') count = 7;
+  if (idea.structure === 'SIGMA_OVERLAY') count = 1;
+  
+  const images: string[] = [];
+  const baseHooks = idea.structure === 'ALPHA_4_PHASE' 
+    ? ["EMPTY BED • 11 AM", "EMPTY WALLET", "MIRROR • NO FILTER", `FUTURE YOU • ${idea.hook}`]
+    : idea.structure === 'LIST_7'
+    ? Array.from({length: 7}, (_, i) => `${i+1}. ${idea.hook} - Part ${i+1}`)
+    : [idea.hook];
+  
+  for (let i = 0; i < count; i++) {
+    const text = baseHooks[i] || idea.hook;
+    const img = await generateSingleImage(text, idea.structure, i, count);
+    images.push(img);
+  }
+  return images;
+}
 
 function generateIdea(index: number, brand: BrandKit): Idea {
   const hook = HOOKS_POOL[Math.floor(Math.random() * HOOKS_POOL.length)];
   const angle = ANGLES[Math.floor(Math.random() * ANGLES.length)];
   const structure = STRUCTURES[Math.floor(Math.random() * STRUCTURES.length)];
-  const visuals = VISUAL_TEMPLATES[structure];
-  const visualPrompt = visuals[Math.floor(Math.random() * visuals.length)];
+  const visualPrompt = VISUAL_TEMPLATES[structure][0];
   const captionGen = CAPTION_TEMPLATES[Math.floor(Math.random() * CAPTION_TEMPLATES.length)];
   const source = brand.referenceProfiles[Math.floor(Math.random() * brand.referenceProfiles.length)] || '@alphascript06';
   return {
@@ -107,9 +229,10 @@ function generateIdea(index: number, brand: BrandKit): Idea {
     structure,
     visualPrompt,
     caption: captionGen(hook),
-    hashtags: ['#mindset', '#discipline', '#darkmotivation', '#sigma', '#grind', '#motivation', `#${angle.toLowerCase()}`],
+    hashtags: ['#mindset', '#discipline', '#darkmotivation', '#sigma', '#grind', `#${angle.toLowerCase()}`],
     source: `inspired by ${source} • ${structure}`,
     score: Math.floor(70 + Math.random() * 28),
+    generatedImages: [],
   };
 }
 
@@ -132,21 +255,21 @@ export default function App() {
   const [analysisInput, setAnalysisInput] = useState('');
   const [analysisResult, setAnalysisResult] = useState<string>('');
   const [showBrandKit, setShowBrandKit] = useState(false);
+  const [generatingId, setGeneratingId] = useState<string | null>(null);
 
   const [brandKit, setBrandKit] = useState<BrandKit>({
     niche: 'mindset, motivation, discipline, dark motivation',
     tone: 'brutal',
-    colors: { bg: '#0F0F11', card: '#18181B', accent: '#00D9FF' },
     referenceProfiles: ['@alphascript06', '@mlliboy', '@millionaire_mentality_7', '@bymgc'],
-    favoriteHooks: ['No one is coming.', 'Time is running.'],
   });
 
   useEffect(() => {
-    const stored = localStorage.getItem('void_v3_data');
+    const stored = localStorage.getItem('void_v4_data');
     if (stored) {
       try {
         const d = JSON.parse(stored);
-        setPosts(d.posts || []);
+        // Don't load images from localStorage (too big) - just posts metadata
+        setPosts((d.posts || []).map((p: Idea) => ({ ...p, generatedImages: [] })));
         if (d.brandKit) setBrandKit(d.brandKit);
       } catch {}
     }
@@ -155,7 +278,9 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('void_v3_data', JSON.stringify({ posts, brandKit }));
+    // Save without images to avoid quota
+    const toSave = { posts: posts.map(p => ({ ...p, generatedImages: [] })), brandKit };
+    localStorage.setItem('void_v4_data', JSON.stringify(toSave));
   }, [posts, brandKit]);
 
   const handleReplicate = () => {
@@ -175,7 +300,36 @@ export default function App() {
     else setTrendy(prev => [...more, ...prev]);
   };
 
-  const saveToPosts = (idea: Idea) => setPosts(prev => [idea, ...prev]);
+  const saveToPosts = (idea: Idea) => {
+    if (posts.find(p => p.id === idea.id)) return;
+    setPosts(prev => [{ ...idea, generatedImages: [] }, ...prev]);
+  };
+
+  const handleGenerateImage = async (idea: Idea, isInPosts: boolean) => {
+    setGeneratingId(idea.id);
+    try {
+      const images = await generateImagesForIdea(idea);
+      if (isInPosts) {
+        setPosts(prev => prev.map(p => p.id === idea.id ? { ...p, generatedImages: images } : p));
+      } else {
+        // For replicated / infinite, update that specific list
+        setIdeas(prev => prev.map(p => p.id === idea.id ? { ...p, generatedImages: images } : p));
+        setTrendy(prev => prev.map(p => p.id === idea.id ? { ...p, generatedImages: images } : p));
+        if (replicated && replicated.id === idea.id) {
+          setReplicated({ ...replicated, generatedImages: images });
+        }
+        // Also save to my posts with images
+        setPosts(prev => {
+          const exists = prev.find(p => p.id === idea.id);
+          if (exists) return prev.map(p => p.id === idea.id ? { ...p, generatedImages: images } : p);
+          return [{ ...idea, generatedImages: images }, ...prev];
+        });
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    setGeneratingId(null);
+  };
 
   const handleAnalysis = () => {
     if (!analysisInput) return;
@@ -185,51 +339,88 @@ export default function App() {
     if (lower.includes('motivation') && !lower.includes('pain') && !lower.includes('discipline')) issues.push('❌ Hook too soft - missing pain / discipline. In dark motivation you must hurt in 0-2s.');
     if (analysisInput.length < 40) issues.push('❌ Hook too short - you have 1.2s to stop the scroll on TikTok.');
     if (!lower.includes('you') && !lower.includes('your')) issues.push('⚠️ No personal callout - add "You" / "Your" - +30% watch time.');
-    if (lower.includes('maybe') || lower.includes('i think') || lower.includes('try')) issues.push('❌ Weak language - sigma doesn\'t say "maybe". Use commands: "Do", "Disappear", "Stop".');
-    if (!analysisInput.includes('#')) issues.push('⚠️ No niche hashtags - add 2-3 small ones #discipline #timeisrunning instead of only #motivation');
-    
-    if (issues.length === 0) {
-      result += '✅ Strong, personal, brutal hook - keep it.\n';
-      result += '✅ Structure OK for dark motivation.\n';
-      result += '\nSuggestion: Add auto-caption:\n"Save this. You\'ll be back at 11:47 PM."\nIncreases saves.\n';
-    } else {
-      result += issues.join('\n\n') + '\n';
-    }
-    result += `\n\nRECOMMENDED TEMPLATE:\nUse ${brandKit.tone === 'brutal' ? 'PAIN_AGITATE' : 'ALPHA_4_PHASE'} + Brand Kit: ${brandKit.niche}\n\nFixed version:\n"No one is coming. ${analysisInput.slice(0,30)} - it's your fault. Disappear for 6 months."`;
+    if (lower.includes('maybe') || lower.includes('i think')) issues.push('❌ Weak language - sigma doesn\'t say "maybe". Use commands: "Do", "Disappear", "Stop".');
+    if (issues.length === 0) result += '✅ Strong, personal, brutal hook - keep it.\n\nSuggestion: Add "Save this. You\'ll be back at 11:47 PM." Increases saves.\n';
+    else result += issues.join('\n\n') + '\n';
+    result += `\nFixed version:\n"No one is coming. ${analysisInput.slice(0,30)} - it's your fault. Disappear for 6 months."`;
     setAnalysisResult(result);
   };
 
   const tabs = [
-    { label: 'REPLICATOR', icon: Copy, desc: 'Link -> 1:1 Template' },
+    { label: 'REPLICATOR', icon: Copy, desc: 'Link -> Image' },
     { label: 'INFINITE', icon: InfinityIcon, desc: 'Infinite Ideas' },
     { label: 'MY POSTS', icon: Layers, desc: `${posts.length} ready` },
-    { label: 'TRENDS', icon: Radio, desc: 'What\'s viral now' },
+    { label: 'TRENDS', icon: Radio, desc: "What's viral" },
     { label: 'VAULT', icon: Box, desc: 'Graphics' },
     { label: 'ANALYTICS', icon: BarChart3, desc: 'Why it flopped' },
     { label: 'HOOK LAB', icon: Brain, desc: 'Test hooks' },
   ];
 
-  const IdeaCard = ({ idea, onSave }: { idea: Idea; onSave?: () => void }) => (
-    <div className="p-4 bg-[#18181B] border border-[#27272A] rounded-xl space-y-3 hover:border-[#3F3F46] transition group">
-      <div className="flex justify-between items-start gap-2">
-        <div className="text-[11px] font-mono text-[#71717A] tracking-wider">{idea.structure} • {idea.angle} • {idea.score}% VIRAL</div>
-        <div className="text-[10px] px-2 py-0.5 rounded bg-[#27272A] border border-[#3F3F46] text-[#A1A1AA]">{idea.source}</div>
+  const IdeaCard = ({ idea, isInMyPosts = false }: { idea: Idea; isInMyPosts?: boolean }) => {
+    const hasImages = idea.generatedImages && idea.generatedImages.length > 0;
+    return (
+      <div className="p-4 bg-[#18181B] border border-[#27272A] rounded-xl space-y-3 hover:border-[#3F3F46] transition group">
+        <div className="flex justify-between items-start gap-2">
+          <div className="text-[11px] font-mono text-[#71717A] tracking-wider">{idea.structure} • {idea.angle} • {idea.score}% VIRAL</div>
+          <div className="text-[10px] px-2 py-0.5 rounded bg-[#27272A] border border-[#3F3F46] text-[#A1A1AA] truncate max-w-[140px]">{idea.source}</div>
+        </div>
+        
+        <div className="text-[15px] font-bold leading-tight text-white">"{idea.hook}"</div>
+        
+        {/* GENERATED IMAGES PREVIEW */}
+        {hasImages && (
+          <div className={`grid ${idea.generatedImages!.length > 1 ? 'grid-cols-2' : 'grid-cols-1'} gap-2`}>
+            {idea.generatedImages!.map((img, idx) => (
+              <div key={idx} className="relative group/img">
+                <img src={img} alt={`Generated ${idx+1}`} className="w-full rounded-lg border border-[#27272A] object-cover" />
+                <a href={img} download={`${idea.id}_${idx+1}.jpg`} className="absolute bottom-2 right-2 px-2 py-1 bg-black/80 border border-white/20 rounded-lg text-[10px] font-mono text-white backdrop-blur opacity-0 group-hover/img:opacity-100 transition">DOWNLOAD</a>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="text-[11px] font-mono text-[#A1A1AA] bg-[#0A0A0B] border border-[#27272A] p-2.5 rounded-lg">{idea.visualPrompt}</div>
+        <div className="text-[12px] text-[#D4D4D8] whitespace-pre-wrap leading-relaxed line-clamp-3">{idea.caption.slice(0, 180)}...</div>
+        
+        <div className="flex gap-2 pt-1">
+          {!isInMyPosts ? (
+            <>
+              <button onClick={() => saveToPosts(idea)} className="flex-1 py-2.5 bg-[#27272A] border border-[#3F3F46] text-white text-[11px] font-bold uppercase rounded-xl hover:bg-[#3F3F46] transition flex items-center justify-center gap-1.5"><Layers className="w-3.5 h-3.5" /> Save to My Posts</button>
+              <button 
+                onClick={() => handleGenerateImage(idea, false)}
+                disabled={generatingId === idea.id}
+                className="flex-1 py-2.5 bg-white text-black text-[11px] font-bold uppercase rounded-xl hover:bg-[#F5F5F3] transition flex items-center justify-center gap-1.5 disabled:opacity-50"
+              >
+                {generatingId === idea.id ? 'Generating...' : <><ImageIcon className="w-3.5 h-3.5" /> Generate Ready Image</>}
+              </button>
+            </>
+          ) : (
+            <>
+              <button 
+                onClick={() => handleGenerateImage(idea, true)}
+                disabled={generatingId === idea.id}
+                className="flex-1 py-2.5 bg-white text-black text-[11px] font-bold uppercase rounded-xl hover:bg-[#F5F5F3] transition flex items-center justify-center gap-1.5 disabled:opacity-50"
+              >
+                {generatingId === idea.id ? 'Generating...' : hasImages ? <><Check className="w-3.5 h-3.5" /> Regenerate Image</> : <><Film className="w-3.5 h-3.5" /> Generate {idea.structure === 'ALPHA_4_PHASE' ? '4 Images' : idea.structure === 'LIST_7' ? '7 Slides' : 'Image'}</>}
+              </button>
+              <button onClick={() => {
+                if (hasImages) {
+                  idea.generatedImages!.forEach((img, idx) => {
+                    const a = document.createElement('a'); a.href = img; a.download = `${idea.id}_${idx+1}.jpg`; a.click();
+                  });
+                }
+              }} disabled={!hasImages} className="px-3 py-2.5 bg-[#27272A] border border-[#3F3F46] text-white rounded-xl text-[11px] disabled:opacity-30"><Download className="w-3.5 h-3.5" /></button>
+              <button onClick={() => setPosts(prev => prev.filter(p => p.id !== idea.id))} className="px-3 py-2.5 bg-[#27272A] border border-[#3F3F46] text-[#71717A] hover:text-white rounded-xl text-[11px]"><Trash2 className="w-3.5 h-3.5" /></button>
+            </>
+          )}
+        </div>
+
+        <div className="flex gap-2">
+          <button onClick={() => navigator.clipboard.writeText(idea.caption + '\n\n' + idea.hashtags.join(' '))} className="flex-1 py-1.5 bg-[#0A0A0B] border border-[#27272A] rounded-lg text-[10px] font-mono text-[#71717A] hover:text-white flex items-center justify-center gap-1"><Copy className="w-3 h-3" /> Copy Caption</button>
+        </div>
       </div>
-      <div className="text-[15px] font-bold leading-tight text-white">"{idea.hook}"</div>
-      <div className="text-[11px] font-mono text-[#A1A1AA] bg-[#0A0A0B] border border-[#27272A] p-2.5 rounded-lg">{idea.visualPrompt}</div>
-      <div className="text-[12px] text-[#D4D4D8] whitespace-pre-wrap leading-relaxed">{idea.caption.slice(0, 180)}...</div>
-      <div className="flex flex-wrap gap-1.5">{idea.hashtags.slice(0,4).map(h => <span key={h} className="text-[10px] text-[#00D9FF] bg-[#00D9FF]/10 border border-[#00D9FF]/20 px-1.5 py-0.5 rounded">{h}</span>)}</div>
-      <div className="flex gap-2 pt-1">
-        <button onClick={onSave} className="flex-1 py-2 bg-white text-black text-[11px] font-bold uppercase rounded-lg hover:bg-[#F5F5F3] transition">Save to My Posts</button>
-        <button onClick={() => { navigator.clipboard.writeText(idea.caption); }} className="px-3 py-2 bg-[#27272A] border border-[#3F3F46] text-white rounded-lg text-[11px]"><Copy className="w-3.5 h-3.5" /></button>
-        <button onClick={() => {
-          const blob = new Blob([`HOOK: ${idea.hook}\n\nVISUAL: ${idea.visualPrompt}\n\nCAPTION:\n${idea.caption}\n\n${idea.hashtags.join(' ')}`], { type: 'text/plain' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a'); a.href = url; a.download = `${idea.id}.txt`; a.click();
-        }} className="px-3 py-2 bg-[#27272A] border border-[#3F3F46] text-white rounded-lg text-[11px]"><Download className="w-3.5 h-3.5" /></button>
-      </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="min-h-screen bg-[#0F0F11] text-[#F5F5F3] selection:bg-[#00D9FF]/30">
@@ -238,13 +429,12 @@ export default function App() {
           <div className="flex items-center gap-3">
             <img src="/logo.png" alt="SF" className="w-9 h-9 rounded-full object-cover border border-[#27272A] shadow-lg" />
             <div>
-              <div className="text-[13px] font-bold tracking-[0.3em] flex items-center gap-2">SF • VOID • v3.1 EN <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#00D9FF] text-black font-mono">MINDSET</span></div>
-              <div className="text-[9px] font-mono text-[#A1A1AA] tracking-widest">{brandKit.niche.toUpperCase()} • {brandKit.tone.toUpperCase()} • OFFLINE</div>
+              <div className="text-[13px] font-bold tracking-[0.3em] flex items-center gap-2">SF • VOID • v4.0 IMAGE <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#00D9FF] text-black font-mono">READY TO POST</span></div>
+              <div className="text-[9px] font-mono text-[#A1A1AA] tracking-widest">{brandKit.niche.toUpperCase()} • GENERATES IMAGES, NOT JUST TEXT</div>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={() => setShowBrandKit(true)} className="text-[10px] font-mono border border-[#27272A] bg-[#18181B] px-2.5 py-1.5 rounded-lg hover:bg-[#27272A] flex items-center gap-1.5"><Settings2 className="w-3 h-3" /> BRAND KIT</button>
-            <div className="text-[10px] font-mono text-[#00D9FF] border border-[#00D9FF]/30 px-2 py-1 rounded bg-[#18181B] hidden md:block">INFINITE • FREE • ENGLISH</div>
           </div>
         </div>
       </div>
@@ -259,7 +449,7 @@ export default function App() {
                 <Icon className="w-3.5 h-3.5" />
                 <div className="text-left leading-none">
                   <div>{tab.label}</div>
-                  <div className="text-[8px] opacity-60 font-normal normal-case tracking-normal">{tab.desc}</div>
+                  <div className="text-[8px] opacity-60 font-normal normal-case">{tab.desc}</div>
                 </div>
               </button>
             );
@@ -272,46 +462,48 @@ export default function App() {
               <div className="p-5 bg-[#18181B] border border-[#27272A] rounded-xl flex gap-3 items-center">
                 <img src="/logo.png" className="w-12 h-12 rounded-full border border-[#3F3F46]" alt="" />
                 <div>
-                  <h2 className="text-[13px] font-bold tracking-[0.2em]">REPLICATOR 1:1 // DARK MOTIVATION</h2>
-                  <p className="text-[11px] font-mono text-[#A1A1AA]">Paste link from @alphascript06 / @mlliboy / @millionaire_mentality_7 / @bymgc — get ready template in your SF style</p>
-                  <p className="text-[10px] font-mono text-[#71717A] mt-1">Auto-detects style: 4-phase / sigma overlay / 7-list / cinematic quote</p>
+                  <h2 className="text-[13px] font-bold tracking-[0.2em]">REPLICATOR 1:1 → READY IMAGE</h2>
+                  <p className="text-[11px] font-mono text-[#A1A1AA]">Paste link from @alphascript06 / @mlliboy / @millionaire_mentality_7 / @bymgc — get ready JPG to post, not just text</p>
                 </div>
               </div>
               <div className="p-4 bg-[#18181B] border border-[#27272A] rounded-xl flex gap-2">
                 <input value={replicatorUrl} onChange={e => setReplicatorUrl(e.target.value)} placeholder="https://www.tiktok.com/@alphascript06/video/..." className="flex-1 px-3 py-3 bg-[#0A0A0B] border border-[#27272A] rounded-xl text-sm text-white outline-none font-mono focus:border-[#00D9FF]" />
-                <button onClick={handleReplicate} className="px-6 py-3 bg-white text-black text-xs font-bold uppercase rounded-xl flex items-center gap-2"><Zap className="w-3.5 h-3.5" /> Replicate Structure</button>
+                <button onClick={handleReplicate} className="px-6 py-3 bg-white text-black text-xs font-bold uppercase rounded-xl flex items-center gap-2"><Zap className="w-3.5 h-3.5" /> Replicate</button>
               </div>
-              {replicated && (
-                <div className="space-y-3 animate-in fade-in">
-                  <div className="text-[11px] font-mono text-[#00D9FF]">DETECTED STYLE: {replicated.structure} • 96% MATCH • READY TO EDIT</div>
-                  <IdeaCard idea={replicated} onSave={() => saveToPosts(replicated)} />
-                </div>
-              )}
+              {replicated && <IdeaCard idea={replicated} />}
             </div>
           )}
 
           {activeTab === 1 && (
             <div className="space-y-4">
               <div className="flex justify-between items-center">
-                <h2 className="text-[13px] font-bold tracking-widest flex items-center gap-2"><InfinityIcon className="w-4 h-4" /> INFINITE IDEAS • {brandKit.niche}</h2>
-                <button onClick={() => addMoreIdeas('ideas')} className="px-4 py-2 bg-[#18181B] border border-[#27272A] rounded-xl text-[11px] font-mono hover:bg-[#27272A]">+20 more (infinite)</button>
+                <h2 className="text-[13px] font-bold tracking-widest flex items-center gap-2"><InfinityIcon className="w-4 h-4" /> INFINITE IDEAS • Click "Generate Ready Image" = JPG ready to post</h2>
+                <button onClick={() => addMoreIdeas('ideas')} className="px-4 py-2 bg-[#18181B] border border-[#27272A] rounded-xl text-[11px] font-mono hover:bg-[#27272A]">+20 more</button>
               </div>
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {ideas.map(i => <IdeaCard key={i.id} idea={i} onSave={() => saveToPosts(i)} />)}
+                {ideas.map(i => <IdeaCard key={i.id} idea={i} />)}
               </div>
-              <button onClick={() => addMoreIdeas('ideas')} className="w-full py-3 bg-[#18181B] border border-dashed border-[#3F3F46] rounded-xl text-[12px] font-mono text-[#A1A1AA] hover:text-white">Generate next 20 — never ends</button>
             </div>
           )}
 
           {activeTab === 2 && (
             <div className="space-y-4">
               <div className="flex justify-between items-center">
-                <h2 className="text-[13px] font-bold tracking-widest">MY POSTS • {posts.length} ready to download</h2>
-                <button onClick={() => { setPosts([]); }} className="text-[11px] font-mono text-[#71717A] hover:text-white flex items-center gap-1"><Trash2 className="w-3 h-3" /> Clear</button>
+                <h2 className="text-[13px] font-bold tracking-widest">MY POSTS • {posts.length} • Ready JPGs to send to phone</h2>
+                <div className="flex gap-2">
+                  <button onClick={() => {
+                    posts.forEach(p => {
+                      if (p.generatedImages) p.generatedImages.forEach((img, idx) => {
+                        const a = document.createElement('a'); a.href = img; a.download = `${p.id}_${idx+1}.jpg`; a.click();
+                      });
+                    });
+                  }} className="px-3 py-1.5 bg-[#18181B] border border-[#27272A] rounded-lg text-[11px] font-mono flex items-center gap-1"><Download className="w-3 h-3" /> Download All Images</button>
+                  <button onClick={() => setPosts([])} className="text-[11px] font-mono text-[#71717A] hover:text-white flex items-center gap-1"><Trash2 className="w-3 h-3" /> Clear</button>
+                </div>
               </div>
-              {posts.length === 0 ? <div className="p-12 text-center border border-dashed border-[#27272A] rounded-xl text-[#71717A] font-mono text-sm">No saved yet. Go to INFINITE and click "Save".</div> : (
+              {posts.length === 0 ? <div className="p-12 text-center border border-dashed border-[#27272A] rounded-xl text-[#71717A] font-mono text-sm">No saved yet. Go to INFINITE and click "Generate Ready Image" - it auto-saves here with JPG.</div> : (
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {posts.map(p => <IdeaCard key={p.id} idea={p} onSave={() => {}} />)}
+                  {posts.map(p => <IdeaCard key={p.id} idea={p} isInMyPosts={true} />)}
                 </div>
               )}
             </div>
@@ -319,53 +511,33 @@ export default function App() {
 
           {activeTab === 3 && (
             <div className="space-y-4">
-              <div className="p-4 bg-[#18181B] border border-[#27272A] rounded-xl">
-                <div className="text-[12px] font-bold">TRENDS NOW • {new Date().toLocaleDateString('en-US')} • Dark Motivation</div>
-                <div className="text-[11px] font-mono text-[#A1A1AA] mt-1">Based on @alphascript06 / @mlliboy / @bymgc — structures with most saves right now. Generated offline, no API, free.</div>
-              </div>
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {trendy.map(t => <IdeaCard key={t.id} idea={t} onSave={() => saveToPosts(t)} />)}
+                {trendy.map(t => <IdeaCard key={t.id} idea={t} />)}
               </div>
-              <button onClick={() => addMoreIdeas('trendy')} className="w-full py-3 bg-[#18181B] border border-dashed border-[#3F3F46] rounded-xl text-[12px] font-mono">+20 more trends</button>
             </div>
           )}
 
-          {activeTab === 4 && (
-            <div className="p-8 border border-dashed border-[#27272A] rounded-xl text-center space-y-3">
-              <Box className="w-8 h-8 mx-auto text-[#71717A]" />
-              <div className="font-bold tracking-widest text-[13px]">VAULT • GRAPHICS</div>
-              <div className="text-[11px] font-mono text-[#A1A1AA]">Your old Vault still works. Drop your generated backgrounds, wolves, clocks, hourglasses here. All local.</div>
-            </div>
-          )}
+          {activeTab === 4 && <div className="p-8 border border-dashed border-[#27272A] rounded-xl text-center"><Box className="w-8 h-8 mx-auto text-[#71717A]" /><div className="font-bold tracking-widest text-[13px] mt-2">VAULT • Your generated JPGs are ready to post - no Canva needed</div></div>}
 
           {activeTab === 5 && (
             <div className="space-y-4">
               <div className="p-5 bg-[#18181B] border border-[#27272A] rounded-xl space-y-3">
-                <h2 className="text-[13px] font-bold tracking-widest flex items-center gap-2"><BarChart3 className="w-4 h-4" /> PROFILE ANALYSIS • WHY IT FLOPPED</h2>
-                <p className="text-[11px] font-mono text-[#A1A1AA]">Paste your reel description, hook, or stats: "Video 1200 views, 40% retention". Get brutal feedback.</p>
-                <textarea value={analysisInput} onChange={e => setAnalysisInput(e.target.value)} placeholder="Paste here: link, reel description, or e.g. 'Discipline reel, 800 views, people drop after 2s'" className="w-full h-28 p-3 bg-[#0A0A0B] border border-[#27272A] rounded-xl text-sm outline-none font-mono" />
-                <button onClick={handleAnalysis} className="px-6 py-2.5 bg-white text-black text-xs font-bold uppercase rounded-xl flex items-center gap-2"><Search className="w-3.5 h-3.5" /> Analyze Why It Stuck</button>
+                <h2 className="text-[13px] font-bold tracking-widest flex items-center gap-2"><BarChart3 className="w-4 h-4" /> WHY IT FLOPPED</h2>
+                <textarea value={analysisInput} onChange={e => setAnalysisInput(e.target.value)} placeholder="Paste description or stats" className="w-full h-28 p-3 bg-[#0A0A0B] border border-[#27272A] rounded-xl text-sm outline-none font-mono" />
+                <button onClick={handleAnalysis} className="px-6 py-2.5 bg-white text-black text-xs font-bold uppercase rounded-xl flex items-center gap-2"><Search className="w-3.5 h-3.5" /> Analyze</button>
               </div>
-              {analysisResult && (
-                <pre className="p-4 bg-[#0A0A0B] border border-[#00D9FF]/30 rounded-xl text-[12px] font-mono whitespace-pre-wrap leading-relaxed text-[#D4D4D8]">{analysisResult}</pre>
-              )}
+              {analysisResult && <pre className="p-4 bg-[#0A0A0B] border border-[#00D9FF]/30 rounded-xl text-[12px] font-mono whitespace-pre-wrap">{analysisResult}</pre>}
             </div>
           )}
 
           {activeTab === 6 && (
-            <div className="space-y-3">
-              <div className="p-4 bg-[#18181B] border border-[#27272A] rounded-xl">
-                <div className="font-bold text-[13px] tracking-widest">HOOK LAB • TEST 20 HOOKS AT ONCE</div>
-                <div className="text-[11px] font-mono text-[#A1A1AA] mt-1">Topic: e.g. "morning routine" — get 20 hooks in style of your 4 reference profiles.</div>
-              </div>
-              <div className="grid md:grid-cols-2 gap-2">
-                {HOOKS_POOL.slice(0, 20).map((h, i) => (
-                  <div key={i} className="p-3 bg-[#18181B] border border-[#27272A] rounded-xl flex justify-between items-center">
-                    <span className="text-[12px] font-bold">"{h}"</span>
-                    <button onClick={() => navigator.clipboard.writeText(h)} className="p-1.5 bg-[#27272A] rounded-lg"><Copy className="w-3 h-3" /></button>
-                  </div>
-                ))}
-              </div>
+            <div className="grid md:grid-cols-2 gap-2">
+              {HOOKS_POOL.slice(0, 20).map((h, i) => (
+                <div key={i} className="p-3 bg-[#18181B] border border-[#27272A] rounded-xl flex justify-between items-center">
+                  <span className="text-[12px] font-bold">"{h}"</span>
+                  <button onClick={() => navigator.clipboard.writeText(h)} className="p-1.5 bg-[#27272A] rounded-lg"><Copy className="w-3 h-3" /></button>
+                </div>
+              ))}
             </div>
           )}
         </main>
@@ -375,22 +547,12 @@ export default function App() {
         <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur flex items-center justify-center p-4">
           <div className="w-full max-w-lg bg-[#18181B] border border-[#27272A] rounded-2xl p-6 space-y-4">
             <div className="flex justify-between items-center">
-              <h3 className="font-bold tracking-widest text-[13px]">BRAND KIT • CONSISTENCY</h3>
+              <h3 className="font-bold tracking-widest text-[13px]">BRAND KIT</h3>
               <button onClick={() => setShowBrandKit(false)} className="text-[#71717A] hover:text-white">✕</button>
             </div>
             <div className="space-y-3">
-              <label className="text-[11px] font-mono text-[#A1A1AA]">Niche</label>
               <input value={brandKit.niche} onChange={e => setBrandKit({ ...brandKit, niche: e.target.value })} className="w-full p-2.5 bg-[#0A0A0B] border border-[#27272A] rounded-xl text-sm" />
-              <label className="text-[11px] font-mono text-[#A1A1AA]">Tone</label>
-              <div className="flex gap-2">
-                {(['brutal', 'cinematic', 'minimal', 'sigma'] as const).map(t => (
-                  <button key={t} onClick={() => setBrandKit({ ...brandKit, tone: t })} className={`px-3 py-1.5 rounded-lg text-[11px] font-mono border ${brandKit.tone === t ? 'bg-white text-black' : 'bg-[#0A0A0B] border-[#27272A] text-[#A1A1AA]'}`}>{t}</button>
-                ))}
-              </div>
-              <label className="text-[11px] font-mono text-[#A1A1AA]">Reference profiles (1 per line)</label>
-              <textarea value={brandKit.referenceProfiles.join('\n')} onChange={e => setBrandKit({ ...brandKit, referenceProfiles: e.target.value.split('\n').filter(Boolean) })} className="w-full h-20 p-2.5 bg-[#0A0A0B] border border-[#27272A] rounded-xl text-sm font-mono" />
-              <div className="text-[10px] font-mono text-[#71717A]">Saved locally. Offline. No API. Free. This is your consistency - every idea in INFINITE uses this.</div>
-              <button onClick={() => setShowBrandKit(false)} className="w-full py-2.5 bg-white text-black font-bold uppercase text-xs rounded-xl">Save Brand Kit</button>
+              <button onClick={() => setShowBrandKit(false)} className="w-full py-2.5 bg-white text-black font-bold uppercase text-xs rounded-xl">Save</button>
             </div>
           </div>
         </div>
