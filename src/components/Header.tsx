@@ -1,7 +1,8 @@
 import React from 'react';
 import {
   Film,
-  Layers
+  Layers,
+  Zap
 } from 'lucide-react';
 import { StarkFocusData } from '../types';
 import { StarkLogo } from './StarkLogo';
@@ -12,6 +13,7 @@ interface HeaderProps {
   onOpenVideoStudio?: () => void;
   onOpenCarouselStudio?: () => void;
   onOpenBrandStyle?: () => void;
+  onOpenVoidStudio?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -19,7 +21,8 @@ export const Header: React.FC<HeaderProps> = ({
   onUpdateData,
   onOpenVideoStudio,
   onOpenCarouselStudio,
-  onOpenBrandStyle
+  onOpenBrandStyle,
+  onOpenVoidStudio
 }) => {
   const readyPostsCount = data.posts.filter((p) => p.status !== 'published').length;
 
@@ -57,6 +60,17 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <Layers className="w-3.5 h-3.5" />
             <span>Studio Karuzeli (4:5)</span>
+          </button>
+        )}
+
+        {onOpenVoidStudio && (
+          <button
+            onClick={onOpenVoidStudio}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-[#131826] hover:bg-[#1E2638] border border-[#00D9FF]/40 text-xs font-mono font-bold text-[#00D9FF] transition-colors cursor-pointer"
+            title="Otwórz generator grafik VOID v4.0 (gotowe obrazy JPG)"
+          >
+            <Zap className="w-3.5 h-3.5" />
+            <span>VOID Generator (v4)</span>
           </button>
         )}
       </div>

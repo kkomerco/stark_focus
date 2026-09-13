@@ -28,7 +28,7 @@ function TabFallback() {
   );
 }
 
-export default function StarkFocusApp() {
+export default function StarkFocusApp({ onOpenVoidStudio }: { onOpenVoidStudio?: () => void } = {}) {
   const [data, setData] = useState<StarkFocusData>(() => loadStoredData());
   const [activeTab, setActiveTab] = useState<number>(0);
 
@@ -77,6 +77,7 @@ export default function StarkFocusApp() {
           onUpdateData={handleUpdateData}
           onOpenVideoStudio={() => setVideoStudioModal({ isOpen: true, hookText: '' })}
           onOpenCarouselStudio={() => setCarouselStudioModal({ isOpen: true, title: '' })}
+          onOpenVoidStudio={onOpenVoidStudio}
         />
 
         <nav className="flex flex-wrap items-center gap-2 pb-3 border-b border-[#1E2638] mb-5 select-none">

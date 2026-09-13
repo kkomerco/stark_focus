@@ -1,0 +1,6 @@
+{
+  "name": "Visionary Media Lab",
+  "description": "Platforma do generowania treści social media (posty, karuzele, wideo 9:16 i grafiki 1:1) napędzana przez Gemini AI.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

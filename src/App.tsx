@@ -1,6 +1,7 @@
 // App.tsx - VOID v4.0 IMAGE GENERATOR - ENGLISH - Generates ready images, not just text
 import React, { useState, useEffect, useRef } from 'react';
 import { Copy, Layers, Radio, Box, Brain, Search, Download, Trash2, Settings2, Zap, BarChart3, Infinity as InfinityIcon, Image as ImageIcon, Film, Check } from 'lucide-react';
+import StarkFocusApp from './StarkFocusApp';
 
 type BrandKit = {
   niche: string;
@@ -246,6 +247,7 @@ function detectStyleFromUrl(url: string): Idea['structure'] {
 }
 
 export default function App() {
+  const [viewMode, setViewMode] = useState<'stark' | 'void'>('stark');
   const [activeTab, setActiveTab] = useState(0);
   const [replicatorUrl, setReplicatorUrl] = useState('');
   const [replicated, setReplicated] = useState<Idea | null>(null);
@@ -422,6 +424,10 @@ export default function App() {
     );
   };
 
+  if (viewMode === 'stark') {
+    return <StarkFocusApp onOpenVoidStudio={() => setViewMode('void')} />;
+  }
+
   return (
     <div className="min-h-screen bg-[#0F0F11] text-[#F5F5F3] selection:bg-[#00D9FF]/30">
       <div className="border-b border-[#27272A] bg-[#0A0A0B]/90 backdrop-blur sticky top-0 z-50">
@@ -434,6 +440,12 @@ export default function App() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setViewMode('stark')}
+              className="text-[10px] font-mono border border-[#38BDF8]/60 bg-[#111622] text-[#38BDF8] px-2.5 py-1.5 rounded-lg hover:bg-[#1E2638] flex items-center gap-1.5 font-bold cursor-pointer transition-colors"
+            >
+              ← STARK FOCUS OS
+            </button>
             <button onClick={() => setShowBrandKit(true)} className="text-[10px] font-mono border border-[#27272A] bg-[#18181B] px-2.5 py-1.5 rounded-lg hover:bg-[#27272A] flex items-center gap-1.5"><Settings2 className="w-3 h-3" /> BRAND KIT</button>
           </div>
         </div>
