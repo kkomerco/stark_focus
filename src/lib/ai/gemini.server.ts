@@ -1,0 +1,117 @@
+import { GoogleGenAI } from "@google/genai";
+
+/**
+ * Jedyne źródło prawdy dla modeli Gemini w całym projekcie.
+ * Zmiana modelu = zmiana w tym miejscu.
+ */
+export const GEMINI_MODEL = "gemini-3.8-flash";
+
+/** Model zapasowy dla zadań, które nie wymagają pełnej mocy (tanio i szybko). */
+export const GEMINI_LITE_MODEL = "gemini-3.1-flash-lite";
+
+let cachedClient: GoogleGenAI | null = null;
+let cachedKey: string | null = null;
+
+/** Wspólny, leniwie inicjalizowany klient Gemini (klucz wyłącznie server-side). */
+export function getGeminiClient(): GoogleGenAI | null {
+  const apiKey = process.env["GEMINI_API_KEY"];
+  if (!apiKey) return null;
+
+  if (!cachedClient || cachedKey !== apiKey) {
+    cachedClient = new GoogleGenAI({
+      apiKey,
+      httpOptions: { headers: { "User-Agent": "stark-focus-os" } },
+    });
+    cachedKey = apiKey;
+  }
+  return cachedClient;
+}
+
+/** Odpowiedź modelu bez poprawnego JSON-a lub brak klucza API. */
+export class AiResponseError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AiResponseError";
+  }
+}
+
+/**
+ * Gemini nagminnie opakowuje JSON w bloki markdown lub dodaje komentarz.
+ * Funkcja wyciąga pierwszą poprawną strukturę JSON z odpowiedzi.
+ */
+export function safeJsonParse<T = any>(text: string): T {
+  const clean = text
+    .replace(/```json/gi, "")
+    .replace(/```/g, "")
+    .trim();
+  try {
+    return JSON.parse(clean) as T;
+  } catch {
+    const firstBrace = clean.indexOf("{");
+    const lastBrace = clean.lastIndexOf("}");
+    if (firstBrace !== -1 && lastBrace > firstBrace) {
+      return JSON.parse(clean.substring(firstBrace, lastBrace + 1)) as T;
+    }
+    throw new AiResponseError("Nie znaleziono poprawnej struktury JSON w odpowiedzi AI");
+  }
+}
+
+export interface GenerateContentOptions {
+  /** Prompt tekstowy lub tablica części (np. prompt + obraz dla Gemini Vision). */
+  contents: string | unknown[];
+  systemInstruction?: string;
+  model?: string;
+  temperature?: number;
+  responseMimeType?: string;
+  abortSignal?: AbortSignal;
+}
+
+/**
+ * Jedno wejście do generowania treści: zwraca surowy tekst odpowiedzi.
+ * Rzuca AiResponseError, gdy klient nie jest skonfigurowany.
+ */
+export async function generateContent({
+  contents,
+  systemInstruction,
+  model = GEMINI_MODEL,
+  temperature,
+  responseMimeType,
+  abortSignal,
+}: GenerateContentOptions): Promise<string> {
+  const ai = getGeminiClient();
+  if (!ai) {
+    throw new AiResponseError("Brak skonfigurowanego klucza GEMINI_API_KEY w pliku .env serwera");
+  }
+
+  const config: Record<string, unknown> = {};
+  if (systemInstruction) config.systemInstruction = systemInstruction;
+  if (temperature !== undefined) config.temperature = temperature;
+  if (responseMimeType) config.responseMimeType = responseMimeType;
+  if (abortSignal) config.abortSignal = abortSignal;
+
+  const response = await ai.models.generateContent({
+    model,
+    contents: contents as never,
+    config: Object.keys(config).length > 0 ? (config as never) : undefined,
+  });
+
+  return response.text ?? "";
+}
+
+/** Skrót dla klasycznego promptu tekstowego. */
+export async function generateText(options: {
+  prompt: string;
+  systemInstruction?: string;
+  model?: string;
+}): Promise<string> {
+  return generateContent({
+    contents: options.prompt,
+    systemInstruction: options.systemInstruction,
+    model: options.model,
+  });
+}
+
+/** Jak generateContent, ale od razu parsuje odpowiedź do obiektu JSON. */
+export async function generateJson<T = any>(options: GenerateContentOptions): Promise<T> {
+  return safeJsonParse<T>(await generateContent(options));
+}

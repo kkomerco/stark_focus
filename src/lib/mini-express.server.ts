@@ -58,6 +58,8 @@ export class MiniResponse {
 
 type Handler = (req: MiniRequest, res: MiniResponse) => unknown | Promise<unknown>;
 
+export type MiniApp = ReturnType<typeof createApp>;
+
 export function createApp() {
   const routes: { method: string; path: string; handler: Handler }[] = [];
 
