@@ -1,5 +1,5 @@
 import React from "react";
-import { Film, Layers } from "lucide-react";
+import { Film, Layers, Zap } from "lucide-react";
 import { StarkFocusData } from "../types";
 import { StarkLogo } from "./StarkLogo";
 
@@ -8,12 +8,14 @@ interface HeaderProps {
   onUpdateData: (updater: (prev: StarkFocusData) => StarkFocusData) => void;
   onOpenVideoStudio?: () => void;
   onOpenCarouselStudio?: () => void;
+  onOpenDailyPack?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   data,
   onOpenVideoStudio,
   onOpenCarouselStudio,
+  onOpenDailyPack,
 }) => {
   const totalPosts = data.posts?.length || 0;
 
@@ -31,6 +33,17 @@ export const Header: React.FC<HeaderProps> = ({
           <span className="text-slate-600">•</span>
           <span className="text-emerald-400 font-bold">{totalPosts} postów</span>
         </div>
+
+        {onOpenDailyPack && (
+          <button
+            onClick={onOpenDailyPack}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-white hover:bg-slate-200 text-[#090C14] text-xs font-mono font-bold transition-colors cursor-pointer shadow-md"
+            title="Klik 1: paczka dnia — rolki + karuzela + post 1:1"
+          >
+            <Zap className="w-3.5 h-3.5" />
+            <span>Wygeneruj paczkę dnia</span>
+          </button>
+        )}
 
         {onOpenVideoStudio && (
           <button

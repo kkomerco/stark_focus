@@ -7,6 +7,7 @@ import { registerCarouselRoutes } from "./routes/carousel.server";
 import { registerMentorRoutes } from "./routes/mentor.server";
 import { registerReelsRoutes } from "./routes/reels.server";
 import { registerStatusRoutes } from "./routes/status.server";
+import { registerDailyPackRoutes } from "./routes/daily-pack.server";
 
 // Cache odpowiedzi AI (identyczne zapytanie = ta sama odpowiedz)
 const aiCache = createTtlCache<{ body: string; contentType: string }>({
@@ -31,6 +32,7 @@ registerCarouselRoutes(app);
 registerMentorRoutes(app);
 registerReelsRoutes(app);
 registerStatusRoutes(app);
+registerDailyPackRoutes(app);
 
 // Endpointy AI, ktorych odpowiedzi warto cache'owac (identyczne zapytanie = ta sama odpowiedz)
 const CACHEABLE_AI_PATHS = new Set([

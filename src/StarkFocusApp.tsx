@@ -32,6 +32,9 @@ const CarouselStudioModal = lazy(() =>
 const HookBattleModal = lazy(() =>
   import("./components/HookBattleModal").then((m) => ({ default: m.HookBattleModal })),
 );
+const DailyPackModal = lazy(() =>
+  import("./components/DailyPackModal").then((m) => ({ default: m.DailyPackModal })),
+);
 
 function TabFallback() {
   return (
@@ -66,6 +69,7 @@ export default function StarkFocusApp() {
     slides?: any[];
   }>({ isOpen: false, title: "", slides: undefined });
   const [hookBattleOpen, setHookBattleOpen] = useState(false);
+  const [dailyPackOpen, setDailyPackOpen] = useState(false);
 
   useEffect(() => {
     saveStoredData(data);
@@ -112,6 +116,7 @@ export default function StarkFocusApp() {
         <Header
           data={data}
           onUpdateData={handleUpdateData}
+          onOpenDailyPack={() => setDailyPackOpen(true)}
           onOpenVideoStudio={() => setVideoStudioModal({ isOpen: true, hookText: "" })}
           onOpenCarouselStudio={() => setCarouselStudioModal({ isOpen: true, title: "" })}
         />
@@ -252,6 +257,21 @@ export default function StarkFocusApp() {
             onOpenVideoStudio={(hookText) => {
               setHookBattleOpen(false);
               setVideoStudioModal({ isOpen: true, hookText });
+            }}
+          />
+        )}
+
+        {dailyPackOpen && (
+          <DailyPackModal
+            isOpen={dailyPackOpen}
+            onClose={() => setDailyPackOpen(false)}
+            onOpenVideoStudio={(hookText) => {
+              setDailyPackOpen(false);
+              setVideoStudioModal({ isOpen: true, hookText });
+            }}
+            onOpenCarouselStudio={(title, slides) => {
+              setDailyPackOpen(false);
+              setCarouselStudioModal({ isOpen: true, title, slides });
             }}
           />
         )}

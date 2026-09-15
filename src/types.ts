@@ -211,3 +211,33 @@ export interface StarkFocusData {
   saved_hook_battles?: HookBattleItem[];
   planner_tasks?: PlannerTask[];
 }
+
+// ===== Paczka dnia (One-Click Factory) =====
+export interface DailyPackReel {
+  hook: string;
+  phrases: string[];
+  theme: string;
+  duration: number;
+  captionShort: string;
+  hashtags: string[];
+}
+
+export interface DailyPackCarousel {
+  title: string;
+  slides: Array<{ headline: string; bodyText: string }>;
+}
+
+export interface DailyPackPost {
+  headline: string;
+  body: string;
+  bingPrompt: string;
+}
+
+export interface DailyPack {
+  generatedAt: string;
+  source: "ai" | "offline";
+  topic: string;
+  reels: DailyPackReel[];
+  carousel: DailyPackCarousel;
+  post: DailyPackPost;
+}
