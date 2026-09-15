@@ -12,9 +12,16 @@ dist
 dist-ssr
 .output
 .vinxi
-.tanstack/**
-.nitro
 *.local
+package-lock.json
+
+# Logi lokalnych uruchomień / buildów
+*_log.txt
+build_*.txt
+dev_*.txt
+install_*.txt
+npm_*.txt
+_create_log.txt
 
 # Wrangler / Cloudflare
 .wrangler/
