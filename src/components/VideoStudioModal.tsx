@@ -1,40 +1,45 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import {
   X,
   Play,
   Pause,
   Download,
   Sparkles,
-  Volume2,
-  VolumeX,
-  RefreshCw,
-  Layers,
-  Type,
   Film,
   Check,
-  Music,
   Clock,
   Palette,
-  Share2,
   Sliders,
-  AudioWaveform,
-  TrendingUp,
-  Image as ImageIcon,
-  Calendar,
+  Copy,
+  Smartphone,
+  Type,
+  RefreshCw,
+  SlidersHorizontal,
   BookmarkCheck,
   Upload,
-  Sun,
-  Moon,
-  Sunrise,
-  Shield,
-  Smartphone,
-  Pipette
-} from 'lucide-react';
-import { Post, VaultAsset } from '../types';
-const ThematicBingPrompter = React.lazy(() =>
-  import('./ThematicBingPrompter').then((m) => ({ default: m.ThematicBingPrompter }))
-);
-import { STARK_TOP_HEADER_PRESETS, resolveTopHeaderText } from '../utils/starkBrandTheme';
+  Trash2,
+  Image as ImageIcon,
+  Package,
+  Split,
+} from "lucide-react";
+import JSZip from "jszip";
+import { Post, VaultAsset } from "../types";
+import {
+  VIRAL_REEL_TEMPLATES,
+  NarrativeFormat,
+  ReelTemplate,
+  ReelVisualTheme,
+} from "../data/reelTemplates";
+import {
+  STOIC_CATEGORIES,
+  getRandomUniqueFormula,
+  CATEGORY_BACKGROUND_RECOMMENDATIONS,
+} from "../data/ideaMatrix";
+import {
+  EXPANDED_BACKGROUND_LIBRARY,
+  getRandomBackgroundScene,
+  BackgroundScene,
+} from "../data/expandedBackgrounds";
 
 interface VideoStudioModalProps {
   onClose: () => void;
@@ -42,982 +47,414 @@ interface VideoStudioModalProps {
   initialBgUrl?: string;
   availablePosts?: Post[];
   vaultAssets?: VaultAsset[];
-  onSchedulePostFor1300?: (postData: {
-    title: string;
-    caption: string;
-    bgUrl?: string;
-    scheduledTime?: string;
-    scheduledDate?: string;
-  }) => void;
-  onSchedulePost?: (postData: {
-    title: string;
-    caption: string;
-    bgUrl?: string;
-    scheduledTime?: string;
-    scheduledDate?: string;
-  }) => void;
+  onSchedulePostFor1300?: (postData: any) => void;
+  onSchedulePost?: (postData: any) => void;
 }
 
-export type VisualTheme =
-  | 'obsidian_monolith'
-  | 'titanium_slate'
-  | 'pantheon_mist'
-  | 'carbon_graphite'
-  | 'cyber_cyan';
+export type VisualTheme = ReelVisualTheme;
+export type HighlightStyle = "white_halo" | "bold";
+export type FontFamily = "cinzel" | "cormorant" | "montserrat";
+export type ReelDuration = 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 14 | 15;
+export type PacingMode = "climax_hold" | "stoic_steady" | "uniform";
 
-// Official Brand Logo Watermark Types & Safe-Zone Placements
-export type LogoPlacement =
-  | 'bottom_under'         // Pod napisem @stark_focus (na dole kadru)
-  | 'top_left'             // Lewy górny róg (rekomendowana safe-zone dla TikTok/Reels/Shorts)
-  | 'bottom_inline'        // W jednej linii obok @stark_focus
-  | 'bottom_above'         // Nad napisem @stark_focus (z bezpiecznym buforem)
-  | 'top_right'            // Prawy górny róg
-  | 'top_center'           // Górny środek (pod/obok nagłówka)
-  | 'background_watermark' // Dyskretny znak wodny w tle (ZA tekstem, nie zasłania słów)
-  | 'none'                 // Wyłączone
-  // Wsteczna kompatybilność
-  | 'footer'
-  | 'top'
-  | 'center_watermark';
-export type LogoSourceType = 'seal' | 'custom' | 'vector' | 'monogram';
-export type LogoGlowChoice = 'cyan' | 'white' | 'none';
+export interface PhraseTimeInterval {
+  index: number;
+  text: string;
+  start: number;
+  end: number;
+  duration: number;
+  isClimax: boolean;
+}
 
-interface ThemeConfig {
+export function getPhraseTimeline(
+  phrases: string[],
+  totalDuration: number,
+  pacingMode: PacingMode,
+): PhraseTimeInterval[] {
+  if (phrases.length === 0) {
+    return [
+      {
+        index: 0,
+        text: "",
+        start: 0,
+        end: totalDuration,
+        duration: totalDuration,
+        isClimax: true,
+      },
+    ];
+  }
+  if (phrases.length === 1) {
+    return [
+      {
+        index: 0,
+        text: phrases[0],
+        start: 0,
+        end: totalDuration,
+        duration: totalDuration,
+        isClimax: true,
+      },
+    ];
+  }
+
+  const N = phrases.length;
+  // Word count analysis per phrase for reading comfort
+  const wordCounts = phrases.map((p) => Math.max(3, p.trim().split(/\s+/).filter(Boolean).length));
+  const avgWords = wordCounts.reduce((acc, c) => acc + c, 0) / N;
+
+  let baseWeights: number[];
+
+  if (pacingMode === "climax_hold") {
+    // Climax Hold: Earlier phrases deliver hook and build-up with comfortable reading time (~3s+),
+    // while the final punchline holds 1.35x - 1.45x longer for maximum psychological retention.
+    if (N === 2) {
+      baseWeights = [1.1, 1.45];
+    } else if (N === 3) {
+      baseWeights = [1.15, 1.1, 1.45];
+    } else if (N === 4) {
+      baseWeights = [1.1, 1.0, 1.0, 1.4];
+    } else {
+      baseWeights = Array(N).fill(1.0);
+      baseWeights[N - 1] = 1.4;
+    }
+  } else if (pacingMode === "stoic_steady") {
+    // Stoic Steady: Meditative, evenly distributed cadence across all slides.
+    if (N === 2) {
+      baseWeights = [1.1, 1.25];
+    } else if (N === 3) {
+      baseWeights = [1.15, 1.05, 1.25];
+    } else if (N === 4) {
+      baseWeights = [1.1, 1.0, 1.0, 1.2];
+    } else {
+      baseWeights = Array(N).fill(1.0);
+      baseWeights[0] = 1.1;
+      baseWeights[N - 1] = 1.2;
+    }
+  } else {
+    // uniform
+    baseWeights = Array(N).fill(1.0);
+  }
+
+  // Multiply base weight by a soft word-count factor so longer phrases get proportionally more time
+  const weights = baseWeights.map((bw, i) => {
+    const wordFactor = 0.7 + 0.3 * (wordCounts[i] / (avgWords || 1));
+    return bw * wordFactor;
+  });
+
+  const sumWeights = weights.reduce((acc, w) => acc + w, 0);
+  let currentStart = 0;
+
+  return phrases.map((text, idx) => {
+    const rawDur = (weights[idx] / sumWeights) * totalDuration;
+    const start = Math.round(currentStart * 100) / 100;
+    const end = idx === N - 1 ? totalDuration : Math.round((currentStart + rawDur) * 100) / 100;
+    currentStart = end;
+    return {
+      index: idx,
+      text,
+      start,
+      end,
+      duration: Math.max(0.4, Math.round((end - start) * 100) / 100),
+      isClimax: idx === N - 1,
+    };
+  });
+}
+
+interface ThemeMeta {
   id: VisualTheme;
   name: string;
   badge: string;
-  primaryColor: string;
-  accentColor: string;
   desc: string;
 }
 
-const VISUAL_THEMES: ThemeConfig[] = [
+const VISUAL_THEMES: ThemeMeta[] = [
   {
-    id: 'obsidian_monolith',
-    name: 'Obsidian Void (Głęboka Czerń)',
-    badge: 'Czysta Czerń & Biel',
-    primaryColor: '#FFFFFF',
-    accentColor: '#FFFFFF',
-    desc: 'Głęboki czarny obsydian, chłodny kosmiczny pył, monochromatyczna czerń i czysty kontrast.'
+    id: "obsidian_void",
+    name: "Obsidian Void",
+    badge: "Głęboka Czerń",
+    desc: "Czysty czarny obsydian, subtelna grafitowa oś i minimalistyczny mrok.",
   },
   {
-    id: 'titanium_slate',
-    name: 'Titanium Slate (Stalowy Szary)',
-    badge: 'Tytan & Stal',
-    primaryColor: '#F1F5F9',
-    accentColor: '#94A3B8',
-    desc: 'Architektoniczny grafit, szczotkowany tytan i stalowy światłocień bez żadnych zbędnych barw.'
+    id: "crimson_eclipse",
+    name: "Crimson Eclipse",
+    badge: "Zaćmienie Karmazynu",
+    desc: "Głębokie winietowanie, zaćmienie z żarzącą się subtelną poświatą krwistego antracytu.",
   },
   {
-    id: 'pantheon_mist',
-    name: 'Pantheon Noir (Marmur & Mgła)',
-    badge: 'Monochromatyczny Chiaroscuro',
-    primaryColor: '#F8FAFC',
-    accentColor: '#CBD5E1',
-    desc: 'Monumentalne rzymskie kolumny, nocna mgła i dramatyczny boczny światłocień marmuru.'
+    id: "emerald_abyss",
+    name: "Emerald Abyss",
+    badge: "Mroczny Szmaragd",
+    desc: "Otchłań nefrytowej czerni, stoicki spokój i głębokie cienie leśnego granitu.",
   },
   {
-    id: 'carbon_graphite',
-    name: 'Carbon Minimal (Matowy Karbon)',
-    badge: 'Matowy Karbon & Grafit',
-    primaryColor: '#E2E8F0',
-    accentColor: '#71717A',
-    desc: 'Surowy matowy węgiel, minimalistyczny ciemny horyzont i techniczny brutalistyczny minimalizm.'
+    id: "carbon_aura",
+    name: "Carbon Aura",
+    badge: "Aura Antracytu",
+    desc: "Aksamitny węgiel, subtelna eliptyczna poświata ze złotawym, zimnym żarem w tle.",
   },
   {
-    id: 'cyber_cyan',
-    name: 'STARK Cyber Cyan (Elektryczny Błękit)',
-    badge: 'Flagowy Akcent STARK',
-    primaryColor: '#FFFFFF',
-    accentColor: '#38BDF8',
-    desc: 'Głęboka czerń z laserowym akcentem cyber-cyjanu STARK FOCUS i precyzyjnym celownikiem.'
-  }
+    id: "silver_mist",
+    name: "Silver Mist",
+    badge: "Srebrzysty Zmierzch",
+    desc: "Głęboki grafit z delikatną poziomą poświatą platynowego światłocienia.",
+  },
 ];
 
-export const STARK_VIDEO_BACKGROUNDS = [
-  { id: 'procedural', name: 'Shader Generatywny (Canvas FX - Czysty Obsidian)', url: '' }
-];
-
-// Curated Viral & Poetic English Hooks (Default strictly English)
-const POETIC_VIRAL_HOOKS_EN = [
-  'THE WORLD DOES NOT OWE YOU MEANING.\nYOU FORGE IT IN THE DARK.',
-  'YOUR LACK OF DISCIPLINE IS NOT BURNOUT.\nYOU ARE COMFORTABLE BEING MEDIOCRE.',
-  'SOLITUDE IS NOT AN ABSENCE.\nIT IS THE CONCENTRATION OF POWER.',
-  'DISAPPEAR UNTIL YOUR DEMONS\nBECOME YOUR GREATEST ADVANTAGE.',
-  'SILENCE CANNOT BE MISQUOTED.\nLET UNTOUCHABLE RESULTS MAKE THE NOISE.',
-  'KILL THE NOISE.\nEXECUTE WHAT IS REQUIRED IN TOTAL SOLITUDE.',
-  'DO NOT NEGOTIATE WITH WEAKNESS.\nSTAND UP AND CONQUER THE MORNING.',
-  'COMFORT IS A SLOW POISON.\nDISCIPLINE IS THE ONLY CURE.'
-];
-
-export type DaySlotCategory = 'morning' | 'lunch' | 'evening' | 'all_day';
-
-export interface DayPartPreset {
-  id: string;
-  label: string;
-  hook: string;
-  theme: VisualTheme;
-  suggestedTime: string;
-  topHeader: string;
-  caption: string;
-}
-
-export const MORNING_PRESETS: DayPartPreset[] = [
-  {
-    id: 'm-1',
-    label: '🌅 06:30 • Wstań Przed Światem',
-    hook: 'WHILE THEY SLEEP, YOU BUILD.\nDO NOT NEGOTIATE WITH THE ALARM.',
-    theme: 'obsidian_monolith',
-    suggestedTime: '06:30',
-    topHeader: '06:30 • MORNING DISCIPLINE',
-    caption: `While they sleep in comfort, you lay the first stone in silence. The alarm is not an invitation to negotiate. It is your first test of non-negotiable standards.
-
-Save this for tomorrow morning // @stark_focus
-
-#discipline #morningroutine #stoicism #focus #mindset #execution #relentless`
-  },
-  {
-    id: 'm-2',
-    label: '⚡ 07:00 • Pierwsze Ciche Zwycięstwo',
-    hook: 'DESTROY THE HARDEST TASK\nBEFORE THE WORLD WAKES UP.',
-    theme: 'titanium_slate',
-    suggestedTime: '07:00',
-    topHeader: '07:00 • FIRST WIN',
-    caption: `Win the morning, win the war. Execute your most dreaded task before 8:00 AM. Everything after that is momentum.
-
-// @stark_focus
-
-#deepwork #execution #stoicmindset #highperformance #focus #grind #stark_focus`
-  },
-  {
-    id: 'm-3',
-    label: '🛡️ 07:30 • Nikt Cię Nie Uratuje',
-    hook: 'NO ONE IS COMING TO SAVE YOU.\nWAKE UP AND FORGE YOUR LIFE.',
-    theme: 'carbon_graphite',
-    suggestedTime: '07:30',
-    topHeader: '07:30 • RAW ACCOUNTABILITY',
-    caption: `No savior is coming. No perfect circumstance will arrive. Either you take radical accountability today, or you stay where you are.
-
-// @stark_focus
-
-#accountability #stoic #darkmotivation #truth #relentless #discipline`
-  },
-  {
-    id: 'm-4',
-    label: '🚫 08:00 • Zero Telefonu i Dopaminy',
-    hook: 'NO PHONE. NO CHEAP DOPAMINE.\nPROTECT YOUR MORNING CLARITY.',
-    theme: 'pantheon_mist',
-    suggestedTime: '08:00',
-    topHeader: '08:00 • ZERO DOPAMINE',
-    caption: `If you check your notifications in the first hour, you surrender your mental clarity to the chaos of strangers. Guard your focus like your life depends on it.
-
-// @stark_focus
-
-#dopaminedetox #focus #mentalclarity #stoicism #solitude #mindset`
-  }
-];
-
-export const LUNCH_1300_PRESETS: DayPartPreset[] = [
-  {
-    id: 'l-1',
-    label: '⏰ 13:00 • Połowa Dnia Przepadła',
-    hook: 'HALF THE DAY IS GONE.\nWHAT HAVE YOU ACTUALLY ACCOMPLISHED?',
-    theme: 'obsidian_monolith',
-    suggestedTime: '13:00',
-    topHeader: '13:00 • MIDDAY RESET',
-    caption: `Half the day is already history. Most people are zoning out on their lunch break, trading their future for cheap dopamine. Stop negotiating with comfort. Execute before the sun sets.
-
-Save this reminder // @stark_focus
-
-#stoicism #discipline #darkmotivation #relentless #execution #mindset #focus`
-  },
-  {
-    id: 'l-2',
-    label: '⚡ 13:00 • Koniec Przeglądania w Lunch',
-    hook: 'STOP SCROLLING ON YOUR LUNCH BREAK.\nYOUR FUTURE IS WATCHING.',
-    theme: 'titanium_slate',
-    suggestedTime: '13:00',
-    topHeader: '13:00 • BREAK RESET',
-    caption: `While they scroll and complain about being stuck, you reset your mind in silence. Discipline is choosing between what you want now and what you want most. Stand up and conquer the second half of the day.
-
-Save this reminder // @stark_focus
-
-#darkmotivation #discipline #stoic #accountability #execution #success #grind`
-  },
-  {
-    id: 'l-3',
-    label: '🤫 13:00 • Cicha Praca bez Poklasku',
-    hook: 'SILENCE CANNOT BE MISQUOTED.\nLET RESULTS MAKE THE NOISE.',
-    theme: 'pantheon_mist',
-    suggestedTime: '13:00',
-    topHeader: '13:00 • SILENT EXECUTION',
-    caption: `Do not announce your next move. Do not seek applause from spectators. The man who works in silence becomes dangerous.
-
-// @stark_focus
-
-#solitude #silence #stoicmindset #relentless #grind #focus #execution`
-  },
-  {
-    id: 'l-4',
-    label: '🛡️ 13:00 • Wygoda to Powolna Trucizna',
-    hook: 'COMFORT IS A SLOW POISON.\nDISCIPLINE IS THE ONLY CURE.',
-    theme: 'cyber_cyan',
-    suggestedTime: '13:00',
-    topHeader: '13:00 • COMFORT CURE',
-    caption: `Comfort is a slow poison disguised as peace. Raise your standards. Demand more from yourself than anyone else ever could.
-
-// @stark_focus
-
-#discipline #accountability #truth #stoic #masculinity #focus #stark_focus`
-  }
-];
-
-export const EVENING_PRESETS: DayPartPreset[] = [
-  {
-    id: 'e-1',
-    label: '🌙 20:30 • Gdy Świat Idzie Spać',
-    hook: 'THE WORLD GOES TO SLEEP.\nTHE DISCIPLINED GO TO WORK.',
-    theme: 'obsidian_monolith',
-    suggestedTime: '20:30',
-    topHeader: '20:30 • NIGHT FOCUS',
-    caption: `When the notifications die and the world goes to sleep, your deepest work begins. The unfair advantage is built in the late hours of silence.
-
-// @stark_focus
-
-#nightshift #solitude #discipline #darkmotivation #relentless #mindset #grind`
-  },
-  {
-    id: 'e-2',
-    label: '🪞 21:00 • Rachunek Sumienia w Lustrze',
-    hook: 'LOOK IN THE MIRROR TONIGHT.\nDID YOU WIN OR DID YOU SURRENDER?',
-    theme: 'titanium_slate',
-    suggestedTime: '21:00',
-    topHeader: '21:00 • NIGHT AUDIT',
-    caption: `No excuses before sleep. Look at your reflection. Did you honor your word today, or did you cave to laziness? Tomorrow is your redemption or your repeat.
-
-// @stark_focus
-
-#stoicism #accountability #truth #nightroutine #standards #relentless`
-  },
-  {
-    id: 'e-3',
-    label: '⏳ 22:00 • Zniknij na 6 Miesięcy',
-    hook: 'DISAPPEAR FOR SIX MONTHS.\nRETURN WITH UNDENIABLE RESULTS.',
-    theme: 'pantheon_mist',
-    suggestedTime: '22:00',
-    topHeader: '22:00 • DISAPPEAR PROTOCOL',
-    caption: `Stop posting your goals. Disappear into obsession. In six months, let your results speak so loudly that explanations become irrelevant.
-
-// @stark_focus
-
-#disappear #obsession #darkaesthetic #stoic #silence #execution #mastery`
-  },
-  {
-    id: 'e-4',
-    label: '🌌 23:00 • Samotność i Koncentracja Mocy',
-    hook: 'SOLITUDE AFTER MIDNIGHT.\nWHERE REAL MASTERY IS BORN.',
-    theme: 'carbon_graphite',
-    suggestedTime: '23:00',
-    topHeader: '23:00 • MIDNIGHT SHIFT',
-    caption: `Solitude is not loneliness. It is the purest concentration of human power. Cut the noise and build your empire.
-
-// @stark_focus
-
-#solitude #darkgrit #focus #mastery #stoicism #nightowl #stark_focus`
-  }
-];
-
-export const ALL_DAY_PRESETS: DayPartPreset[] = [
-  {
-    id: 'a-1',
-    label: '⚔️ Pancerz • Świat Nie Jest Ci Nic Winien',
-    hook: 'THE WORLD DOES NOT OWE YOU MEANING.\nYOU FORGE IT IN THE DARK.',
-    theme: 'obsidian_monolith',
-    suggestedTime: '13:00',
-    topHeader: '✦ DAILY PERSPECTIVE',
-    caption: `Stop waiting for a sign or validation. The universe is indifferent. You must forge your own purpose in the heat of daily discipline.
-
-// @stark_focus
-
-#stoicism #warriormindset #resilience #darkmotivation #discipline #truth`
-  },
-  {
-    id: 'a-2',
-    label: '⚡ Standardy • Zapomnij o Motywacji',
-    hook: 'YOU DO NOT NEED MOTIVATION.\nYOU NEED NON-NEGOTIABLE STANDARDS.',
-    theme: 'titanium_slate',
-    suggestedTime: '18:00',
-    topHeader: '✦ IRON STANDARDS',
-    caption: `Motivation is an emotional parasite that vanishes when things get difficult. Non-negotiable standards carry you regardless of how you feel.
-
-// @stark_focus
-
-#standards #discipline #stoic #execution #consistency #mindset`
-  },
-  {
-    id: 'a-3',
-    label: '🔥 Ból • Podnieś Swój Próg Tolerancji',
-    hook: 'RAISE YOUR PAIN TOLERANCE.\nBECOME ENTIRELY UNSTOPPABLE.',
-    theme: 'carbon_graphite',
-    suggestedTime: '15:00',
-    topHeader: '✦ HIGH THRESHOLD',
-    caption: `The only difference between those who conquer and those who quit is how long they can endure discomfort without breaking character.
-
-// @stark_focus
-
-#resilience #unshakable #grit #darkmotivation #endurance #focus`
-  },
-  {
-    id: 'a-4',
-    label: '🤫 Milczenie • Nie Mów o Kolejnym Kroku',
-    hook: 'NEVER ANNOUNCE YOUR MOVES.\nBECOME DANGEROUS IN TOTAL SILENCE.',
-    theme: 'pantheon_mist',
-    suggestedTime: '20:00',
-    topHeader: '✦ SILENT MOVES',
-    caption: `The talkers deplete their dopamine before the work even begins. The masters say nothing and deliver shockwaves.
-
-// @stark_focus
-
-#silence #moveinsilence #stoicwisdom #focus #execution #grind`
-  }
-];
-
-export function getSmartDefaultDaySlot(): DaySlotCategory {
-  const hr = new Date().getHours();
-  if (hr >= 5 && hr < 11) return 'morning';
-  if (hr >= 11 && hr < 17) return 'lunch';
-  return 'evening';
-}
-
-// Top Header Badge Options (Replaces cringe PROTOCOL with mature aesthetic choices)
-export type TopHeaderMode =
-  | 'protocol_standard'
-  | 'daily_discipline'
-  | 'cold_truth'
-  | 'memento_mori'
-  | 'morning_0500'
-  | 'morning_0700'
-  | 'midday_1300'
-  | 'night_2100'
-  | 'evening_2100'
-  | 'daily_perspective'
-  | 'audio_on'
-  | 'stark_minimal'
-  | 'deep_work'
-  | 'rule_01'
-  | 'time_stamp'
-  | 'quote_category'
-  | 'minimal_pill'
-  | 'none'
-  | 'clean_void'
-  | 'custom';
-
-export const TOP_HEADER_OPTIONS: Array<{ id: TopHeaderMode; label: string; displayText: string; desc: string }> = [
-  {
-    id: 'morning_0700',
-    label: '🌅 07:00 • Poranny Rygor',
-    displayText: '07:00 • MORNING DISCIPLINE',
-    desc: 'Pierwsza warta – start przed resztą świata'
-  },
-  {
-    id: 'midday_1300',
-    label: '⏰ 13:00 • Reset Dnia',
-    displayText: '13:00 • MIDDAY RESET',
-    desc: 'Kontekst przerwy obiadowej – bezpretensjonalny, mocny stoper'
-  },
-  {
-    id: 'evening_2100',
-    label: '🌙 21:00 • Nocny Protokół',
-    displayText: '21:00 • NIGHT PROTOCOL',
-    desc: 'Wieczorne skupienie i rachunek sumienia w ciszy'
-  },
-  {
-    id: 'daily_perspective',
-    label: '✦ Perspektywa Stoicka',
-    displayText: '✦ DAILY PERSPECTIVE',
-    desc: 'Elegancka belka redakcyjna w stylu luxury publication'
-  },
-  {
-    id: 'audio_on',
-    label: '🎧 Audio Włączone',
-    displayText: '🎧 AUDIO ON • RECOMMENDED',
-    desc: 'Klasyczny hook zwiększający retencję i użycie dźwięku'
-  },
-  {
-    id: 'stark_minimal',
-    label: '▪ Stark Minimal',
-    displayText: 'S T A R K   F O C U S',
-    desc: 'Dyskretny autorski monogram z szerokim trackingiem'
-  },
-  {
-    id: 'clean_void',
-    label: '✕ Czysty Kadr',
-    displayText: '',
-    desc: 'Maksymalny minimalizm – brak jakiegokolwiek tekstu na górze'
-  },
-  {
-    id: 'custom',
-    label: '✍️ Własny Napis',
-    displayText: '',
-    desc: 'Wpisz własny, spersonalizowany nagłówek'
-  }
-];
-
-// Keyword Highlighting Types & System
-export type KeywordHighlightStyle =
-  | 'neon_glow'       // Vibrant accent color with cinematic drop-shadow aura
-  | 'white_halo'      // Pure titanium white with cold silver glow (user preferred)
-  | 'pill_badge'      // Frosted rounded container behind the keyword
-  | 'underline_bar';  // Clean horizontal accent bar beneath keyword
-
-export type KeywordColorChoice =
-  | 'white'          // Czysta Platynowa Biel (#FFFFFF)
-  | 'cyan'           // Elektryczny Cyjan STARK (#38BDF8)
-  | 'gray'           // Tytanowy Szary (#94A3B8)
-  | 'slate'          // Ciemniejszy Grafit (#64748B)
-  | 'theme';         // Kolor akcentu z wybranego motywu
-
-export const POWER_KEYWORDS = new Set([
-  'ACCOMPLISHED', 'ACCOMPLISH', 'GONE', 'DISCIPLINE', 'SILENCE', 'RESULTS',
-  'POISON', 'COMFORT', 'STOP', 'SCROLLING', 'FUTURE', 'TRUTH', 'STANDARDS',
-  'STANDARD', 'UNTOUCHABLE', 'UNSTOPPABLE', 'FORGE', 'PAIN', 'SOLITUDE',
-  'WARRIOR', 'TITAN', 'DARK', 'CONQUER', 'RELENTLESS', 'EXECUTE', 'EXECUTION',
-  'ACTION', 'POWER', 'TIME', 'HOURS', 'NOW', 'NOISE', 'MEDIOCRE', 'EXCUSES',
-  'EXCUSE', 'BURNED', 'BURNOUT', 'CURE', 'WATCHING', 'MISQUOTED', 'ALONE',
-  'DANGEROUS', 'VICTORY', 'WIN', 'SACRIFICE', 'LIMITS', 'FOCUS', 'STARK',
-  'HISTORY', 'DOPAMINE', 'WAR', 'IRON', 'COLD', 'MINDSET', 'ACHIEVE',
-  'ANSWER', 'ANSWERS', 'FIGHT', 'SOLITARY', 'STAND', 'STANDS', 'WEAKNESS'
-]);
-
-export interface WordToken {
+interface Token {
   raw: string;
-  cleanWord: string;
+  clean: string;
   isKeyword: boolean;
 }
 
-export function parseWordsWithKeywords(phrase: string): WordToken[] {
-  const words = phrase
-    .replace(/\n/g, ' ')
-    .split(' ')
-    .map((w) => w.trim())
-    .filter((w) => w.length > 0);
-
-  if (words.length === 0) return [];
-
-  // Check if user manually marked words with asterisks, e.g. *ACCOMPLISHED*
-  const hasManualAsterisks = words.some((w) => w.includes('*'));
-
-  const tokens: WordToken[] = words.map((w) => {
-    const isAsteriskMarked = w.includes('*');
-    const cleanWord = w.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
-    const rawNoAsterisk = w.replace(/\*/g, '');
-
-    let isKeyword = false;
-    if (hasManualAsterisks) {
-      isKeyword = isAsteriskMarked;
-    } else {
-      isKeyword = POWER_KEYWORDS.has(cleanWord);
-    }
-
+function parseTokens(text: string): Token[] {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  return words.map((w) => {
+    // Only explicit *word* marks are highlighted
+    const hasAsterisks = w.startsWith("*") && w.endsWith("*") && w.length > 2;
+    const stripped = w.replace(/\*/g, "");
     return {
-      raw: rawNoAsterisk,
-      cleanWord,
-      isKeyword
+      raw: stripped,
+      clean: stripped.replace(/^[^\w\d]+|[^\w\d]+$/g, "").toUpperCase(),
+      isKeyword: hasAsterisks,
     };
   });
-
-  // Fallback: If no keyword was detected at all in this phrase,
-  // mark the last word as the keyword so every thought has punchline emphasis!
-  const hasAnyKeyword = tokens.some((t) => t.isKeyword);
-  if (!hasAnyKeyword && tokens.length > 0) {
-    tokens[tokens.length - 1].isKeyword = true;
-  }
-
-  return tokens;
 }
 
-export interface LineLayout {
-  tokens: WordToken[];
-  width: number;
-}
-
-// Helper: check if word is an orphan preposition/conjunction that should never dangle at line end
-export function isOrphanWord(w: string): boolean {
-  const clean = w.toLowerCase().replace(/[^a-z0-9a-ząćęłńóśźż]/gi, '');
+function isOrphanWord(w: string): boolean {
+  const t = w.replace(/[^\w]/g, "").toUpperCase();
   return [
-    'a', 'i', 'o', 'u', 'w', 'z',
-    'to', 'że', 'czy', 'co', 'na', 'do', 'od', 'po', 'ze', 'we', 'dla', 'jak',
-    'the', 'an', 'in', 'on', 'at', 'of', 'by', 'as', 'or', 'if', 'no', 'not', 'is', 'it', 'he', 'we', 'so', 'my', 'me', 'to', 'for'
-  ].includes(clean);
+    "A",
+    "AN",
+    "THE",
+    "IN",
+    "ON",
+    "AT",
+    "TO",
+    "OF",
+    "FOR",
+    "BY",
+    "WITH",
+    "AND",
+    "OR",
+    "IS",
+  ].includes(t);
 }
 
-// Formats text into balanced lines without orphan words at line ends
-export function formatHookSemanticLines(text: string, targetLineCount?: 1 | 2 | 3): string {
-  const clean = text.replace(/\r\n/g, '\n').trim();
-  if (!clean) return '';
-  if (targetLineCount === 1) {
-    return clean.replace(/\n+/g, ' ').trim();
-  }
-
-  const words = clean.replace(/\n+/g, ' ').split(/\s+/).filter(Boolean);
-  if (words.length <= 3) return words.join(' ');
-
-  if (targetLineCount === 2 || (!targetLineCount && words.length <= 7)) {
-    let mid = Math.round(words.length / 2);
-    if (mid > 1 && isOrphanWord(words[mid - 1])) {
-      mid--;
-    }
-    const line1 = words.slice(0, mid).join(' ');
-    const line2 = words.slice(mid).join(' ');
-    return `${line1}\n${line2}`;
-  }
-
-  if (targetLineCount === 3 || (!targetLineCount && words.length > 7)) {
-    const third = Math.round(words.length / 3);
-    let p1 = third;
-    if (p1 > 1 && isOrphanWord(words[p1 - 1])) p1--;
-    let p2 = p1 + third;
-    if (p2 > p1 + 1 && isOrphanWord(words[p2 - 1])) p2--;
-    const line1 = words.slice(0, p1).join(' ');
-    const line2 = words.slice(p1, p2).join(' ');
-    const line3 = words.slice(p2).join(' ');
-    return [line1, line2, line3].filter(Boolean).join('\n');
-  }
-
-  return clean;
-}
-
-// Rock-solid layout engine: strictly respects manual linebreaks, avoids orphan prepositions,
-// and smoothly scales font to GUARANTEE text NEVER clips or overflows outside safe margins
-export function layoutPhraseToLines(
-  phrase: string,
+function layoutLines(
+  text: string,
   ctx: CanvasRenderingContext2D,
-  maxSafeWidth: number = 560,
-  baseFontSize: number = 44,
-  fontFamily: string = '"Cinzel", "Times New Roman", Georgia, serif'
-): { lines: LineLayout[]; finalFontSize: number; lineHeight: number } {
-  const rawSegments = phrase.split('\n').map((s) => s.trim()).filter((s) => s.length > 0);
+  maxW: number,
+  targetFontSize: number,
+  fontFamily: string,
+): { lines: Array<{ tokens: Token[]; width: number }>; fontSize: number; lineHeight: number } {
+  let fontSize = targetFontSize;
+  const minFontSize = 46;
 
-  const initialLines: WordToken[][] = [];
+  while (fontSize >= minFontSize) {
+    ctx.font = `900 ${fontSize}px ${fontFamily}`;
+    const manualLines = text
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean);
+    const resultLines: Array<{ tokens: Token[]; width: number }> = [];
+    let fits = true;
 
-  for (const seg of rawSegments) {
-    const tokens = parseWordsWithKeywords(seg);
-    if (tokens.length === 0) continue;
+    for (const mLine of manualLines) {
+      const tokens = parseTokens(mLine);
+      let curTokens: Token[] = [];
+      let curW = 0;
+      const spaceW = ctx.measureText(" ").width;
 
-    // RULE 1: If user or preset explicitly provided a line break, and this segment has <= 6 words:
-    // Strictly preserve that line! Do NOT chop it into pieces!
-    if (tokens.length <= 6) {
-      initialLines.push(tokens);
-    } else {
-      // For longer segments (7+ words on a single line), balance them gracefully without ending on orphan prepositions
-      if (tokens.length <= 8) {
-        let mid = Math.round(tokens.length / 2);
-        if (mid > 1 && isOrphanWord(tokens[mid - 1].raw)) mid--;
-        initialLines.push(tokens.slice(0, mid));
-        initialLines.push(tokens.slice(mid));
-      } else {
-        let i = 0;
-        while (i < tokens.length) {
-          const remaining = tokens.length - i;
-          let take = Math.min(4, remaining);
-          if (i + take < tokens.length && isOrphanWord(tokens[i + take - 1].raw) && take > 1) {
-            take--;
+      for (let i = 0; i < tokens.length; i++) {
+        const tok = tokens[i];
+        const wordW = ctx.measureText(tok.raw).width;
+        const testW = curTokens.length === 0 ? wordW : curW + spaceW + wordW;
+
+        if (testW <= maxW) {
+          curTokens.push(tok);
+          curW = testW;
+        } else {
+          if (curTokens.length === 0) {
+            fits = false;
+            break;
           }
-          initialLines.push(tokens.slice(i, i + take));
-          i += take;
+          resultLines.push({ tokens: curTokens, width: curW });
+          curTokens = [tok];
+          curW = wordW;
         }
       }
+
+      if (!fits) break;
+      if (curTokens.length > 0) {
+        resultLines.push({ tokens: curTokens, width: curW });
+      }
     }
-  }
 
-  if (initialLines.length === 0) {
-    initialLines.push(parseWordsWithKeywords(phrase));
-  }
-
-  let currentFontSize = baseFontSize;
-
-  const measureLineWidth = (tokens: WordToken[], fSize: number) => {
-    ctx.font = `900 ${fSize}px ${fontFamily}`;
-    const spaceW = ctx.measureText(' ').width;
-    let w = 0;
-    for (let i = 0; i < tokens.length; i++) {
-      w += ctx.measureText(tokens[i].raw).width;
-      if (i < tokens.length - 1) w += spaceW;
+    if (fits && resultLines.length <= 4) {
+      return {
+        lines: resultLines,
+        fontSize,
+        lineHeight: Math.round(fontSize * 1.25),
+      };
     }
-    return w;
-  };
 
-  // Find max width among lines at baseFontSize
-  let maxW = 0;
-  for (const lineTokens of initialLines) {
-    const w = measureLineWidth(lineTokens, currentFontSize);
-    if (w > maxW) maxW = w;
+    fontSize -= 2;
   }
 
-  // Smoothly scale down font if it exceeds maxSafeWidth
-  if (maxW > maxSafeWidth) {
-    const scaleRatio = maxSafeWidth / maxW;
-    currentFontSize = Math.max(26, Math.floor(currentFontSize * scaleRatio * 0.96));
-  }
-
-  // Double check in case a single huge word still exceeds
-  maxW = 0;
-  for (const lineTokens of initialLines) {
-    const w = measureLineWidth(lineTokens, currentFontSize);
-    if (w > maxW) maxW = w;
-  }
-  if (maxW > maxSafeWidth) {
-    currentFontSize = Math.max(22, Math.floor(currentFontSize * (maxSafeWidth / maxW) * 0.95));
-  }
-
-  const finalLines: LineLayout[] = initialLines.map((lineTokens) => ({
-    tokens: lineTokens,
-    width: measureLineWidth(lineTokens, currentFontSize)
-  }));
-
-  const lineHeight = Math.round(currentFontSize * 1.3);
-
+  // Fallback
+  ctx.font = `900 ${minFontSize}px ${fontFamily}`;
+  const tokens = parseTokens(text);
   return {
-    lines: finalLines,
-    finalFontSize: currentFontSize,
-    lineHeight
+    lines: [{ tokens, width: ctx.measureText(text).width }],
+    fontSize: minFontSize,
+    lineHeight: Math.round(minFontSize * 1.25),
   };
 }
 
-// Intelligently splits text into balanced rhythmic chunks that end on complete thoughts
-function splitScriptIntoRhythmicPhrases(script: string): string[] {
-  const trimmed = script.trim();
-  if (!trimmed) return ['STARK FOCUS'];
-
-  // Respect intentional linebreaks first
-  const rawLines = trimmed
-    .split('\n')
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0);
-
-  if (rawLines.length >= 2) {
-    return rawLines;
-  }
-
-  const words = trimmed
-    .replace(/\n/g, ' ')
-    .split(' ')
-    .map((w) => w.trim())
-    .filter((w) => w.length > 0);
-
-  // If short (<= 6 words), keep it as a single cohesive sentence/hook
-  if (words.length <= 6) {
-    return [words.join(' ')];
-  }
-
-  // If 7-10 words, split into 2 balanced thoughts without ending on orphan prepositions
-  if (words.length <= 10) {
-    let mid = Math.round(words.length / 2);
-    if (mid > 1 && isOrphanWord(words[mid - 1])) mid--;
-    return [words.slice(0, mid).join(' '), words.slice(mid).join(' ')];
-  }
-
-  const phrases: string[] = [];
-  let i = 0;
-  while (i < words.length) {
-    const remaining = words.length - i;
-    let take = 4;
-    if (remaining === 5) take = 3;
-    if (remaining === 6) take = 3;
-    if (remaining <= 4) take = remaining;
-    if (i + take < words.length && isOrphanWord(words[i + take - 1]) && take > 1) {
-      take--;
-    }
-    phrases.push(words.slice(i, i + take).join(' '));
-    i += take;
-  }
-
-  return phrases.length > 0 ? phrases : [trimmed];
-}
-
-interface AudioRecommendation {
-  name: string;
-  tag: string;
-  reason: string;
-  bpm: number;
-  boost: string;
-}
+const PRESET_STORAGE_KEY = "stark_reel_default_preset_v2";
 
 export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
   onClose,
-  initialHook = '',
-  initialBgUrl = '',
-  availablePosts = [],
-  vaultAssets = [],
-  onSchedulePostFor1300,
-  onSchedulePost
+  initialHook,
+  initialBgUrl,
 }) => {
-  // TikTok safe zone guides preview overlay
-  const [showTikTokGuides, setShowTikTokGuides] = useState<boolean>(false);
-
-  // Video text / script (Strictly English by default)
-  const [scriptText, setScriptText] = useState<string>(
-    initialHook ? initialHook.toUpperCase() : POETIC_VIRAL_HOOKS_EN[0]
-  );
-  const [selectedTheme, setSelectedTheme] = useState<VisualTheme>('obsidian_monolith');
-
-  // Top Header & Cringe Elimination State
-  const [topHeaderMode, setTopHeaderMode] = useState<TopHeaderMode>('midday_1300');
-  const [customTopHeaderText, setCustomTopHeaderText] = useState<string>('13:00 • MIDDAY RESET');
-
-  // Keyword Highlighting Customization
-  const [keywordHighlightStyle, setKeywordHighlightStyle] = useState<KeywordHighlightStyle>('white_halo');
-  const [keywordColorChoice, setKeywordColorChoice] = useState<KeywordColorChoice>('white');
-
-  // Official Brand Logo Watermark State
-  const [logoSourceType, setLogoSourceType] = useState<LogoSourceType>('seal');
-  const [customLogoUrl, setCustomLogoUrl] = useState<string>(() => {
+  // Read saved preset from localStorage if exists
+  const savedPreset = useMemo(() => {
     try {
-      return localStorage.getItem('stark_custom_logo_url') || '';
+      const raw = localStorage.getItem(PRESET_STORAGE_KEY);
+      if (raw) return JSON.parse(raw);
     } catch {
-      return '';
+      // ignore
     }
-  });
-  const [logoPlacement, setLogoPlacement] = useState<LogoPlacement>('bottom_under');
-  const [logoSize, setLogoSize] = useState<number>(44);
-  const [logoOpacity, setLogoOpacity] = useState<number>(100);
-  const [logoGlow, setLogoGlow] = useState<LogoGlowChoice>('cyan');
-  const [logoLoadTick, setLogoLoadTick] = useState<number>(0);
-  const loadedLogoImgRef = useRef<HTMLImageElement | null>(null);
-  const logoFileInputRef = useRef<HTMLInputElement | null>(null);
+    return null;
+  }, []);
 
-  // Video Export configuration & Lock Ref
-  const [exportFps, setExportFps] = useState<30 | 60>(60);
-  const isExportingRef = useRef<boolean>(false);
-  const [copiedAudioTag, setCopiedAudioTag] = useState<boolean>(false);
-  const [videoExportError, setVideoExportError] = useState<string | null>(null);
-
-  // Typography & Color Options
-  const [fontFamilyChoice, setFontFamilyChoice] = useState<'cinzel' | 'space_grotesk' | 'inter'>('cinzel');
-  const [preferredFontSize, setPreferredFontSize] = useState<number>(44);
-  const [fontColor, setFontColor] = useState<string>('#FFFFFF');
-  const [isSamplingCanvasColor, setIsSamplingCanvasColor] = useState<boolean>(false);
-
-  // Eyedropper Color Picker Handlers
-  const handlePickColorWithEyeDropper = async () => {
-    if (typeof window !== 'undefined' && 'EyeDropper' in window) {
-      try {
-        const eyeDropper = new (window as any).EyeDropper();
-        const result = await eyeDropper.open();
-        if (result && result.sRGBHex) {
-          setFontColor(result.sRGBHex.toUpperCase());
-          return;
-        }
-      } catch {
-        // Fall back to canvas click sampling
-      }
+  // 1. Initial State from curated templates
+  const initialTpl = useMemo(() => {
+    if (initialHook) {
+      const found = VIRAL_REEL_TEMPLATES.find(
+        (t) => t.phrases.join(" ").toUpperCase() === initialHook.toUpperCase(),
+      );
+      if (found) return found;
     }
-    setIsSamplingCanvasColor(true);
-  };
+    return VIRAL_REEL_TEMPLATES[0];
+  }, [initialHook]);
 
-  const handleCanvasClickToSampleColor = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isSamplingCanvasColor) return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-    const clickX = Math.floor((e.clientX - rect.left) * scaleX);
-    const clickY = Math.floor((e.clientY - rect.top) * scaleY);
+  // Director Controls
+  const [duration, setDuration] = useState<ReelDuration>(
+    (savedPreset?.duration as ReelDuration) || (initialTpl.suggestedDuration as ReelDuration) || 7,
+  );
+  const [pacingMode, setPacingMode] = useState<PacingMode>(
+    savedPreset?.pacingMode || "climax_hold",
+  );
+  const [format, setFormat] = useState<NarrativeFormat>(initialTpl.format || "three_phases");
+  const [selectedTheme, setSelectedTheme] = useState<VisualTheme>(
+    savedPreset?.selectedTheme || initialTpl.suggestedTheme || "obsidian_void",
+  );
+  const [fontFamily, setFontFamily] = useState<FontFamily>(
+    savedPreset?.fontFamily === "syne" ? "montserrat" : savedPreset?.fontFamily || "cinzel",
+  );
+  const [fontSize, setFontSize] = useState<number>(savedPreset?.fontSize ?? 76);
+  const [textCase, setTextCase] = useState<"natural" | "uppercase">(
+    savedPreset?.textCase ?? "natural",
+  );
+  const [highlightStyle, setHighlightStyle] = useState<HighlightStyle>(
+    savedPreset?.highlightStyle || "white_halo",
+  );
+  const [verticalPos, setVerticalPos] = useState<number>(savedPreset?.verticalPos ?? 42);
+  const [captionStyle, setCaptionStyle] = useState<"short" | "deep">(
+    savedPreset?.captionStyle || "short",
+  );
 
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    try {
-      const pixel = ctx.getImageData(clickX, clickY, 1, 1).data;
-      const hex = `#${((1 << 24) + (pixel[0] << 16) + (pixel[1] << 8) + pixel[2]).toString(16).slice(1).toUpperCase()}`;
-      setFontColor(hex);
-    } catch (err) {
-      console.error('Failed to sample color from canvas', err);
-    } finally {
-      setIsSamplingCanvasColor(false);
-    }
-  };
+  // Custom Background State (Image or Video)
+  const [customBgType, setCustomBgType] = useState<"none" | "image" | "video">("none");
+  const [customBgName, setCustomBgName] = useState<string>("");
+  const customImageRef = useRef<HTMLImageElement | null>(null);
+  const customVideoRef = useRef<HTMLVideoElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const [isPlaying, setIsPlaying] = useState<boolean>(true);
-  const [audioPreviewEnabled, setAudioPreviewEnabled] = useState<boolean>(false);
-  const [isGeneratingIdea, setIsGeneratingIdea] = useState<boolean>(false);
-  const [showBingModal, setShowBingModal] = useState<boolean>(false);
-  // Active Day Slot & Scheduling
-  const [activeDaySlot, setActiveDaySlot] = useState<DaySlotCategory>(getSmartDefaultDaySlot);
-  const [selectedScheduledTime, setSelectedScheduledTime] = useState<string>(() => {
-    const slot = getSmartDefaultDaySlot();
-    if (slot === 'morning') return '07:00';
-    if (slot === 'lunch') return '13:00';
-    return '21:00';
-  });
-  const [isCustomTime, setIsCustomTime] = useState<boolean>(false);
-  const [customTimeInput, setCustomTimeInput] = useState<string>('20:30');
-
-  const [scheduledToast, setScheduledToast] = useState<boolean>(false);
-  const [scheduledToastTime, setScheduledToastTime] = useState<string>('');
-  const videoBgFileInputRef = useRef<HTMLInputElement | null>(null);
-
-  const detectedKeywordsList = useMemo(() => {
-    const tokens = parseWordsWithKeywords(scriptText);
-    return Array.from(new Set(tokens.filter((t) => t.isKeyword).map((t) => t.raw)));
-  }, [scriptText]);
-
-  const allVideoBgs = [
-    ...STARK_VIDEO_BACKGROUNDS,
-    ...(vaultAssets || [])
-      .filter((a) => a.type === 'bg')
-      .map((a) => ({
-        id: a.id,
-        name: `📁 [Skarbiec] ${a.filename}`,
-        url: a.url
-      }))
-  ];
-
-  // Background Image Selection (Curated dark assets or procedural canvas)
-  const [selectedBgId, setSelectedBgId] = useState<string>(() => {
-    if (initialBgUrl) return 'custom';
-    return 'procedural';
-  });
-  const [customBgUrl, setCustomBgUrl] = useState<string>(initialBgUrl || '');
-  const loadedBgImgRef = useRef<HTMLImageElement | null>(null);
-
+  // Auto-load initial background if provided
   useEffect(() => {
-    let url = '';
-    if (selectedBgId === 'custom') {
-      url = customBgUrl.trim();
-    } else {
-      const found = allVideoBgs.find((b) => b.id === selectedBgId);
-      url = found ? found.url : '';
-    }
-
-    if (url) {
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.src = url;
-      img.onload = () => {
-        loadedBgImgRef.current = img;
-      };
-      img.onerror = () => {
-        loadedBgImgRef.current = null;
-      };
-    } else {
-      loadedBgImgRef.current = null;
-    }
-  }, [selectedBgId, customBgUrl]);
-
-  const handleBgFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const dataUrl = event.target?.result as string;
-      if (dataUrl) {
-        setCustomBgUrl(dataUrl);
-        setSelectedBgId('custom');
-      }
-    };
-    reader.readAsDataURL(file);
-    e.target.value = '';
-  };
-
-  // Pre-load Brand Logo for Canvas Rendering
-  useEffect(() => {
-    let targetSrc = '/stark_seal_logo.png';
-    if (logoSourceType === 'custom' && customLogoUrl) {
-      targetSrc = customLogoUrl;
-    }
-
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.src = targetSrc;
-    img.onload = () => {
-      loadedLogoImgRef.current = img;
-      setLogoLoadTick((t) => t + 1);
-    };
-    img.onerror = () => {
-      if (targetSrc !== '/stark_seal_logo.png') {
-        const fallback = new Image();
-        fallback.crossOrigin = 'anonymous';
-        fallback.src = '/stark_seal_logo.png';
-        fallback.onload = () => {
-          loadedLogoImgRef.current = fallback;
-          setLogoLoadTick((t) => t + 1);
+    if (initialBgUrl) {
+      const isVid = initialBgUrl.match(/\.(mp4|webm|mov)(\?.*)?$/i);
+      if (isVid) {
+        const vid = document.createElement("video");
+        vid.crossOrigin = "anonymous";
+        vid.src = initialBgUrl;
+        vid.muted = true;
+        vid.loop = true;
+        vid.playsInline = true;
+        vid.onloadeddata = () => {
+          customVideoRef.current = vid;
+          setCustomBgType("video");
+          setCustomBgName("Vault Video");
+          vid.play().catch(() => {});
+        };
+      } else {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.src = initialBgUrl;
+        img.onload = () => {
+          customImageRef.current = img;
+          setCustomBgType("image");
+          setCustomBgName("Vault Background");
         };
       }
-    };
-  }, [logoSourceType, customLogoUrl]);
-
-  const handleLogoFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const dataUrl = event.target?.result as string;
-      if (dataUrl) {
-        setCustomLogoUrl(dataUrl);
-        setLogoSourceType('custom');
-        try {
-          localStorage.setItem('stark_custom_logo_url', dataUrl);
-        } catch {
-          // Ignore quota error
-        }
-      }
-    };
-    reader.readAsDataURL(file);
-    e.target.value = '';
-  };
-
-  const handleScheduleFor1300 = () => {
-    const scheduleFn = onSchedulePost || onSchedulePostFor1300;
-    if (scheduleFn) {
-      const cleanScript = scriptText.replace(/\n/g, ' ');
-      const allPresets = [
-        ...MORNING_PRESETS,
-        ...LUNCH_1300_PRESETS,
-        ...EVENING_PRESETS,
-        ...ALL_DAY_PRESETS
-      ];
-      const activePreset = allPresets.find(
-        (p) => p.hook.replace(/\n/g, ' ') === cleanScript
-      );
-      const caption =
-        activePreset?.caption ||
-        `${scriptText}\n\nExecute what is necessary in total silence. // @stark_focus\n\nSound tag: "${recommendedAudio.tag}"\n#discipline #stoicism #relentless #execution #mindset #focus #stark_focus`;
-
-      let bgUrl = '';
-      if (selectedBgId === 'custom') {
-        bgUrl = customBgUrl;
-      } else {
-        const found = allVideoBgs.find((b) => b.id === selectedBgId);
-        bgUrl = found?.url || '';
-      }
-
-      const targetTime = isCustomTime ? customTimeInput : selectedScheduledTime;
-      const todayStr = new Date().toISOString().split('T')[0];
-
-      scheduleFn({
-        title: cleanScript,
-        caption,
-        bgUrl,
-        scheduledTime: targetTime,
-        scheduledDate: todayStr
-      });
-      setScheduledToastTime(targetTime);
-      setScheduledToast(true);
-      setTimeout(() => setScheduledToast(false), 5000);
     }
-  };
+  }, [initialBgUrl]);
 
-  // Exact 7.00s Duration Constraint
-  const durationSec = 7.0;
-  const [currentTimeDisplay, setCurrentTimeDisplay] = useState<number>(0);
+  // Editable phrases for quick preview & correction (Traditional sentence case)
+  const [phrases, setPhrases] = useState<string[]>(() => {
+    if (initialHook) {
+      const parts = initialHook.split("\n").filter(Boolean);
+      return parts.length > 0 ? parts : initialTpl.phrases;
+    }
+    return initialTpl.phrases;
+  });
+
+  // Current template reference for caption toggling
+  const [activeTemplate, setActiveTemplate] = useState<ReelTemplate>(initialTpl);
+
+  // Ready-to-copy Caption & Hashtags
+  const [caption, setCaption] = useState<string>(
+    captionStyle === "deep" ? initialTpl.captionDeep : initialTpl.captionShort,
+  );
+  const [hashtags, setHashtags] = useState<string[]>(initialTpl.hashtags);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Playback & Canvas Loop
+  const [isPlaying, setIsPlaying] = useState<boolean>(true);
+  const [currentTime, setCurrentTime] = useState<number>(0);
+  const [showTikTokGuides, setShowTikTokGuides] = useState<boolean>(false);
+  const [isGeneratingAi, setIsGeneratingAi] = useState<boolean>(false);
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const seenTitlesRef = useRef<string[]>([]);
+
+  // Dynamic Pacing Timeline and Metrics
+  const activeTimeline = useMemo(() => {
+    return getPhraseTimeline(phrases, duration, pacingMode);
+  }, [phrases, duration, pacingMode]);
+
+  const avgPhraseDuration = useMemo(() => {
+    if (phrases.length <= 1) return duration;
+    return duration / phrases.length;
+  }, [duration, phrases.length]);
+
+  const currentPhraseIndex = useMemo(() => {
+    if (phrases.length <= 1) return 0;
+    const found = activeTimeline.findIndex(
+      (item) => currentTime >= item.start && currentTime < item.end,
+    );
+    return found !== -1 ? found : activeTimeline.length - 1;
+  }, [activeTimeline, currentTime, phrases.length]);
+
+  // Export State (Domyślnie 30 FPS zgodny ze standardem Instagram Reels / TikTok - brak podwajania czasu)
+  const [isExporting, setIsExporting] = useState<boolean>(false);
+  const [exportProgress, setExportProgress] = useState<number>(0);
+  const [exportFps, setExportFps] = useState<60 | 30>(30);
+  const isExportingRef = useRef<boolean>(false);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const animationFrameRef = useRef<number | null>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const pulseTimerRef = useRef<any>(null);
-
-  // High-precision time reference for 60fps loop
   const timeRef = useRef<number>(0);
   const isPlayingRef = useRef<boolean>(isPlaying);
 
@@ -1025,888 +462,801 @@ export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
     isPlayingRef.current = isPlaying;
   }, [isPlaying]);
 
-  // Dynamic Audio Recommendation based on script content
-  const recommendedAudio = useMemo<AudioRecommendation>(() => {
-    const upper = scriptText.toUpperCase();
-    if (upper.includes('WAR') || upper.includes('MEDIOCRE') || upper.includes('CONQUER') || upper.includes('KILL')) {
-      return {
-        name: 'Phonk Montagem (Brazilian Dark 140BPM)',
-        tag: 'Montagem Diamante / Phonk Viral',
-        reason: 'Wykryto agresywny ton i przełamanie wymówek (+140% thumb-stop).',
-        bpm: 140,
-        boost: '+140% Retencja w rolkach'
-      };
-    }
-    if (upper.includes('SOLITUDE') || upper.includes('DARK') || upper.includes('SILENCE') || upper.includes('POISON')) {
-      return {
-        name: 'Interstellar / Dark Piano Synth (Slowed + Reverb)',
-        tag: 'Cornfield Chase Slowed Reverb',
-        reason: 'Wykryto poetycki nastrój i samotną pracę w ciszy (+125% zapisań).',
-        bpm: 85,
-        boost: '+125% Udostępnienia i Zapisy'
-      };
-    }
-    if (upper.includes('MEANING') || upper.includes('DEMONS') || upper.includes('ADVANTAGE') || upper.includes('SOVEREIGN')) {
-      return {
-        name: 'Hans Zimmer - Time (Subliminal 432Hz)',
-        tag: 'Dark Ambient Solitude 432Hz',
-        reason: 'Wykryto głęboki stoicki aforyzm o wysokiej wartości wirusowej.',
-        bpm: 75,
-        boost: '+110% Dłuższe Oglądanie'
-      };
-    }
-    return {
-      name: 'Tevvez / GigaChad Awakening (Hardstyle 150BPM)',
-      tag: 'Legend / Gym Hardstyle',
-      reason: 'Idealne tempo do budowania natychmiastowego napięcia w pierwszych 3 sekundach.',
-      bpm: 150,
-      boost: '+95% Zatrzymanie Kciuka'
-    };
-  }, [scriptText]);
+  // ZERO-CLICK PIPELINE: 1. 1-Click Multi-Variant Video Generator (A/B testing)
+  const [isGeneratingVariants, setIsGeneratingVariants] = useState<boolean>(false);
+  const [multiVariants, setMultiVariants] = useState<any[]>([]);
+  const [showVariantsModal, setShowVariantsModal] = useState<boolean>(false);
 
-  // Audio preview sound pulse
-  const stopAudioImmediate = () => {
-    if (pulseTimerRef.current) {
-      clearInterval(pulseTimerRef.current);
-      pulseTimerRef.current = null;
-    }
-    if (audioContextRef.current) {
-      try {
-        audioContextRef.current.close();
-      } catch {
-        // ignore
-      }
-      audioContextRef.current = null;
-    }
-  };
-
-  const startAudioPulse = () => {
-    stopAudioImmediate();
-    if (!audioPreviewEnabled) return;
-
+  const handleGenerateMultiVariants = async () => {
+    setIsGeneratingVariants(true);
+    setToastMessage("Generowanie 3 wariantów A/B/C rolki...");
     try {
-      const AudioCtx =
-        window.AudioContext ||
-        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      const ctx = new AudioCtx();
-      audioContextRef.current = ctx;
-
-      const intervalMs = (60 / recommendedAudio.bpm) * 1000;
-
-      const playHit = () => {
-        if (!audioContextRef.current) return;
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = recommendedAudio.bpm >= 120 ? 'sine' : 'triangle';
-        osc.frequency.setValueAtTime(110, ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(32, ctx.currentTime + 0.12);
-
-        gain.gain.setValueAtTime(0.22, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.16);
-
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start();
-        osc.stop(ctx.currentTime + 0.18);
-      };
-
-      playHit();
-      pulseTimerRef.current = setInterval(playHit, intervalMs);
-    } catch {
-      // Audio autoplay policy fallback
+      const res = await fetch("/api/ai/generate-multi-variant-reels", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topic: phrases[0] || "Solitude and relentless standards" }),
+      });
+      const json = await res.json();
+      if (Array.isArray(json.variants)) {
+        setMultiVariants(json.variants);
+        setShowVariantsModal(true);
+        setToastMessage("✓ Wygenerowano 3 warianty A/B/C!");
+      }
+    } catch (e) {
+      console.error(e);
+      setToastMessage("Błąd generowania wariantów.");
+    } finally {
+      setIsGeneratingVariants(false);
+      setTimeout(() => setToastMessage(null), 2500);
     }
   };
 
-  useEffect(() => {
-    if (audioPreviewEnabled && isPlaying) {
-      startAudioPulse();
-    } else {
-      stopAudioImmediate();
-    }
-  }, [audioPreviewEnabled, isPlaying, recommendedAudio]);
+  const handleApplyVariant = (variant: any) => {
+    setPhrases(variant.phrases);
+    setSelectedTheme(variant.theme);
+    setDuration(variant.duration || 8);
+    setShowVariantsModal(false);
+    setToastMessage(`✓ Załadowano ${variant.variantName}`);
+    setTimeout(() => setToastMessage(null), 2500);
+  };
 
-  useEffect(() => {
-    return () => {
-      stopAudioImmediate();
-      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
-    };
-  }, []);
+  // TURNKEY EXPORT: 1. "Ready-to-Post" ZIP Bundle
+  const [isExportingZip, setIsExportingZip] = useState<boolean>(false);
 
-  // Split script into meaningful rhythmic phrases that end on natural thoughts
-  const effectivePhrases = splitScriptIntoRhythmicPhrases(scriptText);
-  const phraseDuration = durationSec / Math.max(1, effectivePhrases.length);
-
-  // Particle Engine
-  const particlesRef = useRef<Array<{ x: number; y: number; size: number; speed: number; opacity: number }>>([]);
-  useEffect(() => {
-    const list = [];
-    for (let i = 0; i < 70; i++) {
-      list.push({
-        x: Math.random() * 720,
-        y: Math.random() * 1280,
-        size: Math.random() * 2.8 + 0.8,
-        speed: Math.random() * 1.2 + 0.3,
-        opacity: Math.random() * 0.6 + 0.15
-      });
-    }
-    particlesRef.current = list;
-  }, []);
-
-  // Render Frame function
-  const renderFrame = (timeSec: number) => {
+  const handleExportZipBundle = async () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const width = 720;
-    const height = 1280;
-    canvas.width = width;
-    canvas.height = height;
-
-    const progress = Math.min(1, Math.max(0, timeSec / durationSec));
-    const normalizedTheme: VisualTheme =
-      selectedTheme === ('spartan_forge' as any)
-        ? 'titanium_slate'
-        : selectedTheme === ('brutalist_apex' as any)
-        ? 'carbon_graphite'
-        : selectedTheme;
-    const currentThemeConfig = VISUAL_THEMES.find((t) => t.id === normalizedTheme) || VISUAL_THEMES[0];
-
-    // 1. Background Base (Image texture or upgraded generative theme)
-    if (loadedBgImgRef.current) {
-      // Slow cinematic push-in (Ken Burns zoom 1.0 to 1.045 over 7s)
-      const zoom = 1.0 + progress * 0.045;
-      ctx.save();
-      ctx.translate(width / 2, height / 2);
-      ctx.scale(zoom, zoom);
-      ctx.drawImage(loadedBgImgRef.current, -width / 2, -height / 2, width, height);
-      ctx.restore();
-
-      // Atmospheric gradient tone map overlay so typography is 100% readable
-      const overlay = ctx.createLinearGradient(0, 0, 0, height);
-      overlay.addColorStop(0, 'rgba(3, 5, 8, 0.72)');
-      overlay.addColorStop(0.35, 'rgba(5, 7, 12, 0.42)');
-      overlay.addColorStop(0.7, 'rgba(5, 7, 12, 0.52)');
-      overlay.addColorStop(1, 'rgba(3, 5, 8, 0.88)');
-      ctx.fillStyle = overlay;
-      ctx.fillRect(0, 0, width, height);
-
-      // Theme-colored stardust particles overlay
-      particlesRef.current.forEach((p) => {
-        p.y -= p.speed;
-        if (p.y < 0) p.y = height;
-        ctx.fillStyle = `rgba(255, 255, 255, ${p.opacity * 0.65})`;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fill();
-      });
-    } else if (normalizedTheme === 'titanium_slate') {
-      // 1. Titanium Slate (Architectural graphite, brushed steel chiaroscuro & cold silver stardust)
-      const bgGrad = ctx.createRadialGradient(width * 0.5, height * 0.45, 60, width / 2, height / 2, height * 0.75);
-      bgGrad.addColorStop(0, '#161E2E');
-      bgGrad.addColorStop(0.45, '#0B0F19');
-      bgGrad.addColorStop(1, '#030508');
-      ctx.fillStyle = bgGrad;
-      ctx.fillRect(0, 0, width, height);
-
-      // Heavy architectural vertical slate slabs & fracture lines
-      ctx.strokeStyle = 'rgba(148, 163, 184, 0.35)';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(width * 0.22, 0);
-      ctx.lineTo(width * 0.22, height);
-      ctx.moveTo(width * 0.78, 0);
-      ctx.lineTo(width * 0.78, height);
-      ctx.stroke();
-
-      // Horizontal micro-dividers
-      ctx.strokeStyle = 'rgba(148, 163, 184, 0.2)';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(width * 0.15, height * 0.35);
-      ctx.lineTo(width * 0.85, height * 0.35);
-      ctx.moveTo(width * 0.15, height * 0.65);
-      ctx.lineTo(width * 0.85, height * 0.65);
-      ctx.stroke();
-
-      // Rising cold platinum/slate embers
-      particlesRef.current.forEach((p) => {
-        p.y -= p.speed * 1.3;
-        if (p.y < 0) p.y = height;
-        ctx.fillStyle = `rgba(203, 213, 225, ${p.opacity * 0.85})`;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size * 1.2, 0, Math.PI * 2);
-        ctx.fill();
-      });
-    } else if (normalizedTheme === 'pantheon_mist') {
-      // 2. Roman Pantheon Noir Chiaroscuro (Classical monumental colonnade, rolling midnight mist)
-      const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
-      bgGrad.addColorStop(0, '#04060A');
-      bgGrad.addColorStop(0.5, '#0B0F18');
-      bgGrad.addColorStop(1, '#020306');
-      ctx.fillStyle = bgGrad;
-      ctx.fillRect(0, 0, width, height);
-
-      // Four monumental fluted Roman pillars in dramatic chiaroscuro perspective
-      const cols = [width * 0.14, width * 0.34, width * 0.66, width * 0.86];
-      cols.forEach((colX) => {
-        const colGrad = ctx.createLinearGradient(colX - 45, 0, colX + 45, 0);
-        colGrad.addColorStop(0, 'rgba(248, 250, 252, 0.16)');
-        colGrad.addColorStop(0.35, 'rgba(226, 232, 240, 0.09)');
-        colGrad.addColorStop(0.75, 'rgba(148, 163, 184, 0.03)');
-        colGrad.addColorStop(1, 'rgba(15, 23, 42, 0)');
-        ctx.fillStyle = colGrad;
-        ctx.fillRect(colX - 35, height * 0.12, 70, height * 0.76);
-
-        // Fluting vertical ridges
-        ctx.strokeStyle = 'rgba(248, 250, 252, 0.14)';
-        ctx.lineWidth = 1;
-        for (let r = -20; r <= 20; r += 12) {
-          ctx.beginPath();
-          ctx.moveTo(colX + r, height * 0.15);
-          ctx.lineTo(colX + r, height * 0.85);
-          ctx.stroke();
-        }
-      });
-
-      // Classical architrave beam across top
-      ctx.fillStyle = 'rgba(241, 245, 249, 0.08)';
-      ctx.fillRect(width * 0.08, height * 0.14, width * 0.84, 28);
-      ctx.strokeStyle = 'rgba(248, 250, 252, 0.22)';
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(width * 0.08, height * 0.14, width * 0.84, 28);
-
-      // Ethereal rolling midnight mist particles
-      particlesRef.current.forEach((p) => {
-        p.x += Math.sin(timeSec + p.y) * 0.4;
-        p.y -= p.speed * 0.6;
-        if (p.y < 0) p.y = height;
-        ctx.fillStyle = `rgba(226, 232, 240, ${p.opacity * 0.45})`;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size * 2, 0, Math.PI * 2);
-        ctx.fill();
-      });
-    } else if (normalizedTheme === 'carbon_graphite') {
-      // 3. Carbon Minimal (Raw matte carbon fiber, technical precision & dark horizon)
-      const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
-      bgGrad.addColorStop(0, '#0D0F16');
-      bgGrad.addColorStop(0.4, '#07090E');
-      bgGrad.addColorStop(1, '#020305');
-      ctx.fillStyle = bgGrad;
-      ctx.fillRect(0, 0, width, height);
-
-      // Central monolithic tower silhouette in deep slate
-      const monoGrad = ctx.createLinearGradient(0, height * 0.2, 0, height * 0.78);
-      monoGrad.addColorStop(0, 'rgba(148, 163, 184, 0.18)');
-      monoGrad.addColorStop(1, 'rgba(30, 41, 59, 0.04)');
-      ctx.fillStyle = monoGrad;
-      ctx.beginPath();
-      ctx.moveTo(width / 2 - 120, height * 0.78);
-      ctx.lineTo(width / 2 - 80, height * 0.22);
-      ctx.lineTo(width / 2 + 80, height * 0.22);
-      ctx.lineTo(width / 2 + 120, height * 0.78);
-      ctx.closePath();
-      ctx.fill();
-
-      // Clean isometric grid lines in cold zinc
-      const horizonY = height * 0.68;
-      ctx.strokeStyle = 'rgba(113, 113, 122, 0.25)';
-      ctx.lineWidth = 1;
-      for (let x = -width; x <= width * 2; x += 90) {
-        ctx.beginPath();
-        ctx.moveTo(width / 2, horizonY);
-        ctx.lineTo(x, height);
-        ctx.stroke();
-      }
-
-      // Floating carbon micro-particles
-      particlesRef.current.forEach((p) => {
-        p.y -= p.speed * 0.8;
-        if (p.y < 0) p.y = height;
-        ctx.fillStyle = `rgba(161, 161, 170, ${p.opacity * 0.6})`;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size * 1.1, 0, Math.PI * 2);
-        ctx.fill();
-      });
-    } else if (normalizedTheme === 'cyber_cyan') {
-      // 4. STARK Cyber Cyan (Signature laser optic crosshair & deep obsidian)
-      const bgGrad = ctx.createRadialGradient(width / 2, height / 2, 60, width / 2, height / 2, height * 0.75);
-      bgGrad.addColorStop(0, '#061325');
-      bgGrad.addColorStop(0.5, '#030914');
-      bgGrad.addColorStop(1, '#010307');
-      ctx.fillStyle = bgGrad;
-      ctx.fillRect(0, 0, width, height);
-
-      // Floating cyan stardust
-      particlesRef.current.forEach((p) => {
-        p.y -= p.speed;
-        if (p.y < 0) p.y = height;
-        ctx.fillStyle = `rgba(56, 189, 248, ${p.opacity * 0.8})`;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fill();
-      });
-
-      // Precision cyan crosshair laser reticle
-      ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
-      ctx.lineWidth = 1.2;
-      ctx.beginPath();
-      ctx.moveTo(width / 2, height * 0.25);
-      ctx.lineTo(width / 2, height * 0.72);
-      ctx.moveTo(width * 0.15, height * 0.48);
-      ctx.lineTo(width * 0.85, height * 0.48);
-      ctx.stroke();
-
-      ctx.beginPath();
-      ctx.arc(width / 2, height * 0.48, 160, 0, Math.PI * 2);
-      ctx.stroke();
-    } else {
-      // 5. Obsidian Void (Pure Deepest Black & Cold Stardust)
-      const bgGrad = ctx.createRadialGradient(width / 2, height / 2, 60, width / 2, height / 2, height * 0.75);
-      bgGrad.addColorStop(0, '#0C0F17');
-      bgGrad.addColorStop(0.5, '#05070D');
-      bgGrad.addColorStop(1, '#000000');
-      ctx.fillStyle = bgGrad;
-      ctx.fillRect(0, 0, width, height);
-
-      // Floating cold white/silver stardust
-      particlesRef.current.forEach((p) => {
-        p.y -= p.speed;
-        if (p.y < 0) p.y = height;
-        ctx.fillStyle = `rgba(255, 255, 255, ${p.opacity * 0.85})`;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fill();
-      });
-
-      // Minimalist vertical hairline
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(width / 2, height * 0.2);
-      ctx.lineTo(width / 2, height * 0.8);
-      ctx.stroke();
-    }
-
-    // 2. Cinematic Safe Zone Vignette
-    const vignetteGrad = ctx.createLinearGradient(0, 0, 0, height);
-    vignetteGrad.addColorStop(0, 'rgba(0,0,0,0.85)');
-    vignetteGrad.addColorStop(0.18, 'rgba(0,0,0,0)');
-    vignetteGrad.addColorStop(0.82, 'rgba(0,0,0,0)');
-    vignetteGrad.addColorStop(1, 'rgba(0,0,0,0.92)');
-    ctx.fillStyle = vignetteGrad;
-    ctx.fillRect(0, 0, width, height);
-
-    // 3. Top Header Bar: Clean Non-Cringe Context Badge (Replaced forced PROTOCOL)
-    if (topHeaderMode !== 'clean_void') {
-      const headerText = resolveTopHeaderText(topHeaderMode, customTopHeaderText);
-
-      if (headerText) {
-        ctx.save();
-        ctx.font = '700 15px "Space Grotesk", -apple-system, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-
-        const textMetrics = ctx.measureText(headerText);
-        const pillPadX = 16;
-        const pillW = textMetrics.width + pillPadX * 2;
-        const pillH = 30;
-        const pillX = width / 2 - pillW / 2;
-        // Position at Y = 160 to sit cleanly below TikTok top status and tabs (Safe Zone)
-        const pillCenterY = 160;
-        const pillY = pillCenterY - pillH / 2;
-
-        // Frosted dark pill container
-        ctx.fillStyle = 'rgba(10, 14, 23, 0.75)';
-        ctx.beginPath();
-        if (ctx.roundRect) {
-          ctx.roundRect(pillX, pillY, pillW, pillH, 15);
-        } else {
-          ctx.rect(pillX, pillY, pillW, pillH);
-        }
-        ctx.fill();
-
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
-        ctx.lineWidth = 1;
-        ctx.stroke();
-
-        ctx.fillStyle = currentThemeConfig.accentColor;
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
-        ctx.shadowBlur = 8;
-        ctx.fillText(headerText, width / 2, pillCenterY);
-        ctx.restore();
-      }
-    }
-
-    // Helper to draw the actual Logo image with circular clipping or vector SVG
-    const drawBrandLogo = (
-      lx: number,
-      ly: number,
-      targetSize: number,
-      alphaPct: number,
-      halo: LogoGlowChoice
-    ) => {
-      ctx.save();
-      const logoImg = loadedLogoImgRef.current;
-      ctx.globalAlpha = Math.max(0.02, Math.min(1, alphaPct / 100));
-
-      if (halo === 'cyan') {
-        ctx.shadowColor = 'rgba(56, 189, 248, 0.85)';
-        ctx.shadowBlur = 16;
-      } else if (halo === 'white') {
-        ctx.shadowColor = 'rgba(255, 255, 255, 0.75)';
-        ctx.shadowBlur = 16;
-      } else {
-        ctx.shadowBlur = 0;
-      }
-
-      if (logoImg && logoImg.complete && logoImg.naturalWidth > 0) {
-        const aspect = logoImg.naturalWidth / logoImg.naturalHeight;
-        let dw = targetSize;
-        let dh = targetSize;
-        if (aspect > 1) {
-          dh = dw / aspect;
-        } else {
-          dw = dh * aspect;
-        }
-
-        if (logoSourceType === 'seal') {
-          // Circular clip for official seal logo
-          ctx.beginPath();
-          ctx.arc(lx, ly, dw / 2, 0, Math.PI * 2);
-          ctx.closePath();
-          ctx.save();
-          ctx.clip();
-          ctx.drawImage(logoImg, lx - dw / 2, ly - dh / 2, dw, dh);
-          ctx.restore();
-
-          // Protective outer rim
-          if (halo !== 'none') {
-            ctx.strokeStyle =
-              halo === 'cyan'
-                ? 'rgba(56, 189, 248, 0.75)'
-                : 'rgba(226, 232, 240, 0.7)';
-            ctx.lineWidth = 1.6;
-            ctx.beginPath();
-            ctx.arc(lx, ly, dw / 2, 0, Math.PI * 2);
-            ctx.stroke();
-          }
-        } else {
-          // Custom Upload
-          ctx.drawImage(logoImg, lx - dw / 2, ly - dh / 2, dw, dh);
-        }
-      } else {
-        // Clean geometric emblem fallback while loading (no "SF" text)
-        ctx.strokeStyle = '#38BDF8';
-        ctx.lineWidth = 1.8;
-        ctx.beginPath();
-        ctx.arc(lx, ly, targetSize / 2, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.arc(lx, ly, targetSize / 4, 0, Math.PI * 2);
-        ctx.fillStyle = '#38BDF8';
-        ctx.fill();
-      }
-      ctx.restore();
-    };
-
-    // Normalized placement for backward compatibility
-    const normPlacement =
-      logoPlacement === 'footer'
-        ? 'bottom_under'
-        : logoPlacement === 'top'
-        ? 'top_left'
-        : logoPlacement === 'center_watermark'
-        ? 'background_watermark'
-        : logoPlacement;
-
-    // 3.5. Background Watermark (Rendered BEHIND text; slider works 100% from 2% to 100%)
-    if (normPlacement === 'background_watermark') {
-      const watermarkSize = Math.max(logoSize * 3.4, 220);
-      const watermarkAlpha = logoOpacity;
-      drawBrandLogo(width / 2, height * 0.46, watermarkSize, watermarkAlpha, 'none');
-    }
-
-    // 4. Kinetic Typography (Rhythmic Phrase Engine with Safe Auto-Fit & Keyword Glow)
-    const currentPhraseIndex = Math.min(
-      effectivePhrases.length - 1,
-      Math.floor(timeSec / phraseDuration)
-    );
-    const activeText = effectivePhrases[currentPhraseIndex] || '';
-    const phraseLocalTime = timeSec % phraseDuration;
-    const entranceScale = Math.min(1.025, 0.97 + phraseLocalTime * 0.18);
-
-    const activeFontFamily =
-      fontFamilyChoice === 'cinzel'
-        ? '"Cinzel", "Times New Roman", Georgia, serif'
-        : fontFamilyChoice === 'space_grotesk'
-        ? '"Space Grotesk", sans-serif'
-        : '"Inter", -apple-system, sans-serif';
-
-    // Safe width is strictly 560px on a 720px canvas to leave comfortable 80px side margins
-    const layoutResult = layoutPhraseToLines(activeText, ctx, 560, preferredFontSize, activeFontFamily);
-
-    ctx.save();
-    ctx.translate(width / 2, height * 0.47);
-    ctx.scale(entranceScale, entranceScale);
-
-    ctx.font = `900 ${layoutResult.finalFontSize}px ${activeFontFamily}`;
-    ctx.textBaseline = 'middle';
-
-    const totalHeight = (layoutResult.lines.length - 1) * layoutResult.lineHeight;
-    const startY = -totalHeight / 2;
-
-    const resolvedKeywordColor =
-      keywordColorChoice === 'theme'
-        ? currentThemeConfig.accentColor
-        : keywordColorChoice === 'cyan'
-        ? '#38BDF8'
-        : keywordColorChoice === 'gray'
-        ? '#94A3B8'
-        : keywordColorChoice === 'slate'
-        ? '#64748B'
-        : '#FFFFFF';
-
-    layoutResult.lines.forEach((line, lIdx) => {
-      const lineY = startY + lIdx * layoutResult.lineHeight;
-      const spaceW = ctx.measureText(' ').width;
-      let curX = -line.width / 2;
-
-      line.tokens.forEach((token) => {
-        const wordW = ctx.measureText(token.raw).width;
-
-        if (token.isKeyword) {
-          // 1. Badge Pill Style (if selected)
-          if (keywordHighlightStyle === 'pill_badge') {
-            const padX = 10;
-            const padY = 4;
-            const bx = curX - padX;
-            const by = lineY - layoutResult.finalFontSize * 0.52 - padY;
-            const bw = wordW + padX * 2;
-            const bh = layoutResult.finalFontSize * 1.04 + padY * 2;
-
-            ctx.save();
-            ctx.fillStyle = `${resolvedKeywordColor}24`;
-            ctx.strokeStyle = resolvedKeywordColor;
-            ctx.lineWidth = 1.5;
-            if (ctx.roundRect) {
-              ctx.beginPath();
-              ctx.roundRect(bx, by, bw, bh, 6);
-              ctx.fill();
-              ctx.stroke();
-            } else {
-              ctx.fillRect(bx, by, bw, bh);
-              ctx.strokeRect(bx, by, bw, bh);
-            }
-            ctx.restore();
-          } else if (keywordHighlightStyle === 'underline_bar') {
-            // 2. Underline Bar Style (if selected)
-            ctx.save();
-            ctx.fillStyle = resolvedKeywordColor;
-            ctx.shadowColor = resolvedKeywordColor;
-            ctx.shadowBlur = 14;
-            ctx.fillRect(curX - 2, lineY + layoutResult.finalFontSize * 0.44, wordW + 4, 4);
-            ctx.restore();
-          }
-
-          // Draw the keyword text with cinematic glow
-          ctx.save();
-          ctx.fillStyle = resolvedKeywordColor;
-          ctx.shadowColor = resolvedKeywordColor;
-          ctx.shadowBlur = keywordHighlightStyle === 'white_halo' ? 26 : keywordHighlightStyle === 'neon_glow' ? 32 : 18;
-          ctx.fillText(token.raw, curX, lineY);
-          ctx.restore();
-        } else {
-          // Standard Word: Styled with user-selected fontColor (or EyeDropper sampled color)
-          ctx.save();
-          ctx.fillStyle = fontColor || '#FFFFFF';
-          ctx.shadowColor = 'rgba(0, 0, 0, 0.98)';
-          ctx.shadowBlur = 24;
-          ctx.fillText(token.raw, curX, lineY);
-          ctx.restore();
-        }
-
-        curX += wordW + spaceW;
-      });
-    });
-
-    ctx.restore();
-
-    // 5. Rhythmic Audio Visualizer Bar - Elevated to safe zone height - 340
-    const barCount = 28;
-    const barWidth = 6;
-    const spacing = 5;
-    const totalW = barCount * (barWidth + spacing);
-    const startX = width / 2 - totalW / 2;
-
-    ctx.fillStyle = currentThemeConfig.accentColor;
-    for (let b = 0; b < barCount; b++) {
-      const freq = Math.sin(timeSec * 7 + b * 0.45);
-      const h = 6 + Math.abs(freq) * 22;
-      ctx.fillRect(startX + b * (barWidth + spacing), height - 340 - h / 2, barWidth, h);
-    }
-
-    // 6. Loop Progress Line (Strict 0.0s - 7.0s) - elevated to height - 310 (100% above TikTok caption and handle)
-    const barY = height - 310;
-    const barW = 440;
-    const barH = 3.5;
-    const barX = width / 2 - barW / 2;
-
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
-    ctx.fillRect(barX, barY, barW, barH);
-
-    ctx.fillStyle = currentThemeConfig.accentColor;
-    ctx.fillRect(barX, barY, barW * progress, barH);
-
-    // 7. & 8. Platform Safe-Zone Brand Signature & Logo (Completely avoids TikTok / Reels bottom bars)
-    ctx.font = 'bold 22px monospace';
-    ctx.fillStyle = '#FFFFFF';
-    ctx.textBaseline = 'middle';
-
-    if (normPlacement === 'bottom_under') {
-      // 1. Signature text above, Logo directly below (spacious, zero collision with TikTok navigation)
-      ctx.textAlign = 'center';
-      ctx.fillText('@stark_focus', width / 2, height - 280);
-      drawBrandLogo(width / 2, height - 235, Math.min(logoSize, 40), logoOpacity, logoGlow);
-    } else if (normPlacement === 'bottom_inline') {
-      // 2. Unified horizontal brand lockup on a single line
-      const textMetrics = ctx.measureText('@stark_focus');
-      const iconSize = Math.min(logoSize, 32);
-      const gap = 12;
-      const totalLockupW = iconSize + gap + textMetrics.width;
-      const startX = width / 2 - totalLockupW / 2;
-      const lineY = height - 268;
-
-      drawBrandLogo(startX + iconSize / 2, lineY, iconSize, logoOpacity, logoGlow);
-      ctx.textAlign = 'left';
-      ctx.fillText('@stark_focus', startX + iconSize + gap, lineY);
-    } else if (normPlacement === 'bottom_above') {
-      // 3. Logo above signature
-      drawBrandLogo(width / 2, height - 285, Math.min(logoSize, 40), logoOpacity, logoGlow);
-      ctx.textAlign = 'center';
-      ctx.fillText('@stark_focus', width / 2, height - 245);
-    } else if (normPlacement === 'top_left') {
-      // 4. Safe Zone: Top-Left corner (below TikTok top status at Y=160)
-      drawBrandLogo(64, 160, Math.min(logoSize, 42), logoOpacity, logoGlow);
-      ctx.textAlign = 'center';
-      ctx.fillText('@stark_focus', width / 2, height - 265);
-    } else if (normPlacement === 'top_right') {
-      // 5. Safe Zone: Top-Right corner (below TikTok search at Y=160)
-      drawBrandLogo(width - 64, 160, Math.min(logoSize, 42), logoOpacity, logoGlow);
-      ctx.textAlign = 'center';
-      ctx.fillText('@stark_focus', width / 2, height - 265);
-    } else if (normPlacement === 'top_center') {
-      // 6. Top Center (placed at Y=205 if top header is active, else Y=160)
-      const topY = topHeaderMode !== 'clean_void' ? 205 : 160;
-      const topS = topHeaderMode !== 'clean_void' ? Math.min(logoSize, 34) : Math.min(logoSize, 42);
-      drawBrandLogo(width / 2, topY, topS, logoOpacity, logoGlow);
-      ctx.textAlign = 'center';
-      ctx.fillText('@stark_focus', width / 2, height - 265);
-    } else {
-      // Background watermark or None
-      ctx.textAlign = 'center';
-      ctx.fillText('@stark_focus', width / 2, height - 265);
-    }
-
-    // 9. TikTok UI Safe Zone Guide Overlay (Active only in preview mode when toggled)
-    if (showTikTokGuides && !isExportingRef.current) {
-      ctx.save();
-      // 1. Top Danger Zone (0 to 140px)
-      ctx.fillStyle = 'rgba(239, 68, 68, 0.12)';
-      ctx.fillRect(0, 0, width, 140);
-      ctx.strokeStyle = 'rgba(239, 68, 68, 0.45)';
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash([6, 6]);
-      ctx.beginPath();
-      ctx.moveTo(0, 140);
-      ctx.lineTo(width, 140);
-      ctx.stroke();
-
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-      ctx.font = '600 13px -apple-system, sans-serif';
-      ctx.textAlign = 'left';
-      ctx.fillText('LIVE', 28, 65);
-      ctx.textAlign = 'center';
-      ctx.fillText('Obserwujesz  |  Dla Ciebie', width / 2, 65);
-      ctx.textAlign = 'right';
-      ctx.fillText('🔍 Szukaj', width - 28, 65);
-
-      ctx.fillStyle = '#F87171';
-      ctx.font = 'bold 10px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText('⚠️ GÓRNY PASEK TIKTOK (ZAKRYTE)', width / 2, 115);
-
-      // 2. Right Action Sidebar Zone (width - 85 to width)
-      ctx.fillStyle = 'rgba(239, 68, 68, 0.1)';
-      ctx.fillRect(width - 85, 460, 85, 600);
-      ctx.beginPath();
-      ctx.moveTo(width - 85, 460);
-      ctx.lineTo(width - 85, 1060);
-      ctx.stroke();
-
-      const rightX = width - 42;
-      const mockIcons = [
-        { y: 520, label: 'Profil', sym: '👤' },
-        { y: 605, label: '84K', sym: '❤️' },
-        { y: 690, label: '1.4K', sym: '💬' },
-        { y: 775, label: '12K', sym: '🔖' },
-        { y: 860, label: 'Share', sym: '↗️' },
-        { y: 945, label: 'Audio', sym: '💿' }
-      ];
-      mockIcons.forEach((ic) => {
-        ctx.font = '20px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillStyle = '#FFFFFF';
-        ctx.fillText(ic.sym, rightX, ic.y);
-        ctx.font = 'bold 10px -apple-system, sans-serif';
-        ctx.fillText(ic.label, rightX, ic.y + 16);
-      });
-
-      // 3. Bottom TikTok Interface (1050 to 1280px)
-      ctx.fillStyle = 'rgba(239, 68, 68, 0.16)';
-      ctx.fillRect(0, 1050, width, 230);
-      ctx.beginPath();
-      ctx.moveTo(0, 1050);
-      ctx.lineTo(width, 1050);
-      ctx.stroke();
-
-      ctx.textAlign = 'left';
-      ctx.fillStyle = '#FFFFFF';
-      ctx.font = 'bold 15px -apple-system, sans-serif';
-      ctx.fillText('@stark_focus', 32, 1080);
-      ctx.font = '13px -apple-system, sans-serif';
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-      ctx.fillText('Dyscyplina to fundament wolności... #focus #stoic', 32, 1105);
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
-      ctx.fillText('♫ Dźwięk oryginalny - stark_focus', 32, 1130);
-
-      // Bottom Navigation Bar
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.88)';
-      ctx.fillRect(0, 1205, width, 75);
-      ctx.font = 'bold 11px -apple-system, sans-serif';
-      ctx.fillStyle = '#94A3B8';
-      ctx.textAlign = 'center';
-      ctx.fillText('Główna', 60, 1245);
-      ctx.fillText('Znajomi', 180, 1245);
-      ctx.fillStyle = '#FFFFFF';
-      ctx.fillText('[ + ]', width / 2, 1245);
-      ctx.fillStyle = '#94A3B8';
-      ctx.fillText('Skrzynka', width - 180, 1245);
-      ctx.fillText('Profil', width - 60, 1245);
-
-      // 4. Golden Safe Zone Box Indicator
-      ctx.strokeStyle = '#10B981';
-      ctx.lineWidth = 2;
-      ctx.setLineDash([8, 8]);
-      ctx.strokeRect(36, 148, width - 128, 890);
-
-      ctx.setLineDash([]);
-      ctx.fillStyle = 'rgba(16, 185, 129, 0.9)';
-      ctx.fillRect(44, 156, 215, 24);
-      ctx.fillStyle = '#064E3B';
-      ctx.font = 'bold 10px monospace';
-      ctx.textAlign = 'left';
-      ctx.fillText('✓ 100% SAFE ZONE TIKTOK', 52, 172);
-
-      ctx.restore();
-    }
-  };
-
-  // Video recording state
-  const [isExportingVideo, setIsExportingVideo] = useState<boolean>(false);
-  const [videoExportProgress, setVideoExportProgress] = useState<number>(0);
-
-  // Download Full 7.00s Looping Video (MP4 / WebM) - Ultra-Smooth, Zero-Stutter Export
-  const handleExportFullVideo = async () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    // Lock preview loop so background RAF doesn't collide with recording!
-    isExportingRef.current = true;
-    setIsExportingVideo(true);
-    setVideoExportProgress(0);
-    setIsPlaying(false);
+    setIsExportingZip(true);
+    setToastMessage("Pakowanie zestawu ZIP (Wideo + Klatki + Opis)...");
 
     try {
-      const targetFps = exportFps || 60;
-      const stream = canvas.captureStream(targetFps);
-      const mimeTypes = [
-        'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
-        'video/mp4;codecs=avc1',
-        'video/mp4',
-        'video/webm;codecs=vp9',
-        'video/webm;codecs=vp8',
-        'video/webm'
-      ];
-      const selectedMime = mimeTypes.find((t) => MediaRecorder.isTypeSupported(t)) || 'video/webm';
-      const recorder = new MediaRecorder(stream, {
-        mimeType: selectedMime,
-        videoBitsPerSecond: targetFps === 60 ? 14000000 : 8000000
-      });
+      const zip = new JSZip();
 
-      const chunks: Blob[] = [];
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunks.push(e.data);
-      };
+      // Klatka okładkowa (Hook)
+      renderFrame(0.5);
+      const coverDataUrl = canvas.toDataURL("image/png");
+      const coverBlob = await (await fetch(coverDataUrl)).blob();
+      zip.file("1_COVER_HOOK_1080x1920.png", coverBlob);
 
-      recorder.onstop = () => {
-        const isMp4 = selectedMime.includes('mp4');
-        const ext = isMp4 ? 'mp4' : 'webm';
-        const blob = new Blob(chunks, { type: selectedMime });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `stark_focus_reel_7s_${selectedTheme}_${Date.now()}.${ext}`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+      // Klatka finałowa (Climax)
+      renderFrame(Math.max(1, duration - 0.5));
+      const climaxDataUrl = canvas.toDataURL("image/png");
+      const climaxBlob = await (await fetch(climaxDataUrl)).blob();
+      zip.file("2_CLIMAX_PUNCHLINE_1080x1920.png", climaxBlob);
 
-        isExportingRef.current = false;
-        setIsExportingVideo(false);
-        setIsPlaying(true);
-      };
+      // Gotowy plik tekstowy z opisem posta i hashtagami
+      const postText = `STARK FOCUS // READY-TO-POST CONTENT BUNDLE
+============================================================
+DATA GENERACJI: ${new Date().toISOString()}
+FORMAT: Rolka 9:16 (1080x1920 Full HD)
+CZAS TRWANIA: ${duration}.00s (${exportFps} FPS)
+MOTYW: ${selectedTheme}
 
-      recorder.start();
+------------------------------------------------------------
+[1] HOOK (0-3 SEKUNDY):
+"${phrases[0] || ""}"
 
-      // Perform silky smooth, frame-perfect recording synchronized with RAF
-      const startTime = performance.now();
-      const totalDuration = durationSec;
+[2] PEŁNA NARRACJA (FAZY):
+${phrases.map((p, i) => `Faza #${i + 1}: ${p}`).join("\n")}
 
-      const recordStep = (stamp: number) => {
-        const elapsed = (stamp - startTime) / 1000;
-        if (elapsed >= totalDuration) {
-          renderFrame(totalDuration);
-          setVideoExportProgress(100);
-          setTimeout(() => {
-            try {
-              if (recorder.state === 'recording') {
-                recorder.stop();
-              }
-            } catch (e) {
-              console.error(e);
-            }
-          }, 150);
-          return;
-        }
+[3] PUENTA (CLIMAX):
+"${phrases[phrases.length - 1] || ""}"
 
-        renderFrame(elapsed);
-        setVideoExportProgress(Math.min(99, Math.round((elapsed / totalDuration) * 100)));
-        requestAnimationFrame(recordStep);
-      };
+------------------------------------------------------------
+[4] OPIS POSTA (INSTAGRAM / TIKTOK CAPTION):
+${caption}
 
-      requestAnimationFrame(recordStep);
+------------------------------------------------------------
+[5] HASHTAGI:
+${hashtags.join(" ")}
+============================================================
+Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
+
+      zip.file("POST_CAPTION_HASHTAGS.txt", postText);
+
+      const content = await zip.generateAsync({ type: "blob" });
+      const url = URL.createObjectURL(content);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `STARK_READY_TO_POST_${duration}s_${selectedTheme}_${Date.now()}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      setToastMessage("✓ Pakiet ZIP został pobrany!");
+      setTimeout(() => setToastMessage(null), 3000);
     } catch (err) {
-      console.error('Error recording full video loop:', err);
-      setVideoExportError('Nie udało się nagrać wideo w przeglądarce. Skorzystaj z opcji pobrania klatki PNG.');
-      isExportingRef.current = false;
-      setIsExportingVideo(false);
+      console.error("ZIP export error:", err);
+      setToastMessage("Błąd eksportu pakietu ZIP.");
+      setTimeout(() => setToastMessage(null), 3000);
+    } finally {
+      setIsExportingZip(false);
       setIsPlaying(true);
     }
   };
 
-  // 60 FPS Accurate Animation Loop with STRICT 7.00s wrap and export lock
+  // TURNKEY EXPORT: 3. STARK CODEX Integration
+  const [showCodexModal, setShowCodexModal] = useState<boolean>(false);
+
+  const handleApplyCodexRule = (rule: CodexRule) => {
+    setPhrases([rule.hook0to3s, rule.corePrinciple, rule.actionDirective]);
+    setSelectedTheme(rule.suggestedTheme);
+    setCaption(
+      `${rule.ruleNumber}: ${rule.title}\n\n${rule.rationale}\n\nZasada: ${rule.corePrinciple}`,
+    );
+    setShowCodexModal(false);
+    setToastMessage(`✓ Załadowano Zasadę ${rule.ruleNumber}: ${rule.title}`);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  // Handle Custom Media Upload (Image or Video)
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const fileUrl = URL.createObjectURL(file);
+    setCustomBgName(file.name);
+
+    if (file.type.startsWith("video/")) {
+      const vid = document.createElement("video");
+      vid.src = fileUrl;
+      vid.muted = true;
+      vid.loop = true;
+      vid.playsInline = true;
+      vid.autoplay = true;
+      vid.play().catch(() => {});
+      customVideoRef.current = vid;
+      customImageRef.current = null;
+      setCustomBgType("video");
+      setToastMessage("✓ Załadowano własne tło wideo!");
+    } else if (file.type.startsWith("image/")) {
+      const img = new Image();
+      img.src = fileUrl;
+      img.onload = () => {
+        customImageRef.current = img;
+        customVideoRef.current = null;
+        setCustomBgType("image");
+        setToastMessage("✓ Załadowano własne tło graficzne!");
+      };
+    }
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const handleClearCustomBg = () => {
+    if (customVideoRef.current) {
+      customVideoRef.current.pause();
+      customVideoRef.current.src = "";
+      customVideoRef.current = null;
+    }
+    customImageRef.current = null;
+    setCustomBgType("none");
+    setCustomBgName("");
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+    setToastMessage("Przywrócono domyślny motyw wizualny.");
+    setTimeout(() => setToastMessage(null), 2500);
+  };
+
+  // Adjust phrases when changing narrative format
+  const handleFormatChange = (newFormat: NarrativeFormat) => {
+    setFormat(newFormat);
+    const matching = VIRAL_REEL_TEMPLATES.filter((t) => t.format === newFormat);
+    if (matching.length > 0) {
+      const nextTpl = matching[Math.floor(Math.random() * matching.length)];
+      setActiveTemplate(nextTpl);
+      setPhrases(nextTpl.phrases);
+      setCaption(captionStyle === "deep" ? nextTpl.captionDeep : nextTpl.captionShort);
+      setHashtags(nextTpl.hashtags);
+      setSelectedTheme(nextTpl.suggestedTheme);
+      setDuration(nextTpl.suggestedDuration);
+    } else {
+      if (newFormat === "single_quote") {
+        setPhrases([phrases.join(" ")]);
+      } else if (newFormat === "two_phases" && phrases.length !== 2) {
+        setPhrases([
+          phrases[0] || "They wait for inspiration.",
+          phrases[1] || "The stoic works regardless of emotion.",
+        ]);
+      } else if (newFormat === "three_phases" && phrases.length !== 3) {
+        setPhrases([
+          phrases[0] || "They want you distracted.",
+          phrases[1] || "Because a focused mind is impossible to control.",
+          "Execute in total silence.",
+        ]);
+      } else if (newFormat === "four_phrases" && phrases.length !== 4) {
+        setPhrases([
+          "Wake up early.",
+          "Kill your excuses.",
+          "Work in total silence.",
+          "Shock them with results.",
+        ]);
+      }
+    }
+    timeRef.current = 0;
+  };
+
+  // Toggle between Short Punchy Caption vs Deep Stoic Breakdown
+  const handleCaptionStyleToggle = (style: "short" | "deep") => {
+    setCaptionStyle(style);
+    if (style === "short") {
+      setCaption(activeTemplate.captionShort);
+    } else {
+      setCaption(activeTemplate.captionDeep);
+    }
+  };
+
+  // Save Current Setup as User's Default
+  const handleSaveAsDefault = () => {
+    const preset = {
+      duration,
+      pacingMode,
+      selectedTheme,
+      fontFamily,
+      fontSize,
+      textCase,
+      highlightStyle,
+      verticalPos,
+      captionStyle,
+    };
+    try {
+      localStorage.setItem(PRESET_STORAGE_KEY, JSON.stringify(preset));
+      setToastMessage("✓ Zapisano Twój domyślny styl rolek!");
+      setTimeout(() => setToastMessage(null), 3000);
+    } catch {
+      // ignore
+    }
+  };
+
+  // 1-Click AI Reel Director (Always in English, Natural sentence case, Deeply linked narrative)
+  const handleGenerateAiReel = async () => {
+    setIsGeneratingAi(true);
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5500);
+
+      const res = await fetch("/api/ghostwrite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          topic: "Ruthless stoic discipline, solitude, high-leverage focus, modern dark philosophy",
+          format,
+          category: selectedCategory,
+          excludeTitles: seenTitlesRef.current,
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      if (res.ok) {
+        const json = await res.json();
+        let parsedData = json;
+        if (!json.phrases && json.content) {
+          try {
+            const match = json.content.match(/\{[\s\S]*\}/);
+            if (match) parsedData = JSON.parse(match[0]);
+          } catch {
+            // keep json
+          }
+        }
+
+        if (
+          parsedData.phrases &&
+          Array.isArray(parsedData.phrases) &&
+          parsedData.phrases.length > 0
+        ) {
+          const freshTitle = parsedData.title || "Stoic Sovereign Protocol";
+          seenTitlesRef.current.push(freshTitle.toLowerCase().replace(/\s+/g, "_"));
+          if (seenTitlesRef.current.length > 60) seenTitlesRef.current.shift();
+
+          setPhrases(parsedData.phrases);
+          const shortC =
+            parsedData.captionShort ||
+            parsedData.caption ||
+            "Execute in total silence. Save this reminder.";
+          const deepC =
+            parsedData.captionDeep ||
+            `${shortC}\n\n3 stoic rules to conquer your day:\n1. Wake up without hesitation.\n2. Do the hardest task first.\n3. Hold your standard.\n\nSave this reel. Follow @stark_focus for daily focus.`;
+
+          const validThemes: VisualTheme[] = [
+            "obsidian_void",
+            "crimson_eclipse",
+            "emerald_abyss",
+            "carbon_aura",
+            "silver_mist",
+          ];
+          const nextTheme = validThemes.includes(parsedData.suggestedTheme as VisualTheme)
+            ? (parsedData.suggestedTheme as VisualTheme)
+            : selectedTheme;
+
+          const dynamicTpl: ReelTemplate = {
+            id: `ai_${Date.now()}`,
+            format,
+            title: freshTitle,
+            phrases: parsedData.phrases,
+            captionShort: shortC,
+            captionDeep: deepC,
+            hashtags:
+              parsedData.hashtags && Array.isArray(parsedData.hashtags)
+                ? parsedData.hashtags
+                : ["#stoicism", "#discipline", "#focus", "#starkfocus"],
+            suggestedTheme: nextTheme,
+            suggestedDuration: parsedData.suggestedDuration || duration,
+            suggestedBackground: parsedData.suggestedBackground,
+            backgroundRationale: parsedData.backgroundRationale,
+          };
+
+          setActiveTemplate(dynamicTpl);
+          setCaption(captionStyle === "deep" ? deepC : shortC);
+          setHashtags(dynamicTpl.hashtags);
+          setSelectedTheme(nextTheme);
+          if (parsedData.suggestedDuration) setDuration(parsedData.suggestedDuration);
+          timeRef.current = 0;
+          setCurrentTime(0);
+
+          setToastMessage(`✓ Wygenerowano powiązaną narrację: "${freshTitle}"!`);
+          setTimeout(() => setToastMessage(null), 2800);
+          setIsGeneratingAi(false);
+          return;
+        }
+      }
+    } catch {
+      // fallback to instant combinatorial matrix
+    }
+
+    // Dynamic Combinatorial Matrix Fallback (Zero duplicates, 28,000+ linked stoic formulas)
+    const formula = getRandomUniqueFormula(format, selectedCategory, seenTitlesRef.current);
+    seenTitlesRef.current.push(formula.title.toLowerCase().replace(/\s+/g, "_"));
+    if (seenTitlesRef.current.length > 60) seenTitlesRef.current.shift();
+
+    setActiveTemplate(formula);
+    setPhrases(formula.phrases);
+    setCaption(captionStyle === "deep" ? formula.captionDeep : formula.captionShort);
+    setHashtags(formula.hashtags);
+    setSelectedTheme(formula.suggestedTheme);
+    setDuration(formula.suggestedDuration);
+    timeRef.current = 0;
+    setCurrentTime(0);
+
+    setToastMessage(`✓ Zmontowano z Matrycy Idei: "${formula.title}"!`);
+    setTimeout(() => setToastMessage(null), 2800);
+    setIsGeneratingAi(false);
+  };
+
+  // Copy Caption to Clipboard
+  const handleCopyCaption = () => {
+    const fullText = `${phrases.join("\n")}\n\n${caption}\n\n${hashtags.join(" ")}`;
+    navigator.clipboard.writeText(fullText);
+    setToastMessage("✓ Skopiowano opis ze znacznikami do schowka!");
+    setTimeout(() => setToastMessage(null), 2500);
+  };
+
+  // Balance active phrase to equal lines
+  const handleBalancePhrase = (index: number) => {
+    const raw = phrases[index] || "";
+    const words = raw.replace(/\n+/g, " ").trim().split(/\s+/);
+    if (words.length <= 2) return;
+
+    let mid = Math.round(words.length / 2);
+    if (mid > 1 && isOrphanWord(words[mid - 1])) mid--;
+
+    const balanced = `${words.slice(0, mid).join(" ")}\n${words.slice(mid).join(" ")}`;
+    const copy = [...phrases];
+    copy[index] = balanced;
+    setPhrases(copy);
+    timeRef.current = 0;
+  };
+
+  // Render Frame on Canvas (Native Full HD 1080x1920)
+  const renderFrame = useCallback(
+    (timeSec: number) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      const width = 1080;
+      const height = 1920;
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
+      }
+
+      const totalDuration = duration;
+      const zoomProgress = Math.min(1, Math.max(0, timeSec / totalDuration));
+      // Subtle cinematic Ken Burns zoom (1.00x -> 1.04x)
+      const zoomScale = 1.0 + 0.04 * zoomProgress;
+
+      // 1. Background: Custom Upload (Image or Video) or Dark Generative Theme with Slow Zoom
+      ctx.save();
+      ctx.translate(width / 2, height / 2);
+      ctx.scale(zoomScale, zoomScale);
+      ctx.translate(-width / 2, -height / 2);
+
+      if (customBgType === "video" && customVideoRef.current) {
+        const vid = customVideoRef.current;
+        const vidW = vid.videoWidth || 1080;
+        const vidH = vid.videoHeight || 1920;
+        const scale = Math.max(width / vidW, height / vidH);
+        const drawW = vidW * scale;
+        const drawH = vidH * scale;
+        const drawX = (width - drawW) / 2;
+        const drawY = (height - drawH) / 2;
+        ctx.drawImage(vid, drawX, drawY, drawW, drawH);
+        // Dark overlay for contrast
+        ctx.fillStyle = "rgba(0, 0, 0, 0.45)";
+        ctx.fillRect(0, 0, width, height);
+      } else if (customBgType === "image" && customImageRef.current) {
+        const img = customImageRef.current;
+        const imgW = img.naturalWidth || 1080;
+        const imgH = img.naturalHeight || 1920;
+        const scale = Math.max(width / imgW, height / imgH);
+        const drawW = imgW * scale;
+        const drawH = imgH * scale;
+        const drawX = (width - drawW) / 2;
+        const drawY = (height - drawH) / 2;
+        ctx.drawImage(img, drawX, drawY, drawW, drawH);
+        // Dark overlay for contrast
+        ctx.fillStyle = "rgba(0, 0, 0, 0.45)";
+        ctx.fillRect(0, 0, width, height);
+      } else if (selectedTheme === "crimson_eclipse") {
+        // Crimson Eclipse: Pitch black with deep brooding blood-crimson chiaroscuro eclipse
+        const bgGrad = ctx.createRadialGradient(
+          width * 0.5,
+          height * 0.42,
+          60,
+          width * 0.5,
+          height * 0.45,
+          height * 0.75,
+        );
+        bgGrad.addColorStop(0, "#2A0808");
+        bgGrad.addColorStop(0.25, "#150404");
+        bgGrad.addColorStop(0.55, "#080202");
+        bgGrad.addColorStop(1, "#000000");
+        ctx.fillStyle = bgGrad;
+        ctx.fillRect(0, 0, width, height);
+
+        // Subtle celestial eclipse ring behind the text focal point
+        const ringGrad = ctx.createLinearGradient(0, height * 0.28, 0, height * 0.58);
+        ringGrad.addColorStop(0, "rgba(220, 38, 38, 0.18)");
+        ringGrad.addColorStop(0.5, "rgba(153, 27, 27, 0.05)");
+        ringGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
+        ctx.strokeStyle = ringGrad;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(width * 0.5, height * 0.43, 340, 0, Math.PI * 2);
+        ctx.stroke();
+      } else if (selectedTheme === "emerald_abyss") {
+        // Emerald Abyss: Deep dark jade void with cold stoic granite undertone
+        const bgGrad = ctx.createRadialGradient(
+          width * 0.5,
+          height * 0.44,
+          80,
+          width * 0.5,
+          height * 0.48,
+          height * 0.8,
+        );
+        bgGrad.addColorStop(0, "#081E15");
+        bgGrad.addColorStop(0.3, "#04110C");
+        bgGrad.addColorStop(0.65, "#020705");
+        bgGrad.addColorStop(1, "#000000");
+        ctx.fillStyle = bgGrad;
+        ctx.fillRect(0, 0, width, height);
+
+        // Subtle vertical jade light shaft
+        const shaftGrad = ctx.createLinearGradient(width * 0.5 - 140, 0, width * 0.5 + 140, 0);
+        shaftGrad.addColorStop(0, "rgba(16, 185, 129, 0)");
+        shaftGrad.addColorStop(0.5, "rgba(52, 211, 153, 0.07)");
+        shaftGrad.addColorStop(1, "rgba(16, 185, 129, 0)");
+        ctx.fillStyle = shaftGrad;
+        ctx.fillRect(width * 0.5 - 140, 0, 280, height);
+      } else if (selectedTheme === "carbon_aura") {
+        // Carbon Aura: Velvet anthracite with subtle warm-cold golden ember glow
+        const bgGrad = ctx.createRadialGradient(
+          width * 0.5,
+          height * 0.43,
+          90,
+          width * 0.5,
+          height * 0.45,
+          height * 0.8,
+        );
+        bgGrad.addColorStop(0, "#1F1A15");
+        bgGrad.addColorStop(0.35, "#100E0C");
+        bgGrad.addColorStop(0.7, "#080706");
+        bgGrad.addColorStop(1, "#000000");
+        ctx.fillStyle = bgGrad;
+        ctx.fillRect(0, 0, width, height);
+
+        // Subtle elliptical golden ember halo behind center
+        const haloGrad = ctx.createRadialGradient(
+          width * 0.5,
+          height * 0.43,
+          10,
+          width * 0.5,
+          height * 0.43,
+          320,
+        );
+        haloGrad.addColorStop(0, "rgba(217, 119, 6, 0.08)");
+        haloGrad.addColorStop(0.5, "rgba(180, 83, 9, 0.03)");
+        haloGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
+        ctx.fillStyle = haloGrad;
+        ctx.fillRect(0, 0, width, height);
+      } else if (selectedTheme === "silver_mist") {
+        // Silver Mist: Deep atmospheric midnight slate with layered volumetric mist & silver horizon rim
+        const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
+        bgGrad.addColorStop(0, "#080A0D");
+        bgGrad.addColorStop(0.35, "#101418");
+        bgGrad.addColorStop(0.65, "#0A0D10");
+        bgGrad.addColorStop(1, "#030405");
+        ctx.fillStyle = bgGrad;
+        ctx.fillRect(0, 0, width, height);
+
+        // 1. Volumetric horizontal silver mist band at center
+        const mistCenterY = height * 0.43;
+        const mistBand = ctx.createLinearGradient(0, mistCenterY - 300, 0, mistCenterY + 300);
+        mistBand.addColorStop(0, "rgba(200, 215, 230, 0)");
+        mistBand.addColorStop(0.25, "rgba(215, 228, 242, 0.035)");
+        mistBand.addColorStop(0.5, "rgba(235, 245, 255, 0.08)");
+        mistBand.addColorStop(0.75, "rgba(215, 228, 242, 0.035)");
+        mistBand.addColorStop(1, "rgba(200, 215, 230, 0)");
+        ctx.fillStyle = mistBand;
+        ctx.fillRect(0, mistCenterY - 300, width, 600);
+
+        // 2. Soft elliptical radiant silver core behind the central text area
+        const radiantCore = ctx.createRadialGradient(
+          width * 0.5,
+          mistCenterY,
+          20,
+          width * 0.5,
+          mistCenterY,
+          width * 0.7,
+        );
+        radiantCore.addColorStop(0, "rgba(240, 246, 255, 0.09)");
+        radiantCore.addColorStop(0.4, "rgba(180, 200, 220, 0.035)");
+        radiantCore.addColorStop(1, "rgba(0, 0, 0, 0)");
+        ctx.fillStyle = radiantCore;
+        ctx.fillRect(0, 0, width, height);
+
+        // 3. Diffused atmospheric mist clouds
+        const cloud1 = ctx.createRadialGradient(
+          width * 0.28,
+          mistCenterY - 70,
+          15,
+          width * 0.28,
+          mistCenterY - 70,
+          width * 0.45,
+        );
+        cloud1.addColorStop(0, "rgba(225, 235, 248, 0.05)");
+        cloud1.addColorStop(1, "rgba(0, 0, 0, 0)");
+        ctx.fillStyle = cloud1;
+        ctx.fillRect(0, mistCenterY - 250, width * 0.7, 360);
+
+        const cloud2 = ctx.createRadialGradient(
+          width * 0.72,
+          mistCenterY + 60,
+          15,
+          width * 0.72,
+          mistCenterY + 60,
+          width * 0.48,
+        );
+        cloud2.addColorStop(0, "rgba(225, 235, 248, 0.045)");
+        cloud2.addColorStop(1, "rgba(0, 0, 0, 0)");
+        ctx.fillStyle = cloud2;
+        ctx.fillRect(width * 0.3, mistCenterY - 150, width * 0.7, 360);
+
+        // 4. Razor-thin platinum horizon hairline with feathered lateral dissipation
+        const horizonGrad = ctx.createLinearGradient(0, 0, width, 0);
+        horizonGrad.addColorStop(0, "rgba(255, 255, 255, 0)");
+        horizonGrad.addColorStop(0.2, "rgba(225, 235, 250, 0.05)");
+        horizonGrad.addColorStop(0.5, "rgba(255, 255, 255, 0.16)");
+        horizonGrad.addColorStop(0.8, "rgba(225, 235, 250, 0.05)");
+        horizonGrad.addColorStop(1, "rgba(255, 255, 255, 0)");
+        ctx.fillStyle = horizonGrad;
+        ctx.fillRect(width * 0.08, mistCenterY - 1, width * 0.84, 2);
+      } else {
+        // Obsidian Void (Deepest pure black & stardust radial falloff)
+        const bgGrad = ctx.createRadialGradient(
+          width / 2,
+          height / 2,
+          80,
+          width / 2,
+          height / 2,
+          height * 0.8,
+        );
+        bgGrad.addColorStop(0, "#111111");
+        bgGrad.addColorStop(0.45, "#060606");
+        bgGrad.addColorStop(1, "#000000");
+        ctx.fillStyle = bgGrad;
+        ctx.fillRect(0, 0, width, height);
+
+        // Ultra-subtle vertical central spine
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.07)";
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(width / 2, height * 0.2);
+        ctx.lineTo(width / 2, height * 0.8);
+        ctx.stroke();
+      }
+
+      ctx.restore(); // end slow zoom
+
+      // 2. Cinematic Edge Vignette
+      const vignette = ctx.createLinearGradient(0, 0, 0, height);
+      vignette.addColorStop(0, "rgba(0, 0, 0, 0.84)");
+      vignette.addColorStop(0.18, "rgba(0, 0, 0, 0)");
+      vignette.addColorStop(0.82, "rgba(0, 0, 0, 0)");
+      vignette.addColorStop(1, "rgba(0, 0, 0, 0.92)");
+      ctx.fillStyle = vignette;
+      ctx.fillRect(0, 0, width, height);
+
+      // 3. Kinetic Phrase Calculation with Dynamic Pacing & Smooth Transitions
+      let activeText = "";
+      let phraseOpacity = 1;
+
+      if (format === "single_quote" || phrases.length <= 1) {
+        activeText = phrases[0] || "";
+        // Smooth loop blend edge (first 250ms & last 250ms)
+        const edge = 0.25;
+        if (timeSec < edge) {
+          phraseOpacity = Math.max(0, timeSec / edge);
+        } else if (timeSec > totalDuration - edge) {
+          phraseOpacity = Math.max(0, (totalDuration - timeSec) / edge);
+        } else {
+          phraseOpacity = 1;
+        }
+      } else {
+        const timeline = getPhraseTimeline(phrases, totalDuration, pacingMode);
+        const activeItem =
+          timeline.find((item) => timeSec >= item.start && timeSec < item.end) ||
+          timeline[timeline.length - 1];
+        activeText = activeItem.text;
+
+        const localTime = timeSec - activeItem.start;
+        const itemDur = activeItem.duration;
+
+        // Smooth cinematic fade in & out tailored to item duration and pacing mode
+        const fadeDuration =
+          pacingMode === "stoic_steady"
+            ? Math.min(0.28, itemDur * 0.18)
+            : Math.min(0.22, itemDur * 0.15);
+
+        if (localTime < fadeDuration) {
+          phraseOpacity = Math.min(1, Math.max(0, localTime / fadeDuration));
+        } else if (localTime > itemDur - fadeDuration) {
+          phraseOpacity = Math.min(1, Math.max(0, (itemDur - localTime) / fadeDuration));
+        } else {
+          phraseOpacity = 1;
+        }
+      }
+
+      // 4. Typography Rendering
+      const selectedFont =
+        fontFamily === "cinzel"
+          ? '"Cinzel", "Times New Roman", Georgia, serif'
+          : fontFamily === "cormorant"
+            ? '"Cormorant Garamond", Georgia, serif'
+            : '"Montserrat", -apple-system, sans-serif';
+
+      const textToLayout = textCase === "uppercase" ? activeText.toUpperCase() : activeText;
+      const layout = layoutLines(textToLayout, ctx, 840, fontSize, selectedFont);
+
+      ctx.save();
+      ctx.globalAlpha = phraseOpacity;
+      // Dynamic vertical position (default: 42% of height)
+      const targetY = height * (verticalPos / 100);
+      ctx.translate(width / 2, targetY);
+
+      ctx.textBaseline = "middle";
+
+      const totalH = (layout.lines.length - 1) * layout.lineHeight;
+      const startY = -totalH / 2;
+
+      layout.lines.forEach((line, lIdx) => {
+        const lineY = startY + lIdx * layout.lineHeight;
+        const spaceW = ctx.measureText(" ").width;
+        let curX = -line.width / 2;
+
+        line.tokens.forEach((tok) => {
+          const wordW = ctx.measureText(tok.raw).width;
+
+          if (tok.isKeyword) {
+            ctx.save();
+            if (highlightStyle === "white_halo") {
+              // High-Visibility Platinum Glow (White Halo) - Ultra-vivid double aura
+              ctx.font = `900 ${layout.fontSize}px ${selectedFont}`;
+              ctx.fillStyle = "#FFFFFF";
+              ctx.shadowColor = "rgba(255, 255, 255, 1.0)";
+              ctx.shadowBlur = 55;
+              // Draw primary text with intense glow
+              ctx.fillText(tok.raw, curX, lineY);
+              // Secondary stroke to amplify luminous intensity
+              ctx.lineWidth = 2.5;
+              ctx.strokeStyle = "rgba(255, 255, 255, 0.85)";
+              ctx.strokeText(tok.raw, curX, lineY);
+            } else {
+              // Bold Platinum (Crisp pure white with chiaroscuro depth & bright contour)
+              ctx.font = `900 ${layout.fontSize}px ${selectedFont}`;
+              ctx.fillStyle = "#FFFFFF";
+              ctx.shadowColor = "rgba(255, 255, 255, 0.4)";
+              ctx.shadowBlur = 18;
+              ctx.fillText(tok.raw, curX, lineY);
+            }
+            ctx.restore();
+          } else {
+            // Standard Text (Refined Platinum Chiaroscuro)
+            ctx.save();
+            ctx.font =
+              highlightStyle === "bold"
+                ? `700 ${layout.fontSize}px ${selectedFont}`
+                : `800 ${layout.fontSize}px ${selectedFont}`;
+            ctx.fillStyle = highlightStyle === "bold" ? "rgba(226, 232, 240, 0.88)" : "#F1F5F9";
+            ctx.shadowColor = "rgba(0, 0, 0, 0.96)";
+            ctx.shadowBlur = 24;
+            ctx.fillText(tok.raw, curX, lineY);
+            ctx.restore();
+          }
+
+          curX += wordW + spaceW;
+        });
+      });
+
+      ctx.restore();
+
+      // 6. ZERO LOOP BAR: As requested, the loop bar is completely removed. Clean monumental canvas.
+
+      // 7. Optional TikTok Safe Zone UI overlay (Preview only)
+      if (showTikTokGuides && !isExportingRef.current) {
+        ctx.save();
+        // Top Danger Zone
+        ctx.fillStyle = "rgba(239, 68, 68, 0.12)";
+        ctx.fillRect(0, 0, width, 210);
+        ctx.strokeStyle = "rgba(239, 68, 68, 0.45)";
+        ctx.lineWidth = 2;
+        ctx.setLineDash([8, 8]);
+        ctx.beginPath();
+        ctx.moveTo(0, 210);
+        ctx.lineTo(width, 210);
+        ctx.stroke();
+
+        ctx.fillStyle = "#F87171";
+        ctx.font = "bold 16px monospace";
+        ctx.textAlign = "center";
+        ctx.fillText("⚠️ GÓRNY PASEK TIKTOK (STATUS / TABS)", width / 2, 110);
+
+        // Right Action Icons
+        ctx.fillStyle = "rgba(239, 68, 68, 0.10)";
+        ctx.fillRect(width - 130, 690, 130, 900);
+        ctx.fillText("SIDEBAR", width - 65, 1140);
+
+        // Bottom Caption Danger Zone
+        ctx.fillStyle = "rgba(239, 68, 68, 0.15)";
+        ctx.fillRect(0, 1560, width, 360);
+        ctx.beginPath();
+        ctx.moveTo(0, 1560);
+        ctx.lineTo(width, 1560);
+        ctx.stroke();
+        ctx.fillText("⚠️ DOLNA STREFA TIKTOK (OPIS, DŹWIĘK, PROFIL)", width / 2, 1710);
+        ctx.restore();
+      }
+    },
+    [
+      duration,
+      customBgType,
+      selectedTheme,
+      fontFamily,
+      fontSize,
+      textCase,
+      highlightStyle,
+      verticalPos,
+      showTikTokGuides,
+      format,
+      pacingMode,
+      phrases,
+    ],
+  );
+
+  // 60 FPS Real-time Loop
   useEffect(() => {
     let lastStamp = performance.now();
 
@@ -1914,7 +1264,6 @@ export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
       const delta = (stamp - lastStamp) / 1000;
       lastStamp = stamp;
 
-      // When export is running, do NOT touch canvas from preview loop!
       if (isExportingRef.current) {
         animationFrameRef.current = requestAnimationFrame(loop);
         return;
@@ -1922,12 +1271,12 @@ export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
 
       if (isPlayingRef.current) {
         timeRef.current += delta;
-        if (timeRef.current >= durationSec) {
-          timeRef.current = 0; // Strictly loops at 7.00s
+        if (timeRef.current >= duration) {
+          timeRef.current = 0;
         }
       }
 
-      setCurrentTimeDisplay(timeRef.current);
+      setCurrentTime(timeRef.current);
       renderFrame(timeRef.current);
 
       animationFrameRef.current = requestAnimationFrame(loop);
@@ -1938,1179 +1287,1274 @@ export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
     return () => {
       if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
     };
-  }, [
-    selectedTheme,
-    scriptText,
-    topHeaderMode,
-    customTopHeaderText,
-    keywordHighlightStyle,
-    keywordColorChoice,
-    logoPlacement,
-    logoSourceType,
-    customLogoUrl,
-    logoSize,
-    logoOpacity,
-    logoGlow,
-    logoLoadTick,
-    fontFamilyChoice,
-    preferredFontSize
-  ]);
+  }, [duration, renderFrame]);
 
-  // Generate fresh English stoic/poetic hook
-  const handleGenerateFreshHook = async () => {
-    setIsGeneratingIdea(true);
-    try {
-      const res = await fetch('/api/ghostwrite', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          topic: 'High-leverage stoic discipline, ruthless focus, solitude, poetic dark motivation',
-          format: 'Viral Reel Hook in ENGLISH (2 short lines, under 10 words, brutal and poetic)'
-        })
-      });
-      if (res.ok) {
-        const json = await res.json();
-        if (json.content) {
-          const clean = json.content.replace(/["#*]/g, '').trim().toUpperCase();
-          setScriptText(clean);
-          timeRef.current = 0;
-          setIsGeneratingIdea(false);
-          return;
-        }
-      }
-    } catch {
-      // Fallback
-    }
-
-    // Pick next from curated English pool
-    const next = POETIC_VIRAL_HOOKS_EN[Math.floor(Math.random() * POETIC_VIRAL_HOOKS_EN.length)];
-    setScriptText(next);
-    timeRef.current = 0;
-    setIsGeneratingIdea(false);
-  };
-
-  // Download Frame as HQ Image (720x1280 9:16)
-  const handleExportFrame = () => {
+  // Export Full Video MP4 (1080x1920 Full HD - Zegarmistrzowski czas 1:1, bez podwajania)
+  const handleExportVideo = async () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const url = canvas.toDataURL('image/png');
-    const a = document.createElement('a');
+
+    isExportingRef.current = true;
+    setIsExporting(true);
+    setExportProgress(0);
+    setIsPlaying(false);
+
+    try {
+      // FIX BŁĘDU 60 FPS (PODWAJANIE DŁUGOŚCI ROLKI):
+      // W silnikach Chromium (Chrome/Edge/Brave) CanvasCaptureMediaStreamTrack przy 60fps
+      // indeksuje klatki w kontenerze z domyślnym czasem 33.3ms (30fps), co powodowało odtwarzanie
+      // w zwolnionym tempie (0.5x) i podwajało czas trwania z np. 7s do 14s.
+      // Standardem platform wertykalnych (Instagram Reels, TikTok, YouTube Shorts) jest 30 FPS.
+      // Taktowanie captureStream na stabilne 30 FPS z bitrate 18-24 Mbps gwarantuje:
+      // 1. Idealny czas trwania 1:1 (film 7s ma dokładnie 7.00s na każdym odtwarzaczu i w social media).
+      // 2. Maksymalną ostrość typografii i brak jakiegokolwiek zacinania czy rozbieżności audio/video.
+      const stream = canvas.captureStream(30);
+      const mimeTypes = [
+        "video/mp4;codecs=avc1.42E01E,mp4a.40.2",
+        "video/mp4;codecs=avc1",
+        "video/mp4",
+        "video/webm;codecs=vp9",
+        "video/webm;codecs=vp8",
+        "video/webm",
+      ];
+      const selectedMime = mimeTypes.find((t) => MediaRecorder.isTypeSupported(t)) || "video/webm";
+
+      const recorder = new MediaRecorder(stream, {
+        mimeType: selectedMime,
+        videoBitsPerSecond: exportFps === 60 ? 24000000 : 18000000,
+      });
+
+      const chunks: Blob[] = [];
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunks.push(e.data);
+      };
+
+      recorder.onstop = () => {
+        const blob = new Blob(chunks, { type: selectedMime });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `stark_reel_1080x1920_${duration}s_${selectedTheme}_${Date.now()}.mp4`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        isExportingRef.current = false;
+        setIsExporting(false);
+        setIsPlaying(true);
+        setToastMessage(`✓ Rolka 1080x1920 pobrana! Dokładny czas trwania: ${duration}.00s`);
+        setTimeout(() => setToastMessage(null), 3000);
+      };
+
+      recorder.start();
+
+      const startTime = performance.now();
+      const totalDur = duration;
+
+      const step = (stamp: number) => {
+        const elapsed = (stamp - startTime) / 1000;
+        if (elapsed >= totalDur) {
+          renderFrame(totalDur);
+          setExportProgress(100);
+          setTimeout(() => {
+            try {
+              if (recorder.state === "recording") recorder.stop();
+            } catch (e) {
+              console.error(e);
+            }
+          }, 150);
+          return;
+        }
+
+        renderFrame(elapsed);
+        setExportProgress(Math.min(99, Math.round((elapsed / totalDur) * 100)));
+        requestAnimationFrame(step);
+      };
+
+      requestAnimationFrame(step);
+    } catch (err) {
+      console.error("Recording error:", err);
+      isExportingRef.current = false;
+      setIsExporting(false);
+      setIsPlaying(true);
+      setToastMessage("Błąd nagrywania wideo. Spróbuj pobrać klatkę PNG.");
+      setTimeout(() => setToastMessage(null), 3500);
+    }
+  };
+
+  // Export Still Frame PNG (Full HD 1080x1920)
+  const handleExportPng = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const url = canvas.toDataURL("image/png");
+    const a = document.createElement("a");
     a.href = url;
-    a.download = `stark_focus_reel_7s_${selectedTheme}_${Date.now()}.png`;
+    a.download = `stark_reel_frame_1080x1920_${Date.now()}.png`;
     a.click();
   };
 
   return (
-    <div
-      id="video-studio-overlay"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-2 sm:p-4 overflow-y-auto"
-    >
-      <div className="bg-[#141824] border border-[#2C354B] rounded-xl max-w-5xl w-full p-4 sm:p-6 shadow-2xl flex flex-col max-h-[94vh] space-y-4">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-[#2C354B] pb-3">
-          <div className="flex items-center gap-2.5">
-            <span className="p-1.5 rounded-sm bg-[#00F2FE]/10 text-[#00F2FE] border border-[#00F2FE]/30">
+    <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 animate-in fade-in select-none">
+      <div className="relative w-full max-w-6xl max-h-[95vh] bg-[#0A0A0A] border border-white/10 rounded-2xl shadow-[0_0_50px_rgba(0,0,0,0.9)] flex flex-col overflow-hidden text-neutral-200">
+        {/* Toast Notification */}
+        {toastMessage && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-white text-black font-mono text-xs font-black tracking-wider shadow-2xl flex items-center gap-2 border border-neutral-300">
+            <Check className="w-4 h-4 text-emerald-600" />
+            <span>{toastMessage}</span>
+          </div>
+        )}
+
+        {/* Top Header */}
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/10 bg-[#0E0E0E]">
+          <div className="flex items-center gap-3">
+            <span className="p-2 rounded-lg bg-white/10 text-white border border-white/20">
               <Film className="w-4 h-4" />
             </span>
             <div>
-              <h3 className="text-sm sm:text-base font-black text-white uppercase tracking-wider flex items-center gap-2">
-                AUTOMONTAŻYSTA ROLEK // VIRAL 7.00s ENGINE
-              </h3>
-              <p className="text-[11px] text-slate-400 font-mono">
-                Rygorystyczny 7-sekundowy loop z kinetic typography po angielsku, motywy konta @stark_focus i auto-rekomendacja audio.
+              <h2 className="text-sm sm:text-base font-black text-white uppercase tracking-wider font-mono flex items-center gap-2">
+                AUTOMONTAŻYSTA ROLEK // DARK STOIC ENGINE (1080x1920)
+              </h2>
+              <p className="text-[11px] text-neutral-400 font-mono">
+                1080x1920 Full HD • 60 FPS • Czysty monumentalny kadr • Slow Zoom & Chiaroscuro
               </p>
             </div>
           </div>
 
-          <button
-            onClick={() => {
-              stopAudioImmediate();
-              onClose();
-            }}
-            className="p-1.5 text-slate-400 hover:text-white rounded-sm hover:bg-[#1D2333] transition-colors cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleSaveAsDefault}
+              className="px-2.5 py-1.5 rounded-lg bg-[#141414] hover:bg-white hover:text-black text-neutral-300 border border-white/10 hover:border-white text-[11px] font-mono font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+              title="Zapisz aktualny czas, czcionkę, motyw i pozycję jako domyślne"
+            >
+              <BookmarkCheck className="w-3.5 h-3.5" />
+              <span>Zapisz mój styl</span>
+            </button>
+
+            <button
+              onClick={onClose}
+              className="p-1.5 text-neutral-400 hover:text-white rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
+              title="Zamknij studio"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
-        {/* Main Grid: Left Stage (9:16 Preview) + Right Controls */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 flex-1 overflow-y-auto pr-1">
-          {/* Left: 9:16 Canvas Stage */}
-          <div className="lg:col-span-5 flex flex-col items-center justify-center bg-[#0B0D14] border border-[#2C354B] rounded-xl p-3 sm:p-4 relative">
-            <div className={`relative w-full max-w-[280px] sm:max-w-[310px] aspect-[9/16] rounded-lg overflow-hidden shadow-2xl border ${isSamplingCanvasColor ? 'border-[#38BDF8] ring-2 ring-[#38BDF8]/60 cursor-crosshair' : 'border-[#2C354B]'}`}>
-              <canvas
-                ref={canvasRef}
-                onClick={handleCanvasClickToSampleColor}
-                className={`w-full h-full object-cover ${isSamplingCanvasColor ? 'cursor-crosshair' : ''}`}
-              />
+        {/* Main Workspace: Left 9:16 Stage + Right Director Controls */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 p-4 sm:p-5 flex-1 overflow-y-auto">
+          {/* Left: 9:16 Live Canvas Player */}
+          <div className="lg:col-span-5 flex flex-col items-center justify-center bg-[#050505] border border-white/10 rounded-xl p-3 sm:p-4">
+            <div className="relative w-full max-w-[270px] sm:max-w-[290px] aspect-[9/16] rounded-xl overflow-hidden shadow-2xl border border-white/15 bg-black">
+              <canvas ref={canvasRef} className="w-full h-full object-cover" />
 
-              {/* Eyedropper Sampling Overlay */}
-              {isSamplingCanvasColor && (
-                <div
-                  onClick={() => setIsSamplingCanvasColor(false)}
-                  className="absolute inset-0 bg-black/50 backdrop-blur-[2px] flex flex-col items-center justify-center p-3 text-center cursor-crosshair z-20"
-                >
-                  <div className="p-2.5 rounded-full bg-[#38BDF8]/20 border border-[#38BDF8] text-[#38BDF8] animate-bounce mb-2">
-                    <Pipette className="w-6 h-6" />
-                  </div>
-                  <span className="text-xs font-mono font-bold text-white bg-black/90 px-3 py-1.5 rounded-md border border-[#38BDF8] shadow-lg">
-                    KLIKNIJ W TŁO, ABY POBRAĆ KOLOR
+              {/* Stopwatch & Phrase HUD */}
+              <div className="absolute top-3 right-3 px-2 py-0.5 rounded bg-black/80 border border-white/20 font-mono text-[10px] text-white font-bold backdrop-blur-sm flex items-center gap-1.5">
+                <Clock className="w-3 h-3 text-neutral-300" />
+                <span>{currentTime.toFixed(2)}s</span>
+                <span className="text-neutral-500">/ {duration}.00s</span>
+                {phrases.length > 1 && (
+                  <span
+                    className={`ml-0.5 pl-1.5 border-l border-white/20 text-[9px] ${
+                      activeTimeline[currentPhraseIndex]?.isClimax && pacingMode === "climax_hold"
+                        ? "text-amber-300 font-black"
+                        : "text-neutral-300"
+                    }`}
+                  >
+                    F{currentPhraseIndex + 1}/{phrases.length}
+                    {activeTimeline[currentPhraseIndex]?.isClimax &&
+                      pacingMode === "climax_hold" &&
+                      " ⭐"}
                   </span>
-                  <span className="text-[10px] text-slate-300 font-mono mt-2 underline cursor-pointer">
-                    (lub kliknij tutaj aby anulować)
-                  </span>
-                </div>
-              )}
+                )}
+              </div>
 
-              {/* Exact 7.00s Stopwatch HUD */}
-              <div className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded bg-black/75 border border-white/20 font-mono text-[10px] text-white font-bold backdrop-blur-sm flex items-center gap-1 z-10">
-                <Clock className="w-3 h-3 text-[#38BDF8]" />
-                <span>{currentTimeDisplay.toFixed(2)}s</span>
-                <span className="text-slate-400">/ 7.00s</span>
+              {/* Format Badge */}
+              <div className="absolute top-3 left-3 px-2 py-0.5 rounded bg-white/10 border border-white/20 font-mono text-[9px] text-white font-bold backdrop-blur-sm uppercase">
+                {format === "three_phases"
+                  ? "3 Fazy"
+                  : format === "single_quote"
+                    ? "1 Cytat"
+                    : format === "two_phases"
+                      ? "2 Fazy"
+                      : "4 Frazy"}
               </div>
             </div>
 
-            {/* Playback bar & TikTok Safe Zone toggle */}
-            <div className="flex items-center gap-2 mt-3 w-full max-w-[310px]">
-              <button
-                onClick={() => setIsPlaying(!isPlaying)}
-                className="p-2 rounded-sm bg-[#38BDF8] text-[#141824] hover:bg-[#38BDF8]/90 font-bold transition-all cursor-pointer flex-1 flex items-center justify-center gap-1.5 text-xs uppercase tracking-wider"
-              >
-                {isPlaying ? <Pause className="w-3.5 h-3.5 fill-current" /> : <Play className="w-3.5 h-3.5 fill-current" />}
-                {isPlaying ? 'Pauza' : 'Odtwórz'}
-              </button>
+            {/* Playback Controls & Time Scrub */}
+            <div className="w-full max-w-[290px] mt-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsPlaying(!isPlaying)}
+                  className="px-3 py-1.5 rounded bg-white hover:bg-neutral-200 text-black font-black text-xs font-mono uppercase tracking-wider transition-all flex-1 flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+                >
+                  {isPlaying ? (
+                    <>
+                      <Pause className="w-3.5 h-3.5 fill-current" /> Pauza
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-3.5 h-3.5 fill-current" /> Odtwórz
+                    </>
+                  )}
+                </button>
 
-              <button
-                onClick={() => setAudioPreviewEnabled(!audioPreviewEnabled)}
-                className={`p-2 rounded-sm border text-xs font-mono flex items-center gap-1 transition-colors cursor-pointer ${
-                  audioPreviewEnabled
-                    ? 'bg-[#10B981]/20 border-[#10B981] text-[#10B981]'
-                    : 'bg-[#1D2333] border-[#2C354B] text-slate-400'
-                }`}
-                title="Włącz odsłuch rytmu audio w tle"
-              >
-                {audioPreviewEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-                Beat
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setShowTikTokGuides(!showTikTokGuides)}
+                  className={`px-2.5 py-1.5 rounded border text-[10px] font-mono flex items-center gap-1 transition-colors cursor-pointer ${
+                    showTikTokGuides
+                      ? "bg-rose-500/20 border-rose-500 text-rose-300 font-bold"
+                      : "bg-[#141414] border-white/10 text-neutral-400 hover:text-white"
+                  }`}
+                  title="Włącz siatkę bezpiecznych stref TikToka / Reels"
+                >
+                  <Smartphone className="w-3.5 h-3.5" />
+                  TikTok UI
+                </button>
 
-              <button
-                type="button"
-                onClick={() => setShowTikTokGuides(!showTikTokGuides)}
-                className={`p-2 rounded-sm border text-xs font-mono flex items-center gap-1 transition-colors cursor-pointer ${
-                  showTikTokGuides
-                    ? 'bg-rose-500/20 border-rose-500 text-rose-400 font-bold'
-                    : 'bg-[#1D2333] border-[#2C354B] text-slate-400 hover:text-white'
-                }`}
-                title="Włącz / Wyłącz podgląd bezpiecznych stref TikToka (Safe Zone)"
-              >
-                <Smartphone className="w-3.5 h-3.5" />
-                TikTok UI
-              </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = !enableTts;
+                    setEnableTts(next);
+                    if (next && isPlaying && phrases[currentPhraseIndex]) {
+                      speakPhrase(phrases[currentPhraseIndex]);
+                    }
+                    setToastMessage(next ? "✓ Lektor stoicki TTS włączony" : "Lektor wyłączony");
+                    setTimeout(() => setToastMessage(null), 2000);
+                  }}
+                  className={`px-2.5 py-1.5 rounded border text-[10px] font-mono flex items-center gap-1 transition-all cursor-pointer ${
+                    enableTts
+                      ? "bg-emerald-500/20 border-emerald-500 text-emerald-300 font-bold shadow-[0_0_10px_rgba(16,185,129,0.2)]"
+                      : "bg-[#141414] border-white/10 text-neutral-400 hover:text-white"
+                  }`}
+                  title="Automatyczny lektor czytający frazy synchronicznie z klatkami"
+                >
+                  {enableTts ? (
+                    <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
+                  ) : (
+                    <VolumeX className="w-3.5 h-3.5" />
+                  )}
+                  <span>TTS</span>
+                </button>
+              </div>
+
+              {/* Scrub Slider */}
+              <div className="space-y-1.5 pt-1">
+                <input
+                  type="range"
+                  min="0"
+                  max={duration}
+                  step="0.05"
+                  value={currentTime}
+                  onChange={(e) => {
+                    const t = parseFloat(e.target.value);
+                    timeRef.current = t;
+                    setCurrentTime(t);
+                    renderFrame(t);
+                  }}
+                  className="w-full h-1.5 bg-[#1F1F1F] rounded-lg appearance-none cursor-pointer accent-white"
+                />
+
+                {/* Multi-segment Pacing Track */}
+                {phrases.length > 1 && (
+                  <div className="w-full flex items-center gap-1 h-1.5 rounded-full overflow-hidden bg-[#161616] p-0.5 border border-white/10">
+                    {activeTimeline.map((seg, sIdx) => {
+                      const isCurrentSeg = currentPhraseIndex === sIdx;
+                      const widthPct = (seg.duration / duration) * 100;
+                      return (
+                        <div
+                          key={sIdx}
+                          style={{ width: `${widthPct}%` }}
+                          title={`Fraza ${sIdx + 1}: ${seg.duration.toFixed(1)}s (${seg.start.toFixed(1)}s – ${seg.end.toFixed(1)}s)`}
+                          className={`h-full rounded-sm transition-all ${
+                            isCurrentSeg
+                              ? "bg-white shadow-[0_0_8px_rgba(255,255,255,0.8)]"
+                              : seg.isClimax && pacingMode === "climax_hold"
+                                ? "bg-amber-400/40"
+                                : "bg-white/20"
+                          }`}
+                        />
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
-          {/* Right: Customization Engine */}
+          {/* Right: Director Controls & Quick Editor */}
           <div className="lg:col-span-7 space-y-4">
-            {/* Visual Theme Selector (4 Distinct Themes) */}
-            <div>
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between mb-1.5">
-                <span className="flex items-center gap-1.5">
-                  <Palette className="w-3.5 h-3.5 text-[#38BDF8]" />
-                  1. Motyw Wizualny Konta @stark_focus:
-                </span>
-                <span className="font-mono text-[9px] text-[#38BDF8]">4 Oficjalne Szablony</span>
-              </label>
+            {/* ZERO-CLICK PIPELINE QUICK ACTIONS */}
+            <div className="p-3 bg-[#131313] border border-white/15 rounded-xl flex flex-wrap items-center justify-between gap-2 shadow-inner">
+              <span className="text-[10px] font-mono uppercase font-black tracking-wider text-neutral-300 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                Zero-Click Pipeline:
+              </span>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {VISUAL_THEMES.map((theme) => {
-                  const isCurrent = selectedTheme === theme.id;
-                  return (
-                    <div
-                      key={theme.id}
-                      onClick={() => setSelectedTheme(theme.id)}
-                      className={`p-2.5 rounded-lg border cursor-pointer transition-all ${
-                        isCurrent
-                          ? 'bg-[#1D2333] border-[#38BDF8] shadow-[0_0_12px_rgba(56,189,248,0.15)]'
-                          : 'bg-[#141824] border-[#2C354B] hover:border-slate-500'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-0.5">
-                        <span className="text-xs font-mono font-black text-white">{theme.name}</span>
-                        <span
-                          className="text-[9px] font-bold px-1.5 py-0.2 rounded"
-                          style={{ backgroundColor: `${theme.accentColor}20`, color: theme.accentColor }}
-                        >
-                          {theme.badge}
-                        </span>
-                      </div>
-                      <p className="text-[10px] text-slate-400 font-mono leading-tight">{theme.desc}</p>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* 2. Background Selector (Procedural vs Real Dark Vault Assets) */}
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <ImageIcon className="w-3.5 h-3.5 text-[#38BDF8]" />
-                  2. Tło Graficzne (Fotografia 9:16 lub Shader):
-                </label>
-
-                <div className="flex items-center gap-2">
-                  <input
-                    type="file"
-                    ref={videoBgFileInputRef}
-                    onChange={handleBgFileSelect}
-                    accept="image/*"
-                    className="hidden"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => videoBgFileInputRef.current?.click()}
-                    className="text-[9px] font-mono font-bold text-slate-300 hover:text-white bg-[#141824] hover:bg-[#1D2333] border border-[#2C354B] px-2 py-0.5 rounded flex items-center gap-1 cursor-pointer transition-colors"
-                    title="Wgraj własną grafikę z dysku lub pobraną z Binga"
-                  >
-                    <Upload className="w-3 h-3 text-[#38BDF8]" />
-                    Wgraj z Dysku
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setShowBingModal(true)}
-                    className="text-[9px] font-mono font-bold text-[#38BDF8] hover:text-white bg-[#38BDF8]/15 hover:bg-[#38BDF8]/25 border border-[#38BDF8]/40 px-2 py-0.5 rounded flex items-center gap-1 cursor-pointer transition-colors"
-                    title="Wygeneruj idealny prompt do Bing Image Creator dopasowany do treści tej rolki"
-                  >
-                    <Sparkles className="w-3 h-3" />
-                    ⚡ Prompt Bing pod tę Rolkę
-                  </button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <select
-                  value={selectedBgId}
-                  onChange={(e) => setSelectedBgId(e.target.value)}
-                  className="w-full text-xs font-bold py-2 px-2.5 bg-[#1D2333] border border-[#2C354B] rounded text-white focus:border-[#38BDF8] focus:outline-none"
-                >
-                  {allVideoBgs.map((bg) => (
-                    <option key={bg.id} value={bg.id}>
-                      {bg.name}
-                    </option>
-                  ))}
-                  <option value="custom">🔗 Własny Link URL / Wgrany Plik...</option>
-                </select>
-
-                {selectedBgId === 'custom' && (
-                  <input
-                    type="url"
-                    value={customBgUrl.startsWith('data:') ? '[Wgrany plik graficzny z dysku]' : customBgUrl}
-                    onChange={(e) => setCustomBgUrl(e.target.value)}
-                    placeholder="https://... wklej URL grafiki tła"
-                    className="w-full text-xs py-2 px-2.5 bg-[#1D2333] border border-[#38BDF8] rounded text-white focus:outline-none"
-                  />
-                )}
-              </div>
-            </div>
-
-            {/* Dynamiczne Szablony wg Pory Dnia & Kontekstu */}
-            <div className="bg-[#141824] p-3 rounded-lg border border-[#2C354B] space-y-2.5">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
-                <span className="text-[10px] font-mono font-black uppercase text-white flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-[#38BDF8]" />
-                  🎯 SZABLONY WG PORY DNIA & KONTEKSTU:
-                </span>
-                <span className="text-[9px] font-mono text-slate-400">
-                  Wybierz slot poranny, lunchowy, wieczorny lub stoicki
-                </span>
-              </div>
-
-              {/* Day-Part Tabs */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 p-1 bg-[#0F121C] rounded-md border border-[#2C354B]">
+              <div className="flex flex-wrap items-center gap-1.5">
                 <button
                   type="button"
-                  onClick={() => setActiveDaySlot('morning')}
-                  className={`py-1.5 px-2 rounded text-[10px] font-mono font-bold flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                    activeDaySlot === 'morning'
-                      ? 'bg-[#F59E0B] text-[#141824] shadow-sm'
-                      : 'text-slate-400 hover:text-white hover:bg-[#1D2333]'
-                  }`}
+                  onClick={() => setShowCodexModal(true)}
+                  className="px-2.5 py-1.5 rounded bg-[#1C1C1C] hover:bg-white hover:text-black text-neutral-200 text-[10px] font-mono font-bold border border-white/10 transition-all flex items-center gap-1.5 cursor-pointer"
+                  title="Wybierz jedną z 10 Zasad STARK Codex z gotowymi frazami i tłem"
                 >
-                  <Sunrise className="w-3 h-3" />
-                  <span>Poranek 06:30</span>
+                  <BookOpen className="w-3 h-3 text-amber-400" />
+                  <span>🏛️ Kodeks STARK (10 Zasad)</span>
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => setActiveDaySlot('lunch')}
-                  className={`py-1.5 px-2 rounded text-[10px] font-mono font-bold flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                    activeDaySlot === 'lunch'
-                      ? 'bg-[#38BDF8] text-[#141824] shadow-sm'
-                      : 'text-slate-400 hover:text-white hover:bg-[#1D2333]'
-                  }`}
+                  onClick={handleAutoMatchBroll}
+                  className="px-2.5 py-1.5 rounded bg-[#1C1C1C] hover:bg-white hover:text-black text-neutral-200 text-[10px] font-mono font-bold border border-white/10 transition-all flex items-center gap-1.5 cursor-pointer"
+                  title="Inteligentnie dopasuj tło kinowe B-Roll na podstawie fraz"
                 >
-                  <Sun className="w-3 h-3" />
-                  <span>Lunch 13:00</span>
+                  <Compass className="w-3 h-3 text-cyan-400" />
+                  <span>🎬 Auto-Dopasuj B-Roll</span>
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => setActiveDaySlot('evening')}
-                  className={`py-1.5 px-2 rounded text-[10px] font-mono font-bold flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                    activeDaySlot === 'evening'
-                      ? 'bg-purple-400 text-[#141824] shadow-sm'
-                      : 'text-slate-400 hover:text-white hover:bg-[#1D2333]'
-                  }`}
+                  onClick={handleGenerateMultiVariants}
+                  disabled={isGeneratingVariants}
+                  className="px-2.5 py-1.5 rounded bg-[#1C1C1C] hover:bg-white hover:text-black text-neutral-200 text-[10px] font-mono font-bold border border-white/10 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  title="1-klik generator 3 wariantów A/B/C do testów wirusowości"
                 >
-                  <Moon className="w-3 h-3" />
-                  <span>Wieczór 21:00</span>
+                  <Split className="w-3 h-3 text-purple-400" />
+                  <span>⚡ Warianty A/B/C</span>
                 </button>
+              </div>
+            </div>
 
+            {matchedBrollNotice && (
+              <div className="p-2.5 bg-[#101923] border border-cyan-500/30 rounded-lg text-[10px] font-mono text-cyan-300 flex items-center justify-between">
+                <span>🎯 {matchedBrollNotice}</span>
                 <button
                   type="button"
-                  onClick={() => setActiveDaySlot('all_day')}
-                  className={`py-1.5 px-2 rounded text-[10px] font-mono font-bold flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                    activeDaySlot === 'all_day'
-                      ? 'bg-emerald-400 text-[#141824] shadow-sm'
-                      : 'text-slate-400 hover:text-white hover:bg-[#1D2333]'
-                  }`}
-                >
-                  <Shield className="w-3 h-3" />
-                  <span>Stoickie 24/7</span>
-                </button>
-              </div>
-
-              {/* Active Presets Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                {(activeDaySlot === 'morning'
-                  ? MORNING_PRESETS
-                  : activeDaySlot === 'lunch'
-                  ? LUNCH_1300_PRESETS
-                  : activeDaySlot === 'evening'
-                  ? EVENING_PRESETS
-                  : ALL_DAY_PRESETS
-                ).map((preset) => (
-                  <button
-                    key={preset.id}
-                    type="button"
-                    onClick={() => {
-                      setScriptText(preset.hook);
-                      setSelectedTheme(preset.theme);
-                      setSelectedScheduledTime(preset.suggestedTime);
-                      setIsCustomTime(false);
-                      setTopHeaderMode('custom');
-                      setCustomTopHeaderText(preset.topHeader);
-                      timeRef.current = 0;
-                    }}
-                    className="text-left p-2 rounded bg-[#1D2333] hover:bg-[#252E42] border border-[#2C354B] hover:border-[#38BDF8]/70 transition-all cursor-pointer group"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-mono font-bold text-white group-hover:text-[#38BDF8]">
-                        {preset.label}
-                      </span>
-                      <span className="text-[9px] font-mono text-slate-400 bg-black/40 px-1 py-0.2 rounded border border-[#2C354B]">
-                        {preset.suggestedTime}
-                      </span>
-                    </div>
-                    <div className="text-[9px] font-mono text-slate-400 truncate mt-0.5">
-                      "{preset.hook.replace(/\n/g, ' ')}"
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Górna Belka Kadru (Praktyczne warianty) */}
-            <div className="bg-[#141824] p-2.5 rounded-lg border border-[#2C354B] space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-mono font-bold uppercase text-slate-300 flex items-center gap-1.5">
-                  <Sliders className="w-3.5 h-3.5 text-[#38BDF8]" />
-                  Górna Belka Kadru (Aesthetic Context Badge):
-                </span>
-                <span className="text-[9px] font-mono text-[#38BDF8]">
-                  Pełna edycja tekstu
-                </span>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-                {STARK_TOP_HEADER_PRESETS.map((opt) => (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => {
-                      setTopHeaderMode(opt.id);
-                      if (opt.displayText) {
-                        setCustomTopHeaderText(opt.displayText);
-                      }
-                      timeRef.current = 0;
-                    }}
-                    className={`text-left p-1.5 rounded text-[10px] font-mono border transition-all cursor-pointer ${
-                      topHeaderMode === opt.id
-                        ? 'bg-[#38BDF8]/15 text-[#38BDF8] border-[#38BDF8]'
-                        : 'bg-[#1D2333] text-slate-300 border-[#2C354B] hover:border-slate-500'
-                    }`}
-                  >
-                    <div className="font-bold truncate">{opt.label}</div>
-                    <div className="text-[8px] text-slate-400 truncate">{opt.desc}</div>
-                  </button>
-                ))}
-              </div>
-
-              <div className="pt-1">
-                <div className="flex items-center justify-between text-[9px] font-mono text-slate-400 mb-1">
-                  <span>Edytuj / Wpisz własny napis górnej belki:</span>
-                  <span className="text-slate-500">Bezpieczna strefa Y:160</span>
-                </div>
-                <input
-                  type="text"
-                  value={topHeaderMode === 'clean_void' ? '' : customTopHeaderText || resolveTopHeaderText(topHeaderMode)}
-                  onChange={(e) => {
-                    setTopHeaderMode('custom');
-                    setCustomTopHeaderText(e.target.value.toUpperCase());
-                    timeRef.current = 0;
-                  }}
-                  disabled={topHeaderMode === 'clean_void'}
-                  placeholder="WPISZ DOWOLNY WŁASNY NAGŁÓWEK GÓRNEJ BELKI..."
-                  className="w-full text-xs font-mono py-1.5 px-2.5 bg-[#1D2333] border border-[#2C354B] focus:border-[#38BDF8] rounded text-white focus:outline-none uppercase disabled:opacity-40"
-                />
-              </div>
-            </div>
-
-            {/* Script Text Input (Strictly English default) with Keyword Detection & Syllable/Line Balancer */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <Type className="w-3.5 h-3.5 text-[#38BDF8]" />
-                  3. Tekst Rolki (Maks. 10 słów, Poetycki Stoicyzm EN):
-                </label>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const words = scriptText.replace(/\n+/g, ' ').trim().split(/\s+/);
-                      if (words.length > 2) {
-                        let mid = Math.round(words.length / 2);
-                        if (mid > 1 && isOrphanWord(words[mid - 1])) mid--;
-                        setScriptText(`${words.slice(0, mid).join(' ')}\n${words.slice(mid).join(' ')}`);
-                      }
-                    }}
-                    className="text-[9px] font-mono text-slate-300 hover:text-[#38BDF8] bg-[#1D2333] hover:bg-[#252E42] border border-[#2C354B] px-1.5 py-0.5 rounded transition-colors cursor-pointer"
-                    title="Automatycznie rozdziel tekst na 2 równe, zbalansowane linie bez uciętych sylab i wiszących spójników"
-                  >
-                    ⚖️ 2 linie (balans)
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const words = scriptText.replace(/\n+/g, ' ').trim().split(/\s+/);
-                      if (words.length >= 6) {
-                        const chunkSize = Math.ceil(words.length / 3);
-                        let i1 = chunkSize;
-                        if (i1 > 1 && isOrphanWord(words[i1 - 1])) i1--;
-                        let i2 = i1 + chunkSize;
-                        if (i2 > i1 + 1 && i2 < words.length && isOrphanWord(words[i2 - 1])) i2--;
-                        setScriptText(`${words.slice(0, i1).join(' ')}\n${words.slice(i1, i2).join(' ')}\n${words.slice(i2).join(' ')}`);
-                      }
-                    }}
-                    className="text-[9px] font-mono text-slate-300 hover:text-[#38BDF8] bg-[#1D2333] hover:bg-[#252E42] border border-[#2C354B] px-1.5 py-0.5 rounded transition-colors cursor-pointer"
-                    title="Automatycznie rozdziel tekst na 3 równe linie"
-                  >
-                    ⚖️ 3 linie
-                  </button>
-
-                  <button
-                    onClick={handleGenerateFreshHook}
-                    disabled={isGeneratingIdea}
-                    className="text-[10px] font-mono text-[#38BDF8] hover:underline flex items-center gap-1 cursor-pointer disabled:opacity-50"
-                  >
-                    <Sparkles className="w-3 h-3" />
-                    {isGeneratingIdea ? 'Generowanie...' : 'Generuj Hook EN'}
-                  </button>
-                </div>
-              </div>
-
-              <textarea
-                value={scriptText}
-                onChange={(e) => {
-                  setScriptText(e.target.value.toUpperCase());
-                  timeRef.current = 0;
-                }}
-                rows={3}
-                className="w-full text-xs font-mono py-2 px-3 bg-[#1D2333] border border-[#2C354B] rounded text-white focus:border-[#38BDF8] focus:outline-none tracking-wide uppercase font-bold leading-relaxed"
-                placeholder="WPISZ TEKST ROLKI PO ANGIELSKU... MOŻESZ WPISAĆ *SŁOWO* ABY WYRÓŻNIĆ JE RĘCZNIE"
-              />
-
-              {/* Wykryte słowa kluczowe & wskazówka */}
-              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                <span className="text-[9px] font-mono text-slate-400">Wyróżnione słowa:</span>
-                {detectedKeywordsList.length > 0 ? (
-                  detectedKeywordsList.map((kw, i) => (
-                    <span
-                      key={i}
-                      className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-[#F59E0B]/15 text-[#F59E0B] border border-[#F59E0B]/30 font-bold"
-                    >
-                      {kw}
-                    </span>
-                  ))
-                ) : (
-                  <span className="text-[9px] font-mono text-slate-500 italic">
-                    (ostatnie słowo w każdej myśli będzie podświetlone)
-                  </span>
-                )}
-                <span className="text-[9px] font-mono text-slate-500 ml-auto">
-                  Tip: Wpisz np. <code>*WORD*</code>, aby wymusić wyróżnienie dowolnego słowa.
-                </span>
-              </div>
-            </div>
-
-            {/* Wyróżnienie Słów Kluczowych & Typografia */}
-            <div className="bg-[#141824] p-2.5 rounded-lg border border-[#2C354B] space-y-2.5">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-mono font-bold uppercase text-slate-300 flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-[#F59E0B]" />
-                  Styl Akcentu Słów Kluczowych & Typografia:
-                </span>
-                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                  🛡️ Auto-Fit: Tekst zawsze mieści się w kadrze
-                </span>
-              </div>
-
-              {/* Style selector */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-                {[
-                  { id: 'white_halo' as KeywordHighlightStyle, label: '❄️ Platynowy Halo', desc: 'Zimna poświata tytanowa' },
-                  { id: 'neon_glow' as KeywordHighlightStyle, label: '⚡ Neon Glow', desc: 'Aura kinowa STARK' },
-                  { id: 'pill_badge' as KeywordHighlightStyle, label: '🏷️ Ramka / Pill', desc: 'Kapsuła frosted' },
-                  { id: 'underline_bar' as KeywordHighlightStyle, label: '➖ Podkreślenie', desc: 'Belka akcentowa' }
-                ].map((s) => (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => setKeywordHighlightStyle(s.id)}
-                    className={`p-1.5 rounded text-left border text-[10px] font-mono transition-all cursor-pointer ${
-                      keywordHighlightStyle === s.id
-                        ? 'bg-[#38BDF8]/20 text-[#38BDF8] border-[#38BDF8]'
-                        : 'bg-[#1D2333] text-slate-300 border-[#2C354B] hover:border-slate-500'
-                    }`}
-                  >
-                    <div className="font-bold truncate">{s.label}</div>
-                    <div className="text-[8px] text-slate-400 truncate">{s.desc}</div>
-                  </button>
-                ))}
-              </div>
-
-              {/* Color picker pills */}
-              <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-[#2C354B]/70">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[9px] font-mono text-slate-400">Kolor akcentu:</span>
-                  {[
-                    { id: 'white' as KeywordColorChoice, label: 'Platyna', color: '#FFFFFF' },
-                    { id: 'cyan' as KeywordColorChoice, label: 'Cyjan STARK', color: '#38BDF8' },
-                    { id: 'gray' as KeywordColorChoice, label: 'Tytan Szary', color: '#94A3B8' },
-                    { id: 'slate' as KeywordColorChoice, label: 'Grafit', color: '#64748B' },
-                    { id: 'theme' as KeywordColorChoice, label: 'Motyw', color: '#CBD5E1' }
-                  ].map((c) => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => setKeywordColorChoice(c.id)}
-                      className={`px-2 py-1 rounded text-[9px] font-mono font-bold border transition-all cursor-pointer flex items-center gap-1 ${
-                        keywordColorChoice === c.id
-                          ? 'bg-white/10 text-white border-white'
-                          : 'bg-[#1D2333] text-slate-400 border-[#2C354B] hover:border-slate-500'
-                      }`}
-                    >
-                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: c.color }} />
-                      {c.label}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Font Family selector */}
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[9px] font-mono text-slate-400">Krój:</span>
-                  {[
-                    { id: 'cinzel' as const, label: 'Cinzel (Serif)' },
-                    { id: 'space_grotesk' as const, label: 'Space Grotesk' },
-                    { id: 'inter' as const, label: 'Inter' }
-                  ].map((f) => (
-                    <button
-                      key={f.id}
-                      type="button"
-                      onClick={() => setFontFamilyChoice(f.id)}
-                      className={`px-2 py-1 rounded text-[9px] font-mono font-bold border transition-all cursor-pointer ${
-                        fontFamilyChoice === f.id
-                          ? 'bg-[#38BDF8]/20 text-[#38BDF8] border-[#38BDF8]'
-                          : 'bg-[#1D2333] text-slate-400 border-[#2C354B] hover:border-slate-500'
-                      }`}
-                    >
-                      {f.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Eyedropper / Pipeta: Dobór koloru czcionki do tła */}
-              <div className="pt-2 border-t border-[#2C354B]/70 flex flex-wrap items-center justify-between gap-2.5">
-                <div className="flex items-center gap-2">
-                  <span className="text-[9px] font-mono text-slate-300 font-bold flex items-center gap-1">
-                    <Pipette className="w-3 h-3 text-[#38BDF8]" />
-                    Kolor czcionki tekstu:
-                  </span>
-
-                  <button
-                    type="button"
-                    onClick={handlePickColorWithEyeDropper}
-                    className={`px-2.5 py-1 rounded text-[10px] font-mono font-bold flex items-center gap-1.5 transition-all cursor-pointer border ${
-                      isSamplingCanvasColor
-                        ? 'bg-[#38BDF8] text-[#141824] border-[#38BDF8] animate-pulse shadow-md'
-                        : 'bg-[#38BDF8]/15 hover:bg-[#38BDF8]/25 text-[#38BDF8] border-[#38BDF8]/40'
-                    }`}
-                    title="Uruchom pipetę, aby pobrać dokładny odcień bezpośrednio z tła lub klatki wideo"
-                  >
-                    <Pipette className="w-3.5 h-3.5" />
-                    <span>{isSamplingCanvasColor ? 'Kliknij w tło wideo...' : '💧 Pipeta (Pobierz z tła)'}</span>
-                  </button>
-
-                  {/* Native color picker & preview */}
-                  <div className="flex items-center gap-1.5 bg-[#0B0D14] px-2 py-0.5 rounded border border-[#2C354B]">
-                    <input
-                      type="color"
-                      value={fontColor}
-                      onChange={(e) => setFontColor(e.target.value.toUpperCase())}
-                      className="w-5 h-5 rounded cursor-pointer bg-transparent border-0 p-0"
-                      title="Wybierz dokładny kolor z palety"
-                    />
-                    <span className="font-mono text-[10px] font-bold text-white uppercase">{fontColor}</span>
-                  </div>
-                </div>
-
-                {/* Quick Swatches */}
-                <div className="flex items-center gap-1">
-                  <span className="text-[8px] font-mono text-slate-500 mr-0.5">Szybkie:</span>
-                  {[
-                    { hex: '#FFFFFF', label: 'Biel' },
-                    { hex: '#E2E8F0', label: 'Tytan' },
-                    { hex: '#CBD5E1', label: 'Marmur' },
-                    { hex: '#94A3B8', label: 'Stal' },
-                    { hex: '#FCD34D', label: 'Złoto' },
-                    { hex: '#38BDF8', label: 'Cyjan' }
-                  ].map((sw) => (
-                    <button
-                      key={sw.hex}
-                      type="button"
-                      onClick={() => setFontColor(sw.hex)}
-                      className={`w-4 h-4 rounded-full border cursor-pointer transition-transform hover:scale-110 ${
-                        fontColor === sw.hex ? 'ring-2 ring-[#38BDF8] border-white scale-105' : 'border-[#2C354B]'
-                      }`}
-                      style={{ backgroundColor: sw.hex }}
-                      title={`${sw.label} (${sw.hex})`}
-                    />
-                  ))}
-                  {fontColor !== '#FFFFFF' && (
-                    <button
-                      type="button"
-                      onClick={() => setFontColor('#FFFFFF')}
-                      className="text-[8px] font-mono text-slate-400 hover:text-white underline ml-1 cursor-pointer"
-                    >
-                      Reset
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Oficjalne Logo Marki & Znak Wodny STARK FOCUS */}
-            <div className="bg-[#141824] p-3 rounded-lg border border-[#38BDF8]/40 space-y-2.5">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-[10px] font-mono font-bold uppercase text-white flex items-center gap-1.5">
-                  <Shield className="w-3.5 h-3.5 text-[#38BDF8]" />
-                  Oficjalne Logo Marki na Kadrze:
-                </span>
-                
-                {/* Active logo preview badge */}
-                <div className="flex items-center gap-1.5 bg-[#0B0D14] px-2 py-0.5 rounded border border-[#38BDF8]/40">
-                  <div className="w-5 h-5 rounded-full overflow-hidden bg-black flex items-center justify-center border border-[#38BDF8]/60 shadow-[0_0_8px_rgba(56,189,248,0.3)]">
-                    <img
-                      src={
-                        logoSourceType === 'monogram'
-                          ? '/stark_logo.svg'
-                          : logoSourceType === 'custom' && customLogoUrl
-                          ? customLogoUrl
-                          : '/stark_seal_logo.png'
-                      }
-                      alt="Active Logo"
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  <span className="text-[9px] font-mono text-[#38BDF8] font-bold uppercase">
-                    {logoPlacement === 'none'
-                      ? 'Ukryte'
-                      : logoSourceType === 'seal'
-                      ? '🛡️ Twoje Logo STARK'
-                      : '📁 Własne Logo'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Źródło Logo */}
-              <div>
-                <label className="text-[9px] font-mono text-slate-400 block mb-1">
-                  Wybierz Twoje Logo / Wgraj Własny Plik:
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setLogoSourceType('seal')}
-                    className={`py-1.5 px-2 rounded text-[10px] font-mono font-bold border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                      logoSourceType === 'seal'
-                        ? 'bg-[#38BDF8]/20 text-[#38BDF8] border-[#38BDF8] shadow-[0_0_10px_rgba(56,189,248,0.2)]'
-                        : 'bg-[#1D2333] text-slate-300 border-[#2C354B] hover:border-slate-500'
-                    }`}
-                  >
-                    <span className="w-3.5 h-3.5 rounded-full overflow-hidden flex-shrink-0 border border-current">
-                      <img src="/stark_seal_logo.png" alt="Seal" className="w-full h-full object-cover" />
-                    </span>
-                    <span>🛡️ Twoje Oficjalne Logo STARK</span>
-                  </button>
-
-                  <div className="relative">
-                    <input
-                      type="file"
-                      ref={logoFileInputRef}
-                      accept="image/png,image/svg+xml,image/jpeg,image/webp"
-                      onChange={handleLogoFileSelect}
-                      className="hidden"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => logoFileInputRef.current?.click()}
-                      className={`w-full py-1.5 px-2 rounded text-[10px] font-mono font-bold border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                        logoSourceType === 'custom'
-                          ? 'bg-[#38BDF8]/20 text-[#38BDF8] border-[#38BDF8] shadow-[0_0_10px_rgba(56,189,248,0.2)]'
-                          : 'bg-[#1D2333] text-slate-300 border-[#2C354B] hover:border-slate-500'
-                      }`}
-                    >
-                      <Upload className="w-3.5 h-3.5" />
-                      <span>{customLogoUrl ? 'Zmień Własne Logo' : 'Wgraj Własny Plik...'}</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Pozycja na Kadrze (Bezpieczne strefy TikTok / Reels / Shorts) */}
-              <div className="pt-2 border-t border-[#2C354B]/60 space-y-1.5">
-                <div className="flex flex-wrap items-center justify-between gap-1">
-                  <label className="text-[10px] font-mono font-bold uppercase text-slate-300">
-                    Pozycja Logo na Kadrze (Safe-Zones):
-                  </label>
-                  <span className="text-[9px] font-mono text-[#38BDF8]">
-                    ✓ Bez kolizji z suwakiem, tekstem i UI platform
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-                  {[
-                    {
-                      id: 'bottom_under' as LogoPlacement,
-                      label: 'Pod @stark_focus',
-                      desc: 'Dół kadru (rekomendowane)',
-                      badge: 'DÓŁ'
-                    },
-                    {
-                      id: 'top_left' as LogoPlacement,
-                      label: 'Lewy górny róg',
-                      desc: '100% Safe-Zone platform',
-                      badge: 'RÓG'
-                    },
-                    {
-                      id: 'bottom_inline' as LogoPlacement,
-                      label: 'W linii z @stark_focus',
-                      desc: 'Zintegrowany badge',
-                      badge: 'INLINE'
-                    },
-                    {
-                      id: 'bottom_above' as LogoPlacement,
-                      label: 'Nad @stark_focus',
-                      desc: 'Odsunięte od suwaka',
-                      badge: 'DÓŁ'
-                    },
-                    {
-                      id: 'top_right' as LogoPlacement,
-                      label: 'Prawy górny róg',
-                      desc: 'Klasyczny znak stacji',
-                      badge: 'RÓG'
-                    },
-                    {
-                      id: 'top_center' as LogoPlacement,
-                      label: 'Górny środek',
-                      desc: 'Centralnie pod nagłówkiem',
-                      badge: 'GÓRA'
-                    },
-                    {
-                      id: 'background_watermark' as LogoPlacement,
-                      label: 'Znak wodny w tle',
-                      desc: 'ZA tekstem (nie zasłania)',
-                      badge: 'TŁO'
-                    },
-                    {
-                      id: 'none' as LogoPlacement,
-                      label: 'Bez logo',
-                      desc: 'Czysty kadr',
-                      badge: 'BRAK'
-                    }
-                  ].map((p) => {
-                    const isSelected =
-                      logoPlacement === p.id ||
-                      (p.id === 'bottom_under' && logoPlacement === 'footer') ||
-                      (p.id === 'top_left' && logoPlacement === 'top') ||
-                      (p.id === 'background_watermark' && logoPlacement === 'center_watermark');
-
-                    return (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => setLogoPlacement(p.id)}
-                        className={`p-1.5 rounded text-left border transition-all cursor-pointer ${
-                          isSelected
-                            ? 'bg-[#38BDF8]/20 text-white border-[#38BDF8] shadow-[0_0_8px_rgba(56,189,248,0.25)]'
-                            : 'bg-[#1D2333] text-slate-300 border-[#2C354B] hover:border-slate-500'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-1">
-                          <span className="text-[10px] font-mono font-bold truncate">{p.label}</span>
-                          <span
-                            className={`text-[7px] font-mono px-1 rounded uppercase ${
-                              isSelected ? 'bg-[#38BDF8] text-black font-bold' : 'bg-black/40 text-slate-400'
-                            }`}
-                          >
-                            {p.badge}
-                          </span>
-                        </div>
-                        <div className="text-[8px] font-mono text-slate-400 truncate mt-0.5">{p.desc}</div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Parametry dostrojenia: Rozmiar, Przezroczystość, Poświata */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 border-t border-[#2C354B]/60">
-                {/* Rozmiar Logo */}
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-[9px] font-mono text-slate-400">Rozmiar:</label>
-                    <span className="text-[9px] font-mono text-white font-bold">{logoSize}px</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={28}
-                    max={84}
-                    step={2}
-                    value={logoSize}
-                    onChange={(e) => setLogoSize(Number(e.target.value))}
-                    disabled={logoPlacement === 'none'}
-                    className="w-full accent-[#38BDF8] cursor-pointer disabled:opacity-40"
-                  />
-                  <div className="flex justify-between text-[8px] font-mono text-slate-400">
-                    <span>28px</span>
-                    <span>44px</span>
-                    <span>84px</span>
-                  </div>
-                </div>
-
-                {/* Krycie / Opacity */}
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-[9px] font-mono text-slate-400">Przezroczystość (działa na znak wodny):</label>
-                    <span className="text-[9px] font-mono text-[#38BDF8] font-bold">{logoOpacity}%</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={2}
-                    max={100}
-                    step={1}
-                    value={logoOpacity}
-                    onChange={(e) => setLogoOpacity(Number(e.target.value))}
-                    disabled={logoPlacement === 'none'}
-                    className="w-full accent-[#38BDF8] cursor-pointer disabled:opacity-40"
-                  />
-                  <div className="flex justify-between text-[8px] font-mono text-slate-400">
-                    <span>2% (dyskretne tło)</span>
-                    <span>100% (pełne)</span>
-                  </div>
-                </div>
-
-                {/* Poświata / Aura */}
-                <div>
-                  <label className="text-[9px] font-mono text-slate-400 block mb-1">Aura / Poświata:</label>
-                  <div className="grid grid-cols-3 gap-1">
-                    {[
-                      { id: 'cyan' as LogoGlowChoice, label: 'Cyjan', color: '#38BDF8' },
-                      { id: 'white' as LogoGlowChoice, label: 'Platyna', color: '#FFFFFF' },
-                      { id: 'none' as LogoGlowChoice, label: 'Brak', color: '#64748B' }
-                    ].map((g) => (
-                      <button
-                        key={g.id}
-                        type="button"
-                        onClick={() => setLogoGlow(g.id)}
-                        disabled={logoPlacement === 'none'}
-                        className={`py-1 px-1 rounded text-[9px] font-mono font-bold border truncate transition-all cursor-pointer flex items-center justify-center gap-1 disabled:opacity-40 ${
-                          logoGlow === g.id
-                            ? 'bg-[#38BDF8]/20 text-[#38BDF8] border-[#38BDF8]'
-                            : 'bg-[#1D2333] text-slate-400 border-[#2C354B] hover:border-slate-500'
-                        }`}
-                      >
-                        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: g.color }} />
-                        {g.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Automatic Sound Recommendation based on content */}
-            <div className="bg-[#1D2333] p-3 rounded-lg border border-[#38BDF8]/40 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black uppercase text-[#38BDF8] flex items-center gap-1.5 tracking-wider">
-                  <Music className="w-3.5 h-3.5" />
-                  AUTOMATYCZNA REKOMENDACJA DŹWIĘKU (ALGORYTM REELS)
-                </span>
-                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-[#10B981]/15 text-[#10B981] font-bold">
-                  {recommendedAudio.boost}
-                </span>
-              </div>
-
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-[#141824] p-2.5 rounded border border-[#2C354B]">
-                <div>
-                  <div className="text-xs font-mono font-bold text-white">{recommendedAudio.name}</div>
-                  <div className="text-[10px] text-slate-300 font-mono">Tag w Instagramie: "{recommendedAudio.tag}"</div>
-                  <div className="text-[9px] text-slate-400 font-mono mt-0.5">{recommendedAudio.reason}</div>
-                </div>
-
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(recommendedAudio.tag);
-                    setCopiedAudioTag(true);
-                    setTimeout(() => setCopiedAudioTag(false), 3000);
-                  }}
-                  className="px-2.5 py-1.5 rounded bg-[#38BDF8]/15 hover:bg-[#38BDF8]/25 text-[#38BDF8] border border-[#38BDF8]/40 text-[10px] font-mono font-bold whitespace-nowrap cursor-pointer transition-colors"
-                >
-                  {copiedAudioTag ? '✓ Skopiowano Tag!' : 'Kopiuj Tag Dźwięku'}
-                </button>
-              </div>
-            </div>
-
-            {/* Video Export Error Notice */}
-            {videoExportError && (
-              <div className="p-2.5 bg-rose-500/15 border border-rose-500/40 rounded text-xs font-mono text-rose-300 flex items-center justify-between">
-                <span>{videoExportError}</span>
-                <button
-                  type="button"
-                  onClick={() => setVideoExportError(null)}
-                  className="text-[10px] text-slate-400 hover:text-white cursor-pointer ml-2"
+                  onClick={() => setMatchedBrollNotice(null)}
+                  className="text-cyan-400 hover:text-white cursor-pointer ml-2"
                 >
                   ✕
                 </button>
               </div>
             )}
+            {/* 1. Primary AI In-Flight Generator with Combinatorial Idea Matrix */}
+            <div className="p-4 rounded-xl bg-[#111111] border border-white/10 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-wider block">
+                      Generowanie w locie:
+                    </span>
+                    <span className="px-1.5 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[9px] font-mono font-bold">
+                      Matryca Idei: 10 000+ kombinacji
+                    </span>
+                  </div>
+                  <h3 className="text-sm font-black text-white font-mono uppercase tracking-wider flex items-center gap-1.5 mt-0.5">
+                    <Sparkles className="w-4 h-4 text-white" />
+                    Zmontuj powiązaną rolkę stoicką
+                  </h3>
+                </div>
 
-            {/* Export & Actions */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5 pt-2 border-t border-[#2C354B]">
-              <div className="flex items-center gap-2 text-[10px] font-mono text-slate-400">
+                <button
+                  type="button"
+                  onClick={handleGenerateAiReel}
+                  disabled={isGeneratingAi}
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-white hover:bg-neutral-200 text-black font-black text-xs font-mono uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer shadow-lg hover:shadow-white/10 transition-all disabled:opacity-50 whitespace-nowrap"
+                >
+                  {isGeneratingAi ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      Montowanie...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3.5 h-3.5" />⚡ Generuj unikalny pomysł
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Wybór kategorii stoickiej z matrycy */}
+              <div className="pt-2 border-t border-white/5">
+                <div className="flex items-center justify-between mb-1.5 text-[10px] font-mono text-neutral-400">
+                  <span>Kąt filozoficzny / Temat wiodący:</span>
+                  <span className="text-[9px] text-neutral-500">100% spójność logiczna fraz</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {STOIC_CATEGORIES.map((cat) => (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => setSelectedCategory(cat.id)}
+                      className={`px-2 py-1 rounded text-[10px] font-mono font-bold transition-all cursor-pointer flex items-center gap-1 border ${
+                        selectedCategory === cat.id
+                          ? "bg-white text-black border-white shadow-sm"
+                          : "bg-[#181818] text-neutral-400 border-white/10 hover:text-white hover:border-white/20"
+                      }`}
+                      title={cat.description}
+                    >
+                      <span>{cat.icon}</span>
+                      <span>{cat.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* 2. Długość filmu, Tempo (Pacing) & Format narracji */}
+            <div className="bg-[#111111] p-3.5 rounded-xl border border-white/10 space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                {/* Długość pętli */}
+                <div className="sm:col-span-7 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-mono font-bold uppercase text-neutral-300 flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-white" />
+                      Długość filmu:
+                    </label>
+                    <span className="text-[10px] font-mono text-neutral-400">
+                      Aktualnie: <strong className="text-white">{duration}s</strong>
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-6 gap-1">
+                    {([6, 8, 9, 11, 14, 15] as const).map((d) => (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => {
+                          setDuration(d);
+                          timeRef.current = 0;
+                        }}
+                        className={`py-1.5 px-1 text-center rounded text-[11px] font-mono font-bold transition-all cursor-pointer border ${
+                          duration === d
+                            ? "bg-white text-black border-white shadow-sm"
+                            : "bg-[#181818] text-neutral-400 border-white/10 hover:text-white"
+                        }`}
+                      >
+                        {d}s
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Format narracji */}
+                <div className="sm:col-span-5 space-y-1.5">
+                  <label className="text-[10px] font-mono font-bold uppercase text-neutral-300 flex items-center gap-1.5">
+                    <Sliders className="w-3.5 h-3.5 text-white" />
+                    Format narracji:
+                  </label>
+                  <select
+                    value={format}
+                    onChange={(e) => handleFormatChange(e.target.value as NarrativeFormat)}
+                    className="w-full text-xs font-mono font-bold py-1.5 px-2 bg-[#181818] border border-white/10 rounded text-white focus:outline-none focus:border-white"
+                  >
+                    <option value="three_phases">3 Fazy (Hook → Prawda → Pętla)</option>
+                    <option value="four_phrases">4 Frazy (Sekwencja stoicka)</option>
+                    <option value="two_phases">Problem / Zasada (2 Fazy)</option>
+                    <option value="single_quote">1 Stały Cytat (Czysty Przekaz)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Rytm cięć & Pacing fraz */}
+              <div className="pt-2.5 border-t border-white/10 space-y-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <label className="text-[10px] font-mono font-bold uppercase text-neutral-300 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-white" />
+                    Rytm i Tempo fraz (Pacing):
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    {[
+                      {
+                        id: "climax_hold" as const,
+                        label: "Zatrzymanie na puencie ⭐",
+                        tip: "Finałowe zdanie wisi ~2x dłużej, dając widzowi czas na przyswojenie sedna",
+                      },
+                      {
+                        id: "stoic_steady" as const,
+                        label: "Stonowane (Spokojne)",
+                        tip: "Wydłużona lektura i łagodniejsze przejścia pod stoicką refleksję",
+                      },
+                      {
+                        id: "uniform" as const,
+                        label: "Równomierne",
+                        tip: "Równy podział sekund pomiędzy wszystkie frazy",
+                      },
+                    ].map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => {
+                          setPacingMode(p.id);
+                          timeRef.current = 0;
+                        }}
+                        className={`px-2.5 py-1 rounded text-[10px] font-mono transition-all cursor-pointer border ${
+                          pacingMode === p.id
+                            ? "bg-white text-black border-white font-bold shadow-[0_0_12px_rgba(255,255,255,0.2)]"
+                            : "bg-[#181818] text-neutral-400 border-white/10 hover:text-white"
+                        }`}
+                        title={p.tip}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Wskaźnik czytelności tempa (Pacing Health Alert) */}
+                {avgPhraseDuration < 2.0 && format !== "single_quote" ? (
+                  <div className="px-2.5 py-2 rounded-lg bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[10px] font-mono">
+                    <div className="flex items-center gap-1.5 text-amber-300">
+                      <span>⚡</span>
+                      <span>
+                        Szybkie tempo: ~<strong>{avgPhraseDuration.toFixed(1)}s</strong> / frazę.
+                        Tekst może przeskakiwać za szybko.
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="text-[9px] text-neutral-400">Wydłuż:</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDuration(9);
+                          timeRef.current = 0;
+                        }}
+                        className="px-2 py-0.5 bg-amber-400/20 hover:bg-amber-400 text-amber-200 hover:text-black rounded border border-amber-400/40 text-[9px] font-bold transition-all cursor-pointer"
+                      >
+                        9s
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDuration(12);
+                          timeRef.current = 0;
+                        }}
+                        className="px-2 py-0.5 bg-amber-400/20 hover:bg-amber-400 text-amber-200 hover:text-black rounded border border-amber-400/40 text-[9px] font-bold transition-all cursor-pointer"
+                      >
+                        12s
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="px-2.5 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-between text-[10px] font-mono text-emerald-300">
+                    <span className="flex items-center gap-1.5">
+                      <span>🧘</span>
+                      <span>
+                        Stonowany, stoicki rytm: ~<strong>{avgPhraseDuration.toFixed(1)}s</strong> /
+                        frazę (Wysoka czytelność i retencja).
+                      </span>
+                    </span>
+                    <span className="text-[9px] text-emerald-400 font-bold uppercase tracking-wider">
+                      {pacingMode === "climax_hold"
+                        ? "Puenta: Zatrzymanie"
+                        : pacingMode === "stoic_steady"
+                          ? "Płynny Rytm"
+                          : "Równe Cięcia"}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* 3. Mroczny motyw wizualny, Własne tło & Krój czcionki */}
+            <div className="bg-[#111111] p-3 rounded-xl border border-white/10 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] font-mono font-bold uppercase text-neutral-400 flex items-center gap-1.5">
+                  <Palette className="w-3.5 h-3.5 text-neutral-300" />
+                  Motyw tła (Minimalistyczna poświata lub własne media):
+                </label>
+
+                {/* Custom Background Upload Button */}
+                <div className="flex items-center gap-1.5">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="video/*,image/*"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                    id="custom-bg-upload"
+                  />
+                  <label
+                    htmlFor="custom-bg-upload"
+                    className="px-2.5 py-1 rounded bg-[#181818] hover:bg-white hover:text-black text-neutral-300 text-[10px] font-mono font-bold uppercase tracking-wider transition-all flex items-center gap-1 cursor-pointer border border-white/10 hover:border-white"
+                    title="Prześlij własne wideo lub grafikę w tle"
+                  >
+                    <Upload className="w-3 h-3" />
+                    Wgraj tło (Wideo / Foto)
+                  </label>
+
+                  {customBgType !== "none" && (
+                    <button
+                      type="button"
+                      onClick={handleClearCustomBg}
+                      className="p-1 rounded bg-rose-500/20 text-rose-300 hover:bg-rose-500 hover:text-white transition-colors cursor-pointer border border-rose-500/30"
+                      title="Usuń własne tło i wróć do motywu"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Custom background active notice */}
+              {customBgType !== "none" && (
+                <div className="px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/15 flex items-center justify-between text-[10px] font-mono text-neutral-300">
+                  <span className="flex items-center gap-1.5 truncate">
+                    <ImageIcon className="w-3 h-3 text-white" />
+                    Aktywne własne tło ({customBgType === "video" ? "Wideo" : "Grafika"}):{" "}
+                    <strong className="text-white truncate max-w-[200px]">{customBgName}</strong>
+                  </span>
+                  <span className="text-[9px] text-neutral-400 uppercase">[Nadpisuje motyw]</span>
+                </div>
+              )}
+
+              {/* Rekomendacja tła dopasowana do wygenerowanej rolki */}
+              {(() => {
+                const bgInfo =
+                  activeTemplate.suggestedBackground && activeTemplate.backgroundRationale
+                    ? {
+                        sceneName: activeTemplate.suggestedBackground,
+                        rationale: activeTemplate.backgroundRationale,
+                        theme: activeTemplate.suggestedTheme,
+                      }
+                    : CATEGORY_BACKGROUND_RECOMMENDATIONS[selectedCategory] ||
+                      CATEGORY_BACKGROUND_RECOMMENDATIONS.discipline_vs_motivation;
+
+                const matchingCategoryRec =
+                  Object.values(CATEGORY_BACKGROUND_RECOMMENDATIONS).find(
+                    (r) => r.sceneName === bgInfo.sceneName,
+                  ) ||
+                  CATEGORY_BACKGROUND_RECOMMENDATIONS[selectedCategory] ||
+                  CATEGORY_BACKGROUND_RECOMMENDATIONS.discipline_vs_motivation;
+
+                return (
+                  <div className="p-3 rounded-xl bg-gradient-to-br from-[#181818] via-[#141414] to-[#0E0E0E] border border-amber-500/30 space-y-2 shadow-lg">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="p-1 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 text-xs">
+                          🎯
+                        </span>
+                        <div>
+                          <span className="text-[10px] font-mono font-bold uppercase text-amber-400 tracking-wider">
+                            Rekomendowane tło do tej rolki:
+                          </span>
+                          <h4 className="text-xs font-bold text-white font-mono">
+                            {bgInfo.sceneName}
+                          </h4>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (matchingCategoryRec.bingPrompt) {
+                            navigator.clipboard.writeText(matchingCategoryRec.bingPrompt);
+                            setToastMessage("✓ Skopiowano prompt 9:16 do Bing/Midjourney!");
+                            setTimeout(() => setToastMessage(null), 2500);
+                          }
+                        }}
+                        className="px-2.5 py-1 rounded bg-[#202020] hover:bg-amber-400 hover:text-black text-amber-200 text-[10px] font-mono font-bold border border-amber-500/30 hover:border-amber-400 transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
+                        title="Skopiuj gotowy prompt do wygenerowania tego tła w Bing Image Creator / Midjourney"
+                      >
+                        <Copy className="w-3 h-3" />
+                        <span>Kopiuj prompt AI tła (9:16)</span>
+                      </button>
+                    </div>
+
+                    <p className="text-[11px] text-neutral-300 font-sans leading-relaxed">
+                      💡 <strong>Dlaczego to pasuje:</strong> {bgInfo.rationale}
+                    </p>
+
+                    <div className="flex flex-wrap items-center justify-between pt-1 border-t border-white/5 text-[10px] font-mono text-neutral-400 gap-2">
+                      <span>
+                        Sugerowany motyw cieni:{" "}
+                        <strong className="text-white capitalize">
+                          {bgInfo.theme.replace("_", " ")}
+                        </strong>
+                      </span>
+                      {selectedTheme !== bgInfo.theme && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (customBgType !== "none") handleClearCustomBg();
+                            setSelectedTheme(bgInfo.theme);
+                          }}
+                          className="text-amber-400 hover:text-white underline font-bold transition-colors cursor-pointer"
+                        >
+                          Zastosuj ten motyw →
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                {VISUAL_THEMES.map((theme) => {
+                  const isCurrent = selectedTheme === theme.id && customBgType === "none";
+                  return (
+                    <button
+                      key={theme.id}
+                      type="button"
+                      onClick={() => {
+                        if (customBgType !== "none") {
+                          handleClearCustomBg();
+                        }
+                        setSelectedTheme(theme.id);
+                      }}
+                      className={`p-2 rounded-lg text-left border transition-all cursor-pointer ${
+                        isCurrent
+                          ? "bg-[#1E1E1E] border-white text-white shadow-[0_0_15px_rgba(255,255,255,0.12)]"
+                          : "bg-[#141414] border-white/10 text-neutral-400 hover:text-white"
+                      }`}
+                    >
+                      <div className="text-[11px] font-mono font-black">{theme.name}</div>
+                      <div className="text-[9px] text-neutral-500 font-mono mt-0.5 truncate">
+                        {theme.badge}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Biblioteka Kinowych Scen B-Roll */}
+              <div className="pt-2.5 border-t border-white/5 space-y-1.5">
+                <div className="flex items-center justify-between text-[10px] font-mono text-neutral-400">
+                  <span className="flex items-center gap-1.5 font-bold uppercase text-neutral-300">
+                    <Film className="w-3 h-3 text-cyan-400" />
+                    Kinowe Sceny B-Roll (Zero-Click):
+                  </span>
+                  <span className="text-[9px] text-neutral-500">6 gotowych ujęć</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                  {CINEMATIC_BROLL_LIBRARY.map((broll) => (
+                    <button
+                      key={broll.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedTheme(broll.suggestedTheme);
+                        setMatchedBrollNotice(`${broll.name} • ${broll.ambientVibe}`);
+                        setToastMessage(`✓ Wybrano B-Roll: ${broll.name}`);
+                        setTimeout(() => setToastMessage(null), 2500);
+                      }}
+                      className="p-1.5 rounded bg-[#161616] hover:bg-[#202020] border border-white/10 hover:border-cyan-500/40 text-left transition-all cursor-pointer"
+                    >
+                      <div className="text-[10px] font-mono font-bold text-white truncate">
+                        {broll.name}
+                      </div>
+                      <div className="text-[8px] font-mono text-neutral-500 truncate">
+                        {broll.ambientVibe}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Czcionka, Rozmiar, Wielkość Liter i Styl podświetlania */}
+              <div className="space-y-3 pt-2.5 border-t border-white/10">
+                {/* Wiersz 1: Krój pisma i Wielkość liter */}
+                <div className="flex flex-wrap items-center justify-between gap-2.5">
+                  {/* Krój pisma */}
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-mono text-neutral-400">Krój:</span>
+                    {[
+                      { id: "cinzel" as const, label: "Cinzel (Rzymski)" },
+                      { id: "cormorant" as const, label: "Cormorant (Szeryf)" },
+                      { id: "montserrat" as const, label: "Montserrat (Modern)" },
+                    ].map((f) => (
+                      <button
+                        key={f.id}
+                        type="button"
+                        onClick={() => setFontFamily(f.id)}
+                        className={`px-2 py-1 rounded text-[10px] font-mono transition-all cursor-pointer border ${
+                          fontFamily === f.id
+                            ? "bg-white text-black border-white font-bold shadow-[0_0_10px_rgba(255,255,255,0.2)]"
+                            : "bg-[#181818] text-neutral-400 border-white/10 hover:text-white"
+                        }`}
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Wielkość liter: Tradycyjna vs Wersaliki */}
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-mono text-neutral-400">Litery:</span>
+                    {[
+                      { id: "natural" as const, label: "Naturalna (Aa)" },
+                      { id: "uppercase" as const, label: "WIELKIE (AA)" },
+                    ].map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => setTextCase(c.id)}
+                        className={`px-2 py-1 rounded text-[10px] font-mono transition-all cursor-pointer border ${
+                          textCase === c.id
+                            ? "bg-white text-black border-white font-bold shadow-[0_0_8px_rgba(255,255,255,0.2)]"
+                            : "bg-[#181818] text-neutral-400 border-white/10 hover:text-white"
+                        }`}
+                      >
+                        {c.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Wiersz 2: Suwak rozmiaru czcionki z presetami */}
+                <div className="bg-[#0D0D0D] p-2.5 rounded-lg border border-white/5 space-y-2">
+                  <div className="flex items-center justify-between text-[10px] font-mono text-neutral-400">
+                    <span className="flex items-center gap-1 text-neutral-300">
+                      <Type className="w-3 h-3 text-white" />
+                      Rozmiar czcionki tekstu:
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1">
+                        {[
+                          { sz: 64, label: "64px (Drobny)" },
+                          { sz: 76, label: "76px (Standard)" },
+                          { sz: 88, label: "88px (Monumentalny)" },
+                        ].map((p) => (
+                          <button
+                            key={p.sz}
+                            type="button"
+                            onClick={() => setFontSize(p.sz)}
+                            className={`px-1.5 py-0.5 rounded text-[9px] font-mono transition-all cursor-pointer border ${
+                              fontSize === p.sz
+                                ? "bg-white/20 text-white border-white/40 font-bold"
+                                : "bg-[#141414] text-neutral-500 border-white/5 hover:text-neutral-300"
+                            }`}
+                          >
+                            {p.label}
+                          </button>
+                        ))}
+                      </div>
+                      <span className="text-white font-bold px-1.5 py-0.5 bg-[#1C1C1C] rounded border border-white/10 min-w-[42px] text-center">
+                        {fontSize}px
+                      </span>
+                    </div>
+                  </div>
+                  <input
+                    type="range"
+                    min="52"
+                    max="96"
+                    step="2"
+                    value={fontSize}
+                    onChange={(e) => setFontSize(parseInt(e.target.value))}
+                    className="w-full h-1.5 bg-[#1F1F1F] rounded-lg appearance-none cursor-pointer accent-white"
+                  />
+                </div>
+
+                {/* Wiersz 3: Akcent słów kluczowych i Wysokość tekstu w kadrze */}
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                  {/* Akcent słów kluczowych: Tylko Platynowy Blask i Pogrubienie */}
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-mono text-neutral-400">Wyróżnienie:</span>
+                    {[
+                      { id: "white_halo" as const, label: "Platynowy Blask (Mocny)" },
+                      { id: "bold" as const, label: "Pogrubienie" },
+                    ].map((s) => (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => setHighlightStyle(s.id)}
+                        className={`px-2.5 py-1 rounded text-[10px] font-mono transition-all cursor-pointer border ${
+                          highlightStyle === s.id
+                            ? "bg-white text-black border-white font-bold shadow-[0_0_10px_rgba(255,255,255,0.25)]"
+                            : "bg-[#181818] text-neutral-400 border-white/10 hover:text-white"
+                        }`}
+                      >
+                        {s.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Pozycja w pionie (Złoty środek kadru) */}
+                  <div className="flex items-center gap-2 min-w-[200px] flex-1 sm:flex-initial">
+                    <span className="text-[10px] font-mono text-neutral-400 whitespace-nowrap flex items-center gap-1">
+                      <SlidersHorizontal className="w-3 h-3" />
+                      Wysokość:
+                    </span>
+                    <input
+                      type="range"
+                      min="32"
+                      max="55"
+                      step="1"
+                      value={verticalPos}
+                      onChange={(e) => setVerticalPos(parseInt(e.target.value))}
+                      className="w-24 sm:w-28 h-1.5 bg-[#1F1F1F] rounded-lg appearance-none cursor-pointer accent-white"
+                    />
+                    <span className="text-white text-[10px] font-mono font-bold">
+                      {verticalPos}%
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 4. Szybka Korekta Tekstu (Tradycyjna wielkość liter, podgląd na żywo) */}
+            <div className="bg-[#111111] p-3.5 rounded-xl border border-white/10 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="text-[10px] font-mono font-bold uppercase text-neutral-300 flex items-center gap-1.5">
+                    <Type className="w-3.5 h-3.5 text-white" />
+                    Korekta tekstu (Powiązana narracja stoicka):
+                  </label>
+                  <span className="text-[9px] font-mono text-emerald-400 block mt-0.5">
+                    ⛓️ Spójny cel i sens: każda faza logicznie wynika z poprzedniej
+                  </span>
+                </div>
+                <span className="text-[9px] font-mono text-neutral-500">
+                  Wpisz *słowo* by wyróżnić blaskiem
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                {phrases.map((phrase, idx) => (
+                  <div key={idx} className="space-y-1">
+                    <div className="flex items-center justify-between text-[9px] font-mono text-neutral-400">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-neutral-200">
+                          {format === "three_phases"
+                            ? idx === 0
+                              ? "Faza 1: Hook (Wstrząs & Prowokacja)"
+                              : idx === 1
+                                ? "Faza 2: Prawda Stoicka (Zasada)"
+                                : "Faza 3: Puenta Climax (Dyrektywa)"
+                            : format === "two_phases"
+                              ? idx === 0
+                                ? "Faza 1: Złudzenie / Pułapka 99%"
+                                : "Faza 2: Standard Suwerenny 1%"
+                              : format === "four_phrases"
+                                ? idx === 0
+                                  ? "Faza 1: Hook / Wymówka (Ujawnienie złudzenia)"
+                                  : idx === 1
+                                    ? "Faza 2: Bolesny Kontrast (Diagnoza prawdy)"
+                                    : idx === 2
+                                      ? "Faza 3: Prawo Stoickie (Nienegocjowalna reguła)"
+                                      : "Faza 4: Puenta Climax (Zatrzymanie & Pętla)"
+                                : "Główny Aforyzm Stoicki (Pętla)"}
+                        </span>
+
+                        {activeTimeline[idx] && (
+                          <span
+                            className={`px-1.5 py-0.5 rounded text-[9px] font-mono flex items-center gap-1 ${
+                              currentPhraseIndex === idx
+                                ? "bg-white text-black font-bold shadow-sm"
+                                : activeTimeline[idx].isClimax && pacingMode === "climax_hold"
+                                  ? "bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold"
+                                  : "bg-[#181818] text-neutral-400 border border-white/5"
+                            }`}
+                          >
+                            <span>
+                              {activeTimeline[idx].start.toFixed(1)}s –{" "}
+                              {activeTimeline[idx].end.toFixed(1)}s (
+                              {activeTimeline[idx].duration.toFixed(1)}s)
+                            </span>
+                            {activeTimeline[idx].isClimax && pacingMode === "climax_hold" && (
+                              <span className="text-amber-300 font-bold">⭐ Zatrzymanie</span>
+                            )}
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleBalancePhrase(idx)}
+                        className="text-neutral-400 hover:text-white transition-colors cursor-pointer text-[10px] font-mono font-bold"
+                        title="Rozdziel na 2 równe linie bez wiszących spójników"
+                      >
+                        ⚖️ Zbalansuj linie
+                      </button>
+                    </div>
+                    <textarea
+                      rows={phrase.includes("\n") ? 2 : 1}
+                      value={phrase}
+                      onChange={(e) => {
+                        const copy = [...phrases];
+                        copy[idx] = e.target.value; // Natural casing preserved
+                        setPhrases(copy);
+                        timeRef.current = 0;
+                      }}
+                      className="w-full text-xs font-mono font-bold py-2 px-3 bg-[#181818] border border-white/10 rounded-lg text-white focus:border-white focus:outline-none tracking-wide leading-relaxed resize-none"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 5. Gotowy Opis (Caption) & Hashtagi: Krótki vs Głębszy */}
+            <div className="bg-[#111111] p-3 rounded-xl border border-white/10 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-mono font-bold uppercase text-neutral-400 flex items-center gap-1.5">
+                    <Copy className="w-3.5 h-3.5 text-neutral-300" />
+                    Opis (Caption) pod Rolkę:
+                  </span>
+                  {/* Przełącznik: Krótki vs Głębszy */}
+                  <div className="flex items-center bg-[#181818] border border-white/10 rounded p-0.5">
+                    <button
+                      type="button"
+                      onClick={() => handleCaptionStyleToggle("short")}
+                      className={`px-2 py-0.5 rounded text-[9px] font-mono font-bold transition-all cursor-pointer ${
+                        captionStyle === "short"
+                          ? "bg-white text-black shadow-sm"
+                          : "text-neutral-400 hover:text-white"
+                      }`}
+                    >
+                      Krótki (Punchy)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleCaptionStyleToggle("deep")}
+                      className={`px-2 py-0.5 rounded text-[9px] font-mono font-bold transition-all cursor-pointer ${
+                        captionStyle === "deep"
+                          ? "bg-white text-black shadow-sm"
+                          : "text-neutral-400 hover:text-white"
+                      }`}
+                    >
+                      Głębszy (3 Lekcje)
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleCopyCaption}
+                  className="px-2 py-0.5 rounded bg-white/10 hover:bg-white text-white hover:text-black text-[10px] font-mono font-bold uppercase tracking-wider transition-all flex items-center gap-1 cursor-pointer border border-white/20"
+                >
+                  <Copy className="w-3 h-3" />
+                  Kopiuj Opis
+                </button>
+              </div>
+
+              <textarea
+                rows={captionStyle === "deep" ? 4 : 2}
+                value={caption}
+                onChange={(e) => setCaption(e.target.value)}
+                className="w-full text-xs font-mono p-2 bg-[#181818] border border-white/10 rounded text-neutral-300 focus:border-white focus:outline-none resize-none leading-relaxed"
+              />
+
+              <div className="text-[10px] font-mono text-neutral-400 px-1 flex items-center gap-1.5">
+                <span className="text-emerald-400">✓</span>
                 <span>
-                  Format: <strong className="text-white">9:16</strong> • Długość:{' '}
-                  <strong className="text-[#38BDF8]">7.00s</strong>
+                  Opis nie powiela słów z wideo — dostarcza nową perspektywę i rozwija lekcję pod
+                  algorytm.
+                </span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1">
+                {hashtags.map((tag, i) => (
+                  <span
+                    key={i}
+                    className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-white/5 text-neutral-400 border border-white/10"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* 6. Eksport 1080x1920 Full HD (Precyzyjny czas 1:1 bez podwajania) */}
+            <div className="pt-2 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2 text-xs font-mono text-neutral-400">
+                <span>
+                  Jakość: <strong className="text-white">1080x1920 Full HD</strong> • Czas:{" "}
+                  <strong className="text-emerald-400">{duration}.00s (Dokładny 1:1)</strong>
                 </span>
 
-                {/* FPS Selector */}
-                <div className="flex items-center bg-[#141824] border border-[#2C354B] rounded p-0.5 ml-1">
-                  <button
-                    type="button"
-                    onClick={() => setExportFps(60)}
-                    className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold transition-all cursor-pointer ${
-                      exportFps === 60
-                        ? 'bg-[#38BDF8] text-[#141824]'
-                        : 'text-slate-400 hover:text-white'
-                    }`}
-                    title="Płynny eksport 60 klatek na sekundę (bez zacinania)"
-                  >
-                    60 FPS
-                  </button>
+                <div className="flex items-center bg-[#181818] border border-white/10 rounded p-0.5 ml-1">
                   <button
                     type="button"
                     onClick={() => setExportFps(30)}
-                    className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold transition-all cursor-pointer ${
+                    className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold cursor-pointer transition-all ${
                       exportFps === 30
-                        ? 'bg-[#38BDF8] text-[#141824]'
-                        : 'text-slate-400 hover:text-white'
+                        ? "bg-white text-black shadow-sm"
+                        : "text-neutral-400 hover:text-white"
                     }`}
-                    title="Standardowy eksport 30 klatek na sekundę"
+                    title="Oficjalny standard Instagram Reels & TikTok (Brak podwajania czasu trwania, 18 Mbps)"
                   >
-                    30 FPS
+                    30 FPS (Zalecane)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setExportFps(60)}
+                    className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold cursor-pointer transition-all ${
+                      exportFps === 60
+                        ? "bg-white text-black shadow-sm"
+                        : "text-neutral-400 hover:text-white"
+                    }`}
+                    title="Ultra płynność i maksymalny bitrate 24 Mbps z precyzyjnym czasem 1:1"
+                  >
+                    60 FPS (Ultra)
                   </button>
                 </div>
 
-                {isExportingVideo && (
-                  <span className="ml-2 text-[#38BDF8] font-bold animate-pulse">
-                    [Eksport Ultra-Smooth {exportFps} FPS: {videoExportProgress}%]
+                {isExporting && (
+                  <span className="text-white font-mono font-bold animate-pulse ml-2">
+                    [Eksport: {exportProgress}%]
                   </span>
                 )}
               </div>
 
               <div className="flex items-center gap-2 w-full sm:w-auto">
-                {(onSchedulePost || onSchedulePostFor1300) && (
-                  <div className="flex flex-wrap items-center gap-1.5 bg-[#141824] p-1 rounded border border-[#2C354B]">
-                    {/* Szybkie sloty godzinowe */}
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedScheduledTime('07:00');
-                          setIsCustomTime(false);
-                        }}
-                        className={`px-2 py-1 rounded text-[10px] font-mono font-bold transition-all cursor-pointer ${
-                          !isCustomTime && selectedScheduledTime === '07:00'
-                            ? 'bg-[#F59E0B] text-[#141824]'
-                            : 'text-slate-400 hover:text-white'
-                        }`}
-                        title="Ustaw godzinę publikacji na 07:00 (Poranny slot)"
-                      >
-                        07:00
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedScheduledTime('13:00');
-                          setIsCustomTime(false);
-                        }}
-                        className={`px-2 py-1 rounded text-[10px] font-mono font-bold transition-all cursor-pointer ${
-                          !isCustomTime && selectedScheduledTime === '13:00'
-                            ? 'bg-[#38BDF8] text-[#141824]'
-                            : 'text-slate-400 hover:text-white'
-                        }`}
-                        title="Ustaw godzinę publikacji na 13:00 (Lunch slot)"
-                      >
-                        13:00
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedScheduledTime('21:00');
-                          setIsCustomTime(false);
-                        }}
-                        className={`px-2 py-1 rounded text-[10px] font-mono font-bold transition-all cursor-pointer ${
-                          !isCustomTime && selectedScheduledTime === '21:00'
-                            ? 'bg-purple-400 text-[#141824]'
-                            : 'text-slate-400 hover:text-white'
-                        }`}
-                        title="Ustaw godzinę publikacji na 21:00 (Wieczorny slot)"
-                      >
-                        21:00
-                      </button>
-
-                      {isCustomTime ? (
-                        <input
-                          type="time"
-                          value={customTimeInput}
-                          onChange={(e) => setCustomTimeInput(e.target.value)}
-                          className="bg-[#1D2333] border border-[#38BDF8] text-white text-[10px] font-mono font-bold px-1 py-0.5 rounded w-16 text-center focus:outline-none"
-                        />
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => setIsCustomTime(true)}
-                          className="px-1.5 py-1 rounded text-[9px] font-mono text-slate-400 hover:text-white hover:bg-[#1D2333] transition-all cursor-pointer"
-                          title="Wpisz dowolną inną godzinę publikacji"
-                        >
-                          Inna
-                        </button>
-                      )}
-                    </div>
-
-                    <button
-                      onClick={handleScheduleFor1300}
-                      disabled={isExportingVideo}
-                      className={`px-3 py-1.5 rounded-sm border text-xs font-mono font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                        scheduledToast
-                          ? 'bg-[#38BDF8] text-[#0B0D14] border-[#38BDF8]'
-                          : 'bg-[#38BDF8]/15 hover:bg-[#38BDF8]/25 text-[#38BDF8] border-[#38BDF8]/40 hover:border-[#38BDF8]'
-                      }`}
-                      title={`Zaplanuj tę rolkę do Kalendarza na ${isCustomTime ? customTimeInput : selectedScheduledTime}`}
-                    >
-                      {scheduledToast ? (
-                        <>
-                          <BookmarkCheck className="w-3.5 h-3.5" />
-                          Zaplanowano ({scheduledToastTime || (isCustomTime ? customTimeInput : selectedScheduledTime)})!
-                        </>
-                      ) : (
-                        <>
-                          <Calendar className="w-3.5 h-3.5" />
-                          Zaplanuj na {isCustomTime ? customTimeInput : selectedScheduledTime}
-                        </>
-                      )}
-                    </button>
-                  </div>
-                )}
+                <button
+                  type="button"
+                  onClick={handleExportZipBundle}
+                  disabled={isExporting || isExportingZip}
+                  className="px-3 py-2 rounded-lg bg-[#181818] hover:bg-amber-400 hover:text-black text-amber-300 border border-amber-500/30 text-xs font-mono font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all"
+                  title="Turnkey Export: Pobierz kompletny ZIP z wideo, klatkami i plikiem tekstowym z opisem posta i hashtagami"
+                >
+                  <Package className="w-3.5 h-3.5" />
+                  {isExportingZip ? "Pakowanie..." : "📦 Pakiet ZIP"}
+                </button>
 
                 <button
-                  onClick={handleExportFrame}
-                  disabled={isExportingVideo}
-                  className="px-3 py-2 rounded-sm bg-[#141824] hover:bg-[#1D2333] border border-[#2C354B] hover:border-slate-500 text-slate-200 font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
-                  title="Pobierz aktualną klatkę w wysokiej rozdzielczości PNG"
+                  type="button"
+                  onClick={handleExportPng}
+                  disabled={isExporting}
+                  className="px-3 py-2 rounded-lg bg-[#181818] hover:bg-[#222222] text-neutral-200 border border-white/10 text-xs font-mono font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all"
+                  title="Pobierz klatkę jako grafikę PNG 1080x1920"
                 >
                   <Download className="w-3.5 h-3.5" />
                   Klatka PNG
                 </button>
 
                 <button
-                  onClick={handleExportFullVideo}
-                  disabled={isExportingVideo}
-                  className="flex-1 sm:flex-initial px-4 py-2 rounded-sm bg-[#38BDF8] hover:bg-[#0EA5E9] text-[#0B0D14] font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-[0_0_20px_rgba(56,189,248,0.3)] transition-all cursor-pointer disabled:opacity-60"
-                  title="Wyrenderuj i pobierz całe 7-sekundowe wideo w pętli na Reels / TikTok (60 FPS, brak zacięć)"
+                  type="button"
+                  onClick={handleExportVideo}
+                  disabled={isExporting}
+                  className="flex-1 sm:flex-initial px-5 py-2.5 rounded-lg bg-white hover:bg-neutral-200 text-black text-xs font-mono font-black uppercase tracking-wider flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(255,255,255,0.2)] hover:shadow-[0_0_25px_rgba(255,255,255,0.35)] transition-all cursor-pointer disabled:opacity-50"
+                  title={`Pobierz gotowe wideo w pętli 1080x1920 (MP4, ${duration}.00s, ${exportFps} FPS)`}
                 >
                   <Film className="w-4 h-4" />
-                  {isExportingVideo ? `Eksport Wideo (${videoExportProgress}%)...` : `🎬 Pobierz Całe Wideo (${exportFps} FPS MP4)`}
+                  {isExporting
+                    ? `Eksportowanie (${exportProgress}%)...`
+                    : `🎬 Pobierz Rolkę (${duration}s • ${exportFps} FPS)`}
                 </button>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Modal: Thematic Bing Prompter overlay for this Reel */}
-        {showBingModal && (
-          <div className="fixed inset-0 z-60 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-5">
-            <div className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto bg-[#0B0D14] border border-[#2C354B] rounded-xl shadow-2xl p-1">
-              <div className="flex items-center justify-between p-3 border-b border-[#2C354B]">
+        {/* MODAL: KODEKS STARK (10 Zasad) */}
+        {showCodexModal && (
+          <div className="fixed inset-0 z-60 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="w-full max-w-2xl bg-[#0F0F0F] border border-white/20 rounded-xl p-5 space-y-4 max-h-[85vh] flex flex-col">
+              <div className="flex items-center justify-between pb-3 border-b border-white/10">
                 <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-[#38BDF8]" />
-                  <span className="text-xs font-mono font-bold text-white uppercase tracking-wider">
-                    Generator Promptów Bing dopasowany do bieżącej rolki
-                  </span>
+                  <BookOpen className="w-4 h-4 text-amber-400" />
+                  <h3 className="text-sm font-mono font-black uppercase tracking-wider text-white">
+                    STARK CODEX // 10 ŻELAZNYCH ZASAD
+                  </h3>
                 </div>
                 <button
-                  onClick={() => setShowBingModal(false)}
-                  className="p-1 text-slate-400 hover:text-white rounded hover:bg-[#1D2333]"
+                  onClick={() => setShowCodexModal(false)}
+                  className="p-1 text-neutral-400 hover:text-white cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
-              <div className="p-3">
-                <React.Suspense fallback={<div className="p-6 text-center text-slate-400 text-sm">Ładowanie…</div>}>
-                  <ThematicBingPrompter
-                    initialTheme={scriptText}
-                    onSelectBackground={(url) => {
-                      setCustomBgUrl(url);
-                      setSelectedBgId('custom');
-                      setShowBingModal(false);
-                    }}
-                  />
-                </React.Suspense>
+              <div className="overflow-y-auto space-y-2.5 pr-1 flex-1">
+                {STARK_CODEX_RULES.map((rule) => (
+                  <div
+                    key={rule.id}
+                    className="p-3 bg-[#161616] border border-white/10 hover:border-white/30 rounded-lg space-y-1.5 transition-all flex flex-col justify-between"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-mono font-bold text-white uppercase">
+                        #{rule.ruleNumber} {rule.title}
+                      </span>
+                      <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-white/10 text-neutral-300">
+                        {rule.suggestedTheme}
+                      </span>
+                    </div>
+
+                    <p className="text-xs font-mono font-bold text-amber-300">"{rule.hook0to3s}"</p>
+                    <p className="text-[11px] font-mono text-neutral-400">{rule.corePrinciple}</p>
+
+                    <div className="pt-2 flex items-center justify-between">
+                      <span className="text-[10px] font-mono text-neutral-500">
+                        Puenta: {rule.actionDirective}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleApplyCodexRule(rule)}
+                        className="px-3 py-1 rounded bg-white text-black hover:bg-neutral-200 text-xs font-mono font-bold uppercase transition-all cursor-pointer"
+                      >
+                        Załaduj do Rolki →
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL: MULTI-VARIANT REELS (A/B TESTING) */}
+        {showVariantsModal && (
+          <div className="fixed inset-0 z-60 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="w-full max-w-2xl bg-[#0F0F0F] border border-white/20 rounded-xl p-5 space-y-4 max-h-[85vh] flex flex-col">
+              <div className="flex items-center justify-between pb-3 border-b border-white/10">
+                <div className="flex items-center gap-2">
+                  <Split className="w-4 h-4 text-purple-400" />
+                  <h3 className="text-sm font-mono font-black uppercase tracking-wider text-white">
+                    1-CLICK MULTI-VARIANT TEST FACTORY (A/B/C)
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setShowVariantsModal(false)}
+                  className="p-1 text-neutral-400 hover:text-white cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="overflow-y-auto space-y-3 pr-1 flex-1">
+                {multiVariants.map((varItem, vIdx) => (
+                  <div
+                    key={vIdx}
+                    className="p-3.5 bg-[#161616] border border-white/10 hover:border-white/30 rounded-lg space-y-2 transition-all"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-mono font-bold text-white uppercase">
+                        {varItem.variantName}
+                      </span>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                        {varItem.duration}s • {varItem.theme}
+                      </span>
+                    </div>
+
+                    <div className="p-2 bg-black/60 rounded border border-white/5">
+                      <span className="text-[9px] font-mono text-neutral-500 uppercase block">
+                        Hook 0-3s:
+                      </span>
+                      <p className="text-xs font-mono font-bold text-white">"{varItem.hook}"</p>
+                    </div>
+
+                    <div className="space-y-0.5 text-[11px] font-mono text-neutral-400">
+                      <span className="text-[9px] text-neutral-500 uppercase block">
+                        3 Fazy narracji:
+                      </span>
+                      {varItem.phrases?.map((ph: string, pIdx: number) => (
+                        <div key={pIdx}>• {ph}</div>
+                      ))}
+                    </div>
+
+                    <div className="pt-2 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => handleApplyVariant(varItem)}
+                        className="px-4 py-1.5 rounded bg-white text-black hover:bg-neutral-200 text-xs font-mono font-bold uppercase transition-all cursor-pointer"
+                      >
+                        Wybierz ten wariant →
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>

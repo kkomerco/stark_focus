@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from "react";
 import {
   Link2,
   Sparkles,
@@ -10,10 +10,10 @@ import {
   Check,
   Music,
   Upload,
-  Layers
-} from 'lucide-react';
-import { UniversalLayoutSpec } from '../types';
-import { renderUniversalLayout } from '../utils/canvasRenderer';
+  Layers,
+} from "lucide-react";
+import { UniversalLayoutSpec } from "../types";
+import { renderUniversalLayout } from "../utils/canvasRenderer";
 
 interface InspirationStudioProps {
   onSaveToPipeline: (post: any) => void;
@@ -22,31 +22,104 @@ interface InspirationStudioProps {
 
 // Domyślny format: Litery 3D na ścianie z lampą (1:1 ze zdjęcia)
 const SPEC_3D_WALL: UniversalLayoutSpec = {
-  layoutName: 'Litery 3D na Ścianie z Lampą',
-  gridType: 'studio_wall_3d',
-  backgroundColor: '#686F7C',
+  layoutName: "Litery 3D na Ścianie z Lampą",
+  gridType: "studio_wall_3d",
+  backgroundColor: "#686F7C",
   dividerWidth: 0,
-  dividerColor: '#000000',
+  dividerColor: "#000000",
   slotCount: 1,
-  slotLabels: ['Opcjonalne tło ściany (zostaw puste dla domyślnego)'],
-  textEffect: '3d_wall',
+  slotLabels: ["Opcjonalne tło ściany (zostaw puste dla domyślnego)"],
+  textEffect: "3d_wall",
   textLayers: [
-    { id: 't1', text: 'Stay ruthless', fontFamily: 'sans', fontSize: 72, fontWeight: 'black', fontStyle: 'normal', casing: 'preserve', color: '#161920', align: 'left', posY: 0.28, posX: 0.14 },
-    { id: 't2', text: 'through all', fontFamily: 'sans', fontSize: 72, fontWeight: 'black', fontStyle: 'normal', casing: 'preserve', color: '#161920', align: 'left', posY: 0.36, posX: 0.14 },
-    { id: 't3', text: 'phases of life.', fontFamily: 'sans', fontSize: 72, fontWeight: 'black', fontStyle: 'normal', casing: 'preserve', color: '#161920', align: 'left', posY: 0.44, posX: 0.14 },
-    { id: 't4', text: 'Never stop', fontFamily: 'sans', fontSize: 72, fontWeight: 'black', fontStyle: 'normal', casing: 'preserve', color: '#161920', align: 'left', posY: 0.52, posX: 0.14 },
-    { id: 't5', text: 'learning and', fontFamily: 'sans', fontSize: 72, fontWeight: 'black', fontStyle: 'normal', casing: 'preserve', color: '#161920', align: 'left', posY: 0.60, posX: 0.14 },
-    { id: 't6', text: 'listening.', fontFamily: 'sans', fontSize: 72, fontWeight: 'black', fontStyle: 'normal', casing: 'preserve', color: '#161920', align: 'left', posY: 0.68, posX: 0.14 }
+    {
+      id: "t1",
+      text: "Stay ruthless",
+      fontFamily: "sans",
+      fontSize: 72,
+      fontWeight: "black",
+      fontStyle: "normal",
+      casing: "preserve",
+      color: "#161920",
+      align: "left",
+      posY: 0.28,
+      posX: 0.14,
+    },
+    {
+      id: "t2",
+      text: "through all",
+      fontFamily: "sans",
+      fontSize: 72,
+      fontWeight: "black",
+      fontStyle: "normal",
+      casing: "preserve",
+      color: "#161920",
+      align: "left",
+      posY: 0.36,
+      posX: 0.14,
+    },
+    {
+      id: "t3",
+      text: "phases of life.",
+      fontFamily: "sans",
+      fontSize: 72,
+      fontWeight: "black",
+      fontStyle: "normal",
+      casing: "preserve",
+      color: "#161920",
+      align: "left",
+      posY: 0.44,
+      posX: 0.14,
+    },
+    {
+      id: "t4",
+      text: "Never stop",
+      fontFamily: "sans",
+      fontSize: 72,
+      fontWeight: "black",
+      fontStyle: "normal",
+      casing: "preserve",
+      color: "#161920",
+      align: "left",
+      posY: 0.52,
+      posX: 0.14,
+    },
+    {
+      id: "t5",
+      text: "learning and",
+      fontFamily: "sans",
+      fontSize: 72,
+      fontWeight: "black",
+      fontStyle: "normal",
+      casing: "preserve",
+      color: "#161920",
+      align: "left",
+      posY: 0.6,
+      posX: 0.14,
+    },
+    {
+      id: "t6",
+      text: "listening.",
+      fontFamily: "sans",
+      fontSize: 72,
+      fontWeight: "black",
+      fontStyle: "normal",
+      casing: "preserve",
+      color: "#161920",
+      align: "left",
+      posY: 0.68,
+      posX: 0.14,
+    },
   ],
-  caption: 'Stay ruthless with your standards through every phase of life. Never stop learning, never stop listening.\n\nSave this reminder. Execute in silence.\n\n#stoicism #discipline #mindset #focus #starkfocus',
-  detectedAudio: 'Ciemny ambient ze skrzypcami'
+  caption:
+    "Stay ruthless with your standards through every phase of life. Never stop learning, never stop listening.\n\nSave this reminder. Execute in silence.\n\n#stoicism #discipline #mindset #focus #starkfocus",
+  detectedAudio: "Ciemny ambient ze skrzypcami",
 };
 
 export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
   onSaveToPipeline,
-  userHandle = 'stark_focus'
+  userHandle = "stark_focus",
 }) => {
-  const [videoUrl, setVideoUrl] = useState('');
+  const [videoUrl, setVideoUrl] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   // Aktywna specyfikacja układu
@@ -81,7 +154,7 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
     slotImages.forEach((src, idx) => {
       if (!src) return;
       const img = new Image();
-      img.crossOrigin = 'anonymous';
+      img.crossOrigin = "anonymous";
       img.src = src;
       img.onload = () => {
         if (!active) return;
@@ -126,7 +199,7 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
       }
     };
     reader.readAsDataURL(file);
-    e.target.value = '';
+    e.target.value = "";
   };
 
   // Analiza DOWOLNEGO linku
@@ -136,10 +209,10 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
     setAnalysisError(null);
 
     try {
-      const res = await fetch('/api/ai/analyze-link', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: videoUrl.trim() })
+      const res = await fetch("/api/ai/analyze-link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: videoUrl.trim() }),
       });
       const data = await res.json();
 
@@ -151,7 +224,7 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
       }
     } catch (e) {
       console.error(e);
-      setAnalysisError('Błąd analizy linku. Upewnij się, że URL jest publicznie dostępny.');
+      setAnalysisError("Błąd analizy linku. Upewnij się, że URL jest publicznie dostępny.");
     } finally {
       setIsAnalyzing(false);
     }
@@ -160,29 +233,28 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
   const handleUpdateTextLayer = (id: string, newText: string) => {
     setSpec((prev) => ({
       ...prev,
-      textLayers: prev.textLayers.map((l) => (l.id === id ? { ...l, text: newText } : l))
+      textLayers: prev.textLayers.map((l) => (l.id === id ? { ...l, text: newText } : l)),
     }));
   };
 
   const handleDownloadPNG = () => {
     if (!canvasRef.current) return;
-    const a = document.createElement('a');
+    const a = document.createElement("a");
     a.download = `stark_${spec.gridType}_${Date.now()}.png`;
-    a.href = canvasRef.current.toDataURL('image/png');
+    a.href = canvasRef.current.toDataURL("image/png");
     a.click();
   };
 
   const handleSaveToPipeline = () => {
     onSaveToPipeline({
-      id: 'post-' + Date.now(),
+      id: "post-" + Date.now(),
       title: spec.textLayers[0]?.text || spec.layoutName,
       format: spec.layoutName,
       asset: spec.gridType,
       caption: spec.caption,
-      status: 'draft',
-      created_date: new Date().toISOString().split('T')[0]
+      created_date: new Date().toISOString().split("T")[0],
     });
-    
+
     // Automatyczne kopiowanie opisu do schowka przy zapisie
     if (spec.caption) {
       navigator.clipboard.writeText(spec.caption);
@@ -221,7 +293,11 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
             disabled={isAnalyzing || !videoUrl.trim()}
             className="px-5 py-2.5 bg-[#38BDF8] hover:bg-[#38BDF8]/90 text-[#090C14] font-mono font-bold text-xs uppercase rounded-lg transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50 whitespace-nowrap shadow-md"
           >
-            {isAnalyzing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Film className="w-4 h-4" />}
+            {isAnalyzing ? (
+              <RefreshCw className="w-4 h-4 animate-spin" />
+            ) : (
+              <Film className="w-4 h-4" />
+            )}
             <span>Odwzoruj Format</span>
           </button>
         </div>
@@ -235,7 +311,9 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
 
       {/* Wybór formatu */}
       <div className="flex items-center gap-2 border-b border-[#1E2638] pb-3 overflow-x-auto">
-        <span className="text-[10px] font-mono text-slate-400 uppercase mr-2 shrink-0">Wybierz styl:</span>
+        <span className="text-[10px] font-mono text-slate-400 uppercase mr-2 shrink-0">
+          Wybierz styl:
+        </span>
         <button
           type="button"
           onClick={() => {
@@ -243,9 +321,9 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
             setSlotImages([null]);
           }}
           className={`px-3 py-1.5 rounded text-xs font-mono font-bold cursor-pointer transition-colors ${
-            spec.gridType === 'studio_wall_3d'
-              ? 'bg-[#38BDF8] text-[#090C14]'
-              : 'bg-[#111622] text-slate-400 border border-[#1E2638] hover:text-white'
+            spec.gridType === "studio_wall_3d"
+              ? "bg-[#38BDF8] text-[#090C14]"
+              : "bg-[#111622] text-slate-400 border border-[#1E2638] hover:text-white"
           }`}
         >
           🧱 Litery 3D na Ścianie z Lampą (1:1 ze zdjęcia)
@@ -255,26 +333,40 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
           type="button"
           onClick={() => {
             setSpec({
-              layoutName: 'Kolaż 4 Kadrów',
-              gridType: 'grid_2x2',
-              backgroundColor: '#000000',
+              layoutName: "Kolaż 4 Kadrów",
+              gridType: "grid_2x2",
+              backgroundColor: "#000000",
               dividerWidth: 10,
-              dividerColor: '#000000',
+              dividerColor: "#000000",
               slotCount: 4,
-              slotLabels: ['Kadr 1', 'Kadr 2', 'Kadr 3', 'Kadr 4'],
-              textEffect: 'outline',
+              slotLabels: ["Kadr 1", "Kadr 2", "Kadr 3", "Kadr 4"],
+              textEffect: "outline",
               textLayers: [
-                { id: 't1', text: 'This winter', fontFamily: 'serif', fontSize: 76, fontWeight: 'bold', fontStyle: 'italic', casing: 'preserve', color: '#FFFFFF', strokeColor: '#000000', strokeWidth: 14, align: 'center', posY: 0.5 }
+                {
+                  id: "t1",
+                  text: "This winter",
+                  fontFamily: "serif",
+                  fontSize: 76,
+                  fontWeight: "bold",
+                  fontStyle: "italic",
+                  casing: "preserve",
+                  color: "#FFFFFF",
+                  strokeColor: "#000000",
+                  strokeWidth: 14,
+                  align: "center",
+                  posY: 0.5,
+                },
               ],
-              caption: 'This winter, disappear into obsession.\n\nSave this reminder.\n\n#winterarc #discipline',
-              detectedAudio: 'Oryginalny dźwięk'
+              caption:
+                "This winter, disappear into obsession.\n\nSave this reminder.\n\n#winterarc #discipline",
+              detectedAudio: "Oryginalny dźwięk",
             });
             setSlotImages([null, null, null, null]);
           }}
           className={`px-3 py-1.5 rounded text-xs font-mono font-bold cursor-pointer transition-colors ${
-            spec.gridType === 'grid_2x2'
-              ? 'bg-[#38BDF8] text-[#090C14]'
-              : 'bg-[#111622] text-slate-400 border border-[#1E2638] hover:text-white'
+            spec.gridType === "grid_2x2"
+              ? "bg-[#38BDF8] text-[#090C14]"
+              : "bg-[#111622] text-slate-400 border border-[#1E2638] hover:text-white"
           }`}
         >
           🖼️ Kolaż 4 Kadrów (Winter Arc)
@@ -284,27 +376,52 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
           type="button"
           onClick={() => {
             setSpec({
-              layoutName: 'Cytat na Czerni',
-              gridType: 'none_solid',
-              backgroundColor: '#000000',
+              layoutName: "Cytat na Czerni",
+              gridType: "none_solid",
+              backgroundColor: "#000000",
               dividerWidth: 0,
-              dividerColor: '#000000',
+              dividerColor: "#000000",
               slotCount: 0,
               slotLabels: [],
-              textEffect: 'flat',
+              textEffect: "flat",
               textLayers: [
-                { id: 't1', text: 'Focus on yourself.', fontFamily: 'sans', fontSize: 54, fontWeight: 'bold', fontStyle: 'normal', casing: 'preserve', color: '#FFFFFF', align: 'left', posY: 0.44, posX: 0.14 },
-                { id: 't2', text: 'people come & go.', fontFamily: 'sans', fontSize: 38, fontWeight: 'normal', fontStyle: 'normal', casing: 'lowercase', color: 'rgba(255, 255, 255, 0.72)', align: 'left', posY: 0.51, posX: 0.14 }
+                {
+                  id: "t1",
+                  text: "Focus on yourself.",
+                  fontFamily: "sans",
+                  fontSize: 54,
+                  fontWeight: "bold",
+                  fontStyle: "normal",
+                  casing: "preserve",
+                  color: "#FFFFFF",
+                  align: "left",
+                  posY: 0.44,
+                  posX: 0.14,
+                },
+                {
+                  id: "t2",
+                  text: "people come & go.",
+                  fontFamily: "sans",
+                  fontSize: 38,
+                  fontWeight: "normal",
+                  fontStyle: "normal",
+                  casing: "lowercase",
+                  color: "rgba(255, 255, 255, 0.72)",
+                  align: "left",
+                  posY: 0.51,
+                  posX: 0.14,
+                },
               ],
-              caption: 'Focus on yourself. People come and go.\n\nSave this reminder.\n\n#stoicism #focus',
-              detectedAudio: 'Czysty dźwięk'
+              caption:
+                "Focus on yourself. People come and go.\n\nSave this reminder.\n\n#stoicism #focus",
+              detectedAudio: "Czysty dźwięk",
             });
             setSlotImages([]);
           }}
           className={`px-3 py-1.5 rounded text-xs font-mono font-bold cursor-pointer transition-colors ${
-            spec.gridType === 'none_solid'
-              ? 'bg-[#38BDF8] text-[#090C14]'
-              : 'bg-[#111622] text-slate-400 border border-[#1E2638] hover:text-white'
+            spec.gridType === "none_solid"
+              ? "bg-[#38BDF8] text-[#090C14]"
+              : "bg-[#111622] text-slate-400 border border-[#1E2638] hover:text-white"
           }`}
         >
           ⬛ Czysty Cytat na Czerni
@@ -351,9 +468,11 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
               <div className="space-y-2 border-b border-[#1E2638] pb-4">
                 <div className="flex items-center justify-between">
                   <label className="text-[10px] font-mono text-slate-400 uppercase block">
-                    {spec.gridType === 'studio_wall_3d' ? 'Własne tło ściany (opcjonalnie):' : 'Wgraj zdjęcia dla siatki:'}
+                    {spec.gridType === "studio_wall_3d"
+                      ? "Własne tło ściany (opcjonalnie):"
+                      : "Wgraj zdjęcia dla siatki:"}
                   </label>
-                  {spec.gridType === 'studio_wall_3d' && (
+                  {spec.gridType === "studio_wall_3d" && (
                     <button
                       type="button"
                       onClick={() => setSlotImages([null])}
@@ -385,12 +504,18 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
                     >
                       <div className="aspect-video rounded overflow-hidden mb-1.5 bg-[#05070B] border border-[#1E2638] flex items-center justify-center">
                         {slotImages[idx] ? (
-                          <img src={slotImages[idx]!} alt={label} className="w-full h-full object-cover" />
+                          <img
+                            src={slotImages[idx]!}
+                            alt={label}
+                            className="w-full h-full object-cover"
+                          />
                         ) : (
                           <span className="text-[10px] text-slate-500 font-mono">Domyślna</span>
                         )}
                       </div>
-                      <span className="text-[10px] font-mono text-slate-300 block truncate">{label}</span>
+                      <span className="text-[10px] font-mono text-slate-300 block truncate">
+                        {label}
+                      </span>
                       <span className="text-[9px] font-mono text-[#38BDF8] flex items-center gap-1 mt-0.5">
                         <Upload className="w-2.5 h-2.5" /> Wgraj plik
                       </span>
@@ -403,7 +528,9 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
             {/* Warstwy tekstu */}
             <div className="space-y-2.5">
               <label className="text-[10px] font-mono text-slate-400 uppercase block">
-                {spec.gridType === 'studio_wall_3d' ? 'Linijki Napisu na Ścianie 3D:' : 'Napisy na Kadrze:'}
+                {spec.gridType === "studio_wall_3d"
+                  ? "Linijki Napisu na Ścianie 3D:"
+                  : "Napisy na Kadrze:"}
               </label>
 
               {spec.textLayers.map((layer, idx) => (
@@ -436,8 +563,12 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
                 }}
                 className="text-[10px] font-mono text-[#38BDF8] hover:underline flex items-center gap-1 cursor-pointer"
               >
-                {copiedCaption ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                {copiedCaption ? 'Skopiowano!' : 'Kopiuj Opis'}
+                {copiedCaption ? (
+                  <Check className="w-3 h-3 text-emerald-400" />
+                ) : (
+                  <Copy className="w-3 h-3" />
+                )}
+                {copiedCaption ? "Skopiowano!" : "Kopiuj Opis"}
               </button>
             </div>
 
@@ -454,7 +585,9 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
               <span className="text-xs font-mono text-emerald-400 font-bold flex items-center gap-1">
                 <CheckCircle2 className="w-4 h-4" /> Zapisano w "Moich Postach"!
               </span>
-            ) : <div />}
+            ) : (
+              <div />
+            )}
 
             <button
               onClick={handleSaveToPipeline}

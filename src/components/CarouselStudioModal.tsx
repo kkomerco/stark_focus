@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   X,
   Download,
@@ -19,9 +19,10 @@ import {
   Eye,
   Check,
   Compass,
-  FileText
-} from 'lucide-react';
-import { drawSlideToCanvas, exportAllSlidesAsZip } from '../utils/canvasRenderer';
+  FileText,
+} from "lucide-react";
+import { drawSlideToCanvas, exportAllSlidesAsZip } from "../utils/canvasRenderer";
+import { EXPANDED_BACKGROUND_LIBRARY, getRandomBackgroundScene } from "../data/expandedBackgrounds";
 import {
   VisualTheme,
   LogoSourceType,
@@ -29,14 +30,15 @@ import {
   LogoGlowChoice,
   TopHeaderMode,
   SlideData,
-  VaultAsset
-} from '../types';
+  CarouselFontFamily,
+  VaultAsset,
+} from "../types";
 import {
   STARK_THEMES,
   getStarkThemeConfig,
   normalizeLogoPlacement,
-  STARK_TOP_HEADER_PRESETS
-} from '../utils/starkBrandTheme';
+  STARK_TOP_HEADER_PRESETS,
+} from "../utils/starkBrandTheme";
 
 interface CarouselStudioModalProps {
   isOpen: boolean;
@@ -49,178 +51,209 @@ interface CarouselStudioModalProps {
 
 export const STARK_CURATED_BACKGROUNDS = [
   {
-    id: 'procedural',
-    name: 'Shader Generatywny (Canvas FX - Czysty Obsidian)',
-    url: ''
-  }
+    id: "procedural",
+    name: "Shader Generatywny (Canvas FX - Czysty Obsidian)",
+    url: "",
+  },
 ];
 
 const ENGLISH_CAROUSEL_PRESETS: { title: string; slides: SlideData[] }[] = [
   {
-    title: '5 Brutal Stoic Rules to Master Your Mind',
+    title: "5 Brutal Stoic Rules to Master Your Mind",
     slides: [
       {
         headline: "THE COWARD'S TRAP",
-        bodyText: "You change your standards to fit the room. That is not empathy—that is fear dressed as courtesy. Raise the bar or leave the room."
+        bodyText:
+          "You change your standards to fit the room. That is not empathy—that is fear dressed as courtesy. Raise the bar or leave the room.",
       },
       {
-        headline: 'SENECAN REALITY',
-        bodyText: "A man who seeks approval from everyone is a slave to whoever has none to give. Cut the leash and execute in silence."
+        headline: "SENECAN REALITY",
+        bodyText:
+          "A man who seeks approval from everyone is a slave to whoever has none to give. Cut the leash and execute in silence.",
       },
       {
-        headline: 'RADICAL INDIFFERENCE',
-        bodyText: "Step into the shadows. Let them misunderstand you. Silence cannot be misquoted, and results cannot be refuted."
+        headline: "RADICAL INDIFFERENCE",
+        bodyText:
+          "Step into the shadows. Let them misunderstand you. Silence cannot be misquoted, and results cannot be refuted.",
       },
       {
-        headline: 'THE 60-SECOND RULE',
-        bodyText: "99% of men lose their day in the first 60 seconds by touching their phone. Reclaim your sovereignty before 6:00 AM."
+        headline: "THE 60-SECOND RULE",
+        bodyText:
+          "99% of men lose their day in the first 60 seconds by touching their phone. Reclaim your sovereignty before 6:00 AM.",
       },
       {
-        headline: 'EXECUTE IN THE DARK',
-        bodyText: "Save this reminder. Re-read it when your finger hovers over excuses. Stay ruthless and execute in silence."
-      }
-    ]
+        headline: "EXECUTE IN THE DARK",
+        bodyText:
+          "Save this reminder. Re-read it when your finger hovers over excuses. Stay ruthless and execute in silence.",
+      },
+    ],
   },
   {
-    title: 'The Solitude Standard (Why You Must Disappear)',
+    title: "The Solitude Standard (Why You Must Disappear)",
     slides: [
       {
-        headline: 'DISAPPEAR FOR 6 MONTHS',
-        bodyText: 'Cut off the noise, the fake celebrations, and the digital validation. Solitude is where your highest standard is forged.'
+        headline: "DISAPPEAR FOR 6 MONTHS",
+        bodyText:
+          "Cut off the noise, the fake celebrations, and the digital validation. Solitude is where your highest standard is forged.",
       },
       {
-        headline: 'KILL THE NEED TO PROVE',
-        bodyText: 'Weak men announce their plans. Dangerous men show up with undeniable evidence. Move in calculated silence.'
+        headline: "KILL THE NEED TO PROVE",
+        bodyText:
+          "Weak men announce their plans. Dangerous men show up with undeniable evidence. Move in calculated silence.",
       },
       {
-        headline: 'PAIN IS INFORMATION',
-        bodyText: 'When resistance screams at you to stop, that is the exact compass heading toward growth. Lean into the discomfort.'
+        headline: "PAIN IS INFORMATION",
+        bodyText:
+          "When resistance screams at you to stop, that is the exact compass heading toward growth. Lean into the discomfort.",
       },
       {
-        headline: 'STANDARDS OVER EMOTIONS',
-        bodyText: 'Never negotiate with your morning feelings. Marcus Aurelius did not want to leave his bed—he conquered his weakness anyway.'
+        headline: "STANDARDS OVER EMOTIONS",
+        bodyText:
+          "Never negotiate with your morning feelings. Marcus Aurelius did not want to leave his bed—he conquered his weakness anyway.",
       },
       {
-        headline: 'THE MONK LAW',
-        bodyText: 'Silence is your highest leverage. Save this reminder and start building your empire in the dark.'
-      }
-    ]
+        headline: "THE MONK LAW",
+        bodyText:
+          "Silence is your highest leverage. Save this reminder and start building your empire in the dark.",
+      },
+    ],
   },
   {
-    title: 'Stop Negotiating With Weakness (5 Rules)',
+    title: "Stop Negotiating With Weakness (5 Rules)",
     slides: [
       {
-        headline: 'THE ILLUSION OF BURNOUT',
-        bodyText: "Most people are not burned out. They are bored, undisciplined, and distracted by cheap dopamine. Raise your leverage."
+        headline: "THE ILLUSION OF BURNOUT",
+        bodyText:
+          "Most people are not burned out. They are bored, undisciplined, and distracted by cheap dopamine. Raise your leverage.",
       },
       {
-        headline: 'RUTHLESS FOCUS',
-        bodyText: 'Pick the single most uncomfortable objective today and crush it first. The rest of the world will still be making excuses.'
+        headline: "RUTHLESS FOCUS",
+        bodyText:
+          "Pick the single most uncomfortable objective today and crush it first. The rest of the world will still be making excuses.",
       },
       {
-        headline: 'EMOTIONAL DETACHMENT',
-        bodyText: 'Your feelings do not matter when duty calls. Train your nervous system to execute on autopilot.'
+        headline: "EMOTIONAL DETACHMENT",
+        bodyText:
+          "Your feelings do not matter when duty calls. Train your nervous system to execute on autopilot.",
       },
       {
-        headline: 'THE COMPOUND TOLL',
-        bodyText: 'Every skipped rep and negotiated standard whispers to your subconscious that you are a fraud. Keep your word.'
+        headline: "THE COMPOUND TOLL",
+        bodyText:
+          "Every skipped rep and negotiated standard whispers to your subconscious that you are a fraud. Keep your word.",
       },
       {
-        headline: 'THE FINAL TEST',
-        bodyText: 'Character is what you do when nobody is looking and the reward is invisible. Keep your word to yourself.'
-      }
-    ]
+        headline: "THE FINAL TEST",
+        bodyText:
+          "Character is what you do when nobody is looking and the reward is invisible. Keep your word to yourself.",
+      },
+    ],
   },
   {
-    title: 'The 2:00 AM Mirror Audit (Identity Shock)',
+    title: "The 2:00 AM Mirror Audit (Identity Shock)",
     slides: [
       {
-        headline: 'THE MIDNIGHT MIRROR',
-        bodyText: 'Look in the mirror at 2:00 AM. Stripped of filters, titles, and applause—are you proud of the man looking back at you?'
+        headline: "THE MIDNIGHT MIRROR",
+        bodyText:
+          "Look in the mirror at 2:00 AM. Stripped of filters, titles, and applause—are you proud of the man looking back at you?",
       },
       {
-        headline: 'KILL THE PHANTOM EXCUSES',
-        bodyText: 'You blame your upbringing, your lack of capital, your fatigue. The brutal truth: you just refuse to endure discomfort.'
+        headline: "KILL THE PHANTOM EXCUSES",
+        bodyText:
+          "You blame your upbringing, your lack of capital, your fatigue. The brutal truth: you just refuse to endure discomfort.",
       },
       {
-        headline: 'THE PRICE OF SOVEREIGNTY',
-        bodyText: 'Freedom requires an appetite for isolation. If you cannot spend three days alone with your thoughts, you are a puppet.'
+        headline: "THE PRICE OF SOVEREIGNTY",
+        bodyText:
+          "Freedom requires an appetite for isolation. If you cannot spend three days alone with your thoughts, you are a puppet.",
       },
       {
-        headline: 'BUILD IN OBSCURITY',
-        bodyText: 'The seeds of monumentality grow in silence. Let others boast about dreams while you silently stack undeniable proof.'
+        headline: "BUILD IN OBSCURITY",
+        bodyText:
+          "The seeds of monumentality grow in silence. Let others boast about dreams while you silently stack undeniable proof.",
       },
       {
-        headline: 'RAISE THE MINIMUM BAR',
-        bodyText: 'Your ceiling does not determine your life. Your lowest acceptable standard does. Reset the floor today.'
-      }
-    ]
+        headline: "RAISE THE MINIMUM BAR",
+        bodyText:
+          "Your ceiling does not determine your life. Your lowest acceptable standard does. Reset the floor today.",
+      },
+    ],
   },
   {
-    title: 'Dopamine Detox & Monk Mode Protocol',
+    title: "Dopamine Detox & Monk Mode Protocol",
     slides: [
       {
-        headline: 'THE DIGITAL SLAVE SHIP',
-        bodyText: 'You trade 6 hours of sacred daily focus for 15-second dopamine hits from strangers who do not care about your legacy.'
+        headline: "THE DIGITAL SLAVE SHIP",
+        bodyText:
+          "You trade 6 hours of sacred daily focus for 15-second dopamine hits from strangers who do not care about your legacy.",
       },
       {
-        headline: 'SEVER ALL CHEAP REWARDS',
-        bodyText: 'Zero mindless scrolling. Zero junk calories. Zero gossip. When you starve your brain of cheap thrills, real work becomes electric.'
+        headline: "SEVER ALL CHEAP REWARDS",
+        bodyText:
+          "Zero mindless scrolling. Zero junk calories. Zero gossip. When you starve your brain of cheap thrills, real work becomes electric.",
       },
       {
-        headline: 'THE COLD OBSERVATION TEST',
-        bodyText: 'Feel the urge to reach for your phone. Pause. Watch the craving like a passing cloud. You are the observer, not the impulse.'
+        headline: "THE COLD OBSERVATION TEST",
+        bodyText:
+          "Feel the urge to reach for your phone. Pause. Watch the craving like a passing cloud. You are the observer, not the impulse.",
       },
       {
-        headline: 'MONK MODE EXECUTION',
-        bodyText: 'One primary goal. Four hours of uncompromising deep work before noon. Let the world think you disappeared.'
+        headline: "MONK MODE EXECUTION",
+        bodyText:
+          "One primary goal. Four hours of uncompromising deep work before noon. Let the world think you disappeared.",
       },
       {
-        headline: 'RECLAIM YOUR EMPIRE',
-        bodyText: 'Clarity is the ultimate competitive advantage. Protect your attention with your life. Save this reminder.'
-      }
-    ]
+        headline: "RECLAIM YOUR EMPIRE",
+        bodyText:
+          "Clarity is the ultimate competitive advantage. Protect your attention with your life. Save this reminder.",
+      },
+    ],
   },
   {
-    title: 'Silence Is Your Highest Leverage (Move In The Dark)',
+    title: "Silence Is Your Highest Leverage (Move In The Dark)",
     slides: [
       {
-        headline: 'NEVER BROADCAST YOUR MOVES',
-        bodyText: 'Speaking about your intentions drains the dopamine needed to execute them. Lock your jaw and build in complete stealth.'
+        headline: "NEVER BROADCAST YOUR MOVES",
+        bodyText:
+          "Speaking about your intentions drains the dopamine needed to execute them. Lock your jaw and build in complete stealth.",
       },
       {
-        headline: 'THE FOOLISH COMPLAINT',
-        bodyText: 'Marcus Aurelius wrote: Be overheard complaining about nothing, even to yourself. Complaining is an admission of weakness.'
+        headline: "THE FOOLISH COMPLAINT",
+        bodyText:
+          "Marcus Aurelius wrote: Be overheard complaining about nothing, even to yourself. Complaining is an admission of weakness.",
       },
       {
-        headline: 'FEED ON SKEPTICISM',
-        bodyText: 'When they doubt you, smile inwardly. Their disbelief is the highest octane fuel. Do not argue; let your finished work shatter their assumptions.'
+        headline: "FEED ON SKEPTICISM",
+        bodyText:
+          "When they doubt you, smile inwardly. Their disbelief is the highest octane fuel. Do not argue; let your finished work shatter their assumptions.",
       },
       {
-        headline: 'THE DISCIPLINE OF SECRECY',
-        bodyText: 'The less they know about your calendar, the more dangerous you become. Mystery breeds respect; oversharing breeds contempt.'
+        headline: "THE DISCIPLINE OF SECRECY",
+        bodyText:
+          "The less they know about your calendar, the more dangerous you become. Mystery breeds respect; oversharing breeds contempt.",
       },
       {
-        headline: 'THE UNDENIABLE STATEMENT',
-        bodyText: 'Show up one day with results so immense that questions become absurd. Execution is the only language that matters. Save this reminder.'
-      }
-    ]
-  }
+        headline: "THE UNDENIABLE STATEMENT",
+        bodyText:
+          "Show up one day with results so immense that questions become absurd. Execution is the only language that matters. Save this reminder.",
+      },
+    ],
+  },
 ];
 
 export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
   isOpen,
   onClose,
-  initialTitle = 'STARK FOCUS',
+  initialTitle = "STARK FOCUS",
   initialSlides,
-  handle = 'stark_focus',
-  vaultAssets = []
+  handle = "stark_focus",
+  vaultAssets = [],
 }) => {
-  const [availablePresets, setAvailablePresets] = useState<{ title: string; slides: SlideData[] }[]>(ENGLISH_CAROUSEL_PRESETS);
+  const [availablePresets, setAvailablePresets] =
+    useState<{ title: string; slides: SlideData[] }[]>(ENGLISH_CAROUSEL_PRESETS);
   const [isGeneratingTemplate, setIsGeneratingTemplate] = useState<boolean>(false);
-  const [templateTopicInput, setTemplateTopicInput] = useState<string>('');
+  const [templateTopicInput, setTemplateTopicInput] = useState<string>("");
   const [showTemplateGenerator, setShowTemplateGenerator] = useState<boolean>(false);
-  const [generationFeedback, setGenerationFeedback] = useState<string>('');
+  const [generationFeedback, setGenerationFeedback] = useState<string>("");
 
   const [slides, setSlides] = useState<SlideData[]>(() => {
     if (initialSlides && initialSlides.length > 0) return initialSlides;
@@ -228,34 +261,40 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
   });
 
   const [currentSlideIndex, setCurrentSlideIndex] = useState<number>(0);
-  const [aspectRatio, setAspectRatio] = useState<'4:5' | '9:16'>('4:5');
+  const [aspectRatio, setAspectRatio] = useState<"4:5" | "9:16">("4:5");
   const [userHandle, setUserHandle] = useState<string>(handle);
+  const [footerSignature, setFooterSignature] = useState<string>("THE UNFORGIVING STANDARD");
   const [isExportingZip, setIsExportingZip] = useState<boolean>(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [isGeneratingSingleSlide, setIsGeneratingSingleSlide] = useState<boolean>(false);
 
-  // Brand Styling & Theme (3 Mroczne Motywy STARK)
-  const [theme, setTheme] = useState<VisualTheme>('obsidian_monolith');
-  const [topHeaderMode, setTopHeaderMode] = useState<TopHeaderMode>('protocol_standard');
-  const [customTopHeaderText, setCustomTopHeaderText] = useState<string>('STARK FOCUS');
+  // Brand Styling & Theme (Mroczne Motywy STARK)
+  const [theme, setTheme] = useState<VisualTheme>("obsidian_monolith");
+  const [fontChoice, setFontChoice] = useState<CarouselFontFamily>("plus_jakarta");
+  const [isContinuous, setIsContinuous] = useState<boolean>(true);
+  const [topHeaderMode, setTopHeaderMode] = useState<TopHeaderMode>("protocol_standard");
+  const [customTopHeaderText, setCustomTopHeaderText] = useState<string>("STARK FOCUS");
 
   // Brand Logo Engine (Tylko Oficjalne Logo STARK, 3 pozycje + brak)
-  const [logoSourceType] = useState<LogoSourceType>('seal');
-  const [logoPlacement, setLogoPlacement] = useState<LogoPlacement>('background_watermark');
+  const [logoSourceType] = useState<LogoSourceType>("seal");
+  const [logoPlacement, setLogoPlacement] = useState<LogoPlacement>("background_watermark");
   const [logoSize, setLogoSize] = useState<number>(48);
   const [logoOpacity, setLogoOpacity] = useState<number>(25);
-  const [logoGlow, setLogoGlow] = useState<LogoGlowChoice>('none');
+  const [logoGlow, setLogoGlow] = useState<LogoGlowChoice>("none");
 
   // Wbudowany Generator Tła (DALL-E / Bing Prompter bezpośrednio w studiu)
-  const [bgPromptSubject, setBgPromptSubject] = useState<string>('');
+  const [bgPromptSubject, setBgPromptSubject] = useState<string>("");
   const [copiedBgPrompt, setCopiedBgPrompt] = useState<boolean>(false);
-  const [newBgUrlInput, setNewBgUrlInput] = useState<string>('');
+  const [newBgUrlInput, setNewBgUrlInput] = useState<string>("");
   const [bgNotice, setBgNotice] = useState<string | null>(null);
 
   // Backgrounds: Default Procedural + User Uploads + Vault Assets (Zero default static clutter)
-  const [selectedBgId, setSelectedBgId] = useState<string>('procedural');
-  const [customUploadedBgs, setCustomUploadedBgs] = useState<{ id: string; name: string; url: string }[]>([]);
+  const [selectedBgId, setSelectedBgId] = useState<string>("procedural");
+  const [customUploadedBgs, setCustomUploadedBgs] = useState<
+    { id: string; name: string; url: string }[]
+  >([]);
 
-  const [activeTab, setActiveTab] = useState<'slides' | 'branding' | 'background'>('slides');
+  const [activeTab, setActiveTab] = useState<"slides" | "branding" | "background">("slides");
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const loadedBgImageRef = useRef<HTMLImageElement | null>(null);
@@ -263,17 +302,20 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
   const fileUploadInputRef = useRef<HTMLInputElement | null>(null);
   const logoUploadInputRef = useRef<HTMLInputElement | null>(null);
 
-  const allAvailableBgs = [
-    ...STARK_CURATED_BACKGROUNDS,
-    ...customUploadedBgs,
-    ...(vaultAssets || [])
-      .filter((a) => a.type === 'bg')
-      .map((a) => ({
-        id: a.id,
-        name: `📁 [Skarbiec] ${a.filename}`,
-        url: a.url
-      }))
-  ];
+  const allAvailableBgs = useMemo(
+    () => [
+      ...STARK_CURATED_BACKGROUNDS,
+      ...customUploadedBgs,
+      ...(vaultAssets || [])
+        .filter((a) => a.type === "bg")
+        .map((a) => ({
+          id: a.id,
+          name: `📁 [Skarbiec] ${a.filename}`,
+          url: a.url,
+        })),
+    ],
+    [customUploadedBgs, vaultAssets],
+  );
 
   // Sync initialSlides when changed
   useEffect(() => {
@@ -283,47 +325,10 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
     }
   }, [initialSlides]);
 
-  // Load selected official logo
-  useEffect(() => {
-    const logoUrl = '/stark_seal_logo.png';
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.src = logoUrl;
-    img.onload = () => {
-      loadedLogoImgRef.current = img;
-      triggerRedraw();
-    };
-    img.onerror = () => {
-      loadedLogoImgRef.current = null;
-      triggerRedraw();
-    };
-  }, []);
-
-  // Preload background image if selected
-  useEffect(() => {
-    const bgObj = allAvailableBgs.find((b) => b.id === selectedBgId);
-    if (bgObj && bgObj.url) {
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.src = bgObj.url;
-      img.onload = () => {
-        loadedBgImageRef.current = img;
-        triggerRedraw();
-      };
-      img.onerror = () => {
-        loadedBgImageRef.current = null;
-        triggerRedraw();
-      };
-    } else {
-      loadedBgImageRef.current = null;
-      triggerRedraw();
-    }
-  }, [selectedBgId, customUploadedBgs, vaultAssets]);
-
   const width = 1080;
-  const height = aspectRatio === '4:5' ? 1350 : 1920;
+  const height = aspectRatio === "4:5" ? 1350 : 1920;
 
-  const triggerRedraw = () => {
+  const triggerRedraw = useCallback(() => {
     if (!canvasRef.current || slides.length === 0) return;
     const currentSlide = slides[currentSlideIndex] || slides[0];
     drawSlideToCanvas(canvasRef.current, {
@@ -345,37 +350,80 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
       topHeaderMode,
       topHeaderCustom: customTopHeaderText,
       textOffsetY: currentSlide.textOffsetY || 0,
-      highlightWords: currentSlide.highlightWords || ''
+      highlightWords: currentSlide.highlightWords || "",
+      fontChoice,
+      isContinuous,
+      footerSignature,
     });
-  };
-
-  // Redraw canvas whenever slide or options change
-  useEffect(() => {
-    if (!isOpen) return;
-    triggerRedraw();
   }, [
-    isOpen,
-    currentSlideIndex,
     slides,
-    aspectRatio,
+    currentSlideIndex,
+    width,
+    height,
     theme,
+    fontChoice,
+    isContinuous,
     userHandle,
+    footerSignature,
     logoSourceType,
     logoPlacement,
     logoSize,
     logoOpacity,
     logoGlow,
     topHeaderMode,
-    customTopHeaderText
+    customTopHeaderText,
   ]);
+
+  // Load selected official logo
+  useEffect(() => {
+    const logoUrl = "/stark_seal_logo.png";
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.src = logoUrl;
+    img.onload = () => {
+      loadedLogoImgRef.current = img;
+      triggerRedraw();
+    };
+    img.onerror = () => {
+      loadedLogoImgRef.current = null;
+      triggerRedraw();
+    };
+  }, [triggerRedraw]);
+
+  // Preload background image if selected
+  useEffect(() => {
+    const bgObj = allAvailableBgs.find((b) => b.id === selectedBgId);
+    if (bgObj && bgObj.url) {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.src = bgObj.url;
+      img.onload = () => {
+        loadedBgImageRef.current = img;
+        triggerRedraw();
+      };
+      img.onerror = () => {
+        loadedBgImageRef.current = null;
+        triggerRedraw();
+      };
+    } else {
+      loadedBgImageRef.current = null;
+      triggerRedraw();
+    }
+  }, [selectedBgId, allAvailableBgs, triggerRedraw]);
+
+  // Redraw canvas whenever slide or options change
+  useEffect(() => {
+    if (!isOpen) return;
+    triggerRedraw();
+  }, [isOpen, triggerRedraw]);
 
   if (!isOpen) return null;
 
   const handleDownloadCurrentPNG = () => {
     if (!canvasRef.current) return;
-    const link = document.createElement('a');
+    const link = document.createElement("a");
     link.download = `stark_slide_${currentSlideIndex + 1}.png`;
-    link.href = canvasRef.current.toDataURL('image/png');
+    link.href = canvasRef.current.toDataURL("image/png");
     link.click();
   };
 
@@ -387,7 +435,7 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
         height,
         theme,
         handle: userHandle,
-        zipName: `${initialTitle.replace(/[^a-zA-Z0-9]/g, '_')}_carousel.zip`,
+        zipName: `${initialTitle.replace(/[^a-zA-Z0-9]/g, "_")}_carousel.zip`,
         bgImage: loadedBgImageRef.current,
         logoImg: loadedLogoImgRef.current,
         logoSourceType,
@@ -396,11 +444,14 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
         logoOpacity,
         logoGlow,
         topHeaderMode,
-        topHeaderCustom: customTopHeaderText
+        topHeaderCustom: customTopHeaderText,
+        fontChoice,
+        isContinuous,
+        footerSignature,
       });
     } catch (err) {
-      console.error('Error generating zip:', err);
-      setExportError('Nie udało się wygenerować archiwum ZIP.');
+      console.error("Error generating zip:", err);
+      setExportError("Nie udało się wygenerować archiwum ZIP.");
     } finally {
       setIsExportingZip(false);
     }
@@ -412,7 +463,7 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
       if (next[currentSlideIndex]) {
         next[currentSlideIndex] = {
           ...next[currentSlideIndex],
-          [field]: value
+          [field]: value,
         };
       }
       return next;
@@ -423,9 +474,10 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
     setSlides((prev) => [
       ...prev,
       {
-        headline: 'UNYIELDING STANDARD',
-        bodyText: 'The moment you negotiate with excuses, you surrender your authority. Cut all weakness in silence.'
-      }
+        headline: "UNYIELDING STANDARD",
+        bodyText:
+          "The moment you negotiate with excuses, you surrender your authority. Cut all weakness in silence.",
+      },
     ]);
     setCurrentSlideIndex(slides.length);
   };
@@ -456,7 +508,8 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
         for (let i = prev.length; i < targetCount; i++) {
           added.push({
             headline: `RULE 0${i + 1} // RUTHLESS DISCIPLINE`,
-            bodyText: 'Execute without emotion. Comfort is the weapon of the modern world designed to keep you sedated.'
+            bodyText:
+              "Execute without emotion. Comfort is the weapon of the modern world designed to keep you sedated.",
           });
         }
         return [...prev, ...added];
@@ -477,41 +530,101 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
   };
 
   const handleGenerateTemplate = async (overrideTopic?: string) => {
-    const topicToUse = (overrideTopic || templateTopicInput).trim() || '5 Non-Negotiable Stoic Laws to Master Your Mind';
+    const topicToUse =
+      (overrideTopic || templateTopicInput).trim() ||
+      "5 Non-Negotiable Stoic Laws to Master Your Mind";
     setIsGeneratingTemplate(true);
-    setGenerationFeedback('Generowanie szablonu karuzeli AI...');
+    setGenerationFeedback("Generowanie szablonu karuzeli AI...");
     try {
-      const res = await fetch('/api/ai/generate-carousel-template', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/ai/generate-carousel-template", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           topic: topicToUse,
           slideCount: slides.length || 5,
-          randomSeed: Date.now() + Math.random()
-        })
+          randomSeed: Date.now() + Math.random(),
+        }),
       });
       const data = await res.json();
       if (data.template && Array.isArray(data.template.slides) && data.template.slides.length > 0) {
         const newPreset = {
           title: `✨ AI: ${data.template.name || topicToUse}`,
-          slides: data.template.slides
+          slides: data.template.slides,
         };
         setAvailablePresets((prev) => [newPreset, ...prev]);
         setSlides(newPreset.slides);
         setCurrentSlideIndex(0);
         setGenerationFeedback(`Wygenerowano: "${data.template.name}"`);
-        setTimeout(() => setGenerationFeedback(''), 4000);
+        setTimeout(() => setGenerationFeedback(""), 4000);
         setShowTemplateGenerator(false);
-        setTemplateTopicInput('');
+        setTemplateTopicInput("");
       } else {
-        throw new Error('Invalid response data');
+        throw new Error("Invalid response data");
       }
     } catch (err) {
-      console.error('Failed to generate carousel template:', err);
-      setGenerationFeedback('Błąd generowania szablonu AI.');
-      setTimeout(() => setGenerationFeedback(''), 3000);
+      console.error("Failed to generate carousel template:", err);
+      setGenerationFeedback("Błąd generowania szablonu AI.");
+      setTimeout(() => setGenerationFeedback(""), 3000);
     } finally {
       setIsGeneratingTemplate(false);
+    }
+  };
+
+  const handleGenerateSingleSlide = async () => {
+    setIsGeneratingSingleSlide(true);
+    setGenerationFeedback(`Generowanie treści slajdu ${currentSlideIndex + 1}...`);
+    try {
+      const slideType =
+        currentSlideIndex === 0
+          ? "hook"
+          : currentSlideIndex === slides.length - 1
+            ? "cta"
+            : "lesson";
+
+      const topicContext =
+        templateTopicInput.trim() ||
+        initialTitle ||
+        slides[0]?.headline ||
+        "Stoic Discipline & Relentless Focus";
+
+      const res = await fetch("/api/ai/generate-single-slide", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          topic: topicContext,
+          slideIndex: currentSlideIndex,
+          totalSlides: slides.length,
+          slideType,
+          currentHeadline: slides[currentSlideIndex]?.headline,
+          currentBodyText: slides[currentSlideIndex]?.bodyText,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.slide) {
+        setSlides((prev) => {
+          const next = [...prev];
+          if (next[currentSlideIndex]) {
+            next[currentSlideIndex] = {
+              ...next[currentSlideIndex],
+              headline: data.slide.headline || next[currentSlideIndex].headline,
+              bodyText: data.slide.bodyText || next[currentSlideIndex].bodyText,
+              highlightWords: data.slide.highlightWords || next[currentSlideIndex].highlightWords,
+            };
+          }
+          return next;
+        });
+        setGenerationFeedback(`✓ Slajd #${currentSlideIndex + 1} wygenerowany!`);
+        setTimeout(() => setGenerationFeedback(""), 3000);
+      } else {
+        throw new Error("Błąd w odpowiedzi serwera");
+      }
+    } catch (err) {
+      console.error("Failed to generate single slide:", err);
+      setGenerationFeedback("Nie udało się wygenerować pojedynczego slajdu.");
+      setTimeout(() => setGenerationFeedback(""), 3000);
+    } finally {
+      setIsGeneratingSingleSlide(false);
     }
   };
 
@@ -534,7 +647,8 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
                 STUDIO GRAFIK KARUZELI // STARK FOCUS BRAND ENGINE
               </h3>
               <p className="text-[11px] text-slate-400 font-mono">
-                5 slajdów bez kompromisów • Te same kolory i logo co w Automontażyście • Brak kolizji UI
+                5 slajdów bez kompromisów • Te same kolory i logo co w Automontażyście • Brak
+                kolizji UI
               </p>
             </div>
           </div>
@@ -550,31 +664,31 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
         {/* Sub-Tabs for Controls: Treść Slajdów | Kolorystyka & Logo | Tło & Format */}
         <div className="flex items-center gap-2 border-b border-[#2C354B] pb-2">
           <button
-            onClick={() => setActiveTab('slides')}
+            onClick={() => setActiveTab("slides")}
             className={`px-3 py-1.5 text-xs font-bold font-mono rounded transition-colors flex items-center gap-1.5 cursor-pointer ${
-              activeTab === 'slides'
-                ? 'bg-[#38BDF8] text-[#141824]'
-                : 'bg-[#1D2333] text-slate-300 hover:text-white border border-[#2C354B]'
+              activeTab === "slides"
+                ? "bg-[#38BDF8] text-[#141824]"
+                : "bg-[#1D2333] text-slate-300 hover:text-white border border-[#2C354B]"
             }`}
           >
             <Layers className="w-3.5 h-3.5" /> 1. Treść i Slajdy ({slides.length})
           </button>
           <button
-            onClick={() => setActiveTab('branding')}
+            onClick={() => setActiveTab("branding")}
             className={`px-3 py-1.5 text-xs font-bold font-mono rounded transition-colors flex items-center gap-1.5 cursor-pointer ${
-              activeTab === 'branding'
-                ? 'bg-[#38BDF8] text-[#141824]'
-                : 'bg-[#1D2333] text-slate-300 hover:text-white border border-[#2C354B]'
+              activeTab === "branding"
+                ? "bg-[#38BDF8] text-[#141824]"
+                : "bg-[#1D2333] text-slate-300 hover:text-white border border-[#2C354B]"
             }`}
           >
             <Palette className="w-3.5 h-3.5" /> 2. Motywy & Logo STARK
           </button>
           <button
-            onClick={() => setActiveTab('background')}
+            onClick={() => setActiveTab("background")}
             className={`px-3 py-1.5 text-xs font-bold font-mono rounded transition-colors flex items-center gap-1.5 cursor-pointer ${
-              activeTab === 'background'
-                ? 'bg-[#38BDF8] text-[#141824]'
-                : 'bg-[#1D2333] text-slate-300 hover:text-white border border-[#2C354B]'
+              activeTab === "background"
+                ? "bg-[#38BDF8] text-[#141824]"
+                : "bg-[#1D2333] text-slate-300 hover:text-white border border-[#2C354B]"
             }`}
           >
             <ImageIcon className="w-3.5 h-3.5" /> 3. Tło & Format
@@ -586,7 +700,7 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
           {/* Controls Editor (Left 7 cols) */}
           <div className="lg:col-span-7 space-y-3.5">
             {/* TAB 1: SLIDES & CONTENT */}
-            {activeTab === 'slides' && (
+            {activeTab === "slides" && (
               <div className="space-y-3">
                 {/* Arbitrary Slide Count Bar & English Presets */}
                 <div className="bg-[#1D2333] p-3 rounded-lg border border-[#2C354B] space-y-2">
@@ -603,8 +717,8 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
                             onClick={() => handleSetTargetSlideCount(count)}
                             className={`px-2 py-0.5 text-[10px] font-mono font-bold rounded-xs transition-colors cursor-pointer ${
                               slides.length === count
-                                ? 'bg-[#38BDF8] text-[#141824]'
-                                : 'bg-[#141824] text-slate-300 hover:text-white border border-[#2C354B]'
+                                ? "bg-[#38BDF8] text-[#141824]"
+                                : "bg-[#141824] text-slate-300 hover:text-white border border-[#2C354B]"
                             }`}
                           >
                             {count}
@@ -615,12 +729,14 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
 
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <Wand2 className="w-3.5 h-3.5 text-[#38BDF8]" />
-                      <span className="text-[10px] text-slate-400 font-mono">Szablony ({availablePresets.length}):</span>
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        Szablony ({availablePresets.length}):
+                      </span>
                       <select
                         onChange={(e) => {
-                          if (e.target.value !== '') {
+                          if (e.target.value !== "") {
                             handleApplyPreset(parseInt(e.target.value, 10));
-                            e.target.value = '';
+                            e.target.value = "";
                           }
                         }}
                         className="text-[10px] font-bold py-0.5 px-2 bg-[#141824] border border-[#2C354B] rounded text-[#38BDF8] max-w-[210px] truncate"
@@ -641,8 +757,8 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
                         onClick={() => setShowTemplateGenerator(!showTemplateGenerator)}
                         className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded flex items-center gap-1 cursor-pointer transition-colors border ${
                           showTemplateGenerator
-                            ? 'bg-[#38BDF8] text-[#141824] border-[#38BDF8]'
-                            : 'text-[#38BDF8] bg-[#38BDF8]/15 hover:bg-[#38BDF8]/25 border-[#38BDF8]/40'
+                            ? "bg-[#38BDF8] text-[#141824] border-[#38BDF8]"
+                            : "text-[#38BDF8] bg-[#38BDF8]/15 hover:bg-[#38BDF8]/25 border-[#38BDF8]/40"
                         }`}
                         title="Wygeneruj nowy autorski szablon karuzeli AI"
                       >
@@ -671,7 +787,7 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
                           value={templateTopicInput}
                           onChange={(e) => setTemplateTopicInput(e.target.value)}
                           onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
+                            if (e.key === "Enter") {
                               e.preventDefault();
                               handleGenerateTemplate();
                             }
@@ -704,11 +820,11 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
                       <div className="flex flex-wrap items-center gap-1 pt-1">
                         <span className="text-[9px] font-mono text-slate-400">Szybkie tematy:</span>
                         {[
-                          'Dopamine Fasting',
-                          'Silence & Stealth',
-                          'Marcus Aurelius Standard',
-                          'Pain Is Information',
-                          'Early Morning Execution'
+                          "Dopamine Fasting",
+                          "Silence & Stealth",
+                          "Marcus Aurelius Standard",
+                          "Pain Is Information",
+                          "Early Morning Execution",
                         ].map((chip) => (
                           <button
                             key={chip}
@@ -740,8 +856,8 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
                         onClick={() => setCurrentSlideIndex(idx)}
                         className={`px-2.5 py-1 text-xs font-mono rounded font-bold transition-all shrink-0 cursor-pointer ${
                           currentSlideIndex === idx
-                            ? 'bg-[#38BDF8] text-[#141824]'
-                            : 'bg-[#141824] text-slate-300 hover:text-white border border-[#2C354B]'
+                            ? "bg-[#38BDF8] text-[#141824]"
+                            : "bg-[#141824] text-slate-300 hover:text-white border border-[#2C354B]"
                         }`}
                       >
                         Slajd {idx + 1}
@@ -778,11 +894,26 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
 
                 {/* Slide Content Editor */}
                 <div className="bg-[#1D2333] p-4 rounded-lg border border-[#2C354B] space-y-3.5">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
                     <span className="text-xs font-bold text-white uppercase tracking-wider font-mono">
                       Edycja Slajdu {currentSlideIndex + 1} z {slides.length} (100% English)
                     </span>
-                    <span className="text-[10px] font-mono text-[#38BDF8]">Podgląd natychmiastowy</span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleGenerateSingleSlide}
+                        disabled={isGeneratingSingleSlide}
+                        className="px-2.5 py-1 rounded bg-[#E2E8F0] hover:bg-white text-[#0B0F19] text-[11px] font-mono font-black uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50 shadow-sm"
+                        title="Wygeneruj treść tylko dla tego pojedynczego slajdu"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-[#0B0F19]" />
+                        <span>
+                          {isGeneratingSingleSlide
+                            ? "Generowanie..."
+                            : `✨ Generuj Slajd #${currentSlideIndex + 1} (AI)`}
+                        </span>
+                      </button>
+                    </div>
                   </div>
 
                   <div className="space-y-1.5">
@@ -796,8 +927,8 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
                     </div>
                     <textarea
                       rows={2}
-                      value={slides[currentSlideIndex]?.headline || ''}
-                      onChange={(e) => handleUpdateSlide('headline', e.target.value)}
+                      value={slides[currentSlideIndex]?.headline || ""}
+                      onChange={(e) => handleUpdateSlide("headline", e.target.value)}
                       placeholder="e.g. THE UNFORGIVING&#10;STANDARD"
                       className="w-full text-sm font-black py-2 px-3 bg-[#141824] border border-[#2C354B] rounded text-white focus:border-[#38BDF8] focus:outline-none resize-none uppercase font-sans"
                     />
@@ -814,8 +945,8 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
                     </div>
                     <textarea
                       rows={4}
-                      value={slides[currentSlideIndex]?.bodyText || ''}
-                      onChange={(e) => handleUpdateSlide('bodyText', e.target.value)}
+                      value={slides[currentSlideIndex]?.bodyText || ""}
+                      onChange={(e) => handleUpdateSlide("bodyText", e.target.value)}
                       placeholder="e.g. You do not lack motivation.&#10;&#10;You lack non-negotiable standards."
                       className="w-full text-xs leading-relaxed py-2 px-3 bg-[#141824] border border-[#2C354B] rounded text-white focus:border-[#38BDF8] focus:outline-none resize-none font-sans"
                     />
@@ -839,7 +970,7 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
                         max={140}
                         step={2}
                         value={slides[currentSlideIndex]?.textOffsetY || 0}
-                        onChange={(e) => handleUpdateSlide('textOffsetY', Number(e.target.value))}
+                        onChange={(e) => handleUpdateSlide("textOffsetY", Number(e.target.value))}
                         className="flex-1 accent-[#38BDF8]"
                       />
                     </div>
@@ -848,7 +979,12 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
                       <div className="flex items-center gap-1">
                         <button
                           type="button"
-                          onClick={() => handleUpdateSlide('textOffsetY', (slides[currentSlideIndex]?.textOffsetY || 0) - 20)}
+                          onClick={() =>
+                            handleUpdateSlide(
+                              "textOffsetY",
+                              (slides[currentSlideIndex]?.textOffsetY || 0) - 20,
+                            )
+                          }
                           className="px-2 py-1 bg-[#141824] hover:bg-[#2C354B] text-slate-300 hover:text-white rounded border border-[#2C354B] cursor-pointer"
                           title="Przesuń tekst wyżej o 20px"
                         >
@@ -856,7 +992,7 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleUpdateSlide('textOffsetY', 0)}
+                          onClick={() => handleUpdateSlide("textOffsetY", 0)}
                           className="px-2 py-1 bg-[#141824] hover:bg-[#2C354B] text-[#38BDF8] hover:text-white rounded border border-[#2C354B] cursor-pointer"
                           title="Wyśrodkuj tekst idealnie"
                         >
@@ -864,7 +1000,12 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleUpdateSlide('textOffsetY', (slides[currentSlideIndex]?.textOffsetY || 0) + 20)}
+                          onClick={() =>
+                            handleUpdateSlide(
+                              "textOffsetY",
+                              (slides[currentSlideIndex]?.textOffsetY || 0) + 20,
+                            )
+                          }
                           className="px-2 py-1 bg-[#141824] hover:bg-[#2C354B] text-slate-300 hover:text-white rounded border border-[#2C354B] cursor-pointer"
                           title="Przesuń tekst niżej o 20px"
                         >
@@ -875,104 +1016,56 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Wyróżnienie słów kluczowych */}
+                  {/* Wyróżnienie słów kluczowych (Wprowadzanie ręczne) */}
                   <div className="pt-2 border-t border-[#2C354B]/60 space-y-2">
                     <div className="flex items-center justify-between">
                       <label className="text-[10px] font-bold text-slate-300 uppercase tracking-wider block font-mono">
-                        Wyróżnienie Słów Kluczowych (Pogrubione / Białe / Podkreślone):
+                        Wyróżnienie Słów Kluczowych (Wpisz ręcznie po przecinku):
                       </label>
                       <span className="text-[9px] font-mono text-slate-400">
-                        Kliknij słowo poniżej, aby je wyróżnić:
+                        Pogrubione / Kolor Motywu / Podkreślone
                       </span>
                     </div>
 
                     <input
                       type="text"
-                      value={slides[currentSlideIndex]?.highlightWords || ''}
-                      onChange={(e) => handleUpdateSlide('highlightWords', e.target.value)}
-                      placeholder="np. standards, silence, results, discipline"
+                      value={slides[currentSlideIndex]?.highlightWords || ""}
+                      onChange={(e) => handleUpdateSlide("highlightWords", e.target.value)}
+                      placeholder="Wpisz słowa do wyróżnienia np. standards, silence, results, discipline"
                       className="w-full text-xs font-mono py-1.5 px-3 bg-[#141824] border border-[#2C354B] rounded text-white focus:outline-none focus:border-[#38BDF8]"
                     />
-
-                    {/* Interaktywne klikalne pigułki słów ze slajdu */}
-                    {(() => {
-                      const cur = slides[currentSlideIndex];
-                      const rawText = `${cur?.headline || ''} ${cur?.bodyText || ''}`;
-                      const words = rawText
-                        .replace(/[\n\r]/g, ' ')
-                        .split(/\s+/)
-                        .map((w) => w.replace(/[^a-zA-Z0-9]/g, '').toLowerCase())
-                        .filter((w) => w.length >= 3);
-                      const uniqueWords = Array.from(new Set(words)).slice(0, 14);
-                      const activeTerms = (cur?.highlightWords || '')
-                        .split(',')
-                        .map((s) => s.trim().toLowerCase())
-                        .filter(Boolean);
-
-                      if (uniqueWords.length === 0) return null;
-
-                      return (
-                        <div className="space-y-1 pt-1">
-                          <div className="flex flex-wrap gap-1">
-                            {uniqueWords.map((w) => {
-                              const isSelected = activeTerms.includes(w);
-                              return (
-                                <button
-                                  key={w}
-                                  type="button"
-                                  onClick={() => {
-                                    let nextTerms: string[];
-                                    if (isSelected) {
-                                      nextTerms = activeTerms.filter((t) => t !== w);
-                                    } else {
-                                      nextTerms = [...activeTerms, w];
-                                    }
-                                    handleUpdateSlide('highlightWords', nextTerms.join(', '));
-                                  }}
-                                  className={`text-[10px] font-mono px-2 py-0.5 rounded border transition-all cursor-pointer ${
-                                    isSelected
-                                      ? 'bg-[#38BDF8] text-[#141824] border-[#38BDF8] font-bold'
-                                      : 'bg-[#141824] text-slate-300 border-[#2C354B] hover:border-slate-400 hover:text-white'
-                                  }`}
-                                >
-                                  {isSelected ? `✓ ${w}` : `+ ${w}`}
-                                </button>
-                              );
-                            })}
-                          </div>
-                          <p className="text-[9px] text-slate-500 font-mono">
-                            💡 Wskazówka: Możesz także otoczyć słowa gwiazdkami bezpośrednio w polu tekstowym, np. <span className="text-slate-300">**standards**</span>.
-                          </p>
-                        </div>
-                      );
-                    })()}
+                    <p className="text-[9px] text-slate-500 font-mono">
+                      💡 Wskazówka: Wpisz dowolne słowa po przecinku lub otocz słowa gwiazdkami bezpośrednio w tekście, np. <span className="text-slate-300">**standards**</span>.
+                    </p>
                   </div>
                 </div>
               </div>
             )}
 
             {/* TAB 2: BRANDING, THEMES & LOGO */}
-            {activeTab === 'branding' && (
+            {activeTab === "branding" && (
               <div className="space-y-3.5">
                 {/* 1. Motywy Wizualne STARK (Tylko 3 ciemne/mroczne motywy stoickie) */}
                 <div className="bg-[#1D2333] p-3.5 rounded-lg border border-[#2C354B] space-y-2.5">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-white uppercase tracking-wider font-mono flex items-center gap-1.5">
                       <Palette className="w-3.5 h-3.5 text-[#38BDF8]" />
-                      Mroczne Motywy STARK (Tylko Czerń, Grafit & Cień)
+                      Mroczne Motywy STARK (Czerń, Grafit, Cień & Karmazyn)
                     </span>
-                    <span className="text-[10px] font-mono text-[#38BDF8]">3 wyselekcjonowane warianty</span>
+                    <span className="text-[10px] font-mono text-[#38BDF8]">
+                      4 wyselekcjonowane warianty
+                    </span>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {STARK_THEMES.map((th) => (
                       <button
                         key={th.id}
                         onClick={() => setTheme(th.id)}
                         className={`text-left p-3 rounded border transition-all cursor-pointer ${
                           theme === th.id
-                            ? 'bg-[#141824] border-[#38BDF8] shadow-sm'
-                            : 'bg-[#141824]/60 border-[#2C354B] hover:border-slate-500'
+                            ? "bg-[#141824] border-[#38BDF8] shadow-sm"
+                            : "bg-[#141824]/60 border-[#2C354B] hover:border-slate-500"
                         }`}
                       >
                         <div className="flex items-center justify-between mb-1.5">
@@ -1020,7 +1113,8 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
                         </span>
                       </div>
                       <p className="text-[10px] text-slate-400 leading-tight mt-0.5">
-                        Jedyny autoryzowany emblemat profilu. Brak możliwości wgrania innych plików, aby zachować 100% spójności wizualnej marki.
+                        Jedyny autoryzowany emblemat profilu. Brak możliwości wgrania innych plików,
+                        aby zachować 100% spójności wizualnej marki.
                       </p>
                     </div>
                   </div>
@@ -1032,10 +1126,22 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
                     </label>
                     <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
                       {[
-                        { id: 'background_watermark', label: '1. Znak wodny w tle', desc: 'Duży, subtelny ZA tekstem w centrum' },
-                        { id: 'bottom_under', label: '2. Na dole kadru', desc: 'Podpis ze znakiem obok @stark_focus' },
-                        { id: 'top_left', label: '3. U góry kadru', desc: 'W nagłówku kadru z bezpiecznym marginesem' },
-                        { id: 'none', label: '4. Brak logo', desc: 'Czysty kadr bez sygnetu' }
+                        {
+                          id: "background_watermark",
+                          label: "1. Znak wodny w tle",
+                          desc: "Duży, subtelny ZA tekstem w centrum",
+                        },
+                        {
+                          id: "bottom_under",
+                          label: "2. Na dole kadru",
+                          desc: "Podpis ze znakiem obok @stark_focus",
+                        },
+                        {
+                          id: "top_left",
+                          label: "3. U góry kadru",
+                          desc: "W nagłówku kadru z bezpiecznym marginesem",
+                        },
+                        { id: "none", label: "4. Brak logo", desc: "Czysty kadr bez sygnetu" },
                       ].map((pos) => (
                         <button
                           key={pos.id}
@@ -1043,19 +1149,21 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
                           onClick={() => setLogoPlacement(pos.id as LogoPlacement)}
                           className={`p-2.5 text-left rounded border transition-colors cursor-pointer ${
                             logoPlacement === pos.id
-                              ? 'bg-[#38BDF8]/20 border-[#38BDF8] text-[#38BDF8]'
-                              : 'bg-[#141824] border-[#2C354B] text-slate-300 hover:border-slate-500'
+                              ? "bg-[#38BDF8]/20 border-[#38BDF8] text-[#38BDF8]"
+                              : "bg-[#141824] border-[#2C354B] text-slate-300 hover:border-slate-500"
                           }`}
                         >
                           <span className="text-[11px] font-bold block">{pos.label}</span>
-                          <span className="text-[9px] text-slate-400 block font-mono mt-0.5">{pos.desc}</span>
+                          <span className="text-[9px] text-slate-400 block font-mono mt-0.5">
+                            {pos.desc}
+                          </span>
                         </button>
                       ))}
                     </div>
                   </div>
 
                   {/* Sliders: Size & Opacity */}
-                  {logoPlacement !== 'none' && (
+                  {logoPlacement !== "none" && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t border-[#2C354B]/60">
                       <div>
                         <div className="flex justify-between text-[10px] text-slate-400 font-bold mb-1">
@@ -1097,7 +1205,9 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                       Górna Belka / Safe-Zone (Praktyczne warianty):
                     </label>
-                    <span className="text-[10px] font-mono text-[#38BDF8]">Pełna edycja tekstu</span>
+                    <span className="text-[10px] font-mono text-[#38BDF8]">
+                      Pełna edycja tekstu
+                    </span>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-1.5">
                     {STARK_TOP_HEADER_PRESETS.map((preset) => (
@@ -1112,18 +1222,20 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
                         }}
                         className={`p-2 text-left rounded border transition-colors cursor-pointer ${
                           topHeaderMode === preset.id
-                            ? 'bg-[#38BDF8]/20 border-[#38BDF8] text-[#38BDF8]'
-                            : 'bg-[#141824] border-[#2C354B] text-slate-300 hover:border-slate-500'
+                            ? "bg-[#38BDF8]/20 border-[#38BDF8] text-[#38BDF8]"
+                            : "bg-[#141824] border-[#2C354B] text-slate-300 hover:border-slate-500"
                         }`}
                       >
                         <span className="text-[11px] font-bold block truncate">{preset.label}</span>
-                        <span className="text-[9px] text-slate-400 block truncate">{preset.desc}</span>
+                        <span className="text-[9px] text-slate-400 block truncate">
+                          {preset.desc}
+                        </span>
                       </button>
                     ))}
                   </div>
 
                   {/* Pole własnego tekstu belki */}
-                  {topHeaderMode !== 'clean_void' && (
+                  {topHeaderMode !== "clean_void" && (
                     <div className="pt-2 border-t border-[#2C354B]/60">
                       <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
                         Edytuj treść nagłówka (wyświetli się dokładnie to co wpiszesz):
@@ -1133,7 +1245,7 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
                         value={customTopHeaderText}
                         onChange={(e) => {
                           setCustomTopHeaderText(e.target.value);
-                          setTopHeaderMode('custom');
+                          setTopHeaderMode("custom");
                         }}
                         placeholder="np. STARK FOCUS // PROTOCOL albo TWOJA WŁASNA SERIA"
                         className="w-full text-xs font-mono py-1.5 px-3 bg-[#141824] border border-[#2C354B] rounded text-white focus:outline-none focus:border-[#38BDF8]"
@@ -1145,7 +1257,7 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
             )}
 
             {/* TAB 3: BACKGROUND & FORMAT */}
-            {activeTab === 'background' && (
+            {activeTab === "background" && (
               <div className="space-y-3.5">
                 {/* Wbudowany Generator Promptów AI dla Tła (Format 9:16 / 4:5) */}
                 <div className="bg-[#1D2333] p-3.5 rounded-lg border border-[#2C354B] space-y-3">
@@ -1157,21 +1269,31 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
                     <span className="text-[10px] font-mono text-[#38BDF8]">100% Dark Stoic</span>
                   </div>
 
-                  <p className="text-[11px] text-slate-400">
-                    Wybierz motyw lub wpisz własny temat, skopiuj gotowy angielski prompt i wygeneruj tło w Bing/DALL-E:
-                  </p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-[11px] text-slate-400">
+                      Wybierz motyw z bazy 100+ ujęć lub wylosuj unikalną scenerię:
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const random = getRandomBackgroundScene();
+                        setBgPromptSubject(random.bingPrompt);
+                        setBgNotice(`🎲 Wylosowano: ${random.name} (${random.category})`);
+                        setTimeout(() => setBgNotice(null), 3000);
+                      }}
+                      className="px-2.5 py-1 rounded bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 text-[10px] font-mono font-bold flex items-center gap-1 transition-all cursor-pointer"
+                    >
+                      <Sparkles className="w-3 h-3" />
+                      <span>🎲 Losuj z 100+ Motywów</span>
+                    </button>
+                  </div>
 
                   <div className="flex flex-wrap gap-1.5">
-                    {[
-                      { name: 'Promień w Pustce', motif: 'Ultra-minimalist pitch black infinite void, razor-thin single beam of cold diffuse directional light cutting through dense atmosphere, mysterious enigmatic moody darkness, subtle volumetric haze, vast negative space for typography overlay' },
-                      { name: 'Geometria Cienia', motif: 'Abstract minimalist dark architecture, sharp geometric chiaroscuro shadow intersecting smooth matte carbon surfaces, eerie silent atmosphere, mysterious twilight gradient, brutalist clean composition' },
-                      { name: 'Horyzont w Mgle', motif: 'Minimalist enigmatic dark horizon shrouded in heavy silent fog, lone subtle silhouette dissolving into cold atmospheric mist, vast negative space, haunting cinematic mood, clean contrast' },
-                      { name: 'Mroczna Pustka Mineralna', motif: 'Deep matte obsidian and charcoal raw mineral textures with soft dark vignette, mysterious ambient shadows, ultra-clean negative space for text overlay, cinematic editorial depth' }
-                    ].map((preset, pIdx) => (
+                    {EXPANDED_BACKGROUND_LIBRARY.slice(0, 10).map((preset) => (
                       <button
-                        key={pIdx}
+                        key={preset.id}
                         type="button"
-                        onClick={() => setBgPromptSubject(preset.motif)}
+                        onClick={() => setBgPromptSubject(preset.bingPrompt)}
                         className="text-[10px] font-mono px-2 py-1 rounded bg-[#141824] hover:bg-[#141824]/80 text-slate-300 hover:text-white border border-[#2C354B] cursor-pointer"
                       >
                         + {preset.name}
@@ -1191,27 +1313,53 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
                     {/* Skompilowany prompt z przyciskiem kopiowania */}
                     {(() => {
                       const raw = bgPromptSubject.trim();
-                      let synthesizedPrompt = '';
+                      let synthesizedPrompt = "";
 
                       if (!raw) {
-                        synthesizedPrompt = 'Ultra-minimalist pitch black infinite void, razor-thin single beam of cold diffuse directional light cutting through dense atmosphere, mysterious enigmatic moody darkness, subtle volumetric haze, vast negative space for typography overlay, dark stoic aesthetic, high contrast, moody deep shadows, 8k photorealistic, raw texture, vertical ' + (aspectRatio === '4:5' ? '4:5' : '9:16') + ' composition, minimalist editorial photography, shot on 35mm lens, strictly no text, no words, no letters, no watermark';
+                        synthesizedPrompt =
+                          "Ultra-minimalist pitch black infinite void, razor-thin single beam of cold diffuse directional light cutting through dense atmosphere, mysterious enigmatic moody darkness, subtle volumetric haze, vast negative space for typography overlay, dark stoic aesthetic, high contrast, moody deep shadows, 8k photorealistic, raw texture, vertical " +
+                          (aspectRatio === "4:5" ? "4:5" : "9:16") +
+                          " composition, minimalist editorial photography, shot on 35mm lens, strictly no text, no words, no letters, no watermark";
                       } else {
                         const t = raw.toLowerCase();
-                        let coreScene = '';
-                        if (t.includes('1%') || t.includes('protokół') || t.includes('protokol')) {
-                          coreScene = 'Abstract minimalist dark architecture, razor-thin sliver of cold diffuse light cutting through pure pitch black darkness, matte carbon textures, stark silent geometry, haunting volumetric fog, mysterious liminal perspective';
-                        } else if (t.includes('ruthless') || t.includes('bezwzględ') || t.includes('zimn')) {
-                          coreScene = 'Ultra-minimalist dark composition, solitary shadowy silhouette standing motionless at the edge of a deep charcoal abyss, cold sharp directional rim lighting, eerie silent atmosphere, mysterious cinematic chiaroscuro';
-                        } else if (t.includes('poranek') || t.includes('rano') || t.includes('morning') || t.includes('świt') || t.includes('bieg')) {
-                          coreScene = 'Minimalist moody dark city skyline at 4:30 AM before dawn, thick atmospheric fog rolling over wet asphalt, lone solitary figure in dark trench coat in distance, eerie silence, vast negative space';
-                        } else if (t.includes('samotn') || t.includes('cisz') || t.includes('droga')) {
-                          coreScene = 'Eerie infinite empty black road shrouded in impenetrable silent mist, faint cold ambient twilight gradient in the far horizon, solitary stoic mood, minimalist editorial framing';
-                        } else if (t.includes('trening') || t.includes('gym') || t.includes('siłownia')) {
-                          coreScene = 'Ultra-dark minimalist underground training facility, raw iron textures shrouded in heavy moody chiaroscuro shadows, single cold overhead spotlight cutting through atmospheric dust, empty negative space';
+                        let coreScene = "";
+                        if (t.includes("1%") || t.includes("protokół") || t.includes("protokol")) {
+                          coreScene =
+                            "Abstract minimalist dark architecture, razor-thin sliver of cold diffuse light cutting through pure pitch black darkness, matte carbon textures, stark silent geometry, haunting volumetric fog, mysterious liminal perspective";
+                        } else if (
+                          t.includes("ruthless") ||
+                          t.includes("bezwzględ") ||
+                          t.includes("zimn")
+                        ) {
+                          coreScene =
+                            "Ultra-minimalist dark composition, solitary shadowy silhouette standing motionless at the edge of a deep charcoal abyss, cold sharp directional rim lighting, eerie silent atmosphere, mysterious cinematic chiaroscuro";
+                        } else if (
+                          t.includes("poranek") ||
+                          t.includes("rano") ||
+                          t.includes("morning") ||
+                          t.includes("świt") ||
+                          t.includes("bieg")
+                        ) {
+                          coreScene =
+                            "Minimalist moody dark city skyline at 4:30 AM before dawn, thick atmospheric fog rolling over wet asphalt, lone solitary figure in dark trench coat in distance, eerie silence, vast negative space";
+                        } else if (
+                          t.includes("samotn") ||
+                          t.includes("cisz") ||
+                          t.includes("droga")
+                        ) {
+                          coreScene =
+                            "Eerie infinite empty black road shrouded in impenetrable silent mist, faint cold ambient twilight gradient in the far horizon, solitary stoic mood, minimalist editorial framing";
+                        } else if (
+                          t.includes("trening") ||
+                          t.includes("gym") ||
+                          t.includes("siłownia")
+                        ) {
+                          coreScene =
+                            "Ultra-dark minimalist underground training facility, raw iron textures shrouded in heavy moody chiaroscuro shadows, single cold overhead spotlight cutting through atmospheric dust, empty negative space";
                         } else {
                           coreScene = `Abstract minimalist dark void inspired by ${raw}, razor-thin beam of cold diffused light cutting through black atmospheric fog, deep chiaroscuro, matte obsidian textures, generous negative space for overlay`;
                         }
-                        synthesizedPrompt = `${coreScene}, dark stoic aesthetic, high contrast, cinematic dramatic lighting, moody deep shadows, 8k photorealistic, raw texture, vertical ${aspectRatio === '4:5' ? '4:5' : '9:16'} composition, minimalist editorial photography, shot on 35mm lens, strictly no text, no words, no letters, no typography, no watermark`;
+                        synthesizedPrompt = `${coreScene}, dark stoic aesthetic, high contrast, cinematic dramatic lighting, moody deep shadows, 8k photorealistic, raw texture, vertical ${aspectRatio === "4:5" ? "4:5" : "9:16"} composition, minimalist editorial photography, shot on 35mm lens, strictly no text, no words, no letters, no typography, no watermark`;
                       }
 
                       const fullPrompt = synthesizedPrompt;
@@ -1225,7 +1373,7 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
                             onClick={() => {
                               navigator.clipboard.writeText(fullPrompt);
                               setCopiedBgPrompt(true);
-                              setBgNotice('✓ Prompt skopiowany! Wklej go do Bing Image Creator.');
+                              setBgNotice("✓ Prompt skopiowany! Wklej go do Bing Image Creator.");
                               setTimeout(() => {
                                 setCopiedBgPrompt(false);
                                 setBgNotice(null);
@@ -1233,8 +1381,12 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
                             }}
                             className="px-3 py-2 rounded bg-[#38BDF8] text-[#141824] text-xs font-mono font-bold flex items-center gap-1.5 shrink-0 hover:bg-[#38BDF8]/90 transition-colors cursor-pointer"
                           >
-                            {copiedBgPrompt ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                            <span>{copiedBgPrompt ? 'Skopiowano!' : 'Kopiuj Prompt'}</span>
+                            {copiedBgPrompt ? (
+                              <Check className="w-3.5 h-3.5" />
+                            ) : (
+                              <Copy className="w-3.5 h-3.5" />
+                            )}
+                            <span>{copiedBgPrompt ? "Skopiowano!" : "Kopiuj Prompt"}</span>
                           </button>
                         </div>
                       );
@@ -1275,9 +1427,9 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
                             const dataUrl = ev.target?.result as string;
                             if (dataUrl) {
                               const newBg = {
-                                id: 'custom-' + Date.now(),
+                                id: "custom-" + Date.now(),
                                 name: `📁 ${file.name.slice(0, 24)}`,
-                                url: dataUrl
+                                url: dataUrl,
                               };
                               setCustomUploadedBgs((prev) => [newBg, ...prev]);
                               setSelectedBgId(newBg.id);
@@ -1334,6 +1486,64 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
                       />
                     </div>
                   </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t border-[#2C354B]/60">
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                        Zestaw Czcionek Karuzeli (Dedykowane):
+                      </label>
+                      <select
+                        value={fontChoice}
+                        onChange={(e) => setFontChoice(e.target.value as CarouselFontFamily)}
+                        className="w-full text-xs font-bold py-2 px-3 bg-[#141824] border border-[#2C354B] rounded text-[#E2E8F0] focus:border-[#E2E8F0] focus:outline-none font-sans"
+                      >
+                        <option value="plus_jakarta">
+                          Plus Jakarta Sans (Nowoczesna Czystość)
+                        </option>
+                        <option value="cinzel">Cinzel (Klasyczne Cesarstwo Rzymskie)</option>
+                        <option value="cormorant">Cormorant Garamond (Editorial Elegance)</option>
+                        <option value="outfit">Outfit (Geometryczny Stoicki Minimalizm)</option>
+                        <option value="syne">Syne (Mocny Bezwzględny Kontrast)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                        Stały Podpis w Stopce:
+                      </label>
+                      <input
+                        type="text"
+                        value={footerSignature}
+                        onChange={(e) => setFooterSignature(e.target.value)}
+                        placeholder="THE UNFORGIVING STANDARD"
+                        className="w-full text-xs font-mono py-2 px-3 bg-[#141824] border border-[#2C354B] rounded text-white focus:border-[#E2E8F0] focus:outline-none uppercase"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-[#2C354B]/60">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                      Styl Karuzeli (Płynność):
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setIsContinuous((prev) => !prev)}
+                      className={`w-full text-xs font-bold py-2 px-3 rounded border text-left flex items-center justify-between cursor-pointer transition-all ${
+                        isContinuous
+                          ? "bg-[#141824] border-[#10B981] text-[#10B981]"
+                          : "bg-[#141824] border-[#2C354B] text-slate-300"
+                      }`}
+                    >
+                      <span>
+                        {isContinuous
+                          ? "Karuzela Ciągła (Seamless — płynne krawędzie slajdów)"
+                          : "Slajdy Osobne (Klasyczne — niezależne slajdy)"}
+                      </span>
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-black/40">
+                        {isContinuous ? "AKTYWNA" : "WYŁ"}
+                      </span>
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -1350,7 +1560,9 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
                 </button>
                 <button
                   disabled={currentSlideIndex === slides.length - 1}
-                  onClick={() => setCurrentSlideIndex((prev) => Math.min(slides.length - 1, prev + 1))}
+                  onClick={() =>
+                    setCurrentSlideIndex((prev) => Math.min(slides.length - 1, prev + 1))
+                  }
                   className="px-3 py-1.5 rounded-sm bg-[#1D2333] border border-[#2C354B] text-xs font-bold text-white hover:border-[#38BDF8] disabled:opacity-40 flex items-center gap-1 transition-all cursor-pointer"
                 >
                   Następny <ChevronRight className="w-4 h-4" />
@@ -1377,7 +1589,9 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
                   className="px-4 py-2 rounded-sm bg-[#38BDF8] hover:bg-[#38BDF8]/90 text-[#141824] font-black text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-md transition-colors cursor-pointer disabled:opacity-50"
                 >
                   <FolderArchive className="w-4 h-4" />
-                  {isExportingZip ? 'Pakowanie ZIP...' : `Eksportuj Wszystkie (${slides.length} PNG w ZIP)`}
+                  {isExportingZip
+                    ? "Pakowanie ZIP..."
+                    : `Eksportuj Wszystkie (${slides.length} PNG w ZIP)`}
                 </button>
               </div>
             </div>
@@ -1391,7 +1605,7 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
             </div>
 
             <div className="absolute top-3 right-3 text-[10px] font-mono text-[#38BDF8] border border-[#38BDF8]/40 px-1.5 py-0.5 rounded-xs">
-              {aspectRatio === '4:5' ? '1080 × 1350' : '1080 × 1920'}
+              {aspectRatio === "4:5" ? "1080 × 1350" : "1080 × 1920"}
             </div>
 
             <div className="w-full flex items-center justify-center py-3">
@@ -1414,7 +1628,12 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
               <div className="flex items-center gap-1">
                 <button
                   type="button"
-                  onClick={() => handleUpdateSlide('textOffsetY', (slides[currentSlideIndex]?.textOffsetY || 0) - 15)}
+                  onClick={() =>
+                    handleUpdateSlide(
+                      "textOffsetY",
+                      (slides[currentSlideIndex]?.textOffsetY || 0) - 15,
+                    )
+                  }
                   className="px-2 py-1 bg-[#1D2333] hover:bg-[#2C354B] text-white rounded border border-[#2C354B] text-[10px] cursor-pointer"
                   title="Przesuń tekst o 15px w górę"
                 >
@@ -1422,7 +1641,7 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleUpdateSlide('textOffsetY', 0)}
+                  onClick={() => handleUpdateSlide("textOffsetY", 0)}
                   className="px-2 py-1 bg-[#1D2333] hover:bg-[#2C354B] text-[#38BDF8] rounded border border-[#2C354B] text-[10px] cursor-pointer"
                   title="Wyzeruj przesunięcie tekstu"
                 >
@@ -1430,7 +1649,12 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleUpdateSlide('textOffsetY', (slides[currentSlideIndex]?.textOffsetY || 0) + 15)}
+                  onClick={() =>
+                    handleUpdateSlide(
+                      "textOffsetY",
+                      (slides[currentSlideIndex]?.textOffsetY || 0) + 15,
+                    )
+                  }
                   className="px-2 py-1 bg-[#1D2333] hover:bg-[#2C354B] text-white rounded border border-[#2C354B] text-[10px] cursor-pointer"
                   title="Przesuń tekst o 15px w dół"
                 >
@@ -1440,19 +1664,69 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
             </div>
 
             <div className="w-full flex items-center justify-between text-[11px] font-mono text-slate-400 pt-2 border-t border-[#2C354B]/60">
-              <span>Motyw: <strong className="text-white">{activeThemeConfig.name}</strong></span>
               <span>
-                Logo:{' '}
-                <strong className="text-[#38BDF8]">
-                  {logoPlacement === 'background_watermark'
-                    ? '1. Znak wodny w tle'
-                    : logoPlacement === 'bottom_under'
-                    ? '2. Na dole'
-                    : logoPlacement === 'top_left'
-                    ? '3. U góry'
-                    : 'Brak logo'}
-                </strong>
+                Motyw: <strong className="text-white">{activeThemeConfig.name}</strong>
               </span>
+              <span>
+                Czcionka: <strong className="text-[#38BDF8]">{fontChoice}</strong> •{" "}
+                {isContinuous ? "Ciągła" : "Osobna"}
+              </span>
+            </div>
+
+            {/* Pozioma taśma miniaturek wszystkich slajdów na dole podglądu */}
+            <div className="w-full pt-2.5 mt-2 border-t border-[#2C354B]/60 flex flex-col gap-1.5">
+              <div className="flex items-center justify-between text-[10px] font-mono text-slate-400">
+                <span>TAŚMA SLAJDÓW ({slides.length}):</span>
+                <span className="text-[#38BDF8]">Aktywny: #{currentSlideIndex + 1}</span>
+              </div>
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
+                {slides.map((s, idx) => {
+                  const isCurrent = idx === currentSlideIndex;
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setCurrentSlideIndex(idx)}
+                      className={`group relative shrink-0 w-16 h-20 rounded border p-1 flex flex-col justify-between text-left transition-all cursor-pointer ${
+                        isCurrent
+                          ? "bg-[#1E293B] border-[#38BDF8] ring-1 ring-[#38BDF8] shadow-md shadow-[#38BDF8]/20"
+                          : "bg-[#141824] border-[#2C354B] hover:border-slate-400 opacity-75 hover:opacity-100"
+                      }`}
+                      title={`Przejdź do slajdu ${idx + 1}: ${s.headline || "Bez tytułu"}`}
+                    >
+                      <div className="flex items-center justify-between w-full">
+                        <span
+                          className={`text-[8px] font-mono px-1 py-0.2 rounded ${
+                            isCurrent
+                              ? "bg-[#38BDF8] text-[#141824] font-black"
+                              : "bg-black/60 text-slate-300 font-bold"
+                          }`}
+                        >
+                          #{idx + 1}
+                        </span>
+                        {idx === 0 && (
+                          <span className="text-[7px] font-mono text-[#38BDF8] uppercase font-bold">
+                            HOOK
+                          </span>
+                        )}
+                        {idx === slides.length - 1 && (
+                          <span className="text-[7px] font-mono text-amber-400 uppercase font-bold">
+                            CTA
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[7px] font-bold text-white line-clamp-2 leading-tight uppercase font-mono">
+                        {s.headline || "SLAJD"}
+                      </p>
+                      <div className="w-full h-0.5 rounded-full bg-slate-700 overflow-hidden">
+                        <div
+                          className={`h-full ${isCurrent ? "bg-[#38BDF8]" : "bg-transparent"}`}
+                        />
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>

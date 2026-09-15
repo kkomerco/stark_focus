@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef } from "react";
 import {
   Sparkles,
   Copy,
@@ -12,9 +12,9 @@ import {
   Palette,
   Wand2,
   RefreshCw,
-  AlertTriangle
-} from 'lucide-react';
-import { StarkFocusData, VaultAsset, SlideData } from '../../types';
+  AlertTriangle,
+} from "lucide-react";
+import { StarkFocusData, VaultAsset, SlideData } from "../../types";
 
 interface VaultTabProps {
   data: StarkFocusData;
@@ -34,46 +34,63 @@ interface PromptPreset {
 
 const MINIMALIST_MYSTERIOUS_PRESETS: PromptPreset[] = [
   {
-    id: 'void_light',
-    name: '1. 🌫️ Promień w Pustce',
-    motif: 'Ultra-minimalist pitch black infinite void, razor-thin single beam of cold diffuse directional light cutting through dense atmosphere, mysterious enigmatic moody darkness, subtle volumetric haze, vast negative space for typography overlay',
-    description: 'Czysta tajemnica i głęboka czerń. Brak rozpraszaczy, doskonałe pod biały tekst w rolkach i karuzelach.'
+    id: "void_light",
+    name: "1. 🌫️ Promień w Pustce",
+    motif:
+      "Ultra-minimalist pitch black infinite void, razor-thin single beam of cold diffuse directional light cutting through dense atmosphere, mysterious enigmatic moody darkness, subtle volumetric haze, vast negative space for typography overlay",
+    description:
+      "Czysta tajemnica i głęboka czerń. Brak rozpraszaczy, doskonałe pod biały tekst w rolkach i karuzelach.",
   },
   {
-    id: 'abstract_geometry',
-    name: '2. 🏛️ Geometria Cienia',
-    motif: 'Abstract minimalist dark architecture, sharp geometric chiaroscuro shadow intersecting smooth matte carbon surfaces, eerie silent atmosphere, mysterious twilight gradient, brutalist clean composition',
-    description: 'Surowe geometryczne płaszczyzny, głębokie grafitowe cienie i chłodne światło studyjne.'
+    id: "abstract_geometry",
+    name: "2. 🏛️ Geometria Cienia",
+    motif:
+      "Abstract minimalist dark architecture, sharp geometric chiaroscuro shadow intersecting smooth matte carbon surfaces, eerie silent atmosphere, mysterious twilight gradient, brutalist clean composition",
+    description:
+      "Surowe geometryczne płaszczyzny, głębokie grafitowe cienie i chłodne światło studyjne.",
   },
   {
-    id: 'foggy_horizon',
-    name: '3. 🌌 Horyzont w Mgle',
-    motif: 'Minimalist enigmatic dark horizon shrouded in heavy silent fog, lone subtle silhouette dissolving into cold atmospheric mist, vast negative space, haunting cinematic mood, clean contrast',
-    description: 'Metafora samotnej drogi i ciszy o świcie. Głębia, tajemnica i przestrzeń negatywna.'
+    id: "foggy_horizon",
+    name: "3. 🌌 Horyzont w Mgle",
+    motif:
+      "Minimalist enigmatic dark horizon shrouded in heavy silent fog, lone subtle silhouette dissolving into cold atmospheric mist, vast negative space, haunting cinematic mood, clean contrast",
+    description:
+      "Metafora samotnej drogi i ciszy o świcie. Głębia, tajemnica i przestrzeń negatywna.",
   },
   {
-    id: 'matte_void',
-    name: '4. ⬛ Mroczna Pustka Mineralna',
-    motif: 'Deep matte obsidian and charcoal raw mineral textures with soft dark vignette, mysterious ambient shadows, ultra-clean negative space for text overlay, cinematic editorial depth',
-    description: 'Matowa, głęboka czerń z organicznym mineralnym ziarnem. Bezwzględny minimalizm.'
-  }
+    id: "matte_void",
+    name: "4. ⬛ Mroczna Pustka Mineralna",
+    motif:
+      "Deep matte obsidian and charcoal raw mineral textures with soft dark vignette, mysterious ambient shadows, ultra-clean negative space for text overlay, cinematic editorial depth",
+    description: "Matowa, głęboka czerń z organicznym mineralnym ziarnem. Bezwzględny minimalizm.",
+  },
 ];
 
 // Inteligentny generator wizualny w j. angielskim dla haseł użytkownika (bez wklejania haseł jako tekstu na grafikę!)
 function synthesizeVisualPrompt(topic: string): string {
   const t = topic.trim().toLowerCase();
-  let scene = '';
+  let scene = "";
 
-  if (t.includes('1%') || t.includes('protokół') || t.includes('protokol')) {
-    scene = 'Abstract minimalist dark architecture, razor-thin sliver of cold diffuse light cutting through pure pitch black darkness, matte carbon textures, stark silent geometry, haunting volumetric fog, mysterious liminal perspective';
-  } else if (t.includes('ruthless') || t.includes('bezwzględ') || t.includes('zimn')) {
-    scene = 'Ultra-minimalist dark composition, solitary shadowy silhouette standing motionless at the edge of a deep charcoal abyss, cold sharp directional rim lighting, eerie silent atmosphere, mysterious cinematic chiaroscuro';
-  } else if (t.includes('poranek') || t.includes('rano') || t.includes('morning') || t.includes('świt')) {
-    scene = 'Minimalist moody dark city skyline at 4:30 AM before dawn, thick atmospheric fog rolling over wet asphalt, lone solitary figure in dark trench coat in distance, eerie silence, vast negative space';
-  } else if (t.includes('samotn') || t.includes('cisz') || t.includes('droga')) {
-    scene = 'Eerie infinite empty black road shrouded in impenetrable silent mist, faint cold ambient twilight gradient in the far horizon, solitary stoic mood, minimalist editorial framing';
-  } else if (t.includes('monolit') || t.includes('kamień') || t.includes('stone')) {
-    scene = 'Abstract minimalist dark geometric monolith silhouette shrouded in heavy cold fog, subtle rim light from behind, pure void, brutalist raw slate texture';
+  if (t.includes("1%") || t.includes("protokół") || t.includes("protokol")) {
+    scene =
+      "Abstract minimalist dark architecture, razor-thin sliver of cold diffuse light cutting through pure pitch black darkness, matte carbon textures, stark silent geometry, haunting volumetric fog, mysterious liminal perspective";
+  } else if (t.includes("ruthless") || t.includes("bezwzględ") || t.includes("zimn")) {
+    scene =
+      "Ultra-minimalist dark composition, solitary shadowy silhouette standing motionless at the edge of a deep charcoal abyss, cold sharp directional rim lighting, eerie silent atmosphere, mysterious cinematic chiaroscuro";
+  } else if (
+    t.includes("poranek") ||
+    t.includes("rano") ||
+    t.includes("morning") ||
+    t.includes("świt")
+  ) {
+    scene =
+      "Minimalist moody dark city skyline at 4:30 AM before dawn, thick atmospheric fog rolling over wet asphalt, lone solitary figure in dark trench coat in distance, eerie silence, vast negative space";
+  } else if (t.includes("samotn") || t.includes("cisz") || t.includes("droga")) {
+    scene =
+      "Eerie infinite empty black road shrouded in impenetrable silent mist, faint cold ambient twilight gradient in the far horizon, solitary stoic mood, minimalist editorial framing";
+  } else if (t.includes("monolit") || t.includes("kamień") || t.includes("stone")) {
+    scene =
+      "Abstract minimalist dark geometric monolith silhouette shrouded in heavy cold fog, subtle rim light from behind, pure void, brutalist raw slate texture";
   } else {
     scene = `Abstract minimalist dark void inspired by the feeling of ${topic}, razor-thin beam of cold diffused light cutting through black atmospheric fog, deep chiaroscuro, matte obsidian textures, generous negative space for overlay`;
   }
@@ -85,37 +102,39 @@ export const VaultTab: React.FC<VaultTabProps> = ({
   data,
   onUpdateData,
   onOpenCarouselStudio,
-  onOpenVideoStudio
+  onOpenVideoStudio,
 }) => {
   // 1. Generator Promptów Bing / DALL-E (Format 9:16)
-  const [selectedPreset, setSelectedPreset] = useState<PromptPreset>(MINIMALIST_MYSTERIOUS_PRESETS[0]);
-  const [customSubject, setCustomSubject] = useState<string>('');
+  const [selectedPreset, setSelectedPreset] = useState<PromptPreset>(
+    MINIMALIST_MYSTERIOUS_PRESETS[0],
+  );
+  const [customSubject, setCustomSubject] = useState<string>("");
   const [aiCustomPrompt, setAiCustomPrompt] = useState<string | null>(null);
   const [isGeneratingAiPrompt, setIsGeneratingAiPrompt] = useState<boolean>(false);
   const [copiedPrompt, setCopiedPrompt] = useState<boolean>(false);
 
   // 2. Biblioteka Teł - Wgrywanie
-  const [newBgName, setNewBgName] = useState<string>('');
-  const [newBgUrl, setNewBgUrl] = useState<string>('');
+  const [newBgName, setNewBgName] = useState<string>("");
+  const [newBgUrl, setNewBgUrl] = useState<string>("");
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState<boolean>(false);
 
   // Filtrowanie grafik tła
-  const bgAssets = data.vault_assets.filter((a) => a.type === 'bg' || !a.type);
+  const bgAssets = data.vault_assets.filter((a) => a.type === "bg" || !a.type);
 
   // Budowanie pełnego promptu w j. angielskim dla DALL-E / Bing
   const fullBingPrompt = aiCustomPrompt
     ? aiCustomPrompt
     : customSubject.trim()
-    ? synthesizeVisualPrompt(customSubject)
-    : `${selectedPreset.motif}, dark stoic aesthetic, high contrast, cinematic dramatic lighting, moody deep shadows, 8k photorealistic, raw texture, vertical 9:16 composition, minimalist editorial photography, shot on 35mm lens, strictly no text, no watermark, no typography`;
+      ? synthesizeVisualPrompt(customSubject)
+      : `${selectedPreset.motif}, dark stoic aesthetic, high contrast, cinematic dramatic lighting, moody deep shadows, 8k photorealistic, raw texture, vertical 9:16 composition, minimalist editorial photography, shot on 35mm lens, strictly no text, no watermark, no typography`;
 
   const handleCopyPrompt = () => {
     navigator.clipboard.writeText(fullBingPrompt);
     setCopiedPrompt(true);
-    setToastMessage('✓ Prompt skopiowany! Możesz wkleić go w Bing Image Creator.');
+    setToastMessage("✓ Prompt skopiowany! Możesz wkleić go w Bing Image Creator.");
     setTimeout(() => {
       setCopiedPrompt(false);
       setToastMessage(null);
@@ -126,16 +145,16 @@ export const VaultTab: React.FC<VaultTabProps> = ({
     if (!customSubject.trim()) return;
     setIsGeneratingAiPrompt(true);
     try {
-      const res = await fetch('/api/ai/generate-background-prompt', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ topic: customSubject.trim() })
+      const res = await fetch("/api/ai/generate-background-prompt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topic: customSubject.trim() }),
       });
       if (res.ok) {
         const json = await res.json();
         if (json?.prompt) {
           setAiCustomPrompt(json.prompt);
-          setToastMessage('✓ Wygenerowano unikalny prompt wizualny AI!');
+          setToastMessage("✓ Wygenerowano unikalny prompt wizualny AI!");
           setTimeout(() => setToastMessage(null), 3000);
           return;
         }
@@ -155,21 +174,21 @@ export const VaultTab: React.FC<VaultTabProps> = ({
 
     const filename = newBgName.trim() || `Tło_${Date.now().toString().slice(-4)}.jpg`;
     const newAsset: VaultAsset = {
-      id: 'bg-' + Date.now(),
+      id: "bg-" + Date.now(),
       filename,
-      type: 'bg',
+      type: "bg",
       url: newBgUrl.trim(),
-      created_date: new Date().toISOString().split('T')[0]
+      created_date: new Date().toISOString().split("T")[0],
     };
 
     onUpdateData((prev) => ({
       ...prev,
-      vault_assets: [newAsset, ...prev.vault_assets]
+      vault_assets: [newAsset, ...prev.vault_assets],
     }));
 
-    setNewBgName('');
-    setNewBgUrl('');
-    setToastMessage('✓ Dodano grafikę do biblioteki!');
+    setNewBgName("");
+    setNewBgUrl("");
+    setToastMessage("✓ Dodano grafikę do biblioteki!");
     setTimeout(() => setToastMessage(null), 3000);
   };
 
@@ -182,16 +201,16 @@ export const VaultTab: React.FC<VaultTabProps> = ({
     reader.onload = (event) => {
       const dataUrl = event.target?.result as string;
       const newAsset: VaultAsset = {
-        id: 'bg-' + Date.now(),
-        filename: file.name.replace(/\.[^/.]+$/, ''),
-        type: 'bg',
+        id: "bg-" + Date.now(),
+        filename: file.name.replace(/\.[^/.]+$/, ""),
+        type: "bg",
         url: dataUrl,
-        created_date: new Date().toISOString().split('T')[0]
+        created_date: new Date().toISOString().split("T")[0],
       };
 
       onUpdateData((prev) => ({
         ...prev,
-        vault_assets: [newAsset, ...prev.vault_assets]
+        vault_assets: [newAsset, ...prev.vault_assets],
       }));
 
       setIsUploading(false);
@@ -201,30 +220,30 @@ export const VaultTab: React.FC<VaultTabProps> = ({
 
     reader.onerror = () => {
       setIsUploading(false);
-      setToastMessage('Błąd odczytu pliku.');
+      setToastMessage("Błąd odczytu pliku.");
       setTimeout(() => setToastMessage(null), 3000);
     };
 
     reader.readAsDataURL(file);
-    e.target.value = '';
+    e.target.value = "";
   };
 
   const handleDeleteBg = (id: string) => {
     onUpdateData((prev) => ({
       ...prev,
-      vault_assets: prev.vault_assets.filter((a) => a.id !== id)
+      vault_assets: prev.vault_assets.filter((a) => a.id !== id),
     }));
-    setToastMessage('✓ Usunięto grafikę.');
+    setToastMessage("✓ Usunięto grafikę.");
     setTimeout(() => setToastMessage(null), 2000);
   };
 
   const handleClearAllBgs = () => {
     onUpdateData((prev) => ({
       ...prev,
-      vault_assets: prev.vault_assets.filter((a) => a.type !== 'bg' && a.type)
+      vault_assets: prev.vault_assets.filter((a) => a.type !== "bg" && a.type),
     }));
     setShowClearConfirm(false);
-    setToastMessage('✓ Wyszczyszczono całą bibliotekę teł.');
+    setToastMessage("✓ Wyszczyszczono całą bibliotekę teł.");
     setTimeout(() => setToastMessage(null), 2500);
   };
 
@@ -288,7 +307,9 @@ export const VaultTab: React.FC<VaultTabProps> = ({
       <div className="bg-[#1D2333] border border-[#2C354B] rounded-xl p-4 sm:p-5 shadow-sm space-y-4">
         <div className="flex items-center justify-between border-b border-[#2C354B] pb-2.5">
           <div className="flex items-center gap-2">
-            <span className="p-1 rounded bg-[#38BDF8]/20 text-[#38BDF8] font-bold text-xs font-mono">1</span>
+            <span className="p-1 rounded bg-[#38BDF8]/20 text-[#38BDF8] font-bold text-xs font-mono">
+              1
+            </span>
             <h3 className="text-xs sm:text-sm font-bold text-white uppercase font-mono tracking-wider">
               Generator Zagadkowych Promptów Bing / DALL-E (Format 9:16)
             </h3>
@@ -312,13 +333,13 @@ export const VaultTab: React.FC<VaultTabProps> = ({
               type="button"
               onClick={() => {
                 setSelectedPreset(preset);
-                setCustomSubject('');
+                setCustomSubject("");
                 setAiCustomPrompt(null);
               }}
               className={`p-3 rounded-lg text-left transition-all border font-mono cursor-pointer flex flex-col justify-between ${
                 selectedPreset.id === preset.id && !customSubject && !aiCustomPrompt
-                  ? 'bg-[#141824] border-[#38BDF8] shadow-sm ring-1 ring-[#38BDF8]/40'
-                  : 'bg-[#141824]/60 border-[#2C354B] hover:border-slate-500'
+                  ? "bg-[#141824] border-[#38BDF8] shadow-sm ring-1 ring-[#38BDF8]/40"
+                  : "bg-[#141824]/60 border-[#2C354B] hover:border-slate-500"
               }`}
             >
               <div>
@@ -328,7 +349,9 @@ export const VaultTab: React.FC<VaultTabProps> = ({
                 </div>
               </div>
               <span className="text-[9px] text-[#38BDF8] font-bold uppercase mt-2 block">
-                {selectedPreset.id === preset.id && !customSubject && !aiCustomPrompt ? '✓ Aktywny styl' : 'Wybierz styl'}
+                {selectedPreset.id === preset.id && !customSubject && !aiCustomPrompt
+                  ? "✓ Aktywny styl"
+                  : "Wybierz styl"}
               </span>
             </button>
           ))}
@@ -344,7 +367,7 @@ export const VaultTab: React.FC<VaultTabProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  setCustomSubject('');
+                  setCustomSubject("");
                   setAiCustomPrompt(null);
                 }}
                 className="text-[10px] text-slate-400 hover:text-white font-mono cursor-pointer"
@@ -387,7 +410,8 @@ export const VaultTab: React.FC<VaultTabProps> = ({
           </div>
 
           <p className="text-[10px] text-slate-400 font-mono">
-            💡 AI przekształca Twoje słowa w chłodną, kinową kompozycję z przestrzenią negatywną, wymuszając brak tekstu i znaków wodnych.
+            💡 AI przekształca Twoje słowa w chłodną, kinową kompozycję z przestrzenią negatywną,
+            wymuszając brak tekstu i znaków wodnych.
           </p>
         </div>
 
@@ -426,7 +450,9 @@ export const VaultTab: React.FC<VaultTabProps> = ({
       <div className="bg-[#1D2333] border border-[#2C354B] rounded-xl p-4 sm:p-5 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#2C354B] pb-2.5">
           <div className="flex items-center gap-2">
-            <span className="p-1 rounded bg-[#38BDF8]/20 text-[#38BDF8] font-bold text-xs font-mono">2</span>
+            <span className="p-1 rounded bg-[#38BDF8]/20 text-[#38BDF8] font-bold text-xs font-mono">
+              2
+            </span>
             <h3 className="text-xs sm:text-sm font-bold text-white uppercase font-mono tracking-wider">
               Twoja Biblioteka Teł & Zdjęć ({bgAssets.length})
             </h3>
@@ -540,7 +566,9 @@ export const VaultTab: React.FC<VaultTabProps> = ({
               ✓ Biblioteka jest czysta (brak sztywnych teł).
             </p>
             <p className="text-[11px] text-slate-400 font-mono max-w-md mx-auto">
-              Skopiuj prompt z sekcji 1, wygeneruj minimalistyczne tło w Bing Image Creator i dodaj je powyżej (plik z dysku lub link URL). Będzie ono natychmiast dostępne do wyboru w Studio Karuzeli i Studio Wideo.
+              Skopiuj prompt z sekcji 1, wygeneruj minimalistyczne tło w Bing Image Creator i dodaj
+              je powyżej (plik z dysku lub link URL). Będzie ono natychmiast dostępne do wyboru w
+              Studio Karuzeli i Studio Wideo.
             </p>
           </div>
         ) : (
@@ -583,7 +611,14 @@ export const VaultTab: React.FC<VaultTabProps> = ({
                     {onOpenCarouselStudio && (
                       <button
                         type="button"
-                        onClick={() => onOpenCarouselStudio(asset.filename, [{ headline: asset.filename.toUpperCase(), bodyText: 'Execute in silence.' }])}
+                        onClick={() =>
+                          onOpenCarouselStudio(asset.filename, [
+                            {
+                              headline: asset.filename.toUpperCase(),
+                              bodyText: "Execute in silence.",
+                            },
+                          ])
+                        }
                         className="py-1 px-1.5 rounded bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 border border-purple-500/30 text-[10px] font-mono font-bold uppercase transition-all flex items-center justify-center gap-1 cursor-pointer"
                         title="Użyj w Studio Karuzeli"
                       >

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   X,
   Download,
@@ -21,9 +21,9 @@ import {
   Palette,
   Eye,
   Type,
-  Video
-} from 'lucide-react';
-import { VisualTheme, SlideData } from '../types';
+  Video,
+} from "lucide-react";
+import { VisualTheme, SlideData } from "../types";
 
 export interface InspirationSourceData {
   title: string;
@@ -48,7 +48,6 @@ interface InspirationGraphicModalProps {
     format: string;
     asset: string;
     caption: string;
-    status: 'draft' | 'scheduled';
   }) => void;
   onOpenCarouselStudio?: (title?: string, slides?: SlideData[]) => void;
   onOpenVideoStudio?: (hookText?: string, bgUrl?: string) => void;
@@ -56,10 +55,10 @@ interface InspirationGraphicModalProps {
 }
 
 export type ViralSchemeId =
-  | 'rapid_cut_broll' // Rolka ze zmieniającym się tłem co 0.5s z napisem na środku
-  | 'black_quote_highlight' // Czarne tło z cytatem na środku i wyróżnionymi słowami
-  | 'cinematic_zoom_7s' // Kinowy najazd 7s z wyśrodkowanym hookiem
-  | 'typewriter_reveal'; // Maszyna do pisania na czerni
+  | "rapid_cut_broll" // Rolka ze zmieniającym się tłem co 0.5s z napisem na środku
+  | "black_quote_highlight" // Czarne tło z cytatem na środku i wyróżnionymi słowami
+  | "cinematic_zoom_7s" // Kinowy najazd 7s z wyśrodkowanym hookiem
+  | "typewriter_reveal"; // Maszyna do pisania na czerni
 
 export interface BrollMotif {
   id: string;
@@ -69,75 +68,75 @@ export interface BrollMotif {
   images: string[];
 }
 
-export const BROLL_MOTIFS: BrollMotif[] = [
+const BROLL_MOTIFS: BrollMotif[] = [
   {
-    id: 'statues',
-    name: '🏛️ Stoickie Rzeźby & Marmur',
-    badge: 'Marek Aureliusz & Bazalt',
-    description: 'Starożytne popiersia z ciemnego marmuru, monolity i dramatyczny światłocień.',
+    id: "statues",
+    name: "🏛️ Stoickie Rzeźby & Marmur",
+    badge: "Marek Aureliusz & Bazalt",
+    description: "Starożytne popiersia z ciemnego marmuru, monolity i dramatyczny światłocień.",
     images: [
-      '/backgrounds/stark_dark_monolith.jpg',
-      '/backgrounds/stark_noir_studio.jpg',
-      '/backgrounds/stark_void_horizon.jpg',
-      'https://images.unsplash.com/photo-1549887534-1541e9326642?w=1080&auto=format&fit=crop&q=80',
-      'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?w=1080&auto=format&fit=crop&q=80',
-      'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?w=1080&auto=format&fit=crop&q=80'
-    ]
+      "/backgrounds/stark_dark_monolith.jpg",
+      "/backgrounds/stark_noir_studio.jpg",
+      "/backgrounds/stark_void_horizon.jpg",
+      "https://images.unsplash.com/photo-1549887534-1541e9326642?w=1080&auto=format&fit=crop&q=80",
+      "https://images.unsplash.com/photo-1579783902614-a3fb3927b675?w=1080&auto=format&fit=crop&q=80",
+      "https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?w=1080&auto=format&fit=crop&q=80",
+    ],
   },
   {
-    id: 'gym',
-    name: '🏋️ Siłownia, Żelazo & Pot',
-    badge: 'Brutalny Trening w Mroku',
-    description: 'Ciężary w mroku, magnezja, pot i bezkompromisowa dyscyplina fizyczna.',
+    id: "gym",
+    name: "🏋️ Siłownia, Żelazo & Pot",
+    badge: "Brutalny Trening w Mroku",
+    description: "Ciężary w mroku, magnezja, pot i bezkompromisowa dyscyplina fizyczna.",
     images: [
-      'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=1080&auto=format&fit=crop&q=80',
-      'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=1080&auto=format&fit=crop&q=80',
-      'https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?w=1080&auto=format&fit=crop&q=80',
-      'https://images.unsplash.com/photo-1526506118085-60ce8714f8c5?w=1080&auto=format&fit=crop&q=80',
-      '/backgrounds/stark_matte_carbon.jpg',
-      'https://images.unsplash.com/photo-1574680096145-d05b474e2155?w=1080&auto=format&fit=crop&q=80'
-    ]
+      "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=1080&auto=format&fit=crop&q=80",
+      "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=1080&auto=format&fit=crop&q=80",
+      "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?w=1080&auto=format&fit=crop&q=80",
+      "https://images.unsplash.com/photo-1526506118085-60ce8714f8c5?w=1080&auto=format&fit=crop&q=80",
+      "/backgrounds/stark_matte_carbon.jpg",
+      "https://images.unsplash.com/photo-1574680096145-d05b474e2155?w=1080&auto=format&fit=crop&q=80",
+    ],
   },
   {
-    id: 'rain_city',
-    name: '🌧️ Nocne Miasto & Deszcz',
-    badge: 'Ciemne Wieżowce & Mrok',
-    description: 'Deszcz na szybach, neonowe odbicia, puste ulice o 4:00 nad ranem.',
+    id: "rain_city",
+    name: "🌧️ Nocne Miasto & Deszcz",
+    badge: "Ciemne Wieżowce & Mrok",
+    description: "Deszcz na szybach, neonowe odbicia, puste ulice o 4:00 nad ranem.",
     images: [
-      'https://images.unsplash.com/photo-1514565131-fce0801e5785?w=1080&auto=format&fit=crop&q=80',
-      'https://images.unsplash.com/photo-1519501025264-65ba15a82390?w=1080&auto=format&fit=crop&q=80',
-      'https://images.unsplash.com/photo-1509114397022-ed747cca3f65?w=1080&auto=format&fit=crop&q=80',
-      'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=1080&auto=format&fit=crop&q=80',
-      '/backgrounds/stark_brutalist_slit.jpg'
-    ]
+      "https://images.unsplash.com/photo-1514565131-fce0801e5785?w=1080&auto=format&fit=crop&q=80",
+      "https://images.unsplash.com/photo-1519501025264-65ba15a82390?w=1080&auto=format&fit=crop&q=80",
+      "https://images.unsplash.com/photo-1509114397022-ed747cca3f65?w=1080&auto=format&fit=crop&q=80",
+      "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=1080&auto=format&fit=crop&q=80",
+      "/backgrounds/stark_brutalist_slit.jpg",
+    ],
   },
   {
-    id: 'boxing',
-    name: '🥊 Boks & Cienie Wojowników',
-    badge: 'Skupienie & Walka w Mroku',
-    description: 'Cienie w ringu, bandaże, rękawice bokserskie i surowy instynkt przetrwania.',
+    id: "boxing",
+    name: "🥊 Boks & Cienie Wojowników",
+    badge: "Skupienie & Walka w Mroku",
+    description: "Cienie w ringu, bandaże, rękawice bokserskie i surowy instynkt przetrwania.",
     images: [
-      'https://images.unsplash.com/photo-1549719386-74dfcbf7dbed?w=1080&auto=format&fit=crop&q=80',
-      'https://images.unsplash.com/photo-1509563423082-f198103c8060?w=1080&auto=format&fit=crop&q=80',
-      'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=1080&auto=format&fit=crop&q=80',
-      '/backgrounds/stark_dark_monolith.jpg'
-    ]
+      "https://images.unsplash.com/photo-1549719386-74dfcbf7dbed?w=1080&auto=format&fit=crop&q=80",
+      "https://images.unsplash.com/photo-1509563423082-f198103c8060?w=1080&auto=format&fit=crop&q=80",
+      "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=1080&auto=format&fit=crop&q=80",
+      "/backgrounds/stark_dark_monolith.jpg",
+    ],
   },
   {
-    id: 'nature_fog',
-    name: '🌲 Mglisty Las & Samotność',
-    badge: 'Cisza & Surowa Natura',
-    description: 'Gęsta mgła pośród sosen, zimny górski szczyt, surowa samotność.',
+    id: "nature_fog",
+    name: "🌲 Mglisty Las & Samotność",
+    badge: "Cisza & Surowa Natura",
+    description: "Gęsta mgła pośród sosen, zimny górski szczyt, surowa samotność.",
     images: [
-      'https://images.unsplash.com/photo-1511497584788-87676104235f?w=1080&auto=format&fit=crop&q=80',
-      'https://images.unsplash.com/photo-1448375240586-882707db888b?w=1080&auto=format&fit=crop&q=80',
-      '/backgrounds/stark_void_horizon.jpg',
-      'https://images.unsplash.com/photo-1519681393784-d120267933ba?w=1080&auto=format&fit=crop&q=80'
-    ]
-  }
+      "https://images.unsplash.com/photo-1511497584788-87676104235f?w=1080&auto=format&fit=crop&q=80",
+      "https://images.unsplash.com/photo-1448375240586-882707db888b?w=1080&auto=format&fit=crop&q=80",
+      "/backgrounds/stark_void_horizon.jpg",
+      "https://images.unsplash.com/photo-1519681393784-d120267933ba?w=1080&auto=format&fit=crop&q=80",
+    ],
+  },
 ];
 
-export const SCHEME_DEFINITIONS: Array<{
+const SCHEME_DEFINITIONS: Array<{
   id: ViralSchemeId;
   name: string;
   badge: string;
@@ -145,73 +144,77 @@ export const SCHEME_DEFINITIONS: Array<{
   icon: string;
 }> = [
   {
-    id: 'rapid_cut_broll',
-    name: 'Rolka ze zmieniającym się tłem',
-    badge: 'Rapid Cut 0.5s',
-    desc: 'W tle seria ujęć zmieniających się co 0.5s w spójnym motywie + wyśrodkowany napis z podświetleniem.',
-    icon: '⚡'
+    id: "rapid_cut_broll",
+    name: "Rolka ze zmieniającym się tłem",
+    badge: "Rapid Cut 0.5s",
+    desc: "W tle seria ujęć zmieniających się co 0.5s w spójnym motywie + wyśrodkowany napis z podświetleniem.",
+    icon: "⚡",
   },
   {
-    id: 'black_quote_highlight',
-    name: 'Czarne tło z cytatem i wyróżnieniem',
-    badge: 'Obsidian Quote',
-    desc: 'Czysta głęboka czerń OLED lub subtelny dym + potężny cytat z 1-2 słowami w kolorze akcentu.',
-    icon: '♟️'
+    id: "black_quote_highlight",
+    name: "Czarne tło z cytatem i wyróżnieniem",
+    badge: "Obsidian Quote",
+    desc: "Czysta głęboka czerń OLED lub subtelny dym + potężny cytat z 1-2 słowami w kolorze akcentu.",
+    icon: "♟️",
   },
   {
-    id: 'cinematic_zoom_7s',
-    name: 'Kinowy zoom 7s (Slow Cinematic)',
-    badge: 'Kinowy Monolog',
-    desc: 'Powolny, hipnotyzujący najazd na rzeźbę/kadr w tle z pulsującym napisem w bezpiecznej strefie.',
-    icon: '🏛️'
+    id: "cinematic_zoom_7s",
+    name: "Kinowy zoom 7s (Slow Cinematic)",
+    badge: "Kinowy Monolog",
+    desc: "Powolny, hipnotyzujący najazd na rzeźbę/kadr w tle z pulsującym napisem w bezpiecznej strefie.",
+    icon: "🏛️",
   },
   {
-    id: 'typewriter_reveal',
-    name: 'Maszyna do pisania na czerni',
-    badge: 'Typewriter Reveal',
-    desc: 'Tekst piszący się na żywo litera po literze z pulsującym kursorem na mrocznym tle.',
-    icon: '📜'
-  }
+    id: "typewriter_reveal",
+    name: "Maszyna do pisania na czerni",
+    badge: "Typewriter Reveal",
+    desc: "Tekst piszący się na żywo litera po literze z pulsującym kursorem na mrocznym tle.",
+    icon: "📜",
+  },
 ];
 
-export const HIGHLIGHT_COLORS = [
-  { id: 'yellow_neon', name: 'Żółty Neon', hex: '#FACC15', textClass: 'text-yellow-400' },
-  { id: 'cyber_cyan', name: 'Cyber Cyan', hex: '#00F2FE', textClass: 'text-[#00F2FE]' },
-  { id: 'pure_gold', name: 'Złoto Stoickie', hex: '#F59E0B', textClass: 'text-amber-400' },
-  { id: 'pure_white', name: 'Czysta Biel', hex: '#FFFFFF', textClass: 'text-white' }
+const HIGHLIGHT_COLORS = [
+  { id: "yellow_neon", name: "Żółty Neon", hex: "#FACC15", textClass: "text-yellow-400" },
+  { id: "cyber_cyan", name: "Cyber Cyan", hex: "#00F2FE", textClass: "text-[#00F2FE]" },
+  { id: "pure_gold", name: "Złoto Stoickie", hex: "#F59E0B", textClass: "text-amber-400" },
+  { id: "pure_white", name: "Czysta Biel", hex: "#FFFFFF", textClass: "text-white" },
 ];
 
-export const CUT_INTERVALS = [
-  { sec: 0.3, label: '0.3s (Ultra Fast)' },
-  { sec: 0.5, label: '0.5s (Wirusowy TikTok)' },
-  { sec: 0.8, label: '0.8s (Kinowe)' },
-  { sec: 1.0, label: '1.0s (Spokojne)' }
+const CUT_INTERVALS = [
+  { sec: 0.3, label: "0.3s (Ultra Fast)" },
+  { sec: 0.5, label: "0.5s (Wirusowy TikTok)" },
+  { sec: 0.8, label: "0.8s (Kinowe)" },
+  { sec: 1.0, label: "1.0s (Spokojne)" },
+  { sec: 1.5, label: "1.5s (Refleksyjne)" },
+  { sec: 2.0, label: "2.0s (Głębokie)" },
 ];
 
 export const InspirationGraphicModal: React.FC<InspirationGraphicModalProps> = ({
   isOpen,
   onClose,
   inspiration,
-  handle = 'stark_focus',
+  handle = "stark_focus",
   onSaveToPipeline,
   onOpenCarouselStudio,
   onOpenVideoStudio,
-  onSwitchToPipeline
+  onSwitchToPipeline,
 }) => {
   // Primary Viral Scheme State
-  const [selectedScheme, setSelectedScheme] = useState<ViralSchemeId>('rapid_cut_broll');
-  const [selectedMotifId, setSelectedMotifId] = useState<string>('statues');
+  const [selectedScheme, setSelectedScheme] = useState<ViralSchemeId>("rapid_cut_broll");
+  const [selectedMotifId, setSelectedMotifId] = useState<string>("statues");
   const [cutIntervalSec, setCutIntervalSec] = useState<number>(0.5);
-  const [highlightColor, setHighlightColor] = useState<string>('#FACC15'); // Yellow neon by default
+  const [highlightColor, setHighlightColor] = useState<string>("#FACC15"); // Yellow neon by default
   const [overlayDarkness, setOverlayDarkness] = useState<number>(65); // 65% darkness for optimal readability
   const [includeThumbnailInCuts, setIncludeThumbnailInCuts] = useState<boolean>(true);
 
   // Original Stoic Content (Never stolen, 100% original inspired by pattern psychology)
-  const [originalHook, setOriginalHook] = useState<string>('YOUR STANDARDS DETERMINE YOUR DESTINY');
-  const [originalPunchline, setOriginalPunchline] = useState<string>('Never lower them for temporary comfort.');
-  const [highlightWords, setHighlightWords] = useState<string[]>(['STANDARDS', 'DESTINY']);
-  const [originalCaption, setOriginalCaption] = useState<string>('');
-  const [categoryTag, setCategoryTag] = useState<string>('VIRAL PATTERN // STARK_FOCUS');
+  const [originalHook, setOriginalHook] = useState<string>("YOUR STANDARDS DETERMINE YOUR DESTINY");
+  const [originalPunchline, setOriginalPunchline] = useState<string>(
+    "Never lower them for temporary comfort.",
+  );
+  const [highlightWords, setHighlightWords] = useState<string[]>(["STANDARDS", "DESTINY"]);
+  const [originalCaption, setOriginalCaption] = useState<string>("");
+  const [categoryTag, setCategoryTag] = useState<string>("VIRAL PATTERN // STARK_FOCUS");
 
   // Video Animation & Player State (60 FPS Canvas)
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
@@ -232,7 +235,9 @@ export const InspirationGraphicModal: React.FC<InspirationGraphicModalProps> = (
   const loadedImagesRef = useRef<HTMLImageElement[]>([]);
   const userUploadInputRef = useRef<HTMLInputElement | null>(null);
   const customUploadedImagesRef = useRef<string[]>([]);
-  const particlesRef = useRef<Array<{ x: number; y: number; size: number; speed: number; opacity: number }>>([]);
+  const particlesRef = useRef<
+    Array<{ x: number; y: number; size: number; speed: number; opacity: number }>
+  >([]);
 
   // Initialize Particles once
   useEffect(() => {
@@ -243,7 +248,7 @@ export const InspirationGraphicModal: React.FC<InspirationGraphicModalProps> = (
         y: Math.random() * 1920,
         size: Math.random() * 2.5 + 0.8,
         speed: Math.random() * 0.9 + 0.3,
-        opacity: Math.random() * 0.7 + 0.2
+        opacity: Math.random() * 0.7 + 0.2,
       });
     }
     particlesRef.current = list;
@@ -254,35 +259,40 @@ export const InspirationGraphicModal: React.FC<InspirationGraphicModalProps> = (
     if (!inspiration) return;
 
     // Detect if inspiration notes or title suggest black quote or rapid cut
-    const noteText = (inspiration.notes || '').toLowerCase();
-    const titleText = (inspiration.title || '').toLowerCase();
-    const hookSource = (inspiration.hookText || '').toLowerCase();
+    const noteText = (inspiration.notes || "").toLowerCase();
+    const titleText = (inspiration.title || "").toLowerCase();
+    const hookSource = (inspiration.hookText || "").toLowerCase();
 
-    if (noteText.includes('czarn') || noteText.includes('cytat') || noteText.includes('black') || noteText.includes('quote')) {
-      setSelectedScheme('black_quote_highlight');
+    if (
+      noteText.includes("czarn") ||
+      noteText.includes("cytat") ||
+      noteText.includes("black") ||
+      noteText.includes("quote")
+    ) {
+      setSelectedScheme("black_quote_highlight");
     } else {
-      setSelectedScheme('rapid_cut_broll');
+      setSelectedScheme("rapid_cut_broll");
     }
 
     // Generate smart initial original hook and caption inspired by the essence
     // If the hook is in English, adapt stoically without stealing exact sentences
-    const wordsInHook = (inspiration.hookText || inspiration.title || '')
-      .replace(/[^a-zA-Z0-9\s]/g, '')
+    const wordsInHook = (inspiration.hookText || inspiration.title || "")
+      .replace(/[^a-zA-Z0-9\s]/g, "")
       .split(/\s+/)
       .filter((w) => w.length >= 4)
       .map((w) => w.toUpperCase());
 
     const chosenKeywords = wordsInHook.slice(0, 2);
-    const safeKeywords = chosenKeywords.length > 0 ? chosenKeywords : ['STANDARDS', 'DESTINY'];
+    const safeKeywords = chosenKeywords.length > 0 ? chosenKeywords : ["STANDARDS", "DESTINY"];
 
-    let initialHook = 'YOUR STANDARDS DETERMINE YOUR DESTINY';
-    let initialPunch = 'Never lower them for temporary comfort.';
+    let initialHook = "YOUR STANDARDS DETERMINE YOUR DESTINY";
+    const initialPunch = "Never lower them for temporary comfort.";
 
     // Create unique inspired hook based on source
     if (inspiration.hookText && inspiration.hookText.trim().length > 3) {
       const clean = inspiration.hookText.trim().toUpperCase();
       // If short enough (under 45 chars), adapt it cleanly
-      if (clean.length <= 45 && !clean.includes('HTTP')) {
+      if (clean.length <= 45 && !clean.includes("HTTP")) {
         initialHook = clean;
       }
     }
@@ -293,7 +303,7 @@ export const InspirationGraphicModal: React.FC<InspirationGraphicModalProps> = (
 
     const safeCaption = `${initialHook}\n\n${initialPunch} Motivation is an emotional trap designed for spectators. Sovereign operators execute when they hate every single second of the grind.\n\nSave this reminder. Review tomorrow at 6:00 AM.\n\n// @${handle}\n\n#stoicism #discipline #mentaltoughness #focus #starkfocus #monkmode #relentless`;
     setOriginalCaption(safeCaption);
-    setCategoryTag(`SCHEMAT WZORCA // @${inspiration.creator || 'VIRAL'}`);
+    setCategoryTag(`SCHEMAT WZORCA // @${inspiration.creator || "VIRAL"}`);
   }, [inspiration, handle]);
 
   // Load B-Roll Image Set whenever Motif or Inspiration thumbnail changes
@@ -316,10 +326,10 @@ export const InspirationGraphicModal: React.FC<InspirationGraphicModalProps> = (
     const loadedList: HTMLImageElement[] = [];
     imageCandidates.forEach((src) => {
       const img = new Image();
-      img.crossOrigin = 'anonymous';
+      img.crossOrigin = "anonymous";
       // Route external URLs through /api/proxy-image to guarantee no CORS / tainted canvas
       const effectiveSrc =
-        src.startsWith('http://') || src.startsWith('https://')
+        src.startsWith("http://") || src.startsWith("https://")
           ? `/api/proxy-image?url=${encodeURIComponent(src)}`
           : src;
       img.src = effectiveSrc;
@@ -337,16 +347,16 @@ export const InspirationGraphicModal: React.FC<InspirationGraphicModalProps> = (
   const handleRegenerateWithAi = async () => {
     setIsGeneratingAi(true);
     try {
-      const res = await fetch('/api/ai/generate-scheme-post', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/ai/generate-scheme-post", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           schemeId: selectedScheme,
           themeMotif: selectedMotifId,
-          inspirationTitle: inspiration?.title || '',
-          inspirationNotes: inspiration?.notes || '',
-          userInstruction: 'Mocny, bezwzględny hook 1-2 linijki ALL CAPS ze słowami do wyróżnienia'
-        })
+          inspirationTitle: inspiration?.title || "",
+          inspirationNotes: inspiration?.notes || "",
+          userInstruction: "Mocny, bezwzględny hook 1-2 linijki ALL CAPS ze słowami do wyróżnienia",
+        }),
       });
       const data = await res.json();
       if (data && data.hook) {
@@ -362,7 +372,7 @@ export const InspirationGraphicModal: React.FC<InspirationGraphicModalProps> = (
         }
       }
     } catch (err) {
-      console.warn('AI scheme regeneration notice:', err);
+      console.warn("AI scheme regeneration notice:", err);
     } finally {
       setIsGeneratingAi(false);
     }
@@ -370,10 +380,10 @@ export const InspirationGraphicModal: React.FC<InspirationGraphicModalProps> = (
 
   // Toggle highlight on a specific word
   const toggleHighlightWord = (word: string) => {
-    const clean = word.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    const clean = word.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
     if (!clean) return;
     setHighlightWords((prev) =>
-      prev.includes(clean) ? prev.filter((w) => w !== clean) : [...prev, clean]
+      prev.includes(clean) ? prev.filter((w) => w !== clean) : [...prev, clean],
     );
   };
 
@@ -381,8 +391,13 @@ export const InspirationGraphicModal: React.FC<InspirationGraphicModalProps> = (
   // CORE CANVAS RENDERING ENGINE (1080x1920 9:16 Vertical Reel)
   // -------------------------------------------------------------
   const renderFrame = useCallback(
-    (timeSec: number, targetCtx?: CanvasRenderingContext2D, width: number = 1080, height: number = 1920) => {
-      const ctx = targetCtx || canvasRef.current?.getContext('2d');
+    (
+      timeSec: number,
+      targetCtx?: CanvasRenderingContext2D,
+      width: number = 1080,
+      height: number = 1920,
+    ) => {
+      const ctx = targetCtx || canvasRef.current?.getContext("2d");
       if (!ctx) return;
 
       const progress = Math.min(1, Math.max(0, timeSec / durationSec));
@@ -391,7 +406,7 @@ export const InspirationGraphicModal: React.FC<InspirationGraphicModalProps> = (
       // ---------------------------------------------------------
       // 1. BACKGROUND RENDERING ACCORDING TO VIRAL SCHEME
       // ---------------------------------------------------------
-      if (selectedScheme === 'rapid_cut_broll') {
+      if (selectedScheme === "rapid_cut_broll") {
         const images = loadedImagesRef.current;
         if (images.length > 0) {
           // Calculate which image index to show based on cutIntervalSec
@@ -410,22 +425,22 @@ export const InspirationGraphicModal: React.FC<InspirationGraphicModalProps> = (
             ctx.drawImage(currentImg, -width / 2, -height / 2, width, height);
           } catch {
             // Fallback gradient if drawImage fails
-            ctx.fillStyle = '#0B0F19';
+            ctx.fillStyle = "#0B0F19";
             ctx.fillRect(-width / 2, -height / 2, width, height);
           }
           ctx.restore();
 
           // Cut Flash: First 0.05s of each slice has a very subtle 14% white flash
           if (sliceTime < 0.05) {
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.14)';
+            ctx.fillStyle = "rgba(255, 255, 255, 0.14)";
             ctx.fillRect(0, 0, width, height);
           }
         } else {
           // Procedural dark textured fallback
           const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
-          bgGrad.addColorStop(0, '#04060A');
-          bgGrad.addColorStop(0.5, '#0E1422');
-          bgGrad.addColorStop(1, '#020306');
+          bgGrad.addColorStop(0, "#04060A");
+          bgGrad.addColorStop(0.5, "#0E1422");
+          bgGrad.addColorStop(1, "#020306");
           ctx.fillStyle = bgGrad;
           ctx.fillRect(0, 0, width, height);
         }
@@ -438,15 +453,25 @@ export const InspirationGraphicModal: React.FC<InspirationGraphicModalProps> = (
         overlayGrad.addColorStop(1, `rgba(3, 5, 8, ${darknessAlpha * 0.95})`);
         ctx.fillStyle = overlayGrad;
         ctx.fillRect(0, 0, width, height);
-      } else if (selectedScheme === 'black_quote_highlight' || selectedScheme === 'typewriter_reveal') {
+      } else if (
+        selectedScheme === "black_quote_highlight" ||
+        selectedScheme === "typewriter_reveal"
+      ) {
         // Deep Pitch-Black OLED Obsidian (#020306)
-        ctx.fillStyle = '#020306';
+        ctx.fillStyle = "#020306";
         ctx.fillRect(0, 0, width, height);
 
         // Very subtle radial chiaroscuro center glow
-        const radGrad = ctx.createRadialGradient(width / 2, height / 2, 80, width / 2, height / 2, height * 0.65);
-        radGrad.addColorStop(0, 'rgba(20, 30, 48, 0.25)');
-        radGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        const radGrad = ctx.createRadialGradient(
+          width / 2,
+          height / 2,
+          80,
+          width / 2,
+          height / 2,
+          height * 0.65,
+        );
+        radGrad.addColorStop(0, "rgba(20, 30, 48, 0.25)");
+        radGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
         ctx.fillStyle = radGrad;
         ctx.fillRect(0, 0, width, height);
 
@@ -459,7 +484,7 @@ export const InspirationGraphicModal: React.FC<InspirationGraphicModalProps> = (
           ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
           ctx.fill();
         });
-      } else if (selectedScheme === 'cinematic_zoom_7s') {
+      } else if (selectedScheme === "cinematic_zoom_7s") {
         const images = loadedImagesRef.current;
         if (images.length > 0) {
           const img = images[0];
@@ -471,12 +496,12 @@ export const InspirationGraphicModal: React.FC<InspirationGraphicModalProps> = (
           try {
             ctx.drawImage(img, -width / 2, -height / 2, width, height);
           } catch {
-            ctx.fillStyle = '#0B0F19';
+            ctx.fillStyle = "#0B0F19";
             ctx.fillRect(-width / 2, -height / 2, width, height);
           }
           ctx.restore();
         } else {
-          ctx.fillStyle = '#04060A';
+          ctx.fillStyle = "#04060A";
           ctx.fillRect(0, 0, width, height);
         }
 
@@ -493,10 +518,10 @@ export const InspirationGraphicModal: React.FC<InspirationGraphicModalProps> = (
       // ---------------------------------------------------------
       const topSafeY = height * 0.18; // In vertical 9:16, safe zone starts ~18% from top
 
-      ctx.textAlign = 'center';
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
-      ctx.font = '700 22px monospace';
-      ctx.letterSpacing = '3px';
+      ctx.textAlign = "center";
+      ctx.fillStyle = "rgba(255, 255, 255, 0.45)";
+      ctx.font = "700 22px monospace";
+      ctx.letterSpacing = "3px";
       ctx.fillText(`[ ${categoryTag.toUpperCase()} ]`, width / 2, topSafeY);
 
       // ---------------------------------------------------------
@@ -507,23 +532,24 @@ export const InspirationGraphicModal: React.FC<InspirationGraphicModalProps> = (
 
       // If typewriter scheme, only show letters up to current progress
       let displayHook = originalHook;
-      if (selectedScheme === 'typewriter_reveal') {
+      if (selectedScheme === "typewriter_reveal") {
         const totalChars = originalHook.length;
         const visibleCount = Math.min(totalChars, Math.floor(progress * totalChars * 1.35));
         displayHook = originalHook.slice(0, visibleCount);
         // Add blinking cursor
         if (Math.floor(timeSec * 4) % 2 === 0 && visibleCount < totalChars) {
-          displayHook += ' ▋';
+          displayHook += " ▋";
         }
       }
 
       // Measure & break text into semantic lines
-      ctx.font = '900 68px system-ui, -apple-system, sans-serif';
+      ctx.font = "900 68px system-ui, -apple-system, sans-serif";
       const maxLineWidth = width * 0.82;
       const lines: string[] = [];
-      let currentLine = '';
+      let currentLine = "";
 
-      const wordsToLayout = selectedScheme === 'typewriter_reveal' ? displayHook.split(/\s+/) : words;
+      const wordsToLayout =
+        selectedScheme === "typewriter_reveal" ? displayHook.split(/\s+/) : words;
 
       wordsToLayout.forEach((word) => {
         const testLine = currentLine ? `${currentLine} ${word}` : word;
@@ -547,7 +573,7 @@ export const InspirationGraphicModal: React.FC<InspirationGraphicModalProps> = (
         // Calculate total width of line to center properly
         let totalLineWidth = 0;
         const wordMetrics = lineWords.map((w) => {
-          const wWidth = ctx.measureText(w + ' ').width;
+          const wWidth = ctx.measureText(w + " ").width;
           totalLineWidth += wWidth;
           return { word: w, width: wWidth };
         });
@@ -555,11 +581,11 @@ export const InspirationGraphicModal: React.FC<InspirationGraphicModalProps> = (
         let curX = (width - totalLineWidth) / 2;
 
         wordMetrics.forEach(({ word, width: wWidth }) => {
-          const cleanWord = word.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+          const cleanWord = word.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
           const isHighlighted = highlightWords.some((hw) => hw.toUpperCase() === cleanWord);
 
           // Shadow for maximum contrast over dynamic backgrounds
-          ctx.shadowColor = 'rgba(0, 0, 0, 0.95)';
+          ctx.shadowColor = "rgba(0, 0, 0, 0.95)";
           ctx.shadowBlur = 18;
           ctx.shadowOffsetX = 0;
           ctx.shadowOffsetY = 4;
@@ -571,7 +597,7 @@ export const InspirationGraphicModal: React.FC<InspirationGraphicModalProps> = (
             ctx.fillText(word, curX, startY);
           } else {
             // Pure high-contrast white
-            ctx.fillStyle = '#FFFFFF';
+            ctx.fillStyle = "#FFFFFF";
             ctx.fillText(word, curX, startY);
           }
 
@@ -582,7 +608,7 @@ export const InspirationGraphicModal: React.FC<InspirationGraphicModalProps> = (
       });
 
       // Reset shadows
-      ctx.shadowColor = 'transparent';
+      ctx.shadowColor = "transparent";
       ctx.shadowBlur = 0;
       ctx.shadowOffsetY = 0;
 
@@ -590,9 +616,9 @@ export const InspirationGraphicModal: React.FC<InspirationGraphicModalProps> = (
       // 4. PUNCHLINE / SUBTITLE
       // ---------------------------------------------------------
       if (originalPunchline) {
-        ctx.fillStyle = 'rgba(226, 232, 240, 0.85)';
-        ctx.font = '500 32px system-ui, -apple-system, sans-serif';
-        ctx.textAlign = 'center';
+        ctx.fillStyle = "rgba(226, 232, 240, 0.85)";
+        ctx.font = "500 32px system-ui, -apple-system, sans-serif";
+        ctx.textAlign = "center";
         ctx.fillText(originalPunchline, width / 2, startY + 28);
       }
 
@@ -611,17 +637,17 @@ export const InspirationGraphicModal: React.FC<InspirationGraphicModalProps> = (
       ctx.stroke();
 
       // Brand handle
-      ctx.fillStyle = '#FFFFFF';
-      ctx.font = '900 30px system-ui, -apple-system, sans-serif';
-      ctx.letterSpacing = '2px';
-      ctx.textAlign = 'center';
+      ctx.fillStyle = "#FFFFFF";
+      ctx.font = "900 30px system-ui, -apple-system, sans-serif";
+      ctx.letterSpacing = "2px";
+      ctx.textAlign = "center";
       ctx.fillText(`@${handle.toUpperCase()}`, width / 2, bottomSafeY);
 
       // Call to action
-      ctx.fillStyle = 'rgba(148, 163, 184, 0.85)';
-      ctx.font = '700 20px monospace';
-      ctx.letterSpacing = '3px';
-      ctx.fillText('SAVE FOR MORNING DISCIPLINE // ♟️', width / 2, bottomSafeY + 38);
+      ctx.fillStyle = "rgba(148, 163, 184, 0.85)";
+      ctx.font = "700 20px monospace";
+      ctx.letterSpacing = "3px";
+      ctx.fillText("SAVE FOR MORNING DISCIPLINE // ♟️", width / 2, bottomSafeY + 38);
     },
     [
       selectedScheme,
@@ -633,8 +659,8 @@ export const InspirationGraphicModal: React.FC<InspirationGraphicModalProps> = (
       originalPunchline,
       highlightWords,
       handle,
-      durationSec
-    ]
+      durationSec,
+    ],
   );
 
   // 60 FPS Real-time Animation Loop
@@ -683,23 +709,23 @@ export const InspirationGraphicModal: React.FC<InspirationGraphicModalProps> = (
 
     try {
       // Create off-screen canvas at full 1080x1920 resolution for pristine quality
-      const exportCanvas = document.createElement('canvas');
+      const exportCanvas = document.createElement("canvas");
       exportCanvas.width = 1080;
       exportCanvas.height = 1920;
-      const exportCtx = exportCanvas.getContext('2d');
-      if (!exportCtx) throw new Error('Cannot acquire canvas context');
+      const exportCtx = exportCanvas.getContext("2d");
+      if (!exportCtx) throw new Error("Cannot acquire canvas context");
 
       const stream = exportCanvas.captureStream(60);
       const mimeTypes = [
-        'video/webm;codecs=vp9',
-        'video/webm;codecs=vp8',
-        'video/webm',
-        'video/mp4'
+        "video/webm;codecs=vp9",
+        "video/webm;codecs=vp8",
+        "video/webm",
+        "video/mp4",
       ];
-      const selectedMime = mimeTypes.find((t) => MediaRecorder.isTypeSupported(t)) || 'video/webm';
+      const selectedMime = mimeTypes.find((t) => MediaRecorder.isTypeSupported(t)) || "video/webm";
       const recorder = new MediaRecorder(stream, {
         mimeType: selectedMime,
-        videoBitsPerSecond: 8000000 // 8 Mbps crisp bitrate
+        videoBitsPerSecond: 8000000, // 8 Mbps crisp bitrate
       });
 
       const chunks: Blob[] = [];
@@ -711,9 +737,9 @@ export const InspirationGraphicModal: React.FC<InspirationGraphicModalProps> = (
 
       recorder.onstop = () => {
         const blob = new Blob(chunks, { type: selectedMime });
-        const ext = selectedMime.includes('mp4') ? 'mp4' : 'webm';
+        const ext = selectedMime.includes("mp4") ? "mp4" : "webm";
         const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
+        const a = document.createElement("a");
         a.href = url;
         a.download = `STARK_FOCUS_REEL_${selectedScheme}_${Date.now()}.${ext}`;
         a.click();
@@ -731,7 +757,7 @@ export const InspirationGraphicModal: React.FC<InspirationGraphicModalProps> = (
           renderFrame(durationSec, exportCtx, 1080, 1920);
           setVideoExportProgress(100);
           setTimeout(() => {
-            if (recorder.state === 'recording') {
+            if (recorder.state === "recording") {
               recorder.stop();
             }
           }, 100);
@@ -745,7 +771,7 @@ export const InspirationGraphicModal: React.FC<InspirationGraphicModalProps> = (
 
       requestAnimationFrame(recordStep);
     } catch (err) {
-      console.error('Video export error:', err);
+      console.error("Video export error:", err);
       setIsExportingVideo(false);
       setIsPlaying(true);
     }
@@ -753,38 +779,38 @@ export const InspirationGraphicModal: React.FC<InspirationGraphicModalProps> = (
 
   // Download High-Resolution Static Frame (PNG HD 1080x1920)
   const handleDownloadStaticFrame = () => {
-    const canvas = document.createElement('canvas');
+    const canvas = document.createElement("canvas");
     canvas.width = 1080;
     canvas.height = 1920;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
     renderFrame(currentTimeSec, ctx, 1080, 1920);
-    const link = document.createElement('a');
+    const link = document.createElement("a");
     link.download = `STARK_FOCUS_FRAME_${selectedScheme}_${Date.now()}.png`;
-    link.href = canvas.toDataURL('image/png', 1.0);
+    link.href = canvas.toDataURL("image/png", 1.0);
     link.click();
   };
 
   // Copy Frame Image to Clipboard
   const handleCopyFrameToClipboard = async () => {
-    const canvas = document.createElement('canvas');
+    const canvas = document.createElement("canvas");
     canvas.width = 1080;
     canvas.height = 1920;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
     renderFrame(currentTimeSec, ctx, 1080, 1920);
     canvas.toBlob(async (blob) => {
       if (!blob) return;
       try {
-        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+        await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
         setCopyFeedback(true);
         setTimeout(() => setCopyFeedback(false), 2000);
       } catch (err) {
-        console.warn('Clipboard copy error:', err);
+        console.warn("Clipboard copy error:", err);
       }
-    }, 'image/png');
+    }, "image/png");
   };
 
   // Save to Pipeline Handler
@@ -792,27 +818,26 @@ export const InspirationGraphicModal: React.FC<InspirationGraphicModalProps> = (
     if (!onSaveToPipeline) return;
 
     // Generate static preview data URL for the pipeline card asset
-    const canvas = document.createElement('canvas');
+    const canvas = document.createElement("canvas");
     canvas.width = 1080;
     canvas.height = 1920;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext("2d");
     if (ctx) {
       renderFrame(currentTimeSec, ctx, 1080, 1920);
     }
-    const assetDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+    const assetDataUrl = canvas.toDataURL("image/jpeg", 0.85);
 
     const schemeName =
-      SCHEME_DEFINITIONS.find((s) => s.id === selectedScheme)?.name || 'Rolka Wideo';
+      SCHEME_DEFINITIONS.find((s) => s.id === selectedScheme)?.name || "Rolka Wideo";
 
     onSaveToPipeline({
       title: `${originalHook.slice(0, 45)} [${selectedScheme}]`,
       format: `🎬 ${schemeName}`,
       asset: assetDataUrl,
       caption: originalCaption,
-      status: 'draft'
     });
 
-    setSaveSuccessMsg('✓ Zapisano w kolejce LEJEK (+50 XP)!');
+    setSaveSuccessMsg("✓ Zapisano w kolejce LEJEK (+50 XP)!");
     setTimeout(() => setSaveSuccessMsg(null), 3000);
   };
 
@@ -837,7 +862,7 @@ export const InspirationGraphicModal: React.FC<InspirationGraphicModalProps> = (
       };
       reader.readAsDataURL(file);
     });
-    e.target.value = '';
+    e.target.value = "";
   };
 
   if (!isOpen) return null;
@@ -861,9 +886,11 @@ export const InspirationGraphicModal: React.FC<InspirationGraphicModalProps> = (
                 </span>
               </div>
               <p className="text-[11px] font-mono text-slate-400">
-                Inspirowane strukturą:{' '}
-                <strong className="text-slate-200">{inspiration?.title || 'Wirusowy format'}</strong> • Treść: 100%
-                autorska bez kradzieży cudzych słów.
+                Inspirowane strukturą:{" "}
+                <strong className="text-slate-200">
+                  {inspiration?.title || "Wirusowy format"}
+                </strong>{" "}
+                • Treść: 100% autorska bez kradzieży cudzych słów.
               </p>
             </div>
           </div>
@@ -895,7 +922,7 @@ export const InspirationGraphicModal: React.FC<InspirationGraphicModalProps> = (
               <div className="absolute top-3 left-3 px-2 py-0.5 rounded bg-black/70 backdrop-blur-sm border border-white/20 text-[10px] font-mono text-white flex items-center gap-1.5">
                 <span
                   className={`w-2 h-2 rounded-full ${
-                    isPlaying ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
+                    isPlaying ? "bg-emerald-400 animate-pulse" : "bg-amber-400"
                   }`}
                 />
                 <span>{currentTimeSec.toFixed(1)}s / 7.0s</span>
@@ -904,7 +931,7 @@ export const InspirationGraphicModal: React.FC<InspirationGraphicModalProps> = (
 
               {/* Selected Scheme Badge */}
               <div className="absolute top-3 right-3 px-2 py-0.5 rounded bg-[#00F2FE]/20 backdrop-blur-sm border border-[#00F2FE]/40 text-[9px] font-mono font-bold text-[#00F2FE]">
-                {selectedScheme === 'rapid_cut_broll' ? '⚡ CIĘCIA CO 0.5s' : '♟️ CZARNY OBSIDIAN'}
+                {selectedScheme === "rapid_cut_broll" ? "⚡ CIĘCIA CO 0.5s" : "♟️ CZARNY OBSIDIAN"}
               </div>
             </div>
 
@@ -969,7 +996,7 @@ export const InspirationGraphicModal: React.FC<InspirationGraphicModalProps> = (
                   <span>
                     {isExportingVideo
                       ? `Eksport Wideo (${videoExportProgress}%)...`
-                      : '🎬 POBIERZ CAŁY FILMIK (WIDEO 9:16 HD)'}
+                      : "🎬 POBIERZ CAŁY FILMIK (WIDEO 9:16 HD)"}
                   </span>
                 </button>
 
@@ -1029,8 +1056,8 @@ export const InspirationGraphicModal: React.FC<InspirationGraphicModalProps> = (
                       onClick={() => setSelectedScheme(s.id)}
                       className={`p-2.5 rounded-lg border text-left transition-all cursor-pointer flex flex-col justify-between ${
                         isSelected
-                          ? 'bg-[#00F2FE]/15 border-[#00F2FE] text-white shadow-md'
-                          : 'bg-[#141824] border-[#2C354B] text-slate-300 hover:border-slate-500'
+                          ? "bg-[#00F2FE]/15 border-[#00F2FE] text-white shadow-md"
+                          : "bg-[#141824] border-[#2C354B] text-slate-300 hover:border-slate-500"
                       }`}
                     >
                       <div className="flex items-center justify-between gap-1.5 mb-1">
@@ -1040,16 +1067,14 @@ export const InspirationGraphicModal: React.FC<InspirationGraphicModalProps> = (
                         <span
                           className={`text-[9px] font-mono px-1.5 py-0.5 rounded ${
                             isSelected
-                              ? 'bg-[#00F2FE] text-[#141824] font-black'
-                              : 'bg-[#1D2333] text-slate-400'
+                              ? "bg-[#00F2FE] text-[#141824] font-black"
+                              : "bg-[#1D2333] text-slate-400"
                           }`}
                         >
                           {s.badge}
                         </span>
                       </div>
-                      <p className="text-[10px] font-mono text-slate-400 leading-tight">
-                        {s.desc}
-                      </p>
+                      <p className="text-[10px] font-mono text-slate-400 leading-tight">{s.desc}</p>
                     </button>
                   );
                 })}
@@ -1057,7 +1082,7 @@ export const InspirationGraphicModal: React.FC<InspirationGraphicModalProps> = (
             </div>
 
             {/* 2. RAPID CUT CONTROLS (Only visible if rapid cut is selected) */}
-            {selectedScheme === 'rapid_cut_broll' && (
+            {selectedScheme === "rapid_cut_broll" && (
               <div className="p-3.5 bg-[#1D2333] rounded-lg border border-[#00F2FE]/30 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-mono font-bold text-[#00F2FE] uppercase flex items-center gap-1.5">
@@ -1069,8 +1094,7 @@ export const InspirationGraphicModal: React.FC<InspirationGraphicModalProps> = (
                     onClick={() => userUploadInputRef.current?.click()}
                     className="px-2 py-0.5 rounded bg-[#141824] hover:bg-[#2C354B] text-slate-300 text-[10px] font-mono flex items-center gap-1 cursor-pointer border border-[#2C354B]"
                   >
-                    <Upload className="w-3 h-3" />
-                    + Dodaj Własne Ujęcia
+                    <Upload className="w-3 h-3" />+ Dodaj Własne Ujęcia
                   </button>
                   <input
                     ref={userUploadInputRef}
@@ -1095,8 +1119,8 @@ export const InspirationGraphicModal: React.FC<InspirationGraphicModalProps> = (
                         onClick={() => setCutIntervalSec(int.sec)}
                         className={`py-1.5 px-2 rounded text-[11px] font-mono font-bold transition-all cursor-pointer border ${
                           cutIntervalSec === int.sec
-                            ? 'bg-[#00F2FE] text-[#141824] border-[#00F2FE] shadow-sm'
-                            : 'bg-[#141824] text-slate-300 border-[#2C354B] hover:bg-[#2C354B]'
+                            ? "bg-[#00F2FE] text-[#141824] border-[#00F2FE] shadow-sm"
+                            : "bg-[#141824] text-slate-300 border-[#2C354B] hover:bg-[#2C354B]"
                         }`}
                       >
                         {int.label}
@@ -1118,13 +1142,11 @@ export const InspirationGraphicModal: React.FC<InspirationGraphicModalProps> = (
                         onClick={() => setSelectedMotifId(m.id)}
                         className={`p-2 rounded text-left transition-all cursor-pointer border ${
                           selectedMotifId === m.id
-                            ? 'bg-[#00F2FE]/20 border-[#00F2FE] text-white'
-                            : 'bg-[#141824] border-[#2C354B] text-slate-300 hover:bg-[#2C354B]'
+                            ? "bg-[#00F2FE]/20 border-[#00F2FE] text-white"
+                            : "bg-[#141824] border-[#2C354B] text-slate-300 hover:bg-[#2C354B]"
                         }`}
                       >
-                        <div className="text-[11px] font-mono font-bold truncate">
-                          {m.name}
-                        </div>
+                        <div className="text-[11px] font-mono font-bold truncate">{m.name}</div>
                         <div className="text-[9px] font-mono text-slate-400 truncate">
                           {m.badge}
                         </div>
@@ -1143,7 +1165,10 @@ export const InspirationGraphicModal: React.FC<InspirationGraphicModalProps> = (
                       onChange={(e) => setIncludeThumbnailInCuts(e.target.checked)}
                       className="rounded bg-[#141824] border-[#2C354B] accent-[#00F2FE] cursor-pointer"
                     />
-                    <label htmlFor="incThumb" className="text-[11px] font-mono text-slate-300 cursor-pointer">
+                    <label
+                      htmlFor="incThumb"
+                      className="text-[11px] font-mono text-slate-300 cursor-pointer"
+                    >
                       Włącz kadr z oryginalnej inspiracji do pętli zmieniających się ujęć
                     </label>
                   </div>
@@ -1170,8 +1195,8 @@ export const InspirationGraphicModal: React.FC<InspirationGraphicModalProps> = (
                   disabled={isGeneratingAi}
                   className="px-3 py-1 rounded bg-[#00F2FE]/20 hover:bg-[#00F2FE]/30 text-[#00F2FE] border border-[#00F2FE]/50 text-[11px] font-mono font-bold flex items-center gap-1 cursor-pointer transition-all disabled:opacity-50"
                 >
-                  <RefreshCw className={`w-3 h-3 ${isGeneratingAi ? 'animate-spin' : ''}`} />
-                  {isGeneratingAi ? 'Generuję AI...' : '⚡ Wymuś Nowy Wariant AI'}
+                  <RefreshCw className={`w-3 h-3 ${isGeneratingAi ? "animate-spin" : ""}`} />
+                  {isGeneratingAi ? "Generuję AI..." : "⚡ Wymuś Nowy Wariant AI"}
                 </button>
               </div>
 
@@ -1195,7 +1220,7 @@ export const InspirationGraphicModal: React.FC<InspirationGraphicModalProps> = (
                   </span>
                   <div className="flex flex-wrap gap-1.5">
                     {originalHook.split(/\s+/).map((w, i) => {
-                      const clean = w.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+                      const clean = w.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
                       if (!clean) return null;
                       const isHighlighted = highlightWords.includes(clean);
                       return (
@@ -1205,8 +1230,8 @@ export const InspirationGraphicModal: React.FC<InspirationGraphicModalProps> = (
                           onClick={() => toggleHighlightWord(clean)}
                           className={`px-2 py-0.5 rounded text-[11px] font-mono font-bold transition-all cursor-pointer border ${
                             isHighlighted
-                              ? 'bg-amber-400 text-black border-amber-300 shadow-sm'
-                              : 'bg-[#141824] text-slate-300 border-[#2C354B] hover:bg-[#2C354B]'
+                              ? "bg-amber-400 text-black border-amber-300 shadow-sm"
+                              : "bg-[#141824] text-slate-300 border-[#2C354B] hover:bg-[#2C354B]"
                           }`}
                         >
                           {isHighlighted ? `★ ${clean}` : clean}
@@ -1243,11 +1268,14 @@ export const InspirationGraphicModal: React.FC<InspirationGraphicModalProps> = (
                         onClick={() => setHighlightColor(c.hex)}
                         className={`flex-1 py-1.5 px-1.5 rounded text-[10px] font-mono font-bold border transition-all cursor-pointer text-center ${
                           highlightColor === c.hex
-                            ? 'bg-white/10 border-white text-white shadow-sm ring-1 ring-white'
-                            : 'bg-[#141824] border-[#2C354B] text-slate-400'
+                            ? "bg-white/10 border-white text-white shadow-sm ring-1 ring-white"
+                            : "bg-[#141824] border-[#2C354B] text-slate-400"
                         }`}
                       >
-                        <span className="inline-block w-2.5 h-2.5 rounded-full mr-1 align-middle" style={{ backgroundColor: c.hex }} />
+                        <span
+                          className="inline-block w-2.5 h-2.5 rounded-full mr-1 align-middle"
+                          style={{ backgroundColor: c.hex }}
+                        />
                         {c.name}
                       </button>
                     ))}

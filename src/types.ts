@@ -1,43 +1,40 @@
-export type Platform = 'Instagram' | 'TikTok' | 'YouTube Shorts';
+export type Platform = "Instagram" | "TikTok" | "YouTube Shorts";
 
 export type VisualTheme =
-  | 'obsidian_monolith'
-  | 'titanium_slate'
-  | 'pantheon_mist';
+  "obsidian_monolith" | "titanium_slate" | "pantheon_mist" | "crimson_eclipse";
 
-export type LogoSourceType = 'seal';
+export type LogoSourceType = "seal";
 
-export type LogoPlacement =
-  | 'background_watermark'
-  | 'bottom_under'
-  | 'top_left'
-  | 'none';
+export type LogoPlacement = "background_watermark" | "bottom_under" | "top_left" | "none";
 
-export type LogoGlowChoice = 'white' | 'none';
+export type LogoGlowChoice = "white" | "none";
+
+export type CarouselFontFamily = "plus_jakarta" | "cinzel" | "cormorant" | "outfit" | "syne";
 
 export type TopHeaderMode =
-  | 'protocol_standard'
-  | 'daily_discipline'
-  | 'cold_truth'
-  | 'memento_mori'
-  | 'clean_void'
-  | 'none'
-  | 'custom';
+  | "protocol_standard"
+  | "daily_discipline"
+  | "cold_truth"
+  | "memento_mori"
+  | "clean_void"
+  | "none"
+  | "custom";
 
 export interface SlideData {
   headline: string;
   bodyText: string;
   textOffsetY?: number; // Przesunięcie w pionie (+/- px)
   highlightWords?: string; // Słowa kluczowe do wyróżnienia (oddzielone przecinkami)
+  slideType?: "hook" | "principle" | "outro"; // Typ slajdu w karuzeli
 }
 
 export type ContentFormat =
-  | '🎬 Rolka 7-Sekundowa (Short Reel)'
-  | '🎠 Karuzela 5-Slajdowa (IG / TikTok Slides)'
-  | '🏛️ Monolith Ledger (Split 50/50)'
-  | '🖼️ Kolaż 4 Kadrów (Siatka 2x2)'
-  | '🧱 Litery 3D na Ścianie z Lampą'
-  | '📜 Minimalistyczny Cytat (One-Liner)';
+  | "🎬 Rolka 7-Sekundowa (Short Reel)"
+  | "🎠 Karuzela 5-Slajdowa (IG / TikTok Slides)"
+  | "🏛️ Monolith Ledger (Split 50/50)"
+  | "🖼️ Kolaż 4 Kadrów (Siatka 2x2)"
+  | "🧱 Litery 3D na Ścianie z Lampą"
+  | "📜 Minimalistyczny Cytat (One-Liner)";
 
 export interface Post {
   id: string;
@@ -46,7 +43,6 @@ export interface Post {
   format: string;
   asset: string;
   caption: string;
-  status: 'draft' | 'scheduled' | 'published';
   created_date: string;
   scheduled_date?: string | null;
   scheduled_time?: string;
@@ -83,7 +79,7 @@ export interface VaultAsset {
   id: string;
   filename: string;
   url: string;
-  type: 'bg' | 'video' | 'inspiration';
+  type: "bg" | "video" | "inspiration";
   created_date: string;
   notes?: string;
 }
@@ -155,7 +151,7 @@ export interface PlannerTask {
   id: string;
   time: string;
   title: string;
-  category: 'rutyna' | 'post' | 'montaz' | 'analiza' | 'inne';
+  category: "rutyna" | "post" | "montaz" | "analiza" | "inne";
   targetTab?: number;
   completed: boolean;
   date: string;
@@ -168,29 +164,29 @@ export interface PlannerTask {
 export interface UniversalTextLayer {
   id: string;
   text: string;
-  fontFamily: 'serif' | 'sans' | 'mono';
+  fontFamily: "serif" | "sans" | "mono";
   fontSize: number;
-  fontWeight: 'normal' | 'bold' | 'black';
-  fontStyle: 'normal' | 'italic';
+  fontWeight: "normal" | "bold" | "black";
+  fontStyle: "normal" | "italic";
   color: string;
   strokeColor?: string;
   strokeWidth?: number;
-  align: 'left' | 'center' | 'right';
+  align: "left" | "center" | "right";
   posY: number;
   posX?: number;
-  casing?: 'preserve' | 'lowercase' | 'uppercase' | string;
+  casing?: "preserve" | "lowercase" | "uppercase" | string;
 }
 
 export interface UniversalLayoutSpec {
   layoutName: string;
-  gridType: 'none_solid' | 'single' | 'split_horizontal' | 'grid_2x2' | 'studio_wall_3d';
+  gridType: "none_solid" | "single" | "split_horizontal" | "grid_2x2" | "studio_wall_3d";
   backgroundColor: string;
   dividerWidth: number;
   dividerColor: string;
   slotCount: number;
   slotLabels: string[];
   textLayers: UniversalTextLayer[];
-  textEffect?: '3d_wall' | 'flat' | 'outline';
+  textEffect?: "3d_wall" | "flat" | "outline";
   caption: string;
   detectedAudio: string;
 }

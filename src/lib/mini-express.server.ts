@@ -70,9 +70,7 @@ export function createApp() {
     },
     async handle(request: Request): Promise<Response> {
       const url = new URL(request.url);
-      const route = routes.find(
-        (r) => r.method === request.method && r.path === url.pathname,
-      );
+      const route = routes.find((r) => r.method === request.method && r.path === url.pathname);
       if (!route) return new Response("Not found", { status: 404 });
 
       let body: any = undefined;

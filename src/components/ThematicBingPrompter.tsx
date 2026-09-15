@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef } from "react";
 import {
   Sparkles,
   Copy,
@@ -13,14 +13,14 @@ import {
   Film,
   Sun,
   Moon,
-  AlertTriangle
-} from 'lucide-react';
+  AlertTriangle,
+} from "lucide-react";
 import {
   generateThematicBingPrompts,
   ThematicBingPrompt,
   BING_PROMPT_MAX_LENGTH,
-  clampBingPrompt
-} from '../utils/thematicBingPrompter';
+  clampBingPrompt,
+} from "../utils/thematicBingPrompter";
 
 interface ThematicBingPrompterProps {
   initialTheme?: string;
@@ -31,23 +31,41 @@ interface ThematicBingPrompterProps {
 }
 
 const QUICK_THEME_CHIPS = [
-  { label: '🌅 Poranek 06:00 (Świt & Dyscyplina)', query: 'morning dawn 06:00 wake up discipline first win' },
-  { label: '⏰ Lunch 13:00 (Czas Ucieka)', query: '13:00 midday lunch break time wasted half the day' },
-  { label: '🌙 Wieczór 21:00 (Nocna Warta & Wyciszenie)', query: 'night evening 21:00 solitude midnight work mirror' },
-  { label: '🤫 Cisza i Zniknięcie (Solitude)', query: 'silence solitude disappear noise opinions results' },
-  { label: '⚠️ Wygoda to Trucizna (Dyscyplina)', query: 'comfort poison mediocrity excuses burnout standards' },
-  { label: '🛡️ Pancerz Psychiczny (Ból & Ogień)', query: 'mental armor pain resilience titan warrior forge' }
+  {
+    label: "🌅 Poranek 06:00 (Świt & Dyscyplina)",
+    query: "morning dawn 06:00 wake up discipline first win",
+  },
+  {
+    label: "⏰ Lunch 13:00 (Czas Ucieka)",
+    query: "13:00 midday lunch break time wasted half the day",
+  },
+  {
+    label: "🌙 Wieczór 21:00 (Nocna Warta & Wyciszenie)",
+    query: "night evening 21:00 solitude midnight work mirror",
+  },
+  {
+    label: "🤫 Cisza i Zniknięcie (Solitude)",
+    query: "silence solitude disappear noise opinions results",
+  },
+  {
+    label: "⚠️ Wygoda to Trucizna (Dyscyplina)",
+    query: "comfort poison mediocrity excuses burnout standards",
+  },
+  {
+    label: "🛡️ Pancerz Psychiczny (Ból & Ogień)",
+    query: "mental armor pain resilience titan warrior forge",
+  },
 ];
 
 export const ThematicBingPrompter: React.FC<ThematicBingPrompterProps> = ({
-  initialTheme = '',
+  initialTheme = "",
   onSaveToVault,
   onSelectBackground,
   onOpenVideoStudioWithHook,
-  compact = false
+  compact = false,
 }) => {
   const [themeInput, setThemeInput] = useState<string>(
-    initialTheme || 'Half the day is gone. Stop scrolling on your lunch break.'
+    initialTheme || "Half the day is gone. Stop scrolling on your lunch break.",
   );
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -74,7 +92,8 @@ export const ThematicBingPrompter: React.FC<ThematicBingPrompterProps> = ({
     reader.onload = (event) => {
       const dataUrl = event.target?.result as string;
       if (dataUrl) {
-        const cleanName = 'STARK_Bing_' + file.name.replace(/\.[^/.]+$/, '').replace(/\s+/g, '_') + '.jpg';
+        const cleanName =
+          "STARK_Bing_" + file.name.replace(/\.[^/.]+$/, "").replace(/\s+/g, "_") + ".jpg";
         if (onSaveToVault) {
           onSaveToVault({ filename: cleanName, url: dataUrl });
         }
@@ -86,7 +105,7 @@ export const ThematicBingPrompter: React.FC<ThematicBingPrompterProps> = ({
       }
     };
     reader.readAsDataURL(file);
-    e.target.value = '';
+    e.target.value = "";
   };
 
   return (
@@ -107,7 +126,8 @@ export const ThematicBingPrompter: React.FC<ThematicBingPrompterProps> = ({
             </span>
           </div>
           <p className="text-[11px] text-slate-400 font-mono mt-1">
-            Wszystkie wygenerowane prompty są rygorystycznie zoptymalizowane pod limit 480 znaków w Bing Image Creator. Zostawiają puste centrum pod kinezję tekstu w rolce.
+            Wszystkie wygenerowane prompty są rygorystycznie zoptymalizowane pod limit 480 znaków w
+            Bing Image Creator. Zostawiają puste centrum pod kinezję tekstu w rolce.
           </p>
         </div>
 
@@ -126,7 +146,9 @@ export const ThematicBingPrompter: React.FC<ThematicBingPrompterProps> = ({
       <div className="space-y-2">
         <label className="text-[10px] font-bold uppercase tracking-wider text-slate-300 font-mono flex items-center justify-between">
           <span>Temat / Pomysł / Hook na Treść:</span>
-          <span className="text-slate-500 font-normal">Wpisz porę dnia (rano / lunch / wieczór) lub motyw</span>
+          <span className="text-slate-500 font-normal">
+            Wpisz porę dnia (rano / lunch / wieczór) lub motyw
+          </span>
         </label>
 
         <div className="flex gap-2">
@@ -139,7 +161,7 @@ export const ThematicBingPrompter: React.FC<ThematicBingPrompterProps> = ({
           />
           <button
             type="button"
-            onClick={() => setThemeInput('')}
+            onClick={() => setThemeInput("")}
             className="px-2.5 py-2 text-xs font-mono text-slate-400 hover:text-white bg-[#1D2333] border border-[#2C354B] rounded"
           >
             Wyczyść
@@ -148,7 +170,9 @@ export const ThematicBingPrompter: React.FC<ThematicBingPrompterProps> = ({
 
         {/* Quick theme pills including Day-Parts */}
         <div className="flex flex-wrap gap-1.5 pt-1">
-          <span className="text-[9px] font-mono text-slate-400 self-center mr-1">Pory dnia i motywy:</span>
+          <span className="text-[9px] font-mono text-slate-400 self-center mr-1">
+            Pory dnia i motywy:
+          </span>
           {QUICK_THEME_CHIPS.map((chip, idx) => (
             <button
               key={idx}
@@ -173,7 +197,8 @@ export const ThematicBingPrompter: React.FC<ThematicBingPrompterProps> = ({
               Masz już pobrane tło z Binga na dysku?
             </div>
             <div className="text-[10px] text-slate-400 font-mono">
-              Wgraj plik tutaj – zostanie automatycznie dodany do Twojego Skarbca i natychmiast użyty w Rolkach/Karuzelach!
+              Wgraj plik tutaj – zostanie automatycznie dodany do Twojego Skarbca i natychmiast
+              użyty w Rolkach/Karuzelach!
             </div>
           </div>
         </div>
@@ -235,7 +260,9 @@ export const ThematicBingPrompter: React.FC<ThematicBingPrompterProps> = ({
 
                   <div className="flex items-start gap-1.5 text-[10px] text-slate-300 font-mono bg-[#141824] p-2 rounded border border-[#2C354B]">
                     <Info className="w-3 h-3 text-[#38BDF8] shrink-0 mt-0.5" />
-                    <span><strong>Dlaczego to działa:</strong> {p.metaphorExplanation}</span>
+                    <span>
+                      <strong>Dlaczego to działa:</strong> {p.metaphorExplanation}
+                    </span>
                   </div>
 
                   {p.recommendedHook && (
@@ -248,12 +275,14 @@ export const ThematicBingPrompter: React.FC<ThematicBingPrompterProps> = ({
                   {/* Prompt Container with live Character Counter */}
                   <div className="space-y-1">
                     <div className="flex items-center justify-between px-1">
-                      <span className="text-[9px] font-mono text-slate-400">Prompt do wklejenia w Bing:</span>
+                      <span className="text-[9px] font-mono text-slate-400">
+                        Prompt do wklejenia w Bing:
+                      </span>
                       <span
                         className={`text-[9px] font-mono font-bold px-1.5 py-0.2 rounded border ${
                           isUnderLimit
-                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                            : 'bg-red-500/10 text-red-400 border-red-500/30'
+                            ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                            : "bg-red-500/10 text-red-400 border-red-500/30"
                         }`}
                       >
                         {p.promptText.length} / {BING_PROMPT_MAX_LENGTH} znaków
@@ -272,8 +301,8 @@ export const ThematicBingPrompter: React.FC<ThematicBingPrompterProps> = ({
                     onClick={() => handleCopyPrompt(p)}
                     className={`flex-1 py-1.5 px-2.5 rounded text-xs font-mono font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                       isCopied
-                        ? 'bg-emerald-600 text-white'
-                        : 'bg-[#141824] hover:bg-[#242B3F] border border-[#2C354B] text-slate-200 hover:text-white'
+                        ? "bg-emerald-600 text-white"
+                        : "bg-[#141824] hover:bg-[#242B3F] border border-[#2C354B] text-slate-200 hover:text-white"
                     }`}
                   >
                     {isCopied ? (

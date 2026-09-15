@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { QRCodeSVG } from 'qrcode.react';
-import { X, Copy, Check, Smartphone } from 'lucide-react';
+import React, { useState } from "react";
+import { QRCodeSVG } from "qrcode.react";
+import { X, Copy, Check, Smartphone } from "lucide-react";
 
 interface QRModalProps {
   isOpen: boolean;
@@ -14,8 +14,8 @@ export const QRModal: React.FC<QRModalProps> = ({
   isOpen,
   onClose,
   title,
-  subtitle = 'Zeskanuj aparatem telefonu, aby przenieść tekst natychmiast do schowka:',
-  data
+  subtitle = "Zeskanuj aparatem telefonu, aby przenieść tekst natychmiast do schowka:",
+  data,
 }) => {
   const [copied, setCopied] = useState(false);
 
@@ -52,7 +52,9 @@ export const QRModal: React.FC<QRModalProps> = ({
             <Smartphone className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="text-xs font-bold text-white uppercase tracking-wider font-mono">{title}</h3>
+            <h3 className="text-xs font-bold text-white uppercase tracking-wider font-mono">
+              {title}
+            </h3>
             <p className="text-[11px] text-slate-400 font-mono mt-0.5">{subtitle}</p>
           </div>
         </div>
@@ -60,7 +62,7 @@ export const QRModal: React.FC<QRModalProps> = ({
         <div className="my-3.5 flex flex-col items-center justify-center p-4 bg-[#141824] rounded-sm border border-[#2C354B]">
           <div className="p-2.5 bg-white rounded-xs shadow-inner">
             <QRCodeSVG
-              value={data || 'STARK_FOCUS_EMPTY'}
+              value={data || "STARK_FOCUS_EMPTY"}
               size={180}
               level="M"
               includeMargin={false}

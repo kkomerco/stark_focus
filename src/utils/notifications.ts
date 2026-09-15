@@ -12,14 +12,14 @@ export interface PostingWindowInfo {
 }
 
 export async function requestNotificationPermission(): Promise<boolean> {
-  if (!('Notification' in window)) {
+  if (!("Notification" in window)) {
     return false;
   }
-  if (Notification.permission === 'granted') {
+  if (Notification.permission === "granted") {
     return true;
   }
   const perm = await Notification.requestPermission();
-  return perm === 'granted';
+  return perm === "granted";
 }
 
 export function playDisciplineChime() {
@@ -33,7 +33,7 @@ export function playDisciplineChime() {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
 
-    osc.type = 'sine';
+    osc.type = "sine";
     osc.frequency.setValueAtTime(440, ctx.currentTime); // A4
     osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15); // A5
 
@@ -52,14 +52,14 @@ export function playDisciplineChime() {
 
 export function sendLocalNotification(title: string, body: string) {
   playDisciplineChime();
-  if ('Notification' in window && Notification.permission === 'granted') {
+  if ("Notification" in window && Notification.permission === "granted") {
     try {
       new Notification(title, {
         body,
-        icon: '/public/stark_logo.svg'
+        icon: "/public/stark_logo.svg",
       });
     } catch (e) {
-      console.warn('Notification blocked', e);
+      console.warn("Notification blocked", e);
     }
   }
 }
@@ -86,48 +86,52 @@ export function getNextPostingWindow(): PostingWindowInfo {
 
     if (currentMinutes < w1) {
       return {
-        name: 'Niedzielny Poranny Scroll (Coffee Time)',
-        targetTime: '11:00',
+        name: "Niedzielny Poranny Scroll (Coffee Time)",
+        targetTime: "11:00",
         minutesLeft: w1 - currentMinutes,
-        description: 'Leniwy poranek weekendowy. Użytkownicy budzą się później i spędzają 40+ minut w łóżku na Reels/TikTok.',
-        platformFocus: 'Instagram Reels & TikTok',
+        description:
+          "Leniwy poranek weekendowy. Użytkownicy budzą się później i spędzają 40+ minut w łóżku na Reels/TikTok.",
+        platformFocus: "Instagram Reels & TikTok",
         isPeakGoldenHour: false,
-        recommendedFormat: 'Rolka 7-9s z mocnym stoickim cytatem o dyscyplinie',
-        dailyFrequencyAdvice: 'Niedziela: 2 publikacje (np. 11:00 i 20:30) + Stories z podsumowaniem tygodnia.'
+        recommendedFormat: "Rolka 7-9s z mocnym stoickim cytatem o dyscyplinie",
+        dailyFrequencyAdvice:
+          "Niedziela: 2 publikacje (np. 11:00 i 20:30) + Stories z podsumowaniem tygodnia.",
       };
     } else if (currentMinutes < w2) {
       return {
-        name: 'Niedzielne Popołudnie (Spokojna Przerwa)',
-        targetTime: '17:00',
+        name: "Niedzielne Popołudnie (Spokojna Przerwa)",
+        targetTime: "17:00",
         minutesLeft: w2 - currentMinutes,
-        description: 'Czas powrotów i odpoczynku przed wieczorem.',
-        platformFocus: 'Instagram Karuzela / YT Shorts',
+        description: "Czas powrotów i odpoczynku przed wieczorem.",
+        platformFocus: "Instagram Karuzela / YT Shorts",
         isPeakGoldenHour: false,
         recommendedFormat: 'Karuzela 5-7 slajdów: "7 Zasad na Nowy Tydzień"',
-        dailyFrequencyAdvice: 'Karuzela edukacyjna – wysoki współczynnik zapisów (Saves).'
+        dailyFrequencyAdvice: "Karuzela edukacyjna – wysoki współczynnik zapisów (Saves).",
       };
     } else if (currentMinutes < w3) {
       return {
-        name: '👑 ZŁOTY SZCZYT: Niedzielny Reset (Sunday Scaries)',
-        targetTime: '20:30',
+        name: "👑 ZŁOTY SZCZYT: Niedzielny Reset (Sunday Scaries)",
+        targetTime: "20:30",
         minutesLeft: w3 - currentMinutes,
-        description: 'Absolutnie najwyższy współczynnik zapisań (Saves) i udostępnień w tygodniu. Ludzie stresują się poniedziałkiem i desperacko szukają dyscypliny i siły psychicznej.',
-        platformFocus: 'Wszystkie platformy (IG, TikTok, YT Shorts)',
+        description:
+          "Absolutnie najwyższy współczynnik zapisań (Saves) i udostępnień w tygodniu. Ludzie stresują się poniedziałkiem i desperacko szukają dyscypliny i siły psychicznej.",
+        platformFocus: "Wszystkie platformy (IG, TikTok, YT Shorts)",
         isPeakGoldenHour: true,
-        recommendedFormat: 'Główna bezlitosna rolka mindsetowa / YT Long-form zapowiedź',
-        dailyFrequencyAdvice: 'To najważniejszy post całego tygodnia. Daj 100% energii.'
+        recommendedFormat: "Główna bezlitosna rolka mindsetowa / YT Long-form zapowiedź",
+        dailyFrequencyAdvice: "To najważniejszy post całego tygodnia. Daj 100% energii.",
       };
     } else {
       // Roll over to Monday 07:45
       return {
-        name: 'Poniedziałkowe Poranne Przebudzenie',
-        targetTime: '07:45',
-        minutesLeft: (24 * 60 - currentMinutes) + (7 * 60 + 45),
+        name: "Poniedziałkowe Poranne Przebudzenie",
+        targetTime: "07:45",
+        minutesLeft: 24 * 60 - currentMinutes + (7 * 60 + 45),
         description: 'Poniedziałek rano – "Wake up while 99% are sleeping".',
-        platformFocus: 'Instagram Reels & TikTok',
+        platformFocus: "Instagram Reels & TikTok",
         isPeakGoldenHour: false,
-        recommendedFormat: 'Krótki wstrząsający hook wideo',
-        dailyFrequencyAdvice: 'Dni robocze: 1 rolka wieczorem (19:30) + ew. 1 karuzela w południe (13:00).'
+        recommendedFormat: "Krótki wstrząsający hook wideo",
+        dailyFrequencyAdvice:
+          "Dni robocze: 1 rolka wieczorem (19:30) + ew. 1 karuzela w południe (13:00).",
       };
     }
   } else if (isSaturday) {
@@ -138,48 +142,49 @@ export function getNextPostingWindow(): PostingWindowInfo {
 
     if (currentMinutes < w1) {
       return {
-        name: 'Sobotni Poranny Scroll',
-        targetTime: '10:30',
+        name: "Sobotni Poranny Scroll",
+        targetTime: "10:30",
         minutesLeft: w1 - currentMinutes,
-        description: 'Weekendowe odsłony wideo bez presji czasu pracy.',
-        platformFocus: 'TikTok & Instagram',
+        description: "Weekendowe odsłony wideo bez presji czasu pracy.",
+        platformFocus: "TikTok & Instagram",
         isPeakGoldenHour: false,
-        recommendedFormat: 'Wideo 7-10s z dynamicznym montażem',
-        dailyFrequencyAdvice: 'Sobota: 1 publikacja rano lub wieczorem + Audyt o 20:00.'
+        recommendedFormat: "Wideo 7-10s z dynamicznym montażem",
+        dailyFrequencyAdvice: "Sobota: 1 publikacja rano lub wieczorem + Audyt o 20:00.",
       };
     } else if (currentMinutes < w2) {
       return {
-        name: 'Sobotnie Popołudnie',
-        targetTime: '16:30',
+        name: "Sobotnie Popołudnie",
+        targetTime: "16:30",
         minutesLeft: w2 - currentMinutes,
-        description: 'Drugi slot weekendowy, idealny na karuzelę edukacyjną.',
-        platformFocus: 'Instagram Karuzela',
+        description: "Drugi slot weekendowy, idealny na karuzelę edukacyjną.",
+        platformFocus: "Instagram Karuzela",
         isPeakGoldenHour: false,
         recommendedFormat: 'Karuzela "Lektury Stoików, które zmienią Twój mózg"',
-        dailyFrequencyAdvice: 'Pozwala utrzymać zasięgi między weekendem.'
+        dailyFrequencyAdvice: "Pozwala utrzymać zasięgi między weekendem.",
       };
     } else if (currentMinutes < w3) {
       return {
-        name: '🚨 Sobotni Audyt & Wieczorna Premiera',
-        targetTime: '20:00',
+        name: "🚨 Sobotni Audyt & Wieczorna Premiera",
+        targetTime: "20:00",
         minutesLeft: w3 - currentMinutes,
-        description: 'Godzina Twojego cotygodniowego audytu systemowego oraz publikacja mocnego materiału na sobotni wieczór.',
-        platformFocus: 'Instagram, TikTok, YouTube',
+        description:
+          "Godzina Twojego cotygodniowego audytu systemowego oraz publikacja mocnego materiału na sobotni wieczór.",
+        platformFocus: "Instagram, TikTok, YouTube",
         isPeakGoldenHour: true,
-        recommendedFormat: 'Premiera wideo + zapisanie liczb w Audycie STARK_FOCUS',
-        dailyFrequencyAdvice: 'Zrób audyt i odnotuj przyrosty tygodniowe.'
+        recommendedFormat: "Premiera wideo + zapisanie liczb w Audycie STARK_FOCUS",
+        dailyFrequencyAdvice: "Zrób audyt i odnotuj przyrosty tygodniowe.",
       };
     } else {
       // Roll over to Sunday 11:00
       return {
-        name: 'Niedzielny Poranny Scroll',
-        targetTime: '11:00',
-        minutesLeft: (24 * 60 - currentMinutes) + (11 * 60),
-        description: 'Leniwa niedziela rano.',
-        platformFocus: 'Instagram & TikTok',
+        name: "Niedzielny Poranny Scroll",
+        targetTime: "11:00",
+        minutesLeft: 24 * 60 - currentMinutes + 11 * 60,
+        description: "Leniwa niedziela rano.",
+        platformFocus: "Instagram & TikTok",
         isPeakGoldenHour: false,
-        recommendedFormat: 'Poranna motywacja',
-        dailyFrequencyAdvice: 'Przygotuj materiał na Niedzielny Reset (20:30).'
+        recommendedFormat: "Poranna motywacja",
+        dailyFrequencyAdvice: "Przygotuj materiał na Niedzielny Reset (20:30).",
       };
     }
   } else {
@@ -190,50 +195,52 @@ export function getNextPostingWindow(): PostingWindowInfo {
 
     if (currentMinutes < w1) {
       return {
-        name: 'Poranne Okno Dnia Roboczego (Commute Time)',
-        targetTime: '07:45',
+        name: "Poranne Okno Dnia Roboczego (Commute Time)",
+        targetTime: "07:45",
         minutesLeft: w1 - currentMinutes,
-        description: 'Ludzie jadą do pracy/szkoły i przeglądają telefon. Mocny zastrzyk motywacji na start dnia.',
-        platformFocus: 'Instagram Reels & TikTok',
+        description:
+          "Ludzie jadą do pracy/szkoły i przeglądają telefon. Mocny zastrzyk motywacji na start dnia.",
+        platformFocus: "Instagram Reels & TikTok",
         isPeakGoldenHour: false,
         recommendedFormat: 'Mocna rolka 7s: "Don\'t complain. Work in silence."',
-        dailyFrequencyAdvice: 'Złota zasada: Max 1-2 posty dziennie z odstępem min. 5h!'
+        dailyFrequencyAdvice: "Złota zasada: Max 1-2 posty dziennie z odstępem min. 5h!",
       };
     } else if (currentMinutes < w2) {
       return {
-        name: 'Południowa Przerwa (Lunch Break)',
-        targetTime: '13:00',
+        name: "Południowa Przerwa (Lunch Break)",
+        targetTime: "13:00",
         minutesLeft: w2 - currentMinutes,
-        description: 'Przerwa obiadowa. Widzowie mają czas usiąść i przewinąć 6 slajdów karuzeli lub obejrzeć 3-minutowy film.',
-        platformFocus: 'Instagram Karuzela / YouTube Shorts',
+        description:
+          "Przerwa obiadowa. Widzowie mają czas usiąść i przewinąć 6 slajdów karuzeli lub obejrzeć 3-minutowy film.",
+        platformFocus: "Instagram Karuzela / YouTube Shorts",
         isPeakGoldenHour: false,
-        recommendedFormat: 'Wieloslajdowa karuzela z zasadami stoickimi',
-        dailyFrequencyAdvice: 'Karuzela w południe nie kanibalizuje wieczornej rolki!'
+        recommendedFormat: "Wieloslajdowa karuzela z zasadami stoickimi",
+        dailyFrequencyAdvice: "Karuzela w południe nie kanibalizuje wieczornej rolki!",
       };
     } else if (currentMinutes < w3) {
       return {
-        name: '👑 ZŁOTA GODZINA: Wieczorny Szczyt Algorytmiczny',
-        targetTime: '19:30',
+        name: "👑 ZŁOTA GODZINA: Wieczorny Szczyt Algorytmiczny",
+        targetTime: "19:30",
         minutesLeft: w3 - currentMinutes,
-        description: 'Najwyższa retencja doby. Ludzie kończą obowiązki i spędzają 1-2 godziny na kanapie scrollując feed.',
-        platformFocus: 'Instagram Reels, TikTok, YouTube Shorts',
+        description:
+          "Najwyższa retencja doby. Ludzie kończą obowiązki i spędzają 1-2 godziny na kanapie scrollując feed.",
+        platformFocus: "Instagram Reels, TikTok, YouTube Shorts",
         isPeakGoldenHour: true,
-        recommendedFormat: 'Twój najlepszy, najbardziej dopracowany film 9:16 dnia',
-        dailyFrequencyAdvice: '1x Główna Rolka Wieczorem to fundament wzrostu.'
+        recommendedFormat: "Twój najlepszy, najbardziej dopracowany film 9:16 dnia",
+        dailyFrequencyAdvice: "1x Główna Rolka Wieczorem to fundament wzrostu.",
       };
     } else {
       // Roll over to tomorrow 07:45
       return {
-        name: 'Poranne Okno (Jutro)',
-        targetTime: '07:45',
-        minutesLeft: (24 * 60 - currentMinutes) + w1,
-        description: 'Przygotuj post na poranny commute kolejnego dnia.',
-        platformFocus: 'Instagram & TikTok',
+        name: "Poranne Okno (Jutro)",
+        targetTime: "07:45",
+        minutesLeft: 24 * 60 - currentMinutes + w1,
+        description: "Przygotuj post na poranny commute kolejnego dnia.",
+        platformFocus: "Instagram & TikTok",
         isPeakGoldenHour: false,
-        recommendedFormat: 'Krótka rolka lub cytat',
-        dailyFrequencyAdvice: 'Nie postuj w nocy (23:00-05:00) – algorytm uśnie.'
+        recommendedFormat: "Krótka rolka lub cytat",
+        dailyFrequencyAdvice: "Nie postuj w nocy (23:00-05:00) – algorytm uśnie.",
       };
     }
   }
 }
-

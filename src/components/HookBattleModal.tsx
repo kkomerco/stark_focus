@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   X,
   Swords,
@@ -10,9 +10,9 @@ import {
   Award,
   Film,
   Zap,
-  ShieldCheck
-} from 'lucide-react';
-import { HookBattleItem } from '../types';
+  ShieldCheck,
+} from "lucide-react";
+import { HookBattleItem } from "../types";
 
 interface HookBattleModalProps {
   isOpen: boolean;
@@ -29,7 +29,7 @@ export const HookBattleModal: React.FC<HookBattleModalProps> = ({
   onOpenQR,
   onOpenVideoStudio,
   onGeneratePost,
-  initialTopic = 'Dyscyplina i walka z oporem'
+  initialTopic = "Dyscyplina i walka z oporem",
 }) => {
   const [topic, setTopic] = useState<string>(initialTopic);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -37,45 +37,46 @@ export const HookBattleModal: React.FC<HookBattleModalProps> = ({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [battles, setBattles] = useState<HookBattleItem[]>([
     {
-      id: 'hb-1',
-      angle: 'Negatywny Pattern Interrupt',
+      id: "hb-1",
+      angle: "Negatywny Pattern Interrupt",
       hook: "Your lack of discipline isn't burnout. You're simply comfortable being mediocre.",
       estimatedRetention: 96,
-      psychologicalTrigger: 'Uderzenie w dumę i negacja wymówki',
-      reason: 'Zatrzymuje scroll w pierwszych 800ms poprzez zakwestionowanie kłamstwa widza.'
+      psychologicalTrigger: "Uderzenie w dumę i negacja wymówki",
+      reason: "Zatrzymuje scroll w pierwszych 800ms poprzez zakwestionowanie kłamstwa widza.",
     },
     {
-      id: 'hb-2',
-      angle: 'Stoicki Paradoks',
-      hook: 'The more freedom you chase, the heavier your invisible chains become.',
+      id: "hb-2",
+      angle: "Stoicki Paradoks",
+      hook: "The more freedom you chase, the heavier your invisible chains become.",
       estimatedRetention: 93,
-      psychologicalTrigger: 'Pozorna sprzeczność zmuszająca do myślenia',
-      reason: 'Zmusza mózg do zwolnienia, by zrozumieć pojęcie pozornej wolności.'
+      psychologicalTrigger: "Pozorna sprzeczność zmuszająca do myślenia",
+      reason: "Zmusza mózg do zwolnienia, by zrozumieć pojęcie pozornej wolności.",
     },
     {
-      id: 'hb-3',
-      angle: 'Prowokacyjne Pytanie',
-      hook: 'If someone filmed your last 48 hours, would it look like an empire or an embarrassment?',
+      id: "hb-3",
+      angle: "Prowokacyjne Pytanie",
+      hook: "If someone filmed your last 48 hours, would it look like an empire or an embarrassment?",
       estimatedRetention: 94,
-      psychologicalTrigger: 'Wizualizacja zewnętrznego osądu',
-      reason: 'Audyt własnego wstydu w głowie widza generuje natychmiastowe zaangażowanie.'
+      psychologicalTrigger: "Wizualizacja zewnętrznego osądu",
+      reason: "Audyt własnego wstydu w głowie widza generuje natychmiastowe zaangażowanie.",
     },
     {
-      id: 'hb-4',
-      angle: 'Brutalne Liczby & Dane',
-      hook: '99% of men will lose their war today before 7:00 AM. Here is why.',
+      id: "hb-4",
+      angle: "Brutalne Liczby & Dane",
+      hook: "99% of men will lose their war today before 7:00 AM. Here is why.",
       estimatedRetention: 89,
-      psychologicalTrigger: 'Strach przed przynależnością do przegranej większości',
-      reason: 'Konkretna godzina i statystyka uruchamiają lęk przed popełnieniem tego samego błędu.'
+      psychologicalTrigger: "Strach przed przynależnością do przegranej większości",
+      reason:
+        "Konkretna godzina i statystyka uruchamiają lęk przed popełnieniem tego samego błędu.",
     },
     {
-      id: 'hb-5',
-      angle: 'Zagadka / Enigma',
-      hook: 'Marcus Aurelius had one private rule that modern men are too weak to adopt.',
+      id: "hb-5",
+      angle: "Zagadka / Enigma",
+      hook: "Marcus Aurelius had one private rule that modern men are too weak to adopt.",
       estimatedRetention: 91,
-      psychologicalTrigger: 'Ciekawość historyczna i autorytet',
-      reason: 'Odbiorca musi obejrzeć co najmniej 5-7 sekund, by poznać tę sekretną zasadę.'
-    }
+      psychologicalTrigger: "Ciekawość historyczna i autorytet",
+      reason: "Odbiorca musi obejrzeć co najmniej 5-7 sekund, by poznać tę sekretną zasadę.",
+    },
   ]);
 
   if (!isOpen) return null;
@@ -84,10 +85,10 @@ export const HookBattleModal: React.FC<HookBattleModalProps> = ({
     if (!topic.trim()) return;
     setIsLoading(true);
     try {
-      const res = await fetch('/api/ai/hook-battle', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ topic })
+      const res = await fetch("/api/ai/hook-battle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topic }),
       });
       if (res.ok) {
         const data = await res.json();
@@ -96,7 +97,7 @@ export const HookBattleModal: React.FC<HookBattleModalProps> = ({
         }
       }
     } catch (err) {
-      console.error('Błąd podczas generowania bitwy hooków:', err);
+      console.error("Błąd podczas generowania bitwy hooków:", err);
     } finally {
       setIsLoading(false);
     }
@@ -129,7 +130,8 @@ export const HookBattleModal: React.FC<HookBattleModalProps> = ({
                 LABORATORIUM BITWY HOOKÓW // TESTY A/B (0-3 SEKUNDY)
               </h3>
               <p className="text-[11px] text-slate-400 font-mono">
-                System generuje 5 odmiennych psychologicznie wersji hooka i wylicza szansę zatrzymania kciuka (Thumb-stop rate).
+                System generuje 5 odmiennych psychologicznie wersji hooka i wylicza szansę
+                zatrzymania kciuka (Thumb-stop rate).
               </p>
             </div>
           </div>
@@ -148,7 +150,7 @@ export const HookBattleModal: React.FC<HookBattleModalProps> = ({
             type="text"
             value={topic}
             onChange={(e) => setTopic(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleRunBattle()}
+            onKeyDown={(e) => e.key === "Enter" && handleRunBattle()}
             placeholder="Wpisz temat np. 'Poranne lenistwo', 'Strach przed opiniami', 'Dlaczego 99% odpada'..."
             className="flex-1 w-full text-xs font-medium py-2 px-3 bg-[#141824] border border-[#2C354B] rounded text-white focus:border-[#38BDF8] focus:outline-none"
           />
@@ -159,7 +161,7 @@ export const HookBattleModal: React.FC<HookBattleModalProps> = ({
             className="w-full sm:w-auto px-4 py-2 rounded-sm bg-[#F59E0B] hover:bg-[#F59E0B]/90 text-[#141824] font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm transition-all disabled:opacity-50 whitespace-nowrap cursor-pointer"
           >
             <Sparkles className="w-3.5 h-3.5" />
-            {isLoading ? 'Symulacja Algorytmu...' : 'Rozpocznij Bitwę Hooków'}
+            {isLoading ? "Symulacja Algorytmu..." : "Rozpocznij Bitwę Hooków"}
           </button>
         </div>
 
@@ -172,8 +174,8 @@ export const HookBattleModal: React.FC<HookBattleModalProps> = ({
                 key={b.id}
                 className={`p-3.5 sm:p-4 rounded-lg border transition-all ${
                   isWinner
-                    ? 'bg-[#1D2333] border-[#F59E0B] shadow-[0_0_15px_rgba(245,158,11,0.15)]'
-                    : 'bg-[#141824] border-[#2C354B] hover:border-slate-600'
+                    ? "bg-[#1D2333] border-[#F59E0B] shadow-[0_0_15px_rgba(245,158,11,0.15)]"
+                    : "bg-[#141824] border-[#2C354B] hover:border-slate-600"
                 }`}
               >
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#2C354B] pb-2">
@@ -189,14 +191,16 @@ export const HookBattleModal: React.FC<HookBattleModalProps> = ({
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-mono font-bold text-slate-400">Thumb-Stop Score:</span>
+                    <span className="text-xs font-mono font-bold text-slate-400">
+                      Thumb-Stop Score:
+                    </span>
                     <span
                       className={`text-sm font-mono font-black ${
                         b.estimatedRetention >= 94
-                          ? 'text-[#10B981]'
+                          ? "text-[#10B981]"
                           : b.estimatedRetention >= 90
-                          ? 'text-[#38BDF8]'
-                          : 'text-[#F59E0B]'
+                            ? "text-[#38BDF8]"
+                            : "text-[#F59E0B]"
                       }`}
                     >
                       {b.estimatedRetention}%
@@ -238,8 +242,8 @@ export const HookBattleModal: React.FC<HookBattleModalProps> = ({
                     >
                       <Sparkles className="w-3.5 h-3.5" />
                       {generatingPostId === b.id
-                        ? 'Generowanie kompletnego posta...'
-                        : '⚡ WYGENERUJ PEŁNY POST Z TYM HOOKIEM'}
+                        ? "Generowanie kompletnego posta..."
+                        : "⚡ WYGENERUJ PEŁNY POST Z TYM HOOKIEM"}
                     </button>
                   </div>
                 )}

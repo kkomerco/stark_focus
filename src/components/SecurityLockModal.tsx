@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Lock, Unlock, ShieldAlert, KeyRound, Check, X } from 'lucide-react';
+import React, { useState } from "react";
+import { Lock, Unlock, ShieldAlert, KeyRound, Check, X } from "lucide-react";
 
 interface SecurityLockModalProps {
   currentPin: string;
@@ -7,7 +7,7 @@ interface SecurityLockModalProps {
   onUnlock: () => void;
   onUpdatePin: (newPin: string | undefined) => void;
   onCloseSettings?: () => void;
-  mode: 'lockscreen' | 'settings';
+  mode: "lockscreen" | "settings";
 }
 
 export const SecurityLockModal: React.FC<SecurityLockModalProps> = ({
@@ -16,37 +16,37 @@ export const SecurityLockModal: React.FC<SecurityLockModalProps> = ({
   onUnlock,
   onUpdatePin,
   onCloseSettings,
-  mode
+  mode,
 }) => {
-  const [enteredPin, setEnteredPin] = useState<string>('');
-  const [errorMsg, setErrorMsg] = useState<string>('');
-  const [newPinInput, setNewPinInput] = useState<string>('');
+  const [enteredPin, setEnteredPin] = useState<string>("");
+  const [errorMsg, setErrorMsg] = useState<string>("");
+  const [newPinInput, setNewPinInput] = useState<string>("");
   const [confirmDisable, setConfirmDisable] = useState<boolean>(false);
 
   const handleDigit = (digit: string) => {
     if (enteredPin.length < 6) {
       const next = enteredPin + digit;
       setEnteredPin(next);
-      setErrorMsg('');
+      setErrorMsg("");
 
       if (next === currentPin) {
         setTimeout(() => {
           onUnlock();
-          setEnteredPin('');
+          setEnteredPin("");
         }, 150);
       } else if (next.length >= currentPin.length) {
-        setErrorMsg('Błędny kod PIN');
-        setTimeout(() => setEnteredPin(''), 600);
+        setErrorMsg("Błędny kod PIN");
+        setTimeout(() => setEnteredPin(""), 600);
       }
     }
   };
 
   const handleDelete = () => {
     setEnteredPin((prev) => prev.slice(0, -1));
-    setErrorMsg('');
+    setErrorMsg("");
   };
 
-  if (mode === 'lockscreen' && isLocked) {
+  if (mode === "lockscreen" && isLocked) {
     return (
       <div className="fixed inset-0 z-50 bg-[#0F121C] flex flex-col items-center justify-center p-4">
         <div className="w-full max-w-sm p-6 bg-[#1D2333] border border-[#2C354B] rounded-xl shadow-2xl text-center space-y-6">
@@ -69,22 +69,20 @@ export const SecurityLockModal: React.FC<SecurityLockModalProps> = ({
                 key={i}
                 className={`w-4 h-4 rounded-full border transition-all ${
                   i < enteredPin.length
-                    ? 'bg-[#38BDF8] border-[#38BDF8] shadow-[0_0_8px_#38BDF8]'
-                    : 'border-[#2C354B] bg-[#141824]'
+                    ? "bg-[#38BDF8] border-[#38BDF8] shadow-[0_0_8px_#38BDF8]"
+                    : "border-[#2C354B] bg-[#141824]"
                 }`}
               />
             ))}
           </div>
 
           {errorMsg && (
-            <p className="text-xs text-rose-400 font-mono font-bold animate-shake">
-              {errorMsg}
-            </p>
+            <p className="text-xs text-rose-400 font-mono font-bold animate-shake">{errorMsg}</p>
           )}
 
           {/* Numpad */}
           <div className="grid grid-cols-3 gap-2.5 max-w-[240px] mx-auto">
-            {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((d) => (
+            {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((d) => (
               <button
                 key={d}
                 onClick={() => handleDigit(d)}
@@ -94,13 +92,13 @@ export const SecurityLockModal: React.FC<SecurityLockModalProps> = ({
               </button>
             ))}
             <button
-              onClick={() => setEnteredPin('')}
+              onClick={() => setEnteredPin("")}
               className="h-12 rounded bg-[#141824] hover:bg-[#242B3F] border border-[#2C354B] text-slate-400 font-mono text-xs uppercase"
             >
               C
             </button>
             <button
-              onClick={() => handleDigit('0')}
+              onClick={() => handleDigit("0")}
               className="h-12 rounded bg-[#141824] hover:bg-[#242B3F] active:bg-[#38BDF8] active:text-[#141824] border border-[#2C354B] text-white font-mono text-base font-bold transition-all"
             >
               0
@@ -145,8 +143,8 @@ export const SecurityLockModal: React.FC<SecurityLockModalProps> = ({
         <div className="space-y-3 text-xs font-mono">
           <div className="p-3 bg-[#141824] border border-[#2C354B] rounded">
             <span className="text-slate-400 block mb-1">Status Blokady:</span>
-            <span className={`font-bold ${currentPin ? 'text-emerald-400' : 'text-amber-400'}`}>
-              {currentPin ? '🔒 Aktywna (wymaga kodu PIN)' : '🔓 Wyłączona (dostęp bezpośredni)'}
+            <span className={`font-bold ${currentPin ? "text-emerald-400" : "text-amber-400"}`}>
+              {currentPin ? "🔒 Aktywna (wymaga kodu PIN)" : "🔓 Wyłączona (dostęp bezpośredni)"}
             </span>
           </div>
 
@@ -158,7 +156,7 @@ export const SecurityLockModal: React.FC<SecurityLockModalProps> = ({
               type="password"
               maxLength={6}
               value={newPinInput}
-              onChange={(e) => setNewPinInput(e.target.value.replace(/\D/g, ''))}
+              onChange={(e) => setNewPinInput(e.target.value.replace(/\D/g, ""))}
               placeholder="np. 1234"
               className="w-full px-3 py-2 bg-[#141824] border border-[#2C354B] rounded text-white text-sm font-mono tracking-widest placeholder-slate-600 focus:outline-none focus:border-[#38BDF8]"
             />

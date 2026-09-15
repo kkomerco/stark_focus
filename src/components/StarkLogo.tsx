@@ -1,5 +1,5 @@
-import React from 'react';
-import { Download } from 'lucide-react';
+import React from "react";
+import { Download } from "lucide-react";
 
 interface StarkLogoProps {
   className?: string;
@@ -9,17 +9,17 @@ interface StarkLogoProps {
 }
 
 export const StarkLogo: React.FC<StarkLogoProps> = ({
-  className = '',
+  className = "",
   size = 40,
   showText = false,
-  showDownload = false
+  showDownload = false,
 }) => {
-  const logoSrc = '/stark_seal_logo.png';
+  const logoSrc = "/stark_seal_logo.png";
 
   const handleDownloadPng = () => {
-    const a = document.createElement('a');
+    const a = document.createElement("a");
     a.href = logoSrc;
-    a.download = 'stark_focus_official_seal_1080.png';
+    a.download = "stark_focus_official_seal_1080.png";
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -38,7 +38,7 @@ export const StarkLogo: React.FC<StarkLogoProps> = ({
             alt="STARK FOCUS SEAL"
             className="w-full h-full object-cover"
             onError={(e) => {
-              (e.target as HTMLElement).style.display = 'none';
+              (e.target as HTMLElement).style.display = "none";
             }}
           />
         </div>
@@ -72,4 +72,3 @@ export const StarkLogo: React.FC<StarkLogoProps> = ({
     </div>
   );
 };
-
