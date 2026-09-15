@@ -852,7 +852,7 @@ export function generateCombinatorialFormula(
   }
 
   // Dynamiczne losowanie tła z bogatej biblioteki (ponad 100+ unikalnych motywów) dopasowanej do motywu wizualnego
-  const randomScene = getRandomBackgroundScene(chosenTheme);
+  const randomScene = getRandomBackgroundScene(theme);
   const bgRec = {
     sceneName: randomScene.name,
     rationale: randomScene.rationale,
