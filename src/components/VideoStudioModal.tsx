@@ -59,19 +59,18 @@ interface VideoStudioModalProps {
 
 import {
   VisualTheme,
-  HighlightStyle,
-  FontFamily,
-  ReelDuration,
-  PacingMode,
-  PhraseTimeInterval,
   getPhraseTimeline,
   VISUAL_THEMES,
-  ThemeMeta,
-  Token,
   parseTokens,
   isOrphanWord,
   layoutLines,
 } from "./video/reel-helpers";
+import { useReelDirector } from "./video/useReelDirector";
+import { useTts } from "./video/useTTS";
+import { useVariantGenerator } from "./video/useVariantGenerator";
+import { ReelStagePreview } from "./video/ReelStagePreview";
+import { CodexRulesModal } from "./video/CodexRulesModal";
+import { VariantPickerModal } from "./video/VariantPickerModal";
 
 const PRESET_STORAGE_KEY = "stark_reel_default_preset_v2";
 
@@ -81,52 +80,47 @@ export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
   initialBgUrl,
 }) => {
   // Read saved preset from localStorage if exists
-  const savedPreset = useMemo(() => {
-    try {
-      const raw = localStorage.getItem(PRESET_STORAGE_KEY);
-      if (raw) return JSON.parse(raw);
-    } catch {
-      // ignore
-    }
-    return null;
-  }, []);
+  const director = useReelDirector({ initialHook });
+
+  const {
+    duration,
+    setDuration,
+    pacingMode,
+    setPacingMode,
+    format,
+    setFormat,
+    selectedTheme,
+    setSelectedTheme,
+    fontFamily,
+    setFontFamily,
+    fontSize,
+    setFontSize,
+    textCase,
+    setTextCase,
+    highlightStyle,
+    setHighlightStyle,
+    verticalPos,
+    setVerticalPos,
+    captionStyle,
+    setCaptionStyle,
+    phrases,
+    setPhrases,
+    activeTemplate,
+    setActiveTemplate,
+    caption,
+    setCaption,
+    hashtags,
+    setHashtags,
+    toastMessage,
+    setToastMessage,
+  } = director;
 
   // 1. Initial State from curated templates
-  const initialTpl = useMemo(() => {
-    if (initialHook) {
-      const found = VIRAL_REEL_TEMPLATES.find(
+  const initialTpl = initialHook
+    ? (VIRAL_REEL_TEMPLATES.find(
         (t) => t.phrases.join(" ").toUpperCase() === initialHook.toUpperCase(),
-      );
-      if (found) return found;
-    }
-    return VIRAL_REEL_TEMPLATES[0];
-  }, [initialHook]);
-
-  // Director Controls
-  const [duration, setDuration] = useState<ReelDuration>(
-    (savedPreset?.duration as ReelDuration) || (initialTpl.suggestedDuration as ReelDuration) || 7,
-  );
-  const [pacingMode, setPacingMode] = useState<PacingMode>(
-    savedPreset?.pacingMode || "climax_hold",
-  );
-  const [format, setFormat] = useState<NarrativeFormat>(initialTpl.format || "three_phases");
-  const [selectedTheme, setSelectedTheme] = useState<VisualTheme>(
-    savedPreset?.selectedTheme || initialTpl.suggestedTheme || "obsidian_void",
-  );
-  const [fontFamily, setFontFamily] = useState<FontFamily>(
-    savedPreset?.fontFamily === "syne" ? "montserrat" : savedPreset?.fontFamily || "cinzel",
-  );
-  const [fontSize, setFontSize] = useState<number>(savedPreset?.fontSize ?? 76);
-  const [textCase, setTextCase] = useState<"natural" | "uppercase">(
-    savedPreset?.textCase ?? "natural",
-  );
-  const [highlightStyle, setHighlightStyle] = useState<HighlightStyle>(
-    savedPreset?.highlightStyle || "white_halo",
-  );
-  const [verticalPos, setVerticalPos] = useState<number>(savedPreset?.verticalPos ?? 42);
-  const [captionStyle, setCaptionStyle] = useState<"short" | "deep">(
-    savedPreset?.captionStyle || "short",
-  );
+      ) ?? VIRAL_REEL_TEMPLATES[0])
+    : VIRAL_REEL_TEMPLATES[0];
 
   // Custom Background State (Image or Video)
   const [customBgType, setCustomBgType] = useState<"none" | "image" | "video">("none");
@@ -165,25 +159,6 @@ export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
     }
   }, [initialBgUrl]);
 
-  // Editable phrases for quick preview & correction (Traditional sentence case)
-  const [phrases, setPhrases] = useState<string[]>(() => {
-    if (initialHook) {
-      const parts = initialHook.split("\n").filter(Boolean);
-      return parts.length > 0 ? parts : initialTpl.phrases;
-    }
-    return initialTpl.phrases;
-  });
-
-  // Current template reference for caption toggling
-  const [activeTemplate, setActiveTemplate] = useState<ReelTemplate>(initialTpl);
-
-  // Ready-to-copy Caption & Hashtags
-  const [caption, setCaption] = useState<string>(
-    captionStyle === "deep" ? initialTpl.captionDeep : initialTpl.captionShort,
-  );
-  const [hashtags, setHashtags] = useState<string[]>(initialTpl.hashtags);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-
   // Playback & Canvas Loop
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
   const [currentTime, setCurrentTime] = useState<number>(0);
@@ -210,12 +185,6 @@ export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
     return found !== -1 ? found : activeTimeline.length - 1;
   }, [activeTimeline, currentTime, phrases.length]);
 
-  // Export State (Domyślnie 30 FPS zgodny ze standardem Instagram Reels / TikTok - brak podwajania czasu)
-  const [isExporting, setIsExporting] = useState<boolean>(false);
-  const [exportProgress, setExportProgress] = useState<number>(0);
-  const [exportFps, setExportFps] = useState<60 | 30>(30);
-  const isExportingRef = useRef<boolean>(false);
-
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const timeRef = useRef<number>(0);
@@ -225,87 +194,38 @@ export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
     isPlayingRef.current = isPlaying;
   }, [isPlaying]);
 
-  // ZERO-CLICK PIPELINE: 1. 1-Click Multi-Variant Video Generator (A/B testing)
-  const [isGeneratingVariants, setIsGeneratingVariants] = useState<boolean>(false);
-  const [multiVariants, setMultiVariants] = useState<any[]>([]);
-  const [showVariantsModal, setShowVariantsModal] = useState<boolean>(false);
+  const showToast = useCallback(
+    (message: string | null) => setToastMessage(message),
+    [setToastMessage],
+  );
 
-  const handleGenerateMultiVariants = async () => {
-    setIsGeneratingVariants(true);
-    setToastMessage("Generowanie 3 wariantów A/B/C rolki...");
-    try {
-      const res = await fetch("/api/ai/generate-multi-variant-reels", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic: phrases[0] || "Solitude and relentless standards" }),
-      });
-      const json = await res.json();
-      if (Array.isArray(json.variants)) {
-        setMultiVariants(json.variants);
-        setShowVariantsModal(true);
-        setToastMessage("✓ Wygenerowano 3 warianty A/B/C!");
-      }
-    } catch (e) {
-      console.error(e);
-      setToastMessage("Błąd generowania wariantów.");
-    } finally {
-      setIsGeneratingVariants(false);
-      setTimeout(() => setToastMessage(null), 2500);
-    }
-  };
+  const applyVariantState = useCallback(
+    (variant: any) => {
+      setPhrases(variant.phrases);
+      setSelectedTheme(variant.theme);
+      setDuration(variant.duration || 8);
+    },
+    [setPhrases, setSelectedTheme, setDuration],
+  );
 
-  const handleApplyVariant = (variant: any) => {
-    setPhrases(variant.phrases);
-    setSelectedTheme(variant.theme);
-    setDuration(variant.duration || 8);
-    setShowVariantsModal(false);
-    setToastMessage(`✓ Załadowano ${variant.variantName}`);
-    setTimeout(() => setToastMessage(null), 2500);
-  };
+  const {
+    isGeneratingVariants,
+    multiVariants,
+    showVariantsModal,
+    setShowVariantsModal,
+    handleGenerateMultiVariants,
+    handleApplyVariant,
+  } = useVariantGenerator({
+    getTopic: () => phrases[0] || "Solitude and relentless standards",
+    applyVariant: applyVariantState,
+    showToast,
+  });
 
-  // ZERO-CLICK PIPELINE: 2. Automatyczny lektor TTS (synchroniczny z frazami)
-  const [enableTts, setEnableTts] = useState<boolean>(false);
-  const spokenPhraseRef = useRef<number>(-1);
-
-  const speakPhrase = useCallback((text: string) => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-    if (!text.trim()) return;
-    try {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = "en-US";
-      utterance.rate = 0.95;
-      utterance.pitch = 0.9;
-      window.speechSynthesis.speak(utterance);
-    } catch (err) {
-      console.warn("TTS error:", err);
-    }
-  }, []);
-
-  // Lektor czyta każdą frazę dokładnie raz - w momencie wejścia na jej klatkę
-  useEffect(() => {
-    if (!enableTts) {
-      spokenPhraseRef.current = -1;
-      if (typeof window !== "undefined" && "speechSynthesis" in window) {
-        window.speechSynthesis.cancel();
-      }
-      return;
-    }
-    if (!isPlaying || spokenPhraseRef.current === currentPhraseIndex) return;
-    const phrase = phrases[currentPhraseIndex];
-    if (!phrase) return;
-    spokenPhraseRef.current = currentPhraseIndex;
-    speakPhrase(phrase);
-  }, [enableTts, isPlaying, currentPhraseIndex, phrases, speakPhrase]);
-
-  // Sprzątanie syntezatora mowy przy zamknięciu studia
-  useEffect(() => {
-    return () => {
-      if (typeof window !== "undefined" && "speechSynthesis" in window) {
-        window.speechSynthesis.cancel();
-      }
-    };
-  }, []);
+  const { enableTts, setEnableTts, speakPhrase, requestSpokenPhrase } = useTts({
+    isPlaying,
+    currentPhraseIndex,
+    phrases,
+  });
 
   // ZERO-CLICK PIPELINE: 3. Auto-dopasowanie kinowego tła B-Roll do fraz
   const [matchedBrollNotice, setMatchedBrollNotice] = useState<string | null>(null);
@@ -336,81 +256,7 @@ export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
     );
     setTimeout(() => setToastMessage(null), 2500);
   };
-  // TURNKEY EXPORT: 1. "Ready-to-Post" ZIP Bundle
-  const [isExportingZip, setIsExportingZip] = useState<boolean>(false);
-
-  const handleExportZipBundle = async () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    setIsExportingZip(true);
-    setToastMessage("Pakowanie zestawu ZIP (Wideo + Klatki + Opis)...");
-
-    try {
-      const zip = new JSZip();
-
-      // Klatka okładkowa (Hook)
-      renderFrame(0.5);
-      const coverDataUrl = canvas.toDataURL("image/png");
-      const coverBlob = await (await fetch(coverDataUrl)).blob();
-      zip.file("1_COVER_HOOK_1080x1920.png", coverBlob);
-
-      // Klatka finałowa (Climax)
-      renderFrame(Math.max(1, duration - 0.5));
-      const climaxDataUrl = canvas.toDataURL("image/png");
-      const climaxBlob = await (await fetch(climaxDataUrl)).blob();
-      zip.file("2_CLIMAX_PUNCHLINE_1080x1920.png", climaxBlob);
-
-      // Gotowy plik tekstowy z opisem posta i hashtagami
-      const postText = `STARK FOCUS // READY-TO-POST CONTENT BUNDLE
-============================================================
-DATA GENERACJI: ${new Date().toISOString()}
-FORMAT: Rolka 9:16 (1080x1920 Full HD)
-CZAS TRWANIA: ${duration}.00s (${exportFps} FPS)
-MOTYW: ${selectedTheme}
-
-------------------------------------------------------------
-[1] HOOK (0-3 SEKUNDY):
-"${phrases[0] || ""}"
-
-[2] PEŁNA NARRACJA (FAZY):
-${phrases.map((p, i) => `Faza #${i + 1}: ${p}`).join("\n")}
-
-[3] PUENTA (CLIMAX):
-"${phrases[phrases.length - 1] || ""}"
-
-------------------------------------------------------------
-[4] OPIS POSTA (INSTAGRAM / TIKTOK CAPTION):
-${caption}
-
-------------------------------------------------------------
-[5] HASHTAGI:
-${hashtags.join(" ")}
-============================================================
-Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
-
-      zip.file("POST_CAPTION_HASHTAGS.txt", postText);
-
-      const content = await zip.generateAsync({ type: "blob" });
-      const url = URL.createObjectURL(content);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `STARK_READY_TO_POST_${duration}s_${selectedTheme}_${Date.now()}.zip`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
-      setToastMessage("✓ Pakiet ZIP został pobrany!");
-      setTimeout(() => setToastMessage(null), 3000);
-    } catch (err) {
-      console.error("ZIP export error:", err);
-      setToastMessage("Błąd eksportu pakietu ZIP.");
-      setTimeout(() => setToastMessage(null), 3000);
-    } finally {
-      setIsExportingZip(false);
-      setIsPlaying(true);
-    }
-  };
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   // TURNKEY EXPORT: 3. STARK CODEX Integration
   const [showCodexModal, setShowCodexModal] = useState<boolean>(false);
@@ -1125,15 +971,9 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
     };
   }, [duration, renderFrame]);
 
-  // Export Full Video MP4 (1080x1920 Full HD - Zegarmistrzowski czas 1:1, bez podwajania)
-  const handleExportVideo = async () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-    isExportingRef.current = true;
-    setIsExporting(true);
-    setExportProgress(0);
-    setIsPlaying(false);
+  // Export Still Frame PNG (Full HD 1080x1920)
 
     try {
       // FIX BŁĘDU 60 FPS (PODWAJANIE DŁUGOŚCI ROLKI):
