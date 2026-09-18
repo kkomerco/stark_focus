@@ -41,7 +41,7 @@ export const EXPANDED_BACKGROUND_LIBRARY: BackgroundScene[] = [
     id: "arch_03",
     name: "Monumentalny Portyk Panteonu o Północy",
     category: "Architektura & Rzeźba",
-    theme: "carbon_aura",
+    theme: "silver_mist",
     description:
       "Ciemne, kamienne wejście do rzymskiego panteonu z subtelną bursztynowo-złotą poświatą",
     rationale: "Majestat starożytnego porządku i święta powaga dyscypliny.",
@@ -117,20 +117,20 @@ export const EXPANDED_BACKGROUND_LIBRARY: BackgroundScene[] = [
   },
   {
     id: "arch_10",
-    name: "Bazaltowy Ołtarz Ognia",
+    name: "Bazaltowy Cokół Ognia",
     category: "Architektura & Rzeźba",
     theme: "crimson_eclipse",
-    description: "Ciemny kamienny ołtarz z tlącym się głęboko karmazynowym żarem",
+    description: "Ciemny kamienny cokół z tlącym się głęboko karmazynowym żarem",
     rationale: "Wewnętrzny ogień (Logos), który spala wszelkie wymówki i słabości.",
     bingPrompt:
-      "Dark basalt sacrificial altar with deep crimson dying embers in pure black void, moody chiaroscuro lighting, stoic solemnity, vertical 9:16",
+      "Minimalist dark basalt stone pedestal with deep crimson dying embers in pure black void, moody chiaroscuro lighting, stoic solemnity, vertical 9:16",
     previewColor: "#160608",
   },
   {
     id: "arch_11",
     name: "Kolumnada Forum Romanum o Świcie",
     category: "Architektura & Rzeźba",
-    theme: "carbon_aura",
+    theme: "silver_mist",
     description:
       "Zarys ruin przed wschodem słońca, pierwsze zimne złote promienie na szczytach kapiteli",
     rationale: "Poranny rytuał bezkompromisowej gotowości do walki z własną słabością.",
@@ -399,7 +399,7 @@ export const EXPANDED_BACKGROUND_LIBRARY: BackgroundScene[] = [
     id: "void_05",
     name: "Złoty Zarys Geometrii Monolitu",
     category: "Geometria & Void",
-    theme: "carbon_aura",
+    theme: "silver_mist",
     description: "Ciemna bryła sześcianu obrysowana cienką nicią matowego cesarskiego złota",
     rationale: "Złoty podział i geometryczny ład panujący w umyśle mędrca.",
     bingPrompt:
@@ -630,13 +630,13 @@ export const EXPANDED_BACKGROUND_LIBRARY: BackgroundScene[] = [
   },
   {
     id: "city_11",
-    name: "Ciemna Sala Treningu Walki",
+    name: "Ciemna Sala Żelaznego Treningu",
     category: "Miasto & Monk Mode",
     theme: "crimson_eclipse",
-    description: "Worek bokserski z ciemnej skóry nieruchomy w półcieniu, karmazynowa poświata",
-    rationale: "Gotowość do starcia z losem (Amor Fati) – przyjmij cios i idź dalej.",
+    description: "Ciemna skórzana torba treningowa i ciężary w półcieniu, karmazynowa poświata",
+    rationale: "Gotowość do pokonywania oporu i budowania charakteru w samotności.",
     bingPrompt:
-      "Heavy dark leather boxing punch bag hanging in shadowy warehouse gym, subtle crimson rim lighting, raw gritty stoic texture 9:16",
+      "Minimalist dark leather heavy bag in shadowy architectural gym, subtle crimson rim lighting, raw gritty stoic texture, vertical 9:16",
     previewColor: "#150608",
   },
   {
@@ -665,7 +665,7 @@ export const EXPANDED_BACKGROUND_LIBRARY: BackgroundScene[] = [
     id: "city_14",
     name: "Ciemna Sala Biblioteki ze Starymi Woluminami",
     category: "Miasto & Monk Mode",
-    theme: "carbon_aura",
+    theme: "silver_mist",
     description: "Ciemne dębowe regały sięgające sufitu, subtelny złoty pyłek w smudze światła",
     rationale: "Rozmowa ze zmarłymi mędrcami – czytanie jako tarcza przed głupotą epoki.",
     bingPrompt:

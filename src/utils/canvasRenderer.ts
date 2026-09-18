@@ -176,7 +176,281 @@ function drawImageCover(
 }
 
 // =========================================================================
-// PROFESJONALNY FORMAT: LITERY 3D NA ŚCIANIE (PERSPEKTYWA 3D + KINOWE ŚWIATŁO)
+// POMOCNIK PROCEDURALNEGO TWORZENIA TEKSTUR ŚCIANY STARK FOCUS
+// =========================================================================
+function drawProceduralWall(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  wallType: string = "concrete",
+) {
+  // A. BAZOWY GRADIENT KOLORYSTYCZNY ŚCIANY
+  if (wallType === "black_marble") {
+    // 1. CZARNY MARMUR OBSIDIAN (Nero Marquina w barwach Stark Focus)
+    const bgGrad = ctx.createLinearGradient(0, 0, width, height);
+    bgGrad.addColorStop(0, "#161922");
+    bgGrad.addColorStop(0.3, "#0F1116");
+    bgGrad.addColorStop(0.7, "#08090C");
+    bgGrad.addColorStop(1, "#030406");
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, width, height);
+
+    // Organiczne żyłki marmuru (Marble Veins)
+    ctx.save();
+    const veins = [
+      {
+        startX: 0.15,
+        startY: 0,
+        cp1X: 0.35,
+        cp1Y: 0.3,
+        cp2X: 0.2,
+        cp2Y: 0.7,
+        endX: 0.45,
+        endY: 1,
+        width: 3,
+        alpha: 0.25,
+      },
+      {
+        startX: 0.5,
+        startY: 0,
+        cp1X: 0.65,
+        cp1Y: 0.35,
+        cp2X: 0.75,
+        cp2Y: 0.6,
+        endX: 0.9,
+        endY: 1,
+        width: 2.2,
+        alpha: 0.2,
+      },
+      {
+        startX: 0,
+        startY: 0.3,
+        cp1X: 0.25,
+        cp1Y: 0.45,
+        cp2X: 0.5,
+        cp2Y: 0.4,
+        endX: 0.8,
+        endY: 0.65,
+        width: 1.8,
+        alpha: 0.18,
+      },
+      {
+        startX: 0.3,
+        startY: 0.6,
+        cp1X: 0.45,
+        cp1Y: 0.7,
+        cp2X: 0.4,
+        cp2Y: 0.85,
+        endX: 0.6,
+        endY: 1,
+        width: 1.5,
+        alpha: 0.15,
+      },
+      {
+        startX: 0.7,
+        startY: 0.15,
+        cp1X: 0.8,
+        cp1Y: 0.3,
+        cp2X: 0.88,
+        cp2Y: 0.4,
+        endX: 1,
+        endY: 0.5,
+        width: 1.2,
+        alpha: 0.12,
+      },
+    ];
+
+    veins.forEach((v) => {
+      // Miękka poświata żyłki
+      ctx.beginPath();
+      ctx.moveTo(v.startX * width, v.startY * height);
+      ctx.bezierCurveTo(
+        v.cp1X * width,
+        v.cp1Y * height,
+        v.cp2X * width,
+        v.cp2Y * height,
+        v.endX * width,
+        v.endY * height,
+      );
+      ctx.strokeStyle = `rgba(220, 230, 245, ${v.alpha * 0.4})`;
+      ctx.lineWidth = v.width * 3.5;
+      ctx.stroke();
+
+      // Ostry nerw żyłki
+      ctx.beginPath();
+      ctx.moveTo(v.startX * width, v.startY * height);
+      ctx.bezierCurveTo(
+        v.cp1X * width,
+        v.cp1Y * height,
+        v.cp2X * width,
+        v.cp2Y * height,
+        v.endX * width,
+        v.endY * height,
+      );
+      ctx.strokeStyle = `rgba(240, 245, 255, ${v.alpha})`;
+      ctx.lineWidth = v.width;
+      ctx.stroke();
+    });
+    ctx.restore();
+  } else if (wallType === "dark_granite") {
+    // 2. CIEMNY GRANIT / ŁUPEK SKALNY
+    const bgGrad = ctx.createLinearGradient(0, 0, width, height);
+    bgGrad.addColorStop(0, "#22262E");
+    bgGrad.addColorStop(0.45, "#15171D");
+    bgGrad.addColorStop(1, "#0B0C0E");
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, width, height);
+
+    // Mikrostruktura kwarcu/ziarna skalnego
+    ctx.save();
+    for (let i = 0; i < 450; i++) {
+      const rx = (i * 12347) % width;
+      const ry = (i * 31415) % height;
+      const rSize = (i % 3) + 1;
+      const alpha = ((i % 10) + 1) * 0.015;
+      ctx.fillStyle = i % 2 === 0 ? `rgba(255, 255, 255, ${alpha})` : `rgba(0, 0, 0, ${alpha * 2})`;
+      ctx.fillRect(rx, ry, rSize, rSize);
+    }
+    ctx.restore();
+  } else if (wallType === "white_carrara") {
+    // 3. CHŁODNY MARMUR STOICKI (CARRARA MONOLITH)
+    const bgGrad = ctx.createLinearGradient(0, 0, width, height);
+    bgGrad.addColorStop(0, "#EAEFF5");
+    bgGrad.addColorStop(0.4, "#D6DCE5");
+    bgGrad.addColorStop(0.85, "#B8C0CC");
+    bgGrad.addColorStop(1, "#9CA4B2");
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, width, height);
+
+    // Ciemne popielate żyłki
+    ctx.save();
+    const veins = [
+      {
+        startX: 0.2,
+        startY: 0,
+        cp1X: 0.38,
+        cp1Y: 0.28,
+        cp2X: 0.25,
+        cp2Y: 0.65,
+        endX: 0.5,
+        endY: 1,
+        width: 2.8,
+        alpha: 0.22,
+      },
+      {
+        startX: 0.6,
+        startY: 0,
+        cp1X: 0.72,
+        cp1Y: 0.4,
+        cp2X: 0.8,
+        cp2Y: 0.65,
+        endX: 0.95,
+        endY: 1,
+        width: 2,
+        alpha: 0.18,
+      },
+      {
+        startX: 0.05,
+        startY: 0.5,
+        cp1X: 0.35,
+        cp1Y: 0.55,
+        cp2X: 0.6,
+        cp2Y: 0.5,
+        endX: 0.85,
+        endY: 0.7,
+        width: 1.6,
+        alpha: 0.16,
+      },
+    ];
+    veins.forEach((v) => {
+      ctx.beginPath();
+      ctx.moveTo(v.startX * width, v.startY * height);
+      ctx.bezierCurveTo(
+        v.cp1X * width,
+        v.cp1Y * height,
+        v.cp2X * width,
+        v.cp2Y * height,
+        v.endX * width,
+        v.endY * height,
+      );
+      ctx.strokeStyle = `rgba(35, 42, 55, ${v.alpha})`;
+      ctx.lineWidth = v.width;
+      ctx.stroke();
+    });
+    ctx.restore();
+  } else if (wallType === "carbon_plaster") {
+    // 4. WĘGLOWY TYNK AKUSTYCZNY (ULTRA-MATT CARBON)
+    const bgGrad = ctx.createLinearGradient(0, 0, width, height);
+    bgGrad.addColorStop(0, "#1A1B22");
+    bgGrad.addColorStop(0.5, "#101116");
+    bgGrad.addColorStop(1, "#07080A");
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, width, height);
+
+    // Matowa mikroporowatość
+    ctx.save();
+    for (let i = 0; i < 300; i++) {
+      const rx = (i * 9871) % width;
+      const ry = (i * 18763) % height;
+      ctx.fillStyle = `rgba(255, 255, 255, 0.025)`;
+      ctx.fillRect(rx, ry, 2, 2);
+    }
+    ctx.restore();
+  } else if (wallType === "brushed_steel") {
+    // 5. CIEMNA SZCZOTKOWANA STAL
+    const bgGrad = ctx.createLinearGradient(0, 0, width, height);
+    bgGrad.addColorStop(0, "#2E333C");
+    bgGrad.addColorStop(0.3, "#21252C");
+    bgGrad.addColorStop(0.7, "#14171D");
+    bgGrad.addColorStop(1, "#0A0C0E");
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, width, height);
+
+    // Pasma szczotkowania
+    ctx.save();
+    for (let y = 0; y < height; y += 4) {
+      const alpha = ((y % 7) + 1) * 0.012;
+      ctx.fillStyle =
+        y % 8 === 0 ? `rgba(255, 255, 255, ${alpha})` : `rgba(0, 0, 0, ${alpha * 1.5})`;
+      ctx.fillRect(0, y, width, 2);
+    }
+    ctx.restore();
+  } else {
+    // 6. KLASYCZNY SUROWY BETON INDUSTRIALNY (DOMYŚLNY)
+    const wallGrad = ctx.createLinearGradient(0, 0, width, height);
+    wallGrad.addColorStop(0, "#B2B7C1");
+    wallGrad.addColorStop(0.4, "#8E95A2");
+    wallGrad.addColorStop(0.85, "#5D6472");
+    wallGrad.addColorStop(1, "#343A45");
+    ctx.fillStyle = wallGrad;
+    ctx.fillRect(0, 0, width, height);
+
+    // Subtelne mikro-łączenie płyt betonowych
+    ctx.save();
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.1)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(width * 0.5, 0);
+    ctx.lineTo(width * 0.5, height);
+    ctx.moveTo(0, height * 0.5);
+    ctx.lineTo(width, height * 0.5);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+// Mapowanie nazw fontów na specyfikacje Canvas (Plus Jakarta, Cinzel Roman, Inter, Cormorant)
+function getFontFamilySpec(fontFamily: string = "sans"): string {
+  const f = fontFamily.toLowerCase();
+  if (f === "cinzel" || f === "serif" || f === "cinzel roman") return `"Cinzel", serif`;
+  if (f === "cormorant" || f === "cormorant garamond")
+    return `"Cormorant Garamond", Georgia, serif`;
+  if (f === "inter") return `"Inter", sans-serif`;
+  return `"Plus Jakarta Sans", sans-serif`;
+}
+
+// =========================================================================
+// PROFESJONALNY FORMAT: LITERY 3D NA ŚCIANIE (PERSPEKTYWA 3D + KINOWE ŚWIATŁO + GLOW)
 // =========================================================================
 export function draw3DWallQuoteSlide(
   canvas: HTMLCanvasElement,
@@ -186,6 +460,14 @@ export function draw3DWallQuoteSlide(
     textLines: string[];
     wallImage?: CanvasImageSource | null;
     handle?: string;
+    fontSize?: number;
+    fontFamily?: string;
+    textScale?: number;
+    wallType?: string;
+    wallGlow?: string;
+    glowIntensity?: number;
+    fontColor?: "white" | "black";
+    letterMaterial?: "matte_graphite" | "brushed_steel" | "carved_stone" | "pure_acrylic";
   },
 ) {
   const {
@@ -201,6 +483,13 @@ export function draw3DWallQuoteSlide(
     ],
     wallImage = null,
     handle = "stark_focus",
+    textScale = 1.0,
+    fontFamily = "sans",
+    wallType = "concrete",
+    wallGlow = "spotlight",
+    glowIntensity = 0.7,
+    fontColor = "black",
+    letterMaterial = "matte_graphite",
   } = options;
 
   canvas.width = width;
@@ -208,97 +497,247 @@ export function draw3DWallQuoteSlide(
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
 
-  // 1. TŁO: Jeśli wgrano prawdziwe zdjęcie ściany – użyj go. Jeśli nie – wygeneruj fotorealistyczny beton studyjny
+  // 1. TŁO ŚCIANY: Własne zdjęcie lub wygenerowany proceduralny materiał
   if (wallImage) {
     drawImageCover(ctx, wallImage, 0, 0, width, height);
   } else {
-    // Fotorealistyczna ściana z narożnikiem po prawej stronie i światłem z góry
-    const wallGrad = ctx.createLinearGradient(0, 0, width, height);
-    wallGrad.addColorStop(0, "#B2B7C1");
-    wallGrad.addColorStop(0.4, "#8E95A2");
-    wallGrad.addColorStop(0.85, "#5D6472");
-    wallGrad.addColorStop(1, "#343A45");
-    ctx.fillStyle = wallGrad;
-    ctx.fillRect(0, 0, width, height);
+    drawProceduralWall(ctx, width, height, wallType);
 
-    // Naturalny snop światła padający z góry
-    const spotX = width * 0.88;
-    const spotY = height * 0.02;
-    const spotGrad = ctx.createRadialGradient(spotX, spotY, 50, spotX, spotY, height * 0.95);
-    spotGrad.addColorStop(0, "rgba(255, 255, 255, 0.45)");
-    spotGrad.addColorStop(0.3, "rgba(255, 255, 255, 0.18)");
-    spotGrad.addColorStop(0.7, "rgba(0, 0, 0, 0.1)");
-    spotGrad.addColorStop(1, "rgba(0, 0, 0, 0.65)");
-    ctx.fillStyle = spotGrad;
-    ctx.fillRect(0, 0, width, height);
+    // 2. OŚWIETLENIE ŚCIANY (GLOW / SPOTLIGHT / DRAMATIC)
+    if (wallGlow !== "none") {
+      if (wallGlow === "spotlight") {
+        // Naturalny snop światła padający z góry
+        const spotX = width * 0.88;
+        const spotY = height * 0.02;
+        const spotGrad = ctx.createRadialGradient(spotX, spotY, 40, spotX, spotY, height * 0.95);
+        const lightAlpha = Math.min(0.7, 0.45 * glowIntensity);
+        spotGrad.addColorStop(0, `rgba(255, 255, 255, ${lightAlpha})`);
+        spotGrad.addColorStop(0.35, `rgba(255, 255, 255, ${lightAlpha * 0.4})`);
+        spotGrad.addColorStop(0.7, "rgba(0, 0, 0, 0.05)");
+        spotGrad.addColorStop(1, `rgba(0, 0, 0, ${0.5 * glowIntensity})`);
+        ctx.fillStyle = spotGrad;
+        ctx.fillRect(0, 0, width, height);
+      } else if (wallGlow === "dramatic_side") {
+        // Ostre światło z prawej strony
+        const sideGrad = ctx.createLinearGradient(width, height * 0.3, 0, height * 0.7);
+        sideGrad.addColorStop(0, `rgba(255, 255, 255, ${0.35 * glowIntensity})`);
+        sideGrad.addColorStop(0.4, "rgba(255, 255, 255, 0.05)");
+        sideGrad.addColorStop(1, `rgba(0, 0, 0, ${0.65 * glowIntensity})`);
+        ctx.fillStyle = sideGrad;
+        ctx.fillRect(0, 0, width, height);
+      } else if (wallGlow === "halo_glow") {
+        // Rozproszona aureola w centrum kadru
+        const haloGrad = ctx.createRadialGradient(
+          width * 0.5,
+          height * 0.45,
+          80,
+          width * 0.5,
+          height * 0.45,
+          width * 0.7,
+        );
+        haloGrad.addColorStop(0, `rgba(255, 255, 255, ${0.3 * glowIntensity})`);
+        haloGrad.addColorStop(0.6, "rgba(255, 255, 255, 0.05)");
+        haloGrad.addColorStop(1, "rgba(0, 0, 0, 0.4)");
+        ctx.fillStyle = haloGrad;
+        ctx.fillRect(0, 0, width, height);
+      }
 
-    // Cień w prawym rogu (narożnik ściany)
-    const cornerGrad = ctx.createLinearGradient(width * 0.82, 0, width, 0);
-    cornerGrad.addColorStop(0, "rgba(0,0,0,0)");
-    cornerGrad.addColorStop(1, "rgba(0,0,0,0.5)");
-    ctx.fillStyle = cornerGrad;
-    ctx.fillRect(width * 0.82, 0, width * 0.18, height);
+      // Cień w prawym narożniku
+      const cornerGrad = ctx.createLinearGradient(width * 0.82, 0, width, 0);
+      cornerGrad.addColorStop(0, "rgba(0,0,0,0)");
+      cornerGrad.addColorStop(1, `rgba(0,0,0,${0.5 * glowIntensity})`);
+      ctx.fillStyle = cornerGrad;
+      ctx.fillRect(width * 0.82, 0, width * 0.18, height);
+    }
   }
 
-  // 2. NAŁOŻENIE MACIERZY PERSPEKTYWY 3D (Ściana ucieka w głąb kadru w stronę narożnika)
+  // 3. NAŁOŻENIE MACIERZY PERSPEKTYWY 3D
   ctx.save();
-  // Transformacja perspektywiczna: pochylenie w pionie i poziomie, dokładnie jak w rzucie z kamery
-  ctx.setTransform(1, -0.055, 0.065, 1, width * 0.05, height * 0.08);
+  ctx.setTransform(1, -0.055, 0.065, 1, width * 0.05, height * 0.06);
 
-  const fontSize = 72;
+  const baseFontSize = options.fontSize || (height <= 1080 ? 52 : height <= 1350 ? 62 : 72);
+  const fontSize = Math.round(baseFontSize * textScale);
   const lineHeight = fontSize * 1.34;
-  ctx.font = `900 ${fontSize}px "Plus Jakarta Sans", "Montserrat", sans-serif`;
+
+  const fontSpec = getFontFamilySpec(fontFamily);
+
+  ctx.font = `900 ${fontSize}px ${fontSpec}`;
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
 
-  const startX = width * 0.14;
-  let curY = height * 0.26;
+  const startX = width * 0.12;
+  const totalTextH = (textLines.length - 1) * lineHeight;
 
-  textLines.forEach((line) => {
-    // Źródło światła jest w prawym górnym rogu -> Cień MUSI padać w LEWO-DÓŁ!
+  let curY =
+    height <= 1080
+      ? Math.max(160, (height - totalTextH) * 0.42)
+      : height <= 1350
+        ? Math.max(220, (height - totalTextH) * 0.38)
+        : height * 0.26;
+
+  // Dobór barwy liter 3D wg tła i wyboru koloru czcionki (biała vs czarna)
+  const isWhiteFont = fontColor === "white";
+  const isLightWall = wallType === "white_carrara";
+
+  const frontTextColor = isWhiteFont ? "#F8FAFC" : isLightWall ? "#111215" : "#1A1D24";
+
+  const bevelDepthColor = isWhiteFont
+    ? isLightWall
+      ? "#94A3B8"
+      : "#334155"
+    : isLightWall
+      ? "#252A34"
+      : "#0A0B0E";
+
+  textLines.forEach((rawLine) => {
+    const line = rawLine;
     const shadowOffsetX = -14;
     const shadowOffsetY = 18;
 
-    // A. Miękki cień rozproszony na ścianie (Ambient Shadow)
-    ctx.save();
-    ctx.shadowColor = "rgba(0, 0, 0, 0.45)";
-    ctx.shadowBlur = 26;
-    ctx.shadowOffsetX = shadowOffsetX * 1.3;
-    ctx.shadowOffsetY = shadowOffsetY * 1.3;
-    ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
-    ctx.fillText(line, startX, curY);
-    ctx.restore();
-
-    // B. Ostry cień kontaktowy przy krawędzi litery
-    ctx.save();
-    ctx.shadowColor = "rgba(0, 0, 0, 0.85)";
-    ctx.shadowBlur = 6;
-    ctx.shadowOffsetX = shadowOffsetX * 0.5;
-    ctx.shadowOffsetY = shadowOffsetY * 0.5;
-    ctx.fillStyle = "#0B0C10";
-    ctx.fillText(line, startX, curY);
-    ctx.restore();
-
-    // C. Wypukłość 3D (boki liter rzeźbione w stronę cienia)
-    for (let d = 4; d >= 1; d--) {
-      ctx.fillStyle = "#0E1015";
-      ctx.fillText(line, startX - d * 1.2, curY + d * 1.4);
+    // A. EFEKT GLOW: Backlight LED zza liter (jeśli wybrano backlight_glow)
+    if (wallGlow === "backlight_glow") {
+      ctx.save();
+      ctx.shadowColor = isWhiteFont
+        ? "rgba(255, 255, 255, 0.9)"
+        : isLightWall
+          ? "rgba(0, 0, 0, 0.6)"
+          : "rgba(255, 255, 255, 0.75)";
+      ctx.shadowBlur = Math.round(36 * glowIntensity);
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+      ctx.fillStyle = isWhiteFont
+        ? `rgba(255, 255, 255, ${0.55 * glowIntensity})`
+        : isLightWall
+          ? "rgba(0, 0, 0, 0.2)"
+          : `rgba(255, 255, 255, ${0.45 * glowIntensity})`;
+      ctx.fillText(line, startX, curY);
+      ctx.fillText(line, startX, curY);
+      ctx.restore();
     }
 
-    // D. Front litery: Głęboka matowa stal węglowa z delikatnym mikro-kontrastem
-    ctx.fillStyle = "#181A20";
-    ctx.fillText(line, startX, curY);
+    if (letterMaterial === "carved_stone") {
+      // SPECJALNY EFEKT: WYKUCIE W KAMIENIU / PŁASKORZEŹBA (WKLĘSŁE LITERY)
+      // 1. Wewnętrzny cień w zagłębieniu (górna i lewa krawędź)
+      ctx.save();
+      ctx.shadowColor = "rgba(0, 0, 0, 0.85)";
+      ctx.shadowBlur = 8;
+      ctx.shadowOffsetX = 4;
+      ctx.shadowOffsetY = 5;
+      ctx.fillStyle = isLightWall ? "rgba(40, 45, 55, 0.85)" : "rgba(10, 12, 16, 0.92)";
+      ctx.fillText(line, startX, curY);
+      ctx.restore();
+
+      // 2. Dolno-prawe doświetlenie krawędzi wykucia (światło odbite od krawędzi kamienia)
+      ctx.save();
+      ctx.shadowColor = isLightWall ? "rgba(255, 255, 255, 0.95)" : "rgba(255, 255, 255, 0.35)";
+      ctx.shadowBlur = 3;
+      ctx.shadowOffsetX = -2;
+      ctx.shadowOffsetY = -2;
+      ctx.fillStyle = isLightWall ? "#333A48" : "#12151B";
+      ctx.fillText(line, startX, curY);
+      ctx.restore();
+
+      // 3. Wnętrze kutej litery z surowym gradientem głębi
+      const carvedGrad = ctx.createLinearGradient(startX, curY - fontSize, startX, curY);
+      if (isLightWall) {
+        carvedGrad.addColorStop(0, "#2B313C");
+        carvedGrad.addColorStop(1, "#434B59");
+      } else {
+        carvedGrad.addColorStop(0, "#08090C");
+        carvedGrad.addColorStop(0.6, "#14171E");
+        carvedGrad.addColorStop(1, "#1E222A");
+      }
+      ctx.fillStyle = carvedGrad;
+      ctx.fillText(line, startX, curY);
+    } else {
+      // EFEKT WYPUKŁYCH LITER 3D (MATOWY ANTRACYT, SZCZOTKOWANA STAL, CZYSTY AKRYL)
+      // B. Miękki cień rozproszony na ścianie (Ambient Shadow)
+      ctx.save();
+      ctx.shadowColor = isLightWall ? "rgba(10, 15, 25, 0.6)" : "rgba(0, 0, 0, 0.55)";
+      ctx.shadowBlur = 28;
+      ctx.shadowOffsetX = shadowOffsetX * 1.3;
+      ctx.shadowOffsetY = shadowOffsetY * 1.3;
+      ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
+      ctx.fillText(line, startX, curY);
+      ctx.restore();
+
+      // C. Ostry cień kontaktowy przy krawędzi litery
+      ctx.save();
+      ctx.shadowColor = isWhiteFont ? "rgba(0, 0, 0, 0.75)" : "rgba(0, 0, 0, 0.9)";
+      ctx.shadowBlur = 6;
+      ctx.shadowOffsetX = shadowOffsetX * 0.5;
+      ctx.shadowOffsetY = shadowOffsetY * 0.5;
+      ctx.fillStyle = bevelDepthColor;
+      ctx.fillText(line, startX, curY);
+      ctx.restore();
+
+      // D. Wypukłość 3D (boki liter rzeźbione w stronę cienia)
+      for (let d = 4; d >= 1; d--) {
+        ctx.fillStyle = bevelDepthColor;
+        ctx.fillText(line, startX - d * 1.2, curY + d * 1.4);
+      }
+
+      // E. Front litery wg wybranego materiału
+      if (letterMaterial === "brushed_steel") {
+        // Szczotkowana stal / metaliczny tytan z refleksami
+        const steelGrad = ctx.createLinearGradient(
+          startX,
+          curY - fontSize,
+          startX + fontSize * 3,
+          curY,
+        );
+        if (isWhiteFont) {
+          steelGrad.addColorStop(0, "#FFFFFF");
+          steelGrad.addColorStop(0.25, "#CBD5E1");
+          steelGrad.addColorStop(0.5, "#F1F5F9");
+          steelGrad.addColorStop(0.75, "#94A3B8");
+          steelGrad.addColorStop(1, "#E2E8F0");
+        } else {
+          steelGrad.addColorStop(0, "#475569");
+          steelGrad.addColorStop(0.3, "#1E293B");
+          steelGrad.addColorStop(0.6, "#334155");
+          steelGrad.addColorStop(1, "#0F172A");
+        }
+        ctx.fillStyle = steelGrad;
+        ctx.fillText(line, startX, curY);
+
+        // Subtelny obrys krawędzi stali
+        ctx.save();
+        ctx.strokeStyle = isWhiteFont ? "rgba(255, 255, 255, 0.6)" : "rgba(148, 163, 184, 0.35)";
+        ctx.lineWidth = 1;
+        ctx.strokeText(line, startX, curY);
+        ctx.restore();
+      } else if (letterMaterial === "pure_acrylic") {
+        // Czysty odlew akrylowy / wysoki kontrast
+        ctx.fillStyle = frontTextColor;
+        ctx.fillText(line, startX, curY);
+
+        ctx.save();
+        ctx.strokeStyle = isWhiteFont ? "rgba(255, 255, 255, 0.9)" : "rgba(255, 255, 255, 0.18)";
+        ctx.lineWidth = 1.2;
+        ctx.strokeText(line, startX, curY);
+        ctx.restore();
+      } else {
+        // Domyślny matowy antracyt / surowy węgiel
+        ctx.fillStyle = frontTextColor;
+        ctx.fillText(line, startX, curY);
+      }
+    }
 
     curY += lineHeight;
   });
 
-  ctx.restore(); // Przywrócenie normalnego układu współrzędnych
+  ctx.restore(); // Przywrócenie normalnego układu
 
   // Dyskretna sygnatura na dole ściany
   ctx.font = "500 20px monospace";
-  ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
+  ctx.fillStyle = isWhiteFont
+    ? "rgba(255, 255, 255, 0.6)"
+    : isLightWall
+      ? "rgba(0, 0, 0, 0.6)"
+      : "rgba(255, 255, 255, 0.35)";
   ctx.textAlign = "left";
-  ctx.fillText(`@${handle.replace("@", "")}`, width * 0.16, height * 0.94);
+  ctx.fillText(`@${handle.replace("@", "")}`, width * 0.14, height * 0.94);
 }
 
 // =========================================================================
@@ -312,6 +751,7 @@ export function draw4GridCollageSlide(
     centerText: string;
     images: (CanvasImageSource | null)[];
     handle?: string;
+    fontColor?: "white" | "black";
   },
 ) {
   const {
@@ -319,6 +759,7 @@ export function draw4GridCollageSlide(
     height = 1920,
     centerText = "This winter",
     images = [null, null, null, null],
+    fontColor = "white",
   } = options;
 
   canvas.width = width;
@@ -372,24 +813,25 @@ export function draw4GridCollageSlide(
   ctx.lineTo(width, halfH);
   ctx.stroke();
 
-  // Centralny napis szeryfowy z grubym czarnym obrysem
+  // Centralny napis szeryfowy z obrysem
   const fontSize = 76;
   ctx.font = `700 ${fontSize}px Georgia, "Times New Roman", serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
 
+  const isBlackFont = fontColor === "black";
   const textY = halfH;
-  ctx.strokeStyle = "#000000";
+  ctx.strokeStyle = isBlackFont ? "#FFFFFF" : "#000000";
   ctx.lineWidth = 14;
   ctx.lineJoin = "round";
   ctx.strokeText(centerText, width / 2, textY);
 
-  ctx.fillStyle = "#FFFFFF";
+  ctx.fillStyle = isBlackFont ? "#000000" : "#FFFFFF";
   ctx.fillText(centerText, width / 2, textY);
 }
 
 // =========================================================================
-// CYTAT NA CZERNI
+// CYTAT NA CZERNI / BIELI (FORMAT 9:16 ORAZ INNE)
 // =========================================================================
 export function drawMinimalBlackQuoteSlide(
   canvas: HTMLCanvasElement,
@@ -400,15 +842,22 @@ export function drawMinimalBlackQuoteSlide(
     subText?: string;
     boldKeyword?: string;
     align?: "left" | "center";
+    fontFamily?: string;
+    textScale?: number;
+    fontColor?: "white" | "black";
+    handle?: string;
   },
 ) {
   const {
     width = 1080,
     height = 1920,
-    mainText = "Focus on yourself.",
-    subText = "people come & go.",
-    boldKeyword = "Focus",
+    mainText = "Silence cannot be misquoted.",
+    subText = "",
     align = "left",
+    fontFamily = "sans",
+    textScale = 1.0,
+    fontColor = "white",
+    handle = "stark_focus",
   } = options;
 
   canvas.width = width;
@@ -416,61 +865,85 @@ export function drawMinimalBlackQuoteSlide(
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
 
-  ctx.fillStyle = "#000000";
+  const isBlackFont = fontColor === "black";
+
+  // Wypełnienie tła: czarne dla białej czcionki, czyste białe dla czarnej czcionki
+  ctx.fillStyle = isBlackFont ? "#FFFFFF" : "#000000";
   ctx.fillRect(0, 0, width, height);
 
-  const paddingX = width * 0.14;
+  const paddingX = Math.round(width * 0.12);
   const maxLineWidth = width - paddingX * 2;
+  const fontSpec = getFontFamilySpec(fontFamily);
 
-  let mainFontSize = 62;
-  if (mainText.length > 40) mainFontSize = 48;
-  if (mainText.length > 70) mainFontSize = 38;
+  const cleanMain = mainText.trim();
+  const cleanSub = (subText || "").trim();
+  const hasSub = cleanSub.length > 0;
 
-  const mainFont = `700 ${mainFontSize}px "Plus Jakarta Sans", -apple-system, sans-serif`;
-  ctx.font = mainFont;
-  const mainLines = wrapTextLines(ctx, mainText, maxLineWidth);
-
-  let curY = height * 0.44;
-  const lineHeight = mainFontSize * 1.35;
+  const textColor = isBlackFont ? "#0A0B0D" : "#FFFFFF";
+  const textMutedColor = isBlackFont ? "rgba(10, 11, 13, 0.72)" : "rgba(255, 255, 255, 0.72)";
   const drawX = align === "center" ? width / 2 : paddingX;
   ctx.textAlign = align === "center" ? "center" : "left";
 
-  mainLines.forEach((line) => {
-    ctx.font = mainFont;
-    ctx.fillStyle = "#FFFFFF";
+  if (!hasSub) {
+    // TRYB 1: POJEDYNCZA MOCNA TEZA (np. 3-6 słów na ekranie i koniec)
+    let baseFontSize = height >= 1800 ? 84 : 70;
+    if (cleanMain.length > 25) baseFontSize = height >= 1800 ? 74 : 62;
+    if (cleanMain.length > 45) baseFontSize = height >= 1800 ? 64 : 52;
+    if (cleanMain.length > 70) baseFontSize = height >= 1800 ? 54 : 44;
 
-    if (
-      boldKeyword &&
-      line.toLowerCase().startsWith(boldKeyword.toLowerCase()) &&
-      align === "left"
-    ) {
-      ctx.font = `900 ${mainFontSize}px "Plus Jakarta Sans", -apple-system, sans-serif`;
-      ctx.fillText(boldKeyword, drawX, curY);
-      const kwWidth = ctx.measureText(boldKeyword + " ").width;
+    const mainFontSize = Math.max(36, Math.round(baseFontSize * textScale));
+    ctx.font = `700 ${mainFontSize}px ${fontSpec}`;
+    const mainLines = wrapTextLines(ctx, cleanMain, maxLineWidth);
 
-      const rest = line.slice(boldKeyword.length).trim();
-      ctx.font = `500 ${mainFontSize}px "Plus Jakarta Sans", -apple-system, sans-serif`;
-      ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
-      ctx.fillText(rest, drawX + kwWidth, curY);
-    } else {
+    const lineHeight = Math.round(mainFontSize * 1.34);
+    const totalH = mainLines.length * lineHeight;
+
+    // Idealne optyczne wyśrodkowanie w pionie dla 9:16
+    let curY = Math.round((height - totalH) * 0.46) + mainFontSize;
+
+    mainLines.forEach((line) => {
+      ctx.font = `700 ${mainFontSize}px ${fontSpec}`;
+      ctx.fillStyle = textColor;
       ctx.fillText(line, drawX, curY);
-    }
-    curY += lineHeight;
-  });
-
-  if (subText) {
-    curY += 50;
-    const subFontSize = Math.max(30, Math.round(mainFontSize * 0.68));
-    const subFont = `400 ${subFontSize}px "Plus Jakarta Sans", -apple-system, sans-serif`;
-    ctx.font = subFont;
-    const subLines = wrapTextLines(ctx, subText.toLowerCase(), maxLineWidth);
-
-    ctx.fillStyle = "rgba(255, 255, 255, 0.72)";
-    subLines.forEach((line) => {
-      ctx.fillText(line, drawX, curY);
-      curY += subFontSize * 1.4;
+      curY += lineHeight;
     });
+  } else {
+    // TRYB 2: DWA WERSY (Nagłówek + dopisek – ściśle po 1 linijce każdy)
+    let mainFontSize = Math.round((height >= 1800 ? 72 : 60) * textScale);
+    ctx.font = `700 ${mainFontSize}px ${fontSpec}`;
+    while (ctx.measureText(cleanMain).width > maxLineWidth && mainFontSize > 34) {
+      mainFontSize -= 2;
+      ctx.font = `700 ${mainFontSize}px ${fontSpec}`;
+    }
+
+    let subFontSize = Math.round((height >= 1800 ? 44 : 36) * textScale);
+    ctx.font = `400 ${subFontSize}px ${fontSpec}`;
+    while (ctx.measureText(cleanSub).width > maxLineWidth && subFontSize > 22) {
+      subFontSize -= 2;
+      ctx.font = `400 ${subFontSize}px ${fontSpec}`;
+    }
+
+    const gap = Math.round(28 * textScale);
+    const totalH = mainFontSize + gap + subFontSize;
+    const startY = Math.round((height - totalH) * 0.46) + mainFontSize;
+
+    // Linijka 1: Nagłówek (ściśle 1 linijka)
+    ctx.font = `700 ${mainFontSize}px ${fontSpec}`;
+    ctx.fillStyle = textColor;
+    ctx.fillText(cleanMain, drawX, startY);
+
+    // Linijka 2: Dopisek (ściśle 1 linijka)
+    ctx.font = `400 ${subFontSize}px ${fontSpec}`;
+    ctx.fillStyle = textMutedColor;
+    ctx.fillText(cleanSub, drawX, startY + gap + subFontSize);
   }
+
+  // Dyskretna sygnatura na dole kadru 9:16
+  const cleanHandle = handle.replace("@", "") || "stark_focus";
+  ctx.font = '600 22px "Space Grotesk", "JetBrains Mono", monospace';
+  ctx.fillStyle = isBlackFont ? "rgba(0, 0, 0, 0.38)" : "rgba(255, 255, 255, 0.38)";
+  ctx.textAlign = align === "center" ? "center" : "left";
+  ctx.fillText(`@${cleanHandle}`, drawX, height - 120);
 }
 
 // =========================================================================
@@ -487,6 +960,8 @@ export function drawMonolithLedgerSlide(
     handle?: string;
     bgImage?: CanvasImageSource | null;
     accentColor?: string;
+    fontFamily?: string;
+    textScale?: number;
   },
 ) {
   const {
@@ -498,6 +973,7 @@ export function drawMonolithLedgerSlide(
     handle = "stark_focus",
     bgImage,
     accentColor = "#E2E8F0",
+    textScale = 1.0,
   } = options;
 
   canvas.width = width;
@@ -505,30 +981,30 @@ export function drawMonolithLedgerSlide(
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
 
-  const splitY = height * 0.46;
+  const splitY = height <= 1080 ? height * 0.42 : height * 0.46;
 
   if (bgImage) {
     try {
       drawImageCover(ctx, bgImage, 0, 0, width, splitY);
     } catch {
-      ctx.fillStyle = "#0F172A";
+      ctx.fillStyle = "#121212";
       ctx.fillRect(0, 0, width, splitY);
     }
   } else {
     const topGrad = ctx.createLinearGradient(0, 0, 0, splitY);
-    topGrad.addColorStop(0, "#101726");
-    topGrad.addColorStop(1, "#04060A");
+    topGrad.addColorStop(0, "#141414");
+    topGrad.addColorStop(1, "#050505");
     ctx.fillStyle = topGrad;
     ctx.fillRect(0, 0, width, splitY);
   }
 
-  const seamGrad = ctx.createLinearGradient(0, splitY - 160, 0, splitY);
-  seamGrad.addColorStop(0, "rgba(8, 11, 18, 0)");
-  seamGrad.addColorStop(1, "#080B12");
+  const seamGrad = ctx.createLinearGradient(0, splitY - 140, 0, splitY);
+  seamGrad.addColorStop(0, "rgba(5, 5, 5, 0)");
+  seamGrad.addColorStop(1, "#050505");
   ctx.fillStyle = seamGrad;
-  ctx.fillRect(0, splitY - 160, width, 160);
+  ctx.fillRect(0, splitY - 140, width, 140);
 
-  ctx.fillStyle = "#080B12";
+  ctx.fillStyle = "#050505";
   ctx.fillRect(0, splitY, width, height - splitY);
 
   ctx.strokeStyle = "rgba(255, 255, 255, 0.12)";
@@ -544,48 +1020,59 @@ export function drawMonolithLedgerSlide(
   ctx.font = "700 16px monospace";
   ctx.fillStyle = accentColor;
   ctx.textAlign = "left";
-  ctx.fillText("[ STANDARD OPERACYJNY // STARK_FOCUS ]", 70, splitY + 55);
+  ctx.fillText("[ STANDARD OPERACYJNY // STARK_FOCUS ]", 70, splitY + 50);
 
-  ctx.font = '900 48px "Plus Jakarta Sans", sans-serif';
+  const headlineSize = Math.round((height <= 1080 ? 38 : 48) * textScale);
+  ctx.font = `900 ${headlineSize}px "Plus Jakarta Sans", sans-serif`;
   ctx.fillStyle = "#FFFFFF";
   const headlineLines = wrapTextLines(ctx, headline.toUpperCase(), width - 140);
-  let textY = splitY + 120;
+  let textY = splitY + (height <= 1080 ? 95 : 115);
   headlineLines.slice(0, 2).forEach((line) => {
     ctx.fillText(line, 70, textY);
-    textY += 58;
+    textY += headlineSize * 1.25;
   });
 
   if (subtext) {
-    ctx.font = '500 22px "Plus Jakarta Sans", sans-serif';
+    ctx.font = '500 20px "Plus Jakarta Sans", sans-serif';
     ctx.fillStyle = "rgba(226, 232, 240, 0.75)";
-    ctx.fillText(subtext, 70, textY + 10);
-    textY += 55;
+    ctx.fillText(subtext, 70, textY + 8);
+    textY += 45;
   }
 
-  let curY = Math.max(splitY + 235, textY + 15);
-  points.slice(0, 3).forEach((pt, idx) => {
-    ctx.fillStyle = "#101522";
-    ctx.fillRect(70, curY, width - 140, 74);
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.08)";
+  const cardH = height <= 1080 ? 58 : 74;
+  let curY = Math.max(splitY + (height <= 1080 ? 170 : 230), textY + 12);
+  const maxPts = height <= 1080 ? 2 : 3;
+  points.slice(0, maxPts).forEach((pt, idx) => {
+    ctx.fillStyle = "#121212";
+    ctx.fillRect(70, curY, width - 140, cardH);
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.1)";
     ctx.lineWidth = 1;
-    ctx.strokeRect(70, curY, width - 140, 74);
+    ctx.strokeRect(70, curY, width - 140, cardH);
 
-    ctx.font = "900 20px monospace";
+    ctx.font = "900 18px monospace";
     ctx.fillStyle = accentColor;
-    ctx.fillText(`0${idx + 1}`, 95, curY + 45);
+    ctx.fillText(`0${idx + 1}`, 95, curY + cardH * 0.6);
 
-    ctx.font = '600 21px "Plus Jakarta Sans", sans-serif';
+    ctx.font = '600 19px "Plus Jakarta Sans", sans-serif';
     ctx.fillStyle = "#FFFFFF";
     const pointLines = wrapTextLines(ctx, pt, width - 240);
-    ctx.fillText(pointLines[0] || pt, 155, curY + 45);
-    curY += 90;
+    ctx.fillText(pointLines[0] || pt, 150, curY + cardH * 0.6);
+    curY += cardH + 14;
   });
 
-  ctx.font = "700 20px monospace";
-  ctx.fillStyle = "rgba(148, 163, 184, 0.7)";
-  ctx.fillText(`@${handle.replace("@", "").toUpperCase()}`, 70, height - 70);
+  ctx.font = "700 18px monospace";
+  ctx.fillStyle = "rgba(160, 160, 160, 0.7)";
+  ctx.fillText(
+    `@${handle.replace("@", "").toUpperCase()}`,
+    70,
+    height - (height <= 1080 ? 30 : 60),
+  );
   ctx.textAlign = "right";
-  ctx.fillText("SAVE FOR MORNING DISCIPLINE // ♟️", width - 70, height - 70);
+  ctx.fillText(
+    "SAVE FOR MORNING DISCIPLINE // ♟️",
+    width - 70,
+    height - (height <= 1080 ? 30 : 60),
+  );
 }
 
 // =========================================================================
@@ -595,25 +1082,30 @@ export function renderUniversalLayout(
   canvas: HTMLCanvasElement,
   spec: UniversalLayoutSpec,
   images: (CanvasImageSource | null)[] = [],
-  options: { width?: number; height?: number } = {},
+  options: {
+    width?: number;
+    height?: number;
+    fontFamily?: string;
+    textScale?: number;
+    handle?: string;
+    fontColor?: "white" | "black";
+  } = {},
 ) {
   const width = options.width || 1080;
-  const height = options.height || 1920;
+  const height = options.height || 1080;
+  const handle = options.handle || "stark_focus";
+  const fontFamily = options.fontFamily || "sans";
+  const textScale = options.textScale || 1.0;
+  const fontColor: "white" | "black" =
+    options.fontColor ||
+    spec.fontColorMode ||
+    (spec.textLayers[0]?.color === "#000000" ||
+    spec.textLayers[0]?.color === "#161920" ||
+    spec.textLayers[0]?.color === "#111215"
+      ? "black"
+      : "white");
 
-  // Format 1: Litery 3D na ścianie z lampą
-  if (spec.gridType === "studio_wall_3d" || spec.textEffect === "3d_wall") {
-    const lines = spec.textLayers.map((l) => l.text);
-    draw3DWallQuoteSlide(canvas, {
-      width,
-      height,
-      textLines: lines.length > 0 ? lines : ["Stay ruthless", "through all", "phases of life."],
-      wallImage: images[0] || null,
-      handle: "stark_focus",
-    });
-    return;
-  }
-
-  // Format 2: Kolaż 4 Kadrów
+  // Format 1: Kolaż 4 Kadrów
   if (spec.gridType === "grid_2x2") {
     const centerText = spec.textLayers[0]?.text || "This winter";
     draw4GridCollageSlide(canvas, {
@@ -621,34 +1113,27 @@ export function renderUniversalLayout(
       height,
       centerText,
       images,
-      handle: "stark_focus",
+      handle,
+      fontColor,
     });
     return;
   }
 
-  // Format 3: Dzielony kadr 50/50
-  if (spec.gridType === "split_horizontal") {
-    const headline = spec.textLayers[0]?.text || "STANDARDS OVER MOOD";
-    drawMonolithLedgerSlide(canvas, {
-      width,
-      height,
-      headline,
-      subtext: "Silence cannot be misquoted.",
-      bgImage: images[0] || null,
-      handle: "stark_focus",
-    });
-    return;
-  }
+  // Format 2: Domyślny, nieskazitelny Cytat na Czerni (9:16)
+  const l1 = spec.textLayers[0]?.text?.trim() || "Silence cannot be misquoted.";
+  // Subtext jest uwzględniany TYLKO jeśli użytkownik celowo dodał 2. warstwę z tekstem
+  const l2 = spec.textLayers.length > 1 ? spec.textLayers[1]?.text?.trim() || "" : "";
 
-  // Format 4: Domyślny czarny cytat
-  const l1 = spec.textLayers[0]?.text || "Focus on yourself.";
-  const l2 = spec.textLayers[1]?.text || "people come & go.";
   drawMinimalBlackQuoteSlide(canvas, {
     width,
     height,
     mainText: l1,
     subText: l2,
     align: "left",
+    fontFamily: spec.fontFamilyCustom || fontFamily,
+    textScale,
+    fontColor,
+    handle,
   });
 }
 
@@ -735,15 +1220,10 @@ function getCarouselFontFamilyCSS(fontChoice?: CarouselFontFamily): {
         headlineFont: '"Cormorant Garamond", serif',
         bodyFont: '"Cormorant Garamond", serif',
       };
-    case "outfit":
+    case "inter":
       return {
-        headlineFont: '"Outfit", sans-serif',
-        bodyFont: '"Outfit", sans-serif',
-      };
-    case "syne":
-      return {
-        headlineFont: '"Syne", sans-serif',
-        bodyFont: '"Syne", sans-serif',
+        headlineFont: '"Inter", sans-serif',
+        bodyFont: '"Inter", sans-serif',
       };
     case "plus_jakarta":
     default:

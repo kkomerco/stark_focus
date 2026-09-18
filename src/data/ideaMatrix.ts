@@ -47,9 +47,15 @@ export const STOIC_CATEGORIES: StoicTopicCategory[] = [
     description: "Dichotomia kontroli, panowanie nad gniewem i opiniami innych",
   },
   {
+    id: "sovereign_mindset",
+    name: "Prowokujące & Suwerenność",
+    icon: "👑",
+    description: "Cytaty namawiające do myślenia skierowane bezpośrednio do odbiorcy",
+  },
+  {
     id: "iron_standards",
     name: "Żelazne Standardy",
-    icon: "👑",
+    icon: "🛡️",
     description: "Zero wymówek, wysokie wymagania od siebie, szacunek do własnego słowa",
   },
 ];
@@ -677,6 +683,51 @@ export const ARCHETYPE_COMPONENTS: Record<string, ArchetypeComponents> = {
       "Wear integrity like armor.",
     ],
     themes: ["carbon_aura", "obsidian_void", "crimson_eclipse"],
+  },
+
+  sovereign_mindset: {
+    category: "sovereign_mindset",
+    hooks: [
+      "Walk like a king, or walk like you don't care who the king is.",
+      "Notice how people treat you when you no longer need them.",
+      "You are not tired. You are uninspired by a life you didn't choose.",
+      "The version of you they remember no longer exists.",
+      "If you don't build your peace, someone will sell you their chaos.",
+      "Stop explaining yourself to people who are committed to misunderstanding you.",
+      "Never let someone comfortable with their cage lecture you about flying.",
+      "Silence is not empty. It is full of answers you're avoiding.",
+    ],
+    contrasts: [
+      "Crowns are earned in silence, not begged for.",
+      "Needing validation turns free men into beggars.",
+      "A borrowed dream will drain your spirit dry.",
+      "Apologizing for growth is betraying your potential.",
+      "Accepting outside chaos destroys sovereign peace.",
+      "Debating shallow minds gives them power over you.",
+      "Caged birds always think flying is an illness.",
+      "Noise is the cheap currency of the unfulfilled.",
+    ],
+    laws: [
+      "True sovereignty demands total self-sufficiency.",
+      "Your peace is non-negotiable property.",
+      "Outgrow who you were without apologies.",
+      "Private mastery commands public reverence.",
+      "Silence cannot be misquoted or hijacked.",
+      "Cut the cords tying you to mediocrity.",
+      "A quiet life is an expensive luxury.",
+      "Live so unbothered that chaos cannot enter.",
+    ],
+    punchlines: [
+      "Walk like you own your peace.",
+      "Let results break their silence.",
+      "Build in private. Rule in peace.",
+      "Never negotiate with small minds.",
+      "Protect your inner kingdom today.",
+      "Reclaim your sovereign standard now.",
+      "Silence is your ultimate power.",
+      "Step into the arena with conviction.",
+    ],
+    themes: ["obsidian_void", "carbon_aura", "silver_mist"],
   },
 };
 

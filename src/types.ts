@@ -9,7 +9,7 @@ export type LogoPlacement = "background_watermark" | "bottom_under" | "top_left"
 
 export type LogoGlowChoice = "white" | "none";
 
-export type CarouselFontFamily = "plus_jakarta" | "cinzel" | "cormorant" | "outfit" | "syne";
+export type CarouselFontFamily = "plus_jakarta" | "cinzel" | "cormorant" | "inter";
 
 export type TopHeaderMode =
   | "protocol_standard"
@@ -33,7 +33,6 @@ export type ContentFormat =
   | "🎠 Karuzela 5-Slajdowa (IG / TikTok Slides)"
   | "🏛️ Monolith Ledger (Split 50/50)"
   | "🖼️ Kolaż 4 Kadrów (Siatka 2x2)"
-  | "🧱 Litery 3D na Ścianie z Lampą"
   | "📜 Minimalistyczny Cytat (One-Liner)";
 
 export interface Post {
@@ -164,7 +163,7 @@ export interface PlannerTask {
 export interface UniversalTextLayer {
   id: string;
   text: string;
-  fontFamily: "serif" | "sans" | "mono";
+  fontFamily: "serif" | "sans" | "mono" | string;
   fontSize: number;
   fontWeight: "normal" | "bold" | "black";
   fontStyle: "normal" | "italic";
@@ -179,16 +178,18 @@ export interface UniversalTextLayer {
 
 export interface UniversalLayoutSpec {
   layoutName: string;
-  gridType: "none_solid" | "single" | "split_horizontal" | "grid_2x2" | "studio_wall_3d";
+  gridType: "none_solid" | "single" | "split_horizontal" | "grid_2x2";
   backgroundColor: string;
   dividerWidth: number;
   dividerColor: string;
   slotCount: number;
   slotLabels: string[];
   textLayers: UniversalTextLayer[];
-  textEffect?: "3d_wall" | "flat" | "outline";
+  textEffect?: "flat" | "outline";
   caption: string;
   detectedAudio: string;
+  fontFamilyCustom?: string;
+  fontColorMode?: "white" | "black";
 }
 
 export interface StarkFocusData {

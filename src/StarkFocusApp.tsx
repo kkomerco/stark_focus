@@ -1,49 +1,29 @@
 // StarkFocusApp.tsx - Visionary Media Lab / Stark Focus OS
 import React, { useState, useEffect, lazy, Suspense } from "react";
-import { Layers, Box, Brain, Radio, Sparkles } from "lucide-react";
+import { Sparkles, Film, Flame } from "lucide-react";
 import { StarkFocusData, Post } from "./types";
 import { loadStoredData, saveStoredData } from "./utils/storage";
 import { Header } from "./components/Header";
 
-// Lazy - moduły i modale
+// Lazy - aktywne 3 moduły
 const InspirationStudio1to1 = lazy(() =>
   import("./components/InspirationStudio1to1").then((m) => ({ default: m.InspirationStudio1to1 })),
 );
-const PipelineTab = lazy(() =>
-  import("./components/tabs/PipelineTab").then((m) => ({ default: m.PipelineTab })),
+const VideoStudioModal = lazy(() =>
+  import("./components/VideoStudioModal").then((m) => ({ default: m.VideoStudioModal })),
 );
 const AiRadarTab = lazy(() =>
   import("./components/tabs/AiRadarTab").then((m) => ({ default: m.AiRadarTab })),
 );
-const VaultTab = lazy(() =>
-  import("./components/tabs/VaultTab").then((m) => ({ default: m.VaultTab })),
-);
-const MentorTab = lazy(() =>
-  import("./components/tabs/MentorTab").then((m) => ({ default: m.MentorTab })),
-);
 
 const QRModal = lazy(() => import("./components/QRModal").then((m) => ({ default: m.QRModal })));
-const VideoStudioModal = lazy(() =>
-  import("./components/VideoStudioModal").then((m) => ({ default: m.VideoStudioModal })),
-);
-const CarouselStudioModal = lazy(() =>
-  import("./components/CarouselStudioModal").then((m) => ({ default: m.CarouselStudioModal })),
-);
-const HookBattleModal = lazy(() =>
-  import("./components/HookBattleModal").then((m) => ({ default: m.HookBattleModal })),
-);
-const DailyPackModal = lazy(() =>
-  import("./components/DailyPackModal").then((m) => ({ default: m.DailyPackModal })),
-);
 
 function TabFallback() {
   return (
-    <div className="flex items-center justify-center py-16">
+    <div className="flex items-center justify-center py-20">
       <div className="flex flex-col items-center gap-3">
-        <div className="w-6 h-6 border-2 border-[#1E2638] border-t-[#38BDF8] rounded-full animate-spin" />
-        <div className="text-[11px] font-mono text-slate-400 animate-pulse">
-          Ładowanie modułu...
-        </div>
+        <div className="w-7 h-7 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+        <div className="text-xs font-mono text-neutral-400 tracking-wider">Ładowanie modułu...</div>
       </div>
     </div>
   );
@@ -53,23 +33,15 @@ export default function StarkFocusApp() {
   const [data, setData] = useState<StarkFocusData>(() => loadStoredData());
   const [activeTab, setActiveTab] = useState<number>(0);
 
+  // Injected data from "Trendy i Pomysły" tab
+  const [postPreset, setPostPreset] = useState<{ text?: string; caption?: string }>({});
+  const [reelPreset, setReelPreset] = useState<{ hook?: string; bgUrl?: string }>({});
+
   const [qrModal, setQrModal] = useState<{ isOpen: boolean; title: string; data: string }>({
     isOpen: false,
     title: "",
     data: "",
   });
-  const [videoStudioModal, setVideoStudioModal] = useState<{
-    isOpen: boolean;
-    hookText: string;
-    bgUrl?: string;
-  }>({ isOpen: false, hookText: "", bgUrl: "" });
-  const [carouselStudioModal, setCarouselStudioModal] = useState<{
-    isOpen: boolean;
-    title?: string;
-    slides?: any[];
-  }>({ isOpen: false, title: "", slides: undefined });
-  const [hookBattleOpen, setHookBattleOpen] = useState(false);
-  const [dailyPackOpen, setDailyPackOpen] = useState(false);
 
   useEffect(() => {
     saveStoredData(data);
@@ -91,37 +63,49 @@ export default function StarkFocusApp() {
       published_date: null,
     };
     handleUpdateData((prev) => ({ ...prev, posts: [newPost, ...prev.posts], xp: prev.xp + 50 }));
+  };
+
+  const handleSendToPost = (text: string, caption?: string) => {
+    setPostPreset({ text, caption });
+    setActiveTab(0);
+  };
+
+  const handleSendToReel = (hookText: string, bgUrl?: string) => {
+    setReelPreset({ hook: hookText, bgUrl });
     setActiveTab(1);
   };
 
-  const postCount = (data.posts || []).length;
-
   const tabs = [
-    { id: "tab-studio", label: "✨ Nowy Post", subtitle: "Generator 1:1", icon: Sparkles },
     {
-      id: "tab-pipeline",
-      label: "📋 Moje Posty",
-      subtitle: `${postCount} postów`,
-      badge: postCount > 0 ? postCount : undefined,
-      icon: Layers,
+      id: "tab-post",
+      label: "Post",
+      tag: "JPG / PNG",
+      subtitle: "Generator grafik 1:1",
+      icon: Sparkles,
     },
-    { id: "tab-radar", label: "🔥 Trendy & Pomysły", subtitle: "Viral AI", icon: Radio },
-    { id: "tab-vault", label: "🎨 Grafiki & Prompty", subtitle: "Bing DALL-E", icon: Box },
-    { id: "tab-mentor", label: "⚔️ Test Hooków (AI)", subtitle: "Retencja 3s", icon: Brain },
+    {
+      id: "tab-reel",
+      label: "Rolka",
+      tag: "WIDEO 9s",
+      subtitle: "Automontażysta rolek",
+      icon: Film,
+    },
+    {
+      id: "tab-trends",
+      label: "Trendy i Pomysły",
+      tag: "VIRAL AI",
+      subtitle: "Baza kątów i hooków",
+      icon: Flame,
+    },
   ];
 
   return (
-    <div className="min-h-screen bg-[#090C14] text-[#E2E8F0] font-sans antialiased selection:bg-white/20 selection:text-white">
+    <div className="min-h-screen bg-[#050505] text-[#EDEDED] font-sans antialiased selection:bg-white/20 selection:text-white">
       <div className="max-w-7xl mx-auto px-3 sm:px-5 py-4">
-        <Header
-          data={data}
-          onUpdateData={handleUpdateData}
-          onOpenDailyPack={() => setDailyPackOpen(true)}
-          onOpenVideoStudio={() => setVideoStudioModal({ isOpen: true, hookText: "" })}
-          onOpenCarouselStudio={() => setCarouselStudioModal({ isOpen: true, title: "" })}
-        />
+        <Header data={data} onUpdateData={handleUpdateData} activeTab={activeTab} />
 
-        <nav className="flex flex-wrap items-center gap-2 pb-3 border-b border-[#1E2638] mb-5 select-none">
+        {/* 3 Główne Zakładki - Wyrazisty Segmented Control */}
+        <nav className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pb-4 mb-5 border-b border-white/10 select-none">
           {tabs.map((tab, idx) => {
             const Icon = tab.icon;
             const isActive = activeTab === idx;
@@ -129,23 +113,45 @@ export default function StarkFocusApp() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(idx)}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-mono font-bold transition-all whitespace-nowrap cursor-pointer ${
+                className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between ${
                   isActive
-                    ? "bg-white text-[#090C14] shadow-md scale-[1.02]"
-                    : "bg-[#111622] text-slate-300 border border-[#1E2638] hover:border-slate-500 hover:text-white"
+                    ? "bg-white text-black border-white shadow-[0_4px_20px_rgba(255,255,255,0.12)] scale-[1.01]"
+                    : "bg-[#0C0C0C] border-white/10 text-neutral-400 hover:text-white hover:border-white/30 hover:bg-[#121212]"
                 }`}
               >
-                <Icon className={`w-3.5 h-3.5 ${isActive ? "text-[#090C14]" : "text-slate-400"}`} />
-                <span>{tab.label}</span>
-                {tab.badge !== undefined && (
-                  <span
-                    className={`ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                      isActive ? "bg-[#090C14] text-white" : "bg-white/10 text-slate-300"
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                      isActive ? "bg-black text-white" : "bg-white/10 text-neutral-300"
                     }`}
                   >
-                    {tab.badge}
-                  </span>
-                )}
+                    <Icon className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-mono font-black uppercase tracking-wider">
+                        {tab.label}
+                      </span>
+                    </div>
+                    <p
+                      className={`text-[10px] font-mono ${
+                        isActive ? "text-neutral-700" : "text-neutral-500"
+                      }`}
+                    >
+                      {tab.subtitle}
+                    </p>
+                  </div>
+                </div>
+
+                <span
+                  className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded ${
+                    isActive
+                      ? "bg-black/10 text-black"
+                      : "bg-white/5 text-neutral-400 border border-white/5"
+                  }`}
+                >
+                  {tab.tag}
+                </span>
               </button>
             );
           })}
@@ -155,20 +161,23 @@ export default function StarkFocusApp() {
           <Suspense fallback={<TabFallback />}>
             {activeTab === 0 && (
               <InspirationStudio1to1
+                key={postPreset.text || "default-post"}
                 onSaveToPipeline={handleSavePostFrom1to1}
                 userHandle={data.social_handles?.instagram || "stark_focus"}
+                initialText={postPreset.text}
+                initialCaption={postPreset.caption}
+                onSendToReel={handleSendToReel}
               />
             )}
             {activeTab === 1 && (
-              <PipelineTab
-                data={data}
-                onUpdateData={handleUpdateData}
-                onOpenVideoStudio={(hookText, bgUrl) =>
-                  setVideoStudioModal({ isOpen: true, hookText, bgUrl: bgUrl || "" })
-                }
-                onOpenCarouselStudio={(title, slides) =>
-                  setCarouselStudioModal({ isOpen: true, title, slides })
-                }
+              <VideoStudioModal
+                key={reelPreset.hook || "default-reel"}
+                embedded={true}
+                initialHook={reelPreset.hook}
+                initialBgUrl={reelPreset.bgUrl}
+                availablePosts={data.posts}
+                vaultAssets={data.vault_assets}
+                onSendToPost={handleSendToPost}
               />
             )}
             {activeTab === 2 && (
@@ -177,45 +186,8 @@ export default function StarkFocusApp() {
                 onUpdateData={handleUpdateData}
                 onOpenQR={(title, payload) => setQrModal({ isOpen: true, title, data: payload })}
                 onNavigateToTab={(tabIdx) => setActiveTab(tabIdx)}
-                onOpenVideoStudio={(hookText, bgUrl) =>
-                  setVideoStudioModal({
-                    isOpen: true,
-                    hookText: hookText || "",
-                    bgUrl: bgUrl || "",
-                  })
-                }
-                onOpenCarouselStudio={(title, slides) =>
-                  setCarouselStudioModal({ isOpen: true, title, slides })
-                }
-              />
-            )}
-            {activeTab === 3 && (
-              <VaultTab
-                data={data}
-                onUpdateData={handleUpdateData}
-                onOpenVideoStudio={(hookText, bgUrl) =>
-                  setVideoStudioModal({
-                    isOpen: true,
-                    hookText: hookText || "",
-                    bgUrl: bgUrl || "",
-                  })
-                }
-                onOpenCarouselStudio={(title, slides) =>
-                  setCarouselStudioModal({ isOpen: true, title, slides })
-                }
-                onSwitchToMentor={() => setActiveTab(4)}
-                onSwitchToPipeline={() => setActiveTab(1)}
-              />
-            )}
-            {activeTab === 4 && (
-              <MentorTab
-                data={data}
-                onUpdateData={handleUpdateData}
-                onSwitchTab={(idx) => setActiveTab(idx)}
-                onOpenVideoStudio={(hookText) => setVideoStudioModal({ isOpen: true, hookText })}
-                onOpenCarouselStudio={(title, slides) =>
-                  setCarouselStudioModal({ isOpen: true, title, slides })
-                }
+                onSendToPost={handleSendToPost}
+                onSendToReel={handleSendToReel}
               />
             )}
           </Suspense>
@@ -229,52 +201,6 @@ export default function StarkFocusApp() {
           title={qrModal.title}
           data={qrModal.data}
         />
-        {videoStudioModal.isOpen && (
-          <VideoStudioModal
-            onClose={() => setVideoStudioModal((prev) => ({ ...prev, isOpen: false }))}
-            initialHook={videoStudioModal.hookText}
-            initialBgUrl={videoStudioModal.bgUrl}
-            availablePosts={data.posts}
-            vaultAssets={data.vault_assets}
-          />
-        )}
-        {carouselStudioModal.isOpen && (
-          <CarouselStudioModal
-            isOpen={carouselStudioModal.isOpen}
-            onClose={() => setCarouselStudioModal((prev) => ({ ...prev, isOpen: false }))}
-            initialTitle={carouselStudioModal.title}
-            initialSlides={carouselStudioModal.slides}
-            handle={data.social_handles?.instagram || "stark_focus"}
-            vaultAssets={data.vault_assets}
-          />
-        )}
-
-        {hookBattleOpen && (
-          <HookBattleModal
-            isOpen={hookBattleOpen}
-            onClose={() => setHookBattleOpen(false)}
-            onOpenQR={(title, payload) => setQrModal({ isOpen: true, title, data: payload })}
-            onOpenVideoStudio={(hookText) => {
-              setHookBattleOpen(false);
-              setVideoStudioModal({ isOpen: true, hookText });
-            }}
-          />
-        )}
-
-        {dailyPackOpen && (
-          <DailyPackModal
-            isOpen={dailyPackOpen}
-            onClose={() => setDailyPackOpen(false)}
-            onOpenVideoStudio={(hookText) => {
-              setDailyPackOpen(false);
-              setVideoStudioModal({ isOpen: true, hookText });
-            }}
-            onOpenCarouselStudio={(title, slides) => {
-              setDailyPackOpen(false);
-              setCarouselStudioModal({ isOpen: true, title, slides });
-            }}
-          />
-        )}
       </Suspense>
     </div>
   );
