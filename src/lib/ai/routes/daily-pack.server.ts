@@ -12,8 +12,24 @@ const REEL_THEMES = [
   "silver_mist",
 ] as const;
 
+// Nisza dark motivation — auto-rotacja kategorii dla różnorodności treści
+const DARK_MOTIVATION_CATEGORIES = [
+  "discipline vs motivation",
+  "hard work ethos & suffering",
+  "monk mode & solitude",
+  "mental toughness & pain",
+  "silence & strategic power",
+  "dopamine detox & focus",
+  "iron standards & self-respect",
+  "time urgency & memento mori",
+] as const;
+
 function pick<T>(items: readonly T[]): T {
   return items[Math.floor(Math.random() * items.length)];
+}
+
+function pickDailyCategory(): string {
+  return pick([...DARK_MOTIVATION_CATEGORIES]);
 }
 
 /** Paczka z lokalnych banków treści — działa w 100% offline (zero klucza API, zero limitów). */
@@ -49,6 +65,7 @@ function buildOfflinePack(topic: string, reelsCount: number) {
     generatedAt: new Date().toISOString(),
     source: "offline" as const,
     topic,
+    category: pickDailyCategory(),
     reels,
     carousel,
     post,
@@ -61,29 +78,39 @@ function buildOfflinePack(topic: string, reelsCount: number) {
  */
 export function registerDailyPackRoutes(app: MiniApp): void {
   app.post("/api/ai/daily-pack", async (req, res) => {
-    const { topic = "stoic discipline, solitude and relentless standards", reelsCount = 2 } =
-      req.body || {};
+    const {
+      topic = "dark motivation, brutal discipline, hard work and mental toughness",
+      reelsCount = 3,
+    } = req.body || {};
 
     if (!getGeminiClient()) {
       return res.json(buildOfflinePack(topic, Number(reelsCount) || 2));
     }
 
     try {
-      const prompt = `Jesteś strategiem treści dla marki @stark_focus (brutalny stoicyzm, mroczny minimalizm, treści 100% po angielsku).
-Dla tematu: "${topic}" wygeneruj JEDNĄ spójną "paczkę dnia" do publikacji:
+      const dailyCategory = pickDailyCategory();
+      const prompt = `Jesteś strategiem treści dla marki @stark_focus (dark motivation, brutalna dyscyplina, hard work ethos, treści 100% po angielsku).
+Dla tematu: "${topic}" i kategorii dnia: "${dailyCategory}" wygeneruj JEDNĄ spójną "paczkę dnia" do publikacji.
 
-1. Rolki 9:16 w liczbie ${Number(reelsCount) || 2} — każda z:
-   - hook: bezwzględny hook 0-3s po angielsku (konkret, zero inspiration-talk)
-   - phrases: dokładnie 3 frazy po angielsku [hook, kontrast, puenta]
+WYMAGANIA TREŚCI:
+- Ton: bezwzględny, konkretny, zero "inspiration porn"
+- Styl: David Goggins meets Marcus Aurelius — surowy, ale filozoficzny
+- Każdy hook musi zatrzymać scroll w 0.8s (konkret, liczby, konfrontacja)
+- Unikaj ogólników typu "believe in yourself" — zamiast tego "Your comfort zone is a coffin"
+
+1. Rolki 9:16 w liczbie ${Number(reelsCount) || 3} — każda z:
+   - hook: bezwzględny hook 0-3s po angielsku (max 8 słów, konkret, zero lania wody)
+   - phrases: dokładnie 3 frazy po angielsku [hook, bolesny kontrast, puenta/climax]
    - theme: jeden z: "obsidian_void" | "crimson_eclipse" | "emerald_abyss" | "carbon_aura" | "silver_mist"
    - duration: liczba sekund 7-10
-   - captionShort: krótki opis po angielsku
-   - hashtags: 5 hashtagów
-2. Karuzela 4:5: title + dokładnie 5 slajdów {headline, bodyText} (każdy slajd po angielsku)
-3. Grafika 1:1: {headline, body, bingPrompt} — bingPrompt po angielsku do generatora obrazów (ciemne, minimalistyczne tło, 1:1, bez tekstu)
+   - captionShort: krótki opis po angielsku (max 2 linie, z CTA "Save this")
+   - hashtags: 5 hashtagów z miksu: #darkmotivation #discipline #hardwork #mindset + 1 niszowy
+2. Karuzela 4:5: title + dokładnie 5 slajdów {headline, bodyText} (każdy slajd po angielsku, max 12 słów na slajd)
+3. Grafika 1:1: {headline, body, bingPrompt} — bingPrompt po angielsku do generatora obrazów (ciemne, brutalistyczne, minimalistyczne tło, 1:1, bez tekstu, moody lighting)
 
 Zwróć WYŁĄCZNIE poprawny JSON wg schematu:
 {
+  "category": "${dailyCategory}",
   "reels": [
     {
       "hook": "string",
@@ -118,12 +145,13 @@ Zwróć WYŁĄCZNIE poprawny JSON wg schematu:
         parsed.carousel.slides.length > 0 &&
         typeof parsed?.post?.headline === "string";
 
-      if (!valid) return res.json(buildOfflinePack(topic, Number(reelsCount) || 2));
+      if (!valid) return res.json(buildOfflinePack(topic, Number(reelsCount) || 3));
 
       return res.json({
         generatedAt: new Date().toISOString(),
         source: "ai",
         topic,
+        category: parsed.category || dailyCategory,
         reels: parsed.reels,
         carousel: parsed.carousel,
         post: parsed.post,

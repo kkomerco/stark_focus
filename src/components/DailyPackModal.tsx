@@ -2,6 +2,7 @@
 // Każdy element paczki przekazujemy jednym kliknięciem do istniejących studiów.
 import React, { useCallback, useEffect, useState } from "react";
 import {
+  Calendar,
   Check,
   Copy,
   Film,
@@ -21,6 +22,11 @@ interface DailyPackModalProps {
     title: string,
     slides: Array<{ headline: string; bodyText: string }>,
   ) => void;
+  onSchedulePack?: (pack: {
+    reels: Array<{ hook: string; duration: number }>;
+    carousel: { title: string };
+    post: { headline: string };
+  }) => void;
 }
 
 const PANEL = "bg-[#0F121C] border border-[#2C354B] rounded-xl";
@@ -32,11 +38,13 @@ export const DailyPackModal: React.FC<DailyPackModalProps> = ({
   onClose,
   onOpenVideoStudio,
   onOpenCarouselStudio,
+  onSchedulePack,
 }) => {
   const [pack, setPack] = useState<DailyPack | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [scheduled, setScheduled] = useState(false);
 
   const generate = useCallback(async () => {
     setLoading(true);
@@ -89,8 +97,39 @@ export const DailyPackModal: React.FC<DailyPackModalProps> = ({
                 {pack.source === "ai" ? "🤖 GEMINI" : "📴 OFFLINE (bank lokalny)"}
               </span>
             )}
+            {pack?.category && (
+              <span className="text-[9px] font-mono px-2 py-0.5 rounded font-bold bg-purple-500/15 text-purple-400 border border-purple-500/30">
+                🎯 {pack.category}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2">
+            {pack && onSchedulePack && (
+              <button
+                type="button"
+                onClick={() => {
+                  onSchedulePack(pack);
+                  setScheduled(true);
+                  setTimeout(() => setScheduled(false), 3000);
+                }}
+                disabled={scheduled}
+                className={`py-1.5 px-3 rounded text-[11px] font-mono font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer transition-all ${
+                  scheduled
+                    ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
+                    : "bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40"
+                }`}
+              >
+                {scheduled ? (
+                  <>
+                    <Check className="w-3 h-3" /> Zaplanowano
+                  </>
+                ) : (
+                  <>
+                    <Calendar className="w-3 h-3" /> Zaplanuj publikację
+                  </>
+                )}
+              </button>
+            )}
             <button
               type="button"
               onClick={() => generate()}
@@ -263,6 +302,36 @@ export const DailyPackModal: React.FC<DailyPackModalProps> = ({
                       {copiedId === "post-prompt" ? "Skopiowano" : "Kopiuj prompt tła"}
                     </button>
                   </div>
+                </div>
+              </section>
+
+              {/* Podsumowanie paczki */}
+              <section className="space-y-2 pt-2 border-t border-[#2C354B]">
+                <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500">
+                  📋 Harmonogram publikacji
+                </h4>
+                <div className="p-3 bg-[#141824] border border-[#2C354B] rounded-lg space-y-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px] font-mono">
+                    <div className="text-center p-2 bg-[#0F121C] rounded border border-[#2C354B]">
+                      <div className="text-amber-400 font-bold">12:00</div>
+                      <div className="text-slate-400">Rolka 1</div>
+                    </div>
+                    <div className="text-center p-2 bg-[#0F121C] rounded border border-[#2C354B]">
+                      <div className="text-amber-400 font-bold">14:00</div>
+                      <div className="text-slate-400">Karuzela</div>
+                    </div>
+                    <div className="text-center p-2 bg-[#0F121C] rounded border border-[#2C354B]">
+                      <div className="text-amber-400 font-bold">15:00</div>
+                      <div className="text-slate-400">Rolka 2</div>
+                    </div>
+                    <div className="text-center p-2 bg-[#0F121C] rounded border border-[#2C354B]">
+                      <div className="text-amber-400 font-bold">18:00</div>
+                      <div className="text-slate-400">Post 1:1</div>
+                    </div>
+                  </div>
+                  <p className="text-[10px] font-mono text-slate-500 text-center pt-1">
+                    Kliknij "Zaplanuj publikację" aby dodać te zadania do plannera
+                  </p>
                 </div>
               </section>
             </>

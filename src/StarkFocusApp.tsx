@@ -1,11 +1,11 @@
 // StarkFocusApp.tsx - Visionary Media Lab / Stark Focus OS
 import React, { useState, useEffect, lazy, Suspense } from "react";
-import { Sparkles, Film, Flame } from "lucide-react";
-import { StarkFocusData, Post } from "./types";
+import { Sparkles, Film, Flame, Calendar } from "lucide-react";
+import { StarkFocusData, Post, PlannerTask } from "./types";
 import { loadStoredData, saveStoredData } from "./utils/storage";
 import { Header } from "./components/Header";
 
-// Lazy - aktywne 3 moduły
+// Lazy - aktywne 3 moduły + Daily Pack
 const InspirationStudio1to1 = lazy(() =>
   import("./components/InspirationStudio1to1").then((m) => ({ default: m.InspirationStudio1to1 })),
 );
@@ -14,6 +14,9 @@ const VideoStudioModal = lazy(() =>
 );
 const AiRadarTab = lazy(() =>
   import("./components/tabs/AiRadarTab").then((m) => ({ default: m.AiRadarTab })),
+);
+const DailyPackModal = lazy(() =>
+  import("./components/DailyPackModal").then((m) => ({ default: m.DailyPackModal })),
 );
 
 const QRModal = lazy(() => import("./components/QRModal").then((m) => ({ default: m.QRModal })));
@@ -36,6 +39,8 @@ export default function StarkFocusApp() {
   // Injected data from "Trendy i Pomysły" tab
   const [postPreset, setPostPreset] = useState<{ text?: string; caption?: string }>({});
   const [reelPreset, setReelPreset] = useState<{ hook?: string; bgUrl?: string }>({});
+
+  const [dailyPackOpen, setDailyPackOpen] = useState(false);
 
   const [qrModal, setQrModal] = useState<{ isOpen: boolean; title: string; data: string }>({
     isOpen: false,
@@ -73,6 +78,60 @@ export default function StarkFocusApp() {
   const handleSendToReel = (hookText: string, bgUrl?: string) => {
     setReelPreset({ hook: hookText, bgUrl });
     setActiveTab(1);
+  };
+
+  // Generuje zadania publikacji w plannerze na podstawie paczki dnia
+  const handleSchedulePack = (pack: {
+    reels: Array<{ hook: string; duration: number }>;
+    carousel: { title: string };
+    post: { headline: string };
+  }) => {
+    const today = new Date().toISOString().split("T")[0];
+    const tasks: PlannerTask[] = [];
+
+    // Rolki — publikacja o 12:00, 15:00, 18:00
+    const reelTimes = ["12:00", "15:00", "18:00"];
+    pack.reels.forEach((reel, idx) => {
+      tasks.push({
+        id: `task-${Date.now()}-reel-${idx}`,
+        time: reelTimes[idx] || "18:00",
+        title: `Publikacja Rolki ${idx + 1}: ${reel.hook.slice(0, 40)}...`,
+        category: "post",
+        targetTab: 1,
+        completed: false,
+        date: today,
+        actionLabel: "Otwórz Studio Rolek",
+      });
+    });
+
+    // Karuzela — publikacja o 14:00
+    tasks.push({
+      id: `task-${Date.now()}-carousel`,
+      time: "14:00",
+      title: `Publikacja Karuzeli: ${pack.carousel.title.slice(0, 40)}...`,
+      category: "post",
+      targetTab: 2,
+      completed: false,
+      date: today,
+      actionLabel: "Otwórz Studio Karuzeli",
+    });
+
+    // Post 1:1 — publikacja o 20:00
+    tasks.push({
+      id: `task-${Date.now()}-post`,
+      time: "20:00",
+      title: `Publikacja Posta 1:1: ${pack.post.headline.slice(0, 40)}...`,
+      category: "post",
+      targetTab: 0,
+      completed: false,
+      date: today,
+      actionLabel: "Otwórz Studio Posta",
+    });
+
+    handleUpdateData((prev) => ({
+      ...prev,
+      planner_tasks: [...(prev.planner_tasks || []), ...tasks],
+    }));
   };
 
   const tabs = [
@@ -157,6 +216,20 @@ export default function StarkFocusApp() {
           })}
         </nav>
 
+        {/* Przycisk Paczki Dnia + Planner */}
+        <div className="flex items-center justify-between gap-3 pb-4 mb-5 border-b border-white/10">
+          <button
+            onClick={() => setDailyPackOpen(true)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-orange-500/20 hover:from-amber-500/30 hover:to-orange-500/30 border border-amber-500/30 text-amber-300 text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer"
+          >
+            <Calendar className="w-4 h-4" />
+            Paczka Dnia (Klik 1)
+          </button>
+          <div className="text-[10px] font-mono text-neutral-500">
+            {data.planner_tasks?.filter((t) => !t.completed).length || 0} zadań do wykonania
+          </div>
+        </div>
+
         <main>
           <Suspense fallback={<TabFallback />}>
             {activeTab === 0 && (
@@ -201,6 +274,22 @@ export default function StarkFocusApp() {
           title={qrModal.title}
           data={qrModal.data}
         />
+        {dailyPackOpen && (
+          <DailyPackModal
+            isOpen={dailyPackOpen}
+            onClose={() => setDailyPackOpen(false)}
+            onOpenVideoStudio={(hookText) => {
+              setDailyPackOpen(false);
+              handleSendToReel(hookText);
+            }}
+            onOpenCarouselStudio={(title, slides) => {
+              setDailyPackOpen(false);
+              // Przekierowanie do zakładki Trendy gdzie jest Studio Karuzeli
+              setActiveTab(2);
+            }}
+            onSchedulePack={handleSchedulePack}
+          />
+        )}
       </Suspense>
     </div>
   );

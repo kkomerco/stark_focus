@@ -238,6 +238,7 @@ export interface DailyPack {
   generatedAt: string;
   source: "ai" | "offline";
   topic: string;
+  category?: string;
   reels: DailyPackReel[];
   carousel: DailyPackCarousel;
   post: DailyPackPost;
