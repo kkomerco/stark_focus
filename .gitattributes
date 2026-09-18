@@ -1,0 +1,14 @@
+# Końcówki linii: LF w całym repozytorium (wymóg AGENTS.md + prettier)
+* text=auto eol=lf
+
+# Pliki binarne — bez konwersji
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.webp binary
+*.mp4 binary
+*.zip binary
+
+# Skrypty Windows mogą mieć CRLF
+*.bat text eol=crlf

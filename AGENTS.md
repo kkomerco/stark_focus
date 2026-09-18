@@ -19,4 +19,3 @@
 - Ochrona SSRF: zawsze przez `isSafeUrl()` z `src/lib/safe-url.ts`.
 - Cache: `createTtlCache()` z `src/lib/cache.ts` — nie piszemy własnych map z TTL.
 - Opisy marki: `formatStarkCaption()` z `src/lib/caption.ts`.
-

@@ -1,11 +1,7 @@
 // Stan "deski reżyserskiej" studia rolek — tworzenie, format, opisy, presety.
 // Przeniesione 1:1 z VideoStudioModal.tsx (logika bez zmian).
 import { useMemo, useState } from "react";
-import {
-  NarrativeFormat,
-  ReelTemplate,
-  ReelVisualTheme,
-} from "../../data/reelTemplates";
+import { NarrativeFormat, ReelTemplate, ReelVisualTheme } from "../../data/reelTemplates";
 import { FontFamily, HighlightStyle, PacingMode, ReelDuration, VisualTheme } from "./reel-helpers";
 import { VIRAL_REEL_TEMPLATES } from "../../data/reelTemplates";
 

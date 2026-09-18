@@ -57,14 +57,14 @@ Serwer dev (`tsx server.ts`) uruchamia jednocześnie API i Vite w trybie middlew
 
 ## 📜 Skrypty
 
-| Skrypt | Działanie |
-|---|---|
-| `npm run dev` | serwer dev (API + frontend na porcie 3000) |
-| `npm run client` | sam frontend przez Vite |
-| `npm run build` | typecheck + build frontendu + bundling serwera do `dist/server.cjs` |
-| `npm start` | uruchomienie builda produkcyjnego |
-| `npm run lint` | ESLint (z regułą prettier) |
-| `npm run typecheck` | `tsc --noEmit` |
+| Skrypt              | Działanie                                                           |
+| ------------------- | ------------------------------------------------------------------- |
+| `npm run dev`       | serwer dev (API + frontend na porcie 3000)                          |
+| `npm run client`    | sam frontend przez Vite                                             |
+| `npm run build`     | typecheck + build frontendu + bundling serwera do `dist/server.cjs` |
+| `npm start`         | uruchomienie builda produkcyjnego                                   |
+| `npm run lint`      | ESLint (z regułą prettier)                                          |
+| `npm run typecheck` | `tsc --noEmit`                                                      |
 
 ## 🧭 Roadmapa automatyzacji (docelowo 1–2–3 kliknięcia)
 

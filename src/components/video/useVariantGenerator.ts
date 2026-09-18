@@ -17,7 +17,11 @@ interface UseVariantGeneratorInput {
  * 1-Click Multi-Variant Video Generator (A/B testing).
  * Przeniesione 1:1 z VideoStudioModal.tsx (logika bez zmian).
  */
-export function useVariantGenerator({ getTopic, applyVariant, showToast }: UseVariantGeneratorInput) {
+export function useVariantGenerator({
+  getTopic,
+  applyVariant,
+  showToast,
+}: UseVariantGeneratorInput) {
   const [isGeneratingVariants, setIsGeneratingVariants] = useState<boolean>(false);
   const [multiVariants, setMultiVariants] = useState<VariantResult[]>([]);
   const [showVariantsModal, setShowVariantsModal] = useState<boolean>(false);
