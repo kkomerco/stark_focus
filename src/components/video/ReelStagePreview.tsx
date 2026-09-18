@@ -112,6 +112,18 @@ function StageHud({
       </div>
 
       {/* Format Badge */}
+      <div className="absolute top-3 left-3 px-2 py-0.5 rounded bg-white/10 border border-white/20 font-mono text-[9px] text-white font-bold backdrop-blur-sm uppercase">
+        {format === "three_phases"
+          ? "3 Fazy"
+          : format === "single_quote"
+            ? "1 Cytat"
+            : format === "two_phases"
+              ? "2 Fazy"
+              : "4 Frazy"}
+      </div>
+    </>
+  );
+}
 
 function StageControls({
   isPlaying,
@@ -232,18 +244,5 @@ function StageControls({
         )}
       </div>
     </div>
-  );
-}
-
-      <div className="absolute top-3 left-3 px-2 py-0.5 rounded bg-white/10 border border-white/20 font-mono text-[9px] text-white font-bold backdrop-blur-sm uppercase">
-        {format === "three_phases"
-          ? "3 Fazy"
-          : format === "single_quote"
-            ? "1 Cytat"
-            : format === "two_phases"
-              ? "2 Fazy"
-              : "4 Frazy"}
-      </div>
-    </>
   );
 }

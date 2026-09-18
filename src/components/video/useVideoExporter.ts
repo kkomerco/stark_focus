@@ -112,6 +112,23 @@ export function useVideoExporter({
       requestAnimationFrame(step);
     } catch (err) {
       console.error("Recording error:", err);
+      isExportingRef.current = false;
+      setIsExporting(false);
+      setIsPlaying(true);
+      toast("Błąd nagrywania wideo. Spróbuj pobrać klatkę PNG.", 3500);
+    }
+  }, [canvasRef, duration, exportFps, renderFrame, selectedTheme, setIsPlaying, toast]);
+
+  // Export Still Frame PNG (Full HD 1080x1920)
+  const handleExportPng = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const url = canvas.toDataURL("image/png");
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `stark_reel_frame_1080x1920_${Date.now()}.png`;
+    a.click();
+  }, [canvasRef]);
 
   // TURNKEY EXPORT: 1. "Ready-to-Post" ZIP Bundle
   const [isExportingZip, setIsExportingZip] = useState<boolean>(false);
@@ -180,7 +197,18 @@ ${hashtags.join(" ")}`;
       setIsExportingZip(false);
       setIsPlaying(true);
     }
-  }, [canvasRef, caption, duration, exportFps, hashtags, phrases, renderFrame, selectedTheme, setIsPlaying, toast]);
+  }, [
+    canvasRef,
+    caption,
+    duration,
+    exportFps,
+    hashtags,
+    phrases,
+    renderFrame,
+    selectedTheme,
+    setIsPlaying,
+    toast,
+  ]);
 
   return {
     isExporting,
@@ -194,20 +222,3 @@ ${hashtags.join(" ")}`;
     handleExportZipBundle,
   };
 }
-      isExportingRef.current = false;
-      setIsExporting(false);
-      setIsPlaying(true);
-      toast("Błąd nagrywania wideo. Spróbuj pobrać klatkę PNG.", 3500);
-    }
-  }, [canvasRef, duration, exportFps, renderFrame, selectedTheme, setIsPlaying, toast]);
-
-  // Export Still Frame PNG (Full HD 1080x1920)
-  const handleExportPng = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const url = canvas.toDataURL("image/png");
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `stark_reel_frame_1080x1920_${Date.now()}.png`;
-    a.click();
-  }, [canvasRef]);
