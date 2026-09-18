@@ -1,6 +1,9 @@
 import { GoogleGenAI } from "@google/genai";
 
 import { createApp } from "./mini-express.server";
+import { registerDailyPackRoutes } from "./ai/routes/daily-pack.server";
+import { registerIdeaStreamRoutes } from "./ai/routes/idea-stream.server";
+import { registerDeconstructRoutes } from "./ai/routes/deconstruct.server";
 
 function getGeminiClient(): GoogleGenAI | null {
   const key = process.env["GEMINI_API_KEY"];
@@ -2260,6 +2263,14 @@ Return strictly valid JSON:
 
   return res.json(result);
 });
+
+// === MODULARNE TRASY AI (src/lib/ai/routes/*) ===
+// Rejestrowane na końcu pliku celowo: mini-express dopasowuje PIERWSZĄ pasującą trasę,
+// więc endpointy monolitu zdefiniowane wyżej zachowują priorytet, a moduły modularne
+// obsługują nowe ścieżki: /api/ai/daily-pack, /api/ai/idea-stream, /api/ai/deconstruct-viral.
+registerDailyPackRoutes(app);
+registerIdeaStreamRoutes(app);
+registerDeconstructRoutes(app);
 
 // Endpointy AI, ktorych odpowiedzi warto cache'owac (identyczne zapytanie = ta sama odpowiedz)
 const CACHEABLE_AI_PATHS = new Set([

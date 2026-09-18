@@ -1,6 +1,7 @@
 import { createApp } from "../mini-express.server";
 import { createTtlCache } from "../cache";
 import { registerAnalyzeRoutes } from "./routes/analyze.server";
+import { registerDeconstructRoutes } from "./routes/deconstruct.server";
 import { registerGenerateRoutes } from "./routes/generate.server";
 import { registerTrendsRoutes } from "./routes/trends.server";
 import { registerCarouselRoutes } from "./routes/carousel.server";
@@ -8,6 +9,7 @@ import { registerMentorRoutes } from "./routes/mentor.server";
 import { registerReelsRoutes } from "./routes/reels.server";
 import { registerStatusRoutes } from "./routes/status.server";
 import { registerDailyPackRoutes } from "./routes/daily-pack.server";
+import { registerIdeaStreamRoutes } from "./routes/idea-stream.server";
 
 // Cache odpowiedzi AI (identyczne zapytanie = ta sama odpowiedz)
 const aiCache = createTtlCache<{ body: string; contentType: string }>({
@@ -26,6 +28,7 @@ function cacheSet(key: string, body: string, contentType: string) {
 const app = createApp();
 
 registerAnalyzeRoutes(app);
+registerDeconstructRoutes(app);
 registerGenerateRoutes(app);
 registerTrendsRoutes(app);
 registerCarouselRoutes(app);
@@ -33,6 +36,7 @@ registerMentorRoutes(app);
 registerReelsRoutes(app);
 registerStatusRoutes(app);
 registerDailyPackRoutes(app);
+registerIdeaStreamRoutes(app);
 
 // Endpointy AI, ktorych odpowiedzi warto cache'owac (identyczne zapytanie = ta sama odpowiedz)
 const CACHEABLE_AI_PATHS = new Set([
