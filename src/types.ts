@@ -211,6 +211,60 @@ export interface StarkFocusData {
   monetization_goal?: MonetizationGoal;
   saved_hook_battles?: HookBattleItem[];
   planner_tasks?: PlannerTask[];
+  used_idea_fingerprints?: string[];
+}
+
+// ===== Idea Stream (nieskończony generator z anty-powtórką) =====
+export interface IdeaItem {
+  id: string;
+  hook: string;
+  category: string;
+  archetype: string;
+  emotionalTarget: string;
+  format: string;
+  phrases: string[];
+  caption: string;
+  hashtags: string[];
+  theme: string;
+  viralityScore: number;
+}
+
+export interface IdeaStreamResponse {
+  generatedAt: string;
+  source: "ai" | "offline";
+  ideas: IdeaItem[];
+}
+
+// ===== Deconstruct Viral (analiza rynku z linków) =====
+export interface ViralDeconstruction {
+  hookType: string;
+  hookText: string;
+  structure: string[];
+  psychologicalTriggers: string[];
+  whyItWorks: string;
+  visualStyle: string;
+  audioStrategy: string;
+}
+
+export interface StarkVariant {
+  id: string;
+  hook: string;
+  angle: string;
+  phrases: string[];
+  viralityScore: number;
+}
+
+export interface DeconstructViralResponse {
+  source: "ai" | "offline";
+  platform: string;
+  original: {
+    url: string;
+    title: string;
+    author: string;
+    audioTrack: string;
+  };
+  deconstruction: ViralDeconstruction;
+  starkVariants: StarkVariant[];
 }
 
 // ===== Paczka dnia (One-Click Factory) =====

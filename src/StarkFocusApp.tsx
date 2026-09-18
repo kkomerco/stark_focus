@@ -1,11 +1,11 @@
 // StarkFocusApp.tsx - Visionary Media Lab / Stark Focus OS
 import React, { useState, useEffect, lazy, Suspense } from "react";
-import { Sparkles, Film, Flame, Calendar } from "lucide-react";
+import { Sparkles, Film, Flame, Calendar, Lightbulb, Link2 } from "lucide-react";
 import { StarkFocusData, Post, PlannerTask } from "./types";
 import { loadStoredData, saveStoredData } from "./utils/storage";
 import { Header } from "./components/Header";
 
-// Lazy - aktywne 3 moduły + Daily Pack
+// Lazy - aktywne moduły
 const InspirationStudio1to1 = lazy(() =>
   import("./components/InspirationStudio1to1").then((m) => ({ default: m.InspirationStudio1to1 })),
 );
@@ -17,6 +17,12 @@ const AiRadarTab = lazy(() =>
 );
 const DailyPackModal = lazy(() =>
   import("./components/DailyPackModal").then((m) => ({ default: m.DailyPackModal })),
+);
+const IdeaStreamModal = lazy(() =>
+  import("./components/IdeaStreamModal").then((m) => ({ default: m.IdeaStreamModal })),
+);
+const DeconstructViralModal = lazy(() =>
+  import("./components/DeconstructViralModal").then((m) => ({ default: m.DeconstructViralModal })),
 );
 
 const QRModal = lazy(() => import("./components/QRModal").then((m) => ({ default: m.QRModal })));
@@ -41,6 +47,8 @@ export default function StarkFocusApp() {
   const [reelPreset, setReelPreset] = useState<{ hook?: string; bgUrl?: string }>({});
 
   const [dailyPackOpen, setDailyPackOpen] = useState(false);
+  const [ideaStreamOpen, setIdeaStreamOpen] = useState(false);
+  const [deconstructOpen, setDeconstructOpen] = useState(false);
 
   const [qrModal, setQrModal] = useState<{ isOpen: boolean; title: string; data: string }>({
     isOpen: false,
@@ -216,17 +224,34 @@ export default function StarkFocusApp() {
           })}
         </nav>
 
-        {/* Przycisk Paczki Dnia + Planner */}
-        <div className="flex items-center justify-between gap-3 pb-4 mb-5 border-b border-white/10">
-          <button
-            onClick={() => setDailyPackOpen(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-orange-500/20 hover:from-amber-500/30 hover:to-orange-500/30 border border-amber-500/30 text-amber-300 text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer"
-          >
-            <Calendar className="w-4 h-4" />
-            Paczka Dnia (Klik 1)
-          </button>
+        {/* Pasek akcji: Paczka Dnia + Nieskończone Pomysły + Analiza Virala */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-4 mb-5 border-b border-white/10">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setDailyPackOpen(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-orange-500/20 hover:from-amber-500/30 hover:to-orange-500/30 border border-amber-500/30 text-amber-300 text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer"
+            >
+              <Calendar className="w-4 h-4" />
+              Paczka Dnia
+            </button>
+            <button
+              onClick={() => setIdeaStreamOpen(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-violet-500/20 to-fuchsia-500/20 hover:from-violet-500/30 hover:to-fuchsia-500/30 border border-violet-500/30 text-violet-300 text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer"
+            >
+              <Lightbulb className="w-4 h-4" />
+              Nieskończone Pomysły
+            </button>
+            <button
+              onClick={() => setDeconstructOpen(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-sky-500/20 to-cyan-500/20 hover:from-sky-500/30 hover:to-cyan-500/30 border border-sky-500/30 text-sky-300 text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer"
+            >
+              <Link2 className="w-4 h-4" />
+              Analiza Virala (Link)
+            </button>
+          </div>
           <div className="text-[10px] font-mono text-neutral-500">
-            {data.planner_tasks?.filter((t) => !t.completed).length || 0} zadań do wykonania
+            {data.planner_tasks?.filter((t) => !t.completed).length || 0} zadań •{" "}
+            {data.used_idea_fingerprints?.length || 0} użytych pomysłów
           </div>
         </div>
 
@@ -288,6 +313,32 @@ export default function StarkFocusApp() {
               setActiveTab(2);
             }}
             onSchedulePack={handleSchedulePack}
+          />
+        )}
+        {ideaStreamOpen && (
+          <IdeaStreamModal
+            isOpen={ideaStreamOpen}
+            onClose={() => setIdeaStreamOpen(false)}
+            data={data}
+            onUpdateData={handleUpdateData}
+            onSendToReel={(hookText) => {
+              setIdeaStreamOpen(false);
+              handleSendToReel(hookText);
+            }}
+            onSendToPost={(text) => {
+              setIdeaStreamOpen(false);
+              handleSendToPost(text);
+            }}
+          />
+        )}
+        {deconstructOpen && (
+          <DeconstructViralModal
+            isOpen={deconstructOpen}
+            onClose={() => setDeconstructOpen(false)}
+            onSendToReel={(hookText) => {
+              setDeconstructOpen(false);
+              handleSendToReel(hookText);
+            }}
           />
         )}
       </Suspense>
