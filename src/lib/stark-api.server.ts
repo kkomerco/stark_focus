@@ -4,6 +4,7 @@ import { createApp } from "./mini-express.server";
 import { registerDailyPackRoutes } from "./ai/routes/daily-pack.server";
 import { registerIdeaStreamRoutes } from "./ai/routes/idea-stream.server";
 import { registerDeconstructRoutes } from "./ai/routes/deconstruct.server";
+import { registerGrowthRoutes } from "./ai/routes/growth.server";
 
 function getGeminiClient(): GoogleGenAI | null {
   const key = process.env["GEMINI_API_KEY"];
@@ -2271,6 +2272,7 @@ Return strictly valid JSON:
 registerDailyPackRoutes(app);
 registerIdeaStreamRoutes(app);
 registerDeconstructRoutes(app);
+registerGrowthRoutes(app);
 
 // Endpointy AI, ktorych odpowiedzi warto cache'owac (identyczne zapytanie = ta sama odpowiedz)
 const CACHEABLE_AI_PATHS = new Set([

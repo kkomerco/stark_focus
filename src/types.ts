@@ -192,6 +192,44 @@ export interface UniversalLayoutSpec {
   fontColorMode?: "white" | "black";
 }
 
+// ===== A/B Eksperymenty (pętla uczenia) =====
+export interface AbVariant {
+  label: "A" | "B";
+  hook: string;
+  angle: string;
+  phrases: string[];
+  theme: string;
+  cta: string;
+  publishedAt?: string | null;
+  metrics?: {
+    views: number;
+    likes: number;
+    comments: number;
+    shares: number;
+    saves: number;
+  };
+}
+
+export interface AbExperiment {
+  id: string;
+  topic: string;
+  createdAt: string;
+  variants: AbVariant[];
+  winner?: "A" | "B" | null;
+  lesson?: string;
+  concludedAt?: string | null;
+}
+
+// ===== Biblioteka promptów tła (spójny feed) =====
+export interface PromptLibraryItem {
+  id: string;
+  prompt: string;
+  style: string;
+  source: string;
+  createdAt: string;
+  uses: number;
+}
+
 export interface StarkFocusData {
   posts: Post[];
   account_stats: AccountStat[];
@@ -212,6 +250,8 @@ export interface StarkFocusData {
   saved_hook_battles?: HookBattleItem[];
   planner_tasks?: PlannerTask[];
   used_idea_fingerprints?: string[];
+  ab_experiments?: AbExperiment[];
+  prompt_library?: PromptLibraryItem[];
 }
 
 // ===== Idea Stream (nieskończony generator z anty-powtórką) =====

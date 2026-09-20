@@ -143,6 +143,18 @@ export const IdeaStreamModal: React.FC<IdeaStreamModalProps> = ({
                   <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/25">
                     💥 {idea.emotionalTarget}
                   </span>
+                  {idea.similarity >= 0.45 ? (
+                    <span
+                      title={idea.similarTo ? `Najbliższy w historii: "${idea.similarTo}"` : ""}
+                      className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-orange-500/15 text-orange-300 border border-orange-500/30"
+                    >
+                      ⚠️ podobny {Math.round(idea.similarity * 100)}%
+                    </span>
+                  ) : (
+                    <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/25">
+                      ✓ świeży (max {Math.round(idea.similarity * 100)}%)
+                    </span>
+                  )}
                 </div>
 
                 {idea.phrases.length > 1 && (

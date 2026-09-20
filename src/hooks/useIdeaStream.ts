@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo } from "react";
 import { IdeaItem, IdeaStreamResponse, StarkFocusData } from "../types";
+import { hookSimilarity, SIMILARITY } from "../lib/similarity";
 
 /** Normalizuje hook do fingerprintu (odporny na drobne różnice formatowania). */
 function getFingerprint(hook: string): string {
@@ -11,15 +12,25 @@ function getFingerprint(hook: string): string {
     .slice(0, 60);
 }
 
+export interface ScoredIdea extends IdeaItem {
+  /** 0..1 — maksymalne podobieństwo do hooków z historii. */
+  similarity: number;
+  /** Hook z historii najbardziej podobny (null = brak). */
+  similarTo: string | null;
+  /** true = pomysł odrzucony w trybie ścisłym (za duże podobieństwo). */
+  rejected: boolean;
+}
+
 /**
  * Hook do zarządzania nieskończonym strumieniem pomysłów z anty-powtórką.
- * Fingerprintuje każdy hook i przechowuje historię w StarkFocusData.used_idea_fingerprints.
+ * Poza identycznymi fingerprintami mierzy też PODOBIEŃSTWO strukturalne —
+ * pomysły zbyt bliskie poprzednim są odfiltrowywane lub oznaczane.
  */
 export function useIdeaStream(
   data: StarkFocusData,
   onUpdateData: (updater: (prev: StarkFocusData) => StarkFocusData) => void,
 ) {
-  const [ideas, setIdeas] = useState<IdeaItem[]>([]);
+  const [ideas, setIdeas] = useState<ScoredIdea[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -49,24 +60,48 @@ export function useIdeaStream(
         const response = (await res.json()) as IdeaStreamResponse;
         const newIdeas = response.ideas || [];
 
-        // Double-check po stronie klienta: odrzuć wszystko, co już było.
-        const existing = new Set(usedFingerprints);
-        const uniqueNewIdeas = newIdeas.filter((idea) => !existing.has(getFingerprint(idea.hook)));
+        // Oceniamy KAŻDY pomysł: identyczność (fingerprint) i podobieństwo (tokeny).
+        const exactSet = new Set(usedFingerprints);
+        const scoredIdeas: ScoredIdea[] = newIdeas.map((idea) => {
+          const fp = getFingerprint(idea.hook);
+          if (exactSet.has(fp)) {
+            return { ...idea, similarity: 1, similarTo: idea.hook, rejected: true };
+          }
+          let best = 0;
+          let similarTo: string | null = null;
+          for (const h of usedFingerprints) {
+            const s = hookSimilarity(idea.hook, h);
+            if (s > best) {
+              best = s;
+              similarTo = h;
+            }
+          }
+          return {
+            ...idea,
+            similarity: best,
+            similarTo,
+            rejected: best >= SIMILARITY.HARD_BLOCK,
+          };
+        });
 
-        if (uniqueNewIdeas.length === 0 && newIdeas.length > 0) {
-          setError("Wszystkie pomysły były powtórkami — spróbuj ponownie.");
+        const kept = scoredIdeas.filter((i) => !i.rejected);
+        const rejectedCount = scoredIdeas.length - kept.length;
+
+        if (kept.length === 0 && newIdeas.length > 0) {
+          setError(
+            rejectedCount === newIdeas.length
+              ? `Wszystkie ${newIdeas.length} pomysły były zbyt podobne do historii (tryb ścisły). Wygeneruj ponownie albo wyczyść historię.`
+              : "Nie udało się wygenerować pomysłów — spróbuj ponownie.",
+          );
         }
 
-        setIdeas(uniqueNewIdeas);
+        setIdeas(kept);
 
-        // Historia rośnie tylko o faktycznie nowe fingerprinty (limit 500).
-        if (uniqueNewIdeas.length > 0) {
+        // Historia rośnie tylko o nowe fingerprinty (limit 500).
+        if (kept.length > 0) {
           onUpdateData((prev) => {
             const prevFingerprints = prev.used_idea_fingerprints || [];
-            const merged = [
-              ...prevFingerprints,
-              ...uniqueNewIdeas.map((idea) => getFingerprint(idea.hook)),
-            ];
+            const merged = [...prevFingerprints, ...kept.map((idea) => getFingerprint(idea.hook))];
             return {
               ...prev,
               used_idea_fingerprints: Array.from(new Set(merged)).slice(-500),

@@ -16,6 +16,8 @@ export interface BrollScene {
   suggestedTheme:
     "obsidian_void" | "crimson_eclipse" | "emerald_abyss" | "carbon_aura" | "silver_mist";
   matchKeywords: string[];
+  /** Semantyczne tagi wykorzystywane w AI-doborze b-roll. */
+  tags: string[];
 }
 
 export const CINEMATIC_BROLL_LIBRARY: BrollScene[] = [
@@ -45,6 +47,18 @@ export const CINEMATIC_BROLL_LIBRARY: BrollScene[] = [
       "calm",
       "unshakable",
     ],
+    tags: [
+      "stoic",
+      "philosophy",
+      "marble",
+      "wisdom",
+      "antiquity",
+      "seneca",
+      "aurelius",
+      "serenity",
+      "meditation",
+      "legacy",
+    ],
   },
   {
     id: "nocna_metropolia_stal",
@@ -71,6 +85,18 @@ export const CINEMATIC_BROLL_LIBRARY: BrollScene[] = [
       "high leverage",
       "dark work",
     ],
+    tags: [
+      "city",
+      "night",
+      "ambition",
+      "empire",
+      "capital",
+      "business",
+      "corporate",
+      "urban",
+      "grind",
+      "lonely",
+    ],
   },
   {
     id: "brutalizm_monolit",
@@ -96,6 +122,18 @@ export const CINEMATIC_BROLL_LIBRARY: BrollScene[] = [
       "unbreakable",
       "isolation",
       "secret",
+    ],
+    tags: [
+      "silence",
+      "monolith",
+      "void",
+      "isolation",
+      "secrecy",
+      "strength",
+      "minimal",
+      "standards",
+      "alone",
+      "cold",
     ],
   },
   {
@@ -125,6 +163,18 @@ export const CINEMATIC_BROLL_LIBRARY: BrollScene[] = [
       "first battle",
       "early",
     ],
+    tags: [
+      "morning",
+      "early",
+      "rain",
+      "cold",
+      "discipline",
+      "ritual",
+      "focus",
+      "grit",
+      "solitude",
+      "wake",
+    ],
   },
   {
     id: "ciemna_sala_asceza",
@@ -153,6 +203,18 @@ export const CINEMATIC_BROLL_LIBRARY: BrollScene[] = [
       "resistance",
       "push",
     ],
+    tags: [
+      "training",
+      "gym",
+      "iron",
+      "pain",
+      "discipline",
+      "strength",
+      "suffering",
+      "grit",
+      "grind",
+      "focus",
+    ],
   },
   {
     id: "mgla_horyzont_pustka",
@@ -178,6 +240,18 @@ export const CINEMATIC_BROLL_LIBRARY: BrollScene[] = [
       "otchłań",
       "pustka",
       "infinity",
+    ],
+    tags: [
+      "horizon",
+      "void",
+      "death",
+      "memento",
+      "time",
+      "infinity",
+      "abyss",
+      "mortality",
+      "transcend",
+      "silence",
     ],
   },
 ];

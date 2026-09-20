@@ -33,9 +33,18 @@ function pickDailyCategory(): string {
 }
 
 /** Paczka z lokalnych banków treści — działa w 100% offline (zero klucza API, zero limitów). */
-function buildOfflinePack(topic: string, reelsCount: number) {
+function buildOfflinePack(topic: string, reelsCount: number, excludeHooks: string[] = []) {
+  const excluded = new Set(excludeHooks.map((h) => h.toLowerCase().trim()));
   const reels = [...VIRAL_REEL_TEMPLATES]
     .sort(() => Math.random() - 0.5)
+    .filter(
+      (t) =>
+        !excluded.has(
+          String(t.phrases[0] || t.title)
+            .toLowerCase()
+            .trim(),
+        ),
+    )
     .slice(0, Math.max(1, Math.min(reelsCount, 4)))
     .map((template) => ({
       hook: template.phrases[0] || template.title,
@@ -81,10 +90,12 @@ export function registerDailyPackRoutes(app: MiniApp): void {
     const {
       topic = "dark motivation, brutal discipline, hard work and mental toughness",
       reelsCount = 3,
+      excludeHooks = [],
     } = req.body || {};
+    const safeExclude = Array.isArray(excludeHooks) ? excludeHooks.map(String) : [];
 
     if (!getGeminiClient()) {
-      return res.json(buildOfflinePack(topic, Number(reelsCount) || 2));
+      return res.json(buildOfflinePack(topic, Number(reelsCount) || 3, safeExclude));
     }
 
     try {
@@ -97,6 +108,13 @@ WYMAGANIA TREŚCI:
 - Styl: David Goggins meets Marcus Aurelius — surowy, ale filozoficzny
 - Każdy hook musi zatrzymać scroll w 0.8s (konkret, liczby, konfrontacja)
 - Unikaj ogólników typu "believe in yourself" — zamiast tego "Your comfort zone is a coffin"
+- NIE powtarzaj żadnego z tych hooków (ani ich mutacji):
+${
+  safeExclude
+    .slice(-20)
+    .map((h) => `  - "${h}"`)
+    .join("\n") || "  (brak)"
+}
 
 1. Rolki 9:16 w liczbie ${Number(reelsCount) || 3} — każda z:
    - hook: bezwzględny hook 0-3s po angielsku (max 8 słów, konkret, zero lania wody)
@@ -145,7 +163,7 @@ Zwróć WYŁĄCZNIE poprawny JSON wg schematu:
         parsed.carousel.slides.length > 0 &&
         typeof parsed?.post?.headline === "string";
 
-      if (!valid) return res.json(buildOfflinePack(topic, Number(reelsCount) || 3));
+      if (!valid) return res.json(buildOfflinePack(topic, Number(reelsCount) || 3, safeExclude));
 
       return res.json({
         generatedAt: new Date().toISOString(),
@@ -158,7 +176,7 @@ Zwróć WYŁĄCZNIE poprawny JSON wg schematu:
       });
     } catch (err) {
       console.warn("Błąd daily-pack:", err);
-      return res.json(buildOfflinePack(topic, Number(reelsCount) || 2));
+      return res.json(buildOfflinePack(topic, Number(reelsCount) || 3, safeExclude));
     }
   });
 }

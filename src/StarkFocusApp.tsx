@@ -1,6 +1,16 @@
 // StarkFocusApp.tsx - Visionary Media Lab / Stark Focus OS
 import React, { useState, useEffect, lazy, Suspense } from "react";
-import { Sparkles, Film, Flame, Calendar, Lightbulb, Link2 } from "lucide-react";
+import {
+  Sparkles,
+  Film,
+  Flame,
+  Calendar,
+  Lightbulb,
+  Link2,
+  TestTubes,
+  Rocket,
+  Image as ImageIcon,
+} from "lucide-react";
 import { StarkFocusData, Post, PlannerTask } from "./types";
 import { loadStoredData, saveStoredData } from "./utils/storage";
 import { Header } from "./components/Header";
@@ -23,6 +33,13 @@ const IdeaStreamModal = lazy(() =>
 );
 const DeconstructViralModal = lazy(() =>
   import("./components/DeconstructViralModal").then((m) => ({ default: m.DeconstructViralModal })),
+);
+const AbModal = lazy(() => import("./components/AbModal").then((m) => ({ default: m.AbModal })));
+const AutopilotModal = lazy(() =>
+  import("./components/AutopilotModal").then((m) => ({ default: m.AutopilotModal })),
+);
+const PromptLibraryModal = lazy(() =>
+  import("./components/PromptLibraryModal").then((m) => ({ default: m.PromptLibraryModal })),
 );
 
 const QRModal = lazy(() => import("./components/QRModal").then((m) => ({ default: m.QRModal })));
@@ -49,6 +66,9 @@ export default function StarkFocusApp() {
   const [dailyPackOpen, setDailyPackOpen] = useState(false);
   const [ideaStreamOpen, setIdeaStreamOpen] = useState(false);
   const [deconstructOpen, setDeconstructOpen] = useState(false);
+  const [abOpen, setAbOpen] = useState(false);
+  const [autopilotOpen, setAutopilotOpen] = useState(false);
+  const [promptLibOpen, setPromptLibOpen] = useState(false);
 
   const [qrModal, setQrModal] = useState<{ isOpen: boolean; title: string; data: string }>({
     isOpen: false,
@@ -248,6 +268,27 @@ export default function StarkFocusApp() {
               <Link2 className="w-4 h-4" />
               Analiza Virala (Link)
             </button>
+            <button
+              onClick={() => setAbOpen(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-yellow-500/20 hover:from-amber-500/30 hover:to-yellow-500/30 border border-amber-500/30 text-amber-300 text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer"
+            >
+              <TestTubes className="w-4 h-4" />
+              Test A/B
+            </button>
+            <button
+              onClick={() => setAutopilotOpen(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-rose-500/20 to-orange-500/20 hover:from-rose-500/30 hover:to-orange-500/30 border border-rose-500/30 text-rose-300 text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer"
+            >
+              <Rocket className="w-4 h-4" />
+              Autopilot Tygień
+            </button>
+            <button
+              onClick={() => setPromptLibOpen(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-lime-500/15 to-emerald-500/15 hover:from-lime-500/25 hover:to-emerald-500/25 border border-lime-500/30 text-lime-300 text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer"
+            >
+              <ImageIcon className="w-4 h-4" />
+              Biblioteka Promptów
+            </button>
           </div>
           <div className="text-[10px] font-mono text-neutral-500">
             {data.planner_tasks?.filter((t) => !t.completed).length || 0} zadań •{" "}
@@ -339,6 +380,34 @@ export default function StarkFocusApp() {
               setDeconstructOpen(false);
               handleSendToReel(hookText);
             }}
+          />
+        )}
+        {abOpen && (
+          <AbModal
+            isOpen={abOpen}
+            onClose={() => setAbOpen(false)}
+            data={data}
+            onUpdateData={handleUpdateData}
+            onSendToReel={(hookText) => {
+              setAbOpen(false);
+              handleSendToReel(hookText);
+            }}
+          />
+        )}
+        {autopilotOpen && (
+          <AutopilotModal
+            isOpen={autopilotOpen}
+            onClose={() => setAutopilotOpen(false)}
+            data={data}
+            onUpdateData={handleUpdateData}
+          />
+        )}
+        {promptLibOpen && (
+          <PromptLibraryModal
+            isOpen={promptLibOpen}
+            onClose={() => setPromptLibOpen(false)}
+            data={data}
+            onUpdateData={handleUpdateData}
           />
         )}
       </Suspense>
