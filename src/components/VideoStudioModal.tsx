@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
+﻿import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import {
   X,
   Play,
@@ -23,11 +23,7 @@ import {
 import JSZip from "jszip";
 import { Post, VaultAsset } from "../types";
 import { VIRAL_REEL_TEMPLATES, type ReelTemplate } from "../data/reelTemplates";
-import {
-  STOIC_CATEGORIES,
-  getRandomUniqueFormula,
-  CATEGORY_BACKGROUND_RECOMMENDATIONS,
-} from "../data/ideaMatrix";
+import { CATEGORY_BACKGROUND_RECOMMENDATIONS } from "../data/ideaMatrix";
 import { EXPANDED_BACKGROUND_LIBRARY, getRandomBackgroundScene } from "../data/expandedBackgrounds";
 import type {
   FontFamily,
@@ -36,8 +32,12 @@ import type {
   ReelDuration,
   VisualTheme,
 } from "./video/reel-helpers";
-import { getPhraseTimeline, isOrphanWord, layoutLines } from "./video/reel-helpers";
+import { getPhraseTimeline, isOrphanWord } from "./video/reel-helpers";
+import { drawReelBackground } from "./video/reel-render/background";
+import { computeKineticPhrase, drawKineticText } from "./video/reel-render/typography";
+import { drawTikTokGuides } from "./video/reel-render/overlays";
 
+import { useAiReelGeneration } from "./video/useAiReelGeneration";
 interface VideoStudioModalProps {
   onClose?: () => void;
   initialHook?: string;
@@ -369,154 +369,23 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
   };
 
   // 1-Click AI Reel Director (Łamacz algorytmów: Viral 6s loop, 5s hook-payoff, dynamic B-roll cut)
-  const handleGenerateAiReel = async () => {
-    setIsGeneratingAi(true);
-    // Automatyczny losowy dobór kąta stoickiego
-    const randomCat = STOIC_CATEGORIES[Math.floor(Math.random() * STOIC_CATEGORIES.length)];
-    const chosenCategoryId = randomCat?.id || "sovereign_mindset";
-
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6000);
-
-      const res = await fetch("/api/ghostwrite", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          topic:
-            "Ruthless stoic discipline, sovereign posture, high-leverage focus, psychological power shift",
-          format: reelFormat,
-          category: chosenCategoryId,
-          excludeTitles: seenTitlesRef.current,
-        }),
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
-
-      if (res.ok) {
-        const json = await res.json();
-        let parsedData = json;
-        if (!json.phrases && json.content) {
-          try {
-            const match = json.content.match(/\{[\s\S]*\}/);
-            if (match) parsedData = JSON.parse(match[0]);
-          } catch {
-            // keep json
-          }
-        }
-
-        if (
-          parsedData.phrases &&
-          Array.isArray(parsedData.phrases) &&
-          parsedData.phrases.length > 0
-        ) {
-          const freshTitle = parsedData.title || "Sovereign Mindset Protocol";
-          seenTitlesRef.current.push(freshTitle.toLowerCase().replace(/\s+/g, "_"));
-          if (seenTitlesRef.current.length > 60) seenTitlesRef.current.shift();
-
-          // Dopasowanie fraz i długości do wybranego formatu
-          let finalPhrases = parsedData.phrases;
-          if (reelFormat === "viral_loop_6s" && finalPhrases.length > 1) {
-            finalPhrases = [finalPhrases.join(" ")];
-          } else if (reelFormat === "hook_payoff_5s" && finalPhrases.length > 2) {
-            finalPhrases = [finalPhrases[0], finalPhrases.slice(1).join(" ")];
-          }
-
-          setPhrases(finalPhrases);
-
-          if (parsedData.duration) {
-            setDuration(parsedData.duration as ReelDuration);
-          } else {
-            if (reelFormat === "viral_loop_6s") setDuration(6);
-            else if (reelFormat === "hook_payoff_5s") setDuration(5);
-            else if (reelFormat === "dynamic_broll_cut") setDuration(6);
-            else setDuration(9);
-          }
-
-          const shortC =
-            parsedData.captionShort ||
-            parsedData.caption ||
-            "Walk like a king, or walk like you don't care who the king is. Read caption.";
-          const deepC =
-            parsedData.captionDeep ||
-            `${shortC}\n\n3 sovereign rules for your day:\n1. Never negotiate with weakness.\n2. Execute in complete silence.\n3. Reclaim your internal sovereignty.\n\nSave this reel. Follow @stark_focus.`;
-
-          const validThemes: VisualTheme[] = [
-            "obsidian_void",
-            "crimson_eclipse",
-            "emerald_abyss",
-            "carbon_aura",
-            "silver_mist",
-          ];
-          const nextTheme = validThemes.includes(parsedData.suggestedTheme as VisualTheme)
-            ? (parsedData.suggestedTheme as VisualTheme)
-            : selectedTheme;
-
-          const randBg = getRandomBackgroundScene();
-          const dynamicTpl: ReelTemplate = {
-            id: `ai_${Date.now()}`,
-            format: "three_phases",
-            title: freshTitle,
-            phrases: finalPhrases,
-            captionShort: shortC,
-            captionDeep: deepC,
-            hashtags:
-              parsedData.hashtags && Array.isArray(parsedData.hashtags)
-                ? parsedData.hashtags
-                : ["#stoicism", "#discipline", "#sovereignty", "#focus", "#starkfocus"],
-            suggestedTheme: nextTheme,
-            suggestedDuration: duration,
-            suggestedBackground: parsedData.suggestedBackground || randBg.name,
-            backgroundRationale: parsedData.backgroundRationale || randBg.rationale,
-          };
-
-          setActiveTemplate(dynamicTpl);
-          setCaption(captionStyle === "deep" ? deepC : shortC);
-          setHashtags(dynamicTpl.hashtags);
-          setSelectedTheme(nextTheme);
-          timeRef.current = 0;
-          setCurrentTime(0);
-
-          setToastMessage(`✓ Wygenerowano unikalną rolkę: "${freshTitle}"!`);
-          setTimeout(() => setToastMessage(null), 2800);
-          setIsGeneratingAi(false);
-          return;
-        }
-      }
-    } catch {
-      // fallback to instant combinatorial matrix
-    }
-
-    // Dynamic Combinatorial Matrix Fallback (Zero duplicates, 28,000+ linked stoic formulas)
-    const formula = getRandomUniqueFormula("three_phases", chosenCategoryId, seenTitlesRef.current);
-    seenTitlesRef.current.push(formula.title.toLowerCase().replace(/\s+/g, "_"));
-    if (seenTitlesRef.current.length > 60) seenTitlesRef.current.shift();
-
-    let fallbackPhrases = formula.phrases;
-    if (reelFormat === "viral_loop_6s") {
-      fallbackPhrases = [
-        formula.phrases[0] || "Walk like a king, or walk like you don't care who the king is.",
-      ];
-      setDuration(6);
-    } else if (reelFormat === "hook_payoff_5s") {
-      fallbackPhrases = [formula.phrases[0], formula.phrases[formula.phrases.length - 1]];
-      setDuration(5);
-    } else {
-      setDuration(9);
-    }
-
-    setActiveTemplate(formula);
-    setPhrases(fallbackPhrases);
-    setCaption(captionStyle === "deep" ? formula.captionDeep : formula.captionShort);
-    setHashtags(formula.hashtags);
-    setSelectedTheme(formula.suggestedTheme);
-    timeRef.current = 0;
-    setCurrentTime(0);
-
-    setToastMessage(`✓ Wygenerowano unikalny pomysł: "${formula.title}"!`);
-    setTimeout(() => setToastMessage(null), 2800);
-    setIsGeneratingAi(false);
-  };
+  const handleGenerateAiReel = useAiReelGeneration({
+    reelFormat,
+    duration,
+    selectedTheme,
+    captionStyle,
+    seenTitlesRef,
+    timeRef,
+    setIsGeneratingAi,
+    setPhrases,
+    setDuration,
+    setActiveTemplate,
+    setCaption,
+    setHashtags,
+    setSelectedTheme,
+    setCurrentTime,
+    setToastMessage,
+  });
 
   // Copy Caption to Clipboard
   const handleCopyCaption = () => {
@@ -565,349 +434,32 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
         ? 1.09 + 0.03 * ((timeSec - totalDuration * 0.48) / (totalDuration * 0.52))
         : 1.0 + 0.04 * zoomProgress;
 
-      // 1. Background: Custom Upload (Image or Video) or Dark Generative Theme with Slow Zoom
-      ctx.save();
-      ctx.translate(width / 2, height / 2);
-      ctx.scale(zoomScale, zoomScale);
-      if (isDynamicCut) {
-        ctx.rotate(0.008); // Subtelne mikronachylenie przy cięciu kamery
-      }
-      ctx.translate(-width / 2, -height / 2);
-
-      if (customBgType === "video" && customVideoRef.current) {
-        const vid = customVideoRef.current;
-        const vidW = vid.videoWidth || 1080;
-        const vidH = vid.videoHeight || 1920;
-        const scale = Math.max(width / vidW, height / vidH);
-        const drawW = vidW * scale;
-        const drawH = vidH * scale;
-        const drawX = (width - drawW) / 2;
-        const drawY = (height - drawH) / 2;
-        ctx.drawImage(vid, drawX, drawY, drawW, drawH);
-        // Dark overlay for contrast
-        ctx.fillStyle = "rgba(0, 0, 0, 0.45)";
-        ctx.fillRect(0, 0, width, height);
-      } else if (customBgType === "image" && customImageRef.current) {
-        const img = customImageRef.current;
-        const imgW = img.naturalWidth || 1080;
-        const imgH = img.naturalHeight || 1920;
-        const scale = Math.max(width / imgW, height / imgH);
-        const drawW = imgW * scale;
-        const drawH = imgH * scale;
-        const drawX = (width - drawW) / 2;
-        const drawY = (height - drawH) / 2;
-        ctx.drawImage(img, drawX, drawY, drawW, drawH);
-        // Dark overlay for contrast
-        ctx.fillStyle = "rgba(0, 0, 0, 0.45)";
-        ctx.fillRect(0, 0, width, height);
-      } else if (selectedTheme === "crimson_eclipse") {
-        // Crimson Eclipse: Pitch black with deep brooding blood-crimson chiaroscuro eclipse
-        const bgGrad = ctx.createRadialGradient(
-          width * 0.5,
-          height * 0.42,
-          60,
-          width * 0.5,
-          height * 0.45,
-          height * 0.75,
-        );
-        bgGrad.addColorStop(0, "#2A0808");
-        bgGrad.addColorStop(0.25, "#150404");
-        bgGrad.addColorStop(0.55, "#080202");
-        bgGrad.addColorStop(1, "#000000");
-        ctx.fillStyle = bgGrad;
-        ctx.fillRect(0, 0, width, height);
-
-        // Subtle celestial eclipse ring behind the text focal point
-        const ringGrad = ctx.createLinearGradient(0, height * 0.28, 0, height * 0.58);
-        ringGrad.addColorStop(0, "rgba(220, 38, 38, 0.18)");
-        ringGrad.addColorStop(0.5, "rgba(153, 27, 27, 0.05)");
-        ringGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
-        ctx.strokeStyle = ringGrad;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(width * 0.5, height * 0.43, 340, 0, Math.PI * 2);
-        ctx.stroke();
-      } else if (selectedTheme === "emerald_abyss") {
-        // Emerald Abyss: Deep dark jade void with cold stoic granite undertone
-        const bgGrad = ctx.createRadialGradient(
-          width * 0.5,
-          height * 0.44,
-          80,
-          width * 0.5,
-          height * 0.48,
-          height * 0.8,
-        );
-        bgGrad.addColorStop(0, "#081E15");
-        bgGrad.addColorStop(0.3, "#04110C");
-        bgGrad.addColorStop(0.65, "#020705");
-        bgGrad.addColorStop(1, "#000000");
-        ctx.fillStyle = bgGrad;
-        ctx.fillRect(0, 0, width, height);
-
-        // Subtle vertical jade light shaft
-        const shaftGrad = ctx.createLinearGradient(width * 0.5 - 140, 0, width * 0.5 + 140, 0);
-        shaftGrad.addColorStop(0, "rgba(16, 185, 129, 0)");
-        shaftGrad.addColorStop(0.5, "rgba(52, 211, 153, 0.07)");
-        shaftGrad.addColorStop(1, "rgba(16, 185, 129, 0)");
-        ctx.fillStyle = shaftGrad;
-        ctx.fillRect(width * 0.5 - 140, 0, 280, height);
-      } else if (selectedTheme === "carbon_aura") {
-        // Carbon Aura: Velvet anthracite with subtle warm-cold golden ember glow
-        const bgGrad = ctx.createRadialGradient(
-          width * 0.5,
-          height * 0.43,
-          90,
-          width * 0.5,
-          height * 0.45,
-          height * 0.8,
-        );
-        bgGrad.addColorStop(0, "#1F1A15");
-        bgGrad.addColorStop(0.35, "#100E0C");
-        bgGrad.addColorStop(0.7, "#080706");
-        bgGrad.addColorStop(1, "#000000");
-        ctx.fillStyle = bgGrad;
-        ctx.fillRect(0, 0, width, height);
-
-        // Subtle elliptical golden ember halo behind center
-        const haloGrad = ctx.createRadialGradient(
-          width * 0.5,
-          height * 0.43,
-          10,
-          width * 0.5,
-          height * 0.43,
-          320,
-        );
-        haloGrad.addColorStop(0, "rgba(217, 119, 6, 0.08)");
-        haloGrad.addColorStop(0.5, "rgba(180, 83, 9, 0.03)");
-        haloGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
-        ctx.fillStyle = haloGrad;
-        ctx.fillRect(0, 0, width, height);
-      } else if (selectedTheme === "silver_mist") {
-        // Silver Mist: Deep atmospheric midnight slate with layered volumetric mist & silver horizon rim
-        const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
-        bgGrad.addColorStop(0, "#080A0D");
-        bgGrad.addColorStop(0.35, "#101418");
-        bgGrad.addColorStop(0.65, "#0A0D10");
-        bgGrad.addColorStop(1, "#030405");
-        ctx.fillStyle = bgGrad;
-        ctx.fillRect(0, 0, width, height);
-
-        // 1. Volumetric horizontal silver mist band at center
-        const mistCenterY = height * 0.43;
-        const mistBand = ctx.createLinearGradient(0, mistCenterY - 300, 0, mistCenterY + 300);
-        mistBand.addColorStop(0, "rgba(200, 215, 230, 0)");
-        mistBand.addColorStop(0.25, "rgba(215, 228, 242, 0.035)");
-        mistBand.addColorStop(0.5, "rgba(235, 245, 255, 0.08)");
-        mistBand.addColorStop(0.75, "rgba(215, 228, 242, 0.035)");
-        mistBand.addColorStop(1, "rgba(200, 215, 230, 0)");
-        ctx.fillStyle = mistBand;
-        ctx.fillRect(0, mistCenterY - 300, width, 600);
-
-        // 2. Soft elliptical radiant silver core behind the central text area
-        const radiantCore = ctx.createRadialGradient(
-          width * 0.5,
-          mistCenterY,
-          20,
-          width * 0.5,
-          mistCenterY,
-          width * 0.7,
-        );
-        radiantCore.addColorStop(0, "rgba(240, 246, 255, 0.09)");
-        radiantCore.addColorStop(0.4, "rgba(180, 200, 220, 0.035)");
-        radiantCore.addColorStop(1, "rgba(0, 0, 0, 0)");
-        ctx.fillStyle = radiantCore;
-        ctx.fillRect(0, 0, width, height);
-
-        // 3. Diffused atmospheric mist clouds
-        const cloud1 = ctx.createRadialGradient(
-          width * 0.28,
-          mistCenterY - 70,
-          15,
-          width * 0.28,
-          mistCenterY - 70,
-          width * 0.45,
-        );
-        cloud1.addColorStop(0, "rgba(225, 235, 248, 0.05)");
-        cloud1.addColorStop(1, "rgba(0, 0, 0, 0)");
-        ctx.fillStyle = cloud1;
-        ctx.fillRect(0, mistCenterY - 250, width * 0.7, 360);
-
-        const cloud2 = ctx.createRadialGradient(
-          width * 0.72,
-          mistCenterY + 60,
-          15,
-          width * 0.72,
-          mistCenterY + 60,
-          width * 0.48,
-        );
-        cloud2.addColorStop(0, "rgba(225, 235, 248, 0.045)");
-        cloud2.addColorStop(1, "rgba(0, 0, 0, 0)");
-        ctx.fillStyle = cloud2;
-        ctx.fillRect(width * 0.3, mistCenterY - 150, width * 0.7, 360);
-
-        // 4. Razor-thin platinum horizon hairline with feathered lateral dissipation
-        const horizonGrad = ctx.createLinearGradient(0, 0, width, 0);
-        horizonGrad.addColorStop(0, "rgba(255, 255, 255, 0)");
-        horizonGrad.addColorStop(0.2, "rgba(225, 235, 250, 0.05)");
-        horizonGrad.addColorStop(0.5, "rgba(255, 255, 255, 0.16)");
-        horizonGrad.addColorStop(0.8, "rgba(225, 235, 250, 0.05)");
-        horizonGrad.addColorStop(1, "rgba(255, 255, 255, 0)");
-        ctx.fillStyle = horizonGrad;
-        ctx.fillRect(width * 0.08, mistCenterY - 1, width * 0.84, 2);
-      } else {
-        // Pure monumental black (Domyślne tło: czyste, głębokie czarne tło monumentalne)
-        ctx.fillStyle = "#000000";
-        ctx.fillRect(0, 0, width, height);
-      }
-
-      ctx.restore(); // end slow zoom
-
-      // 2. Cinematic Edge Vignette
-      const vignette = ctx.createLinearGradient(0, 0, 0, height);
-      vignette.addColorStop(0, "rgba(0, 0, 0, 0.84)");
-      vignette.addColorStop(0.18, "rgba(0, 0, 0, 0)");
-      vignette.addColorStop(0.82, "rgba(0, 0, 0, 0)");
-      vignette.addColorStop(1, "rgba(0, 0, 0, 0.92)");
-      ctx.fillStyle = vignette;
-      ctx.fillRect(0, 0, width, height);
-
-      // 3. Kinetic Phrase Calculation with Dynamic Pacing & Smooth Transitions
-      let activeText = "";
-      let phraseOpacity = 1;
-
-      if (phrases.length <= 1) {
-        activeText = phrases[0] || "";
-        // Smooth loop blend edge (first 250ms & last 250ms)
-        const edge = 0.25;
-        if (timeSec < edge) {
-          phraseOpacity = Math.max(0, timeSec / edge);
-        } else if (timeSec > totalDuration - edge) {
-          phraseOpacity = Math.max(0, (totalDuration - timeSec) / edge);
-        } else {
-          phraseOpacity = 1;
-        }
-      } else {
-        const timeline = getPhraseTimeline(phrases, totalDuration, pacingMode);
-        const activeItem =
-          timeline.find((item) => timeSec >= item.start && timeSec < item.end) ||
-          timeline[timeline.length - 1];
-        activeText = activeItem.text;
-
-        const localTime = timeSec - activeItem.start;
-        const itemDur = activeItem.duration;
-
-        // Smooth cinematic fade in & out tailored to item duration
-        const fadeDuration = Math.min(0.22, itemDur * 0.15);
-
-        if (localTime < fadeDuration) {
-          phraseOpacity = Math.min(1, Math.max(0, localTime / fadeDuration));
-        } else if (localTime > itemDur - fadeDuration) {
-          phraseOpacity = Math.min(1, Math.max(0, (itemDur - localTime) / fadeDuration));
-        } else {
-          phraseOpacity = 1;
-        }
-      }
-
-      // 4. Typography Rendering: Wybrana czcionka (domyślnie Cormorant), naturalna wielkość liter, 42% wysokości, wyrównany do lewej z marginesem
-      let selectedFont = '"Cormorant Garamond", "Cormorant", Georgia, serif';
-      if (fontFamily === "cinzel") {
-        selectedFont = '"Cinzel", "Times New Roman", Georgia, serif';
-      } else if (fontFamily === "sans") {
-        selectedFont = '"Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif';
-      } else if (fontFamily === "inter") {
-        selectedFont = '"Inter", -apple-system, BlinkMacSystemFont, sans-serif';
-      } else if (fontFamily === "cormorant") {
-        selectedFont = '"Cormorant Garamond", "Cormorant", Georgia, serif';
-      }
-
-      // Szerokość tekstu dopasowana do marginesu (1080 * 0.12 = 130px z lewej i prawej => max text width = 820px)
-      const leftMargin = width * 0.12;
-      const maxTextWidth = width - leftMargin * 2;
-      const layout = layoutLines(activeText, ctx, maxTextWidth, 64, selectedFont);
-
-      ctx.save();
-      ctx.globalAlpha = phraseOpacity;
-      // Kinowe delikatne rozmycie wejściowe zależne od przezroczystości (delikatny blur)
-      if (phraseOpacity < 0.98) {
-        const blurAmount = Math.max(0, (1 - phraseOpacity) * 6);
-        ctx.filter = `blur(${blurAmount.toFixed(1)}px)`;
-      }
-
-      // Stała kinowa pozycja pionowa na 42% wysokości ekranu
-      const targetY = height * 0.42;
-      const totalH = (layout.lines.length - 1) * layout.lineHeight;
-      const startY = targetY - totalH / 2;
-
-      ctx.textBaseline = "middle";
-      ctx.textAlign = "left";
-
-      layout.lines.forEach((line, lIdx) => {
-        const lineY = startY + lIdx * layout.lineHeight;
-        const spaceW = ctx.measureText(" ").width;
-        let curX = leftMargin;
-
-        line.tokens.forEach((tok) => {
-          const wordW = ctx.measureText(tok.raw).width;
-
-          // Naturalna czysta typografia (bez sztucznych wyróżnień)
-          ctx.save();
-          ctx.font = `600 ${layout.fontSize}px ${selectedFont}`;
-          ctx.fillStyle = "#F8FAFC";
-          ctx.shadowColor = "rgba(0, 0, 0, 0.95)";
-          ctx.shadowBlur = 20;
-          ctx.fillText(tok.raw, curX, lineY);
-          ctx.restore();
-
-          curX += wordW + spaceW;
-        });
+      // 1-2. Tło + vignette (reel-render/background.ts)
+      drawReelBackground(ctx, {
+        width,
+        height,
+        zoomScale,
+        isDynamicCut,
+        customBgType,
+        customImage: customImageRef.current,
+        customVideo: customVideoRef.current,
+        selectedTheme,
       });
 
-      ctx.restore();
-
-      // 5. Handle / Nick (@stark_focus) małym drukiem na dole ekranu (ponad strefą opisu)
-      ctx.save();
-      ctx.font = `400 24px ${selectedFont}`;
-      ctx.fillStyle = "rgba(248, 250, 252, 0.45)";
-      ctx.textAlign = "left";
-      ctx.textBaseline = "middle";
-      ctx.fillText("@stark_focus", leftMargin, height * 0.88);
-      ctx.restore();
+      // 3-5. Fraza kinetyczna + typografia + handle (reel-render/typography.ts)
+      const { activeText, phraseOpacity } = computeKineticPhrase({
+        phrases,
+        totalDuration,
+        pacingMode,
+        timeSec,
+      });
+      drawKineticText(ctx, { width, height, activeText, phraseOpacity, fontFamily });
 
       // 6. ZERO LOOP BAR: Clean monumental canvas.
 
       // 7. Optional TikTok Safe Zone UI overlay (Preview only)
       if (showTikTokGuides && !isExportingRef.current) {
-        ctx.save();
-        // Top Danger Zone
-        ctx.fillStyle = "rgba(239, 68, 68, 0.12)";
-        ctx.fillRect(0, 0, width, 210);
-        ctx.strokeStyle = "rgba(239, 68, 68, 0.45)";
-        ctx.lineWidth = 2;
-        ctx.setLineDash([8, 8]);
-        ctx.beginPath();
-        ctx.moveTo(0, 210);
-        ctx.lineTo(width, 210);
-        ctx.stroke();
-
-        ctx.fillStyle = "#F87171";
-        ctx.font = "bold 16px monospace";
-        ctx.textAlign = "center";
-        ctx.fillText("⚠️ GÓRNY PASEK TIKTOK (STATUS / TABS)", width / 2, 110);
-
-        // Right Action Icons
-        ctx.fillStyle = "rgba(239, 68, 68, 0.10)";
-        ctx.fillRect(width - 130, 690, 130, 900);
-        ctx.fillText("SIDEBAR", width - 65, 1140);
-
-        // Bottom Caption Danger Zone
-        ctx.fillStyle = "rgba(239, 68, 68, 0.15)";
-        ctx.fillRect(0, 1560, width, 360);
-        ctx.beginPath();
-        ctx.moveTo(0, 1560);
-        ctx.lineTo(width, 1560);
-        ctx.stroke();
-        ctx.fillText("⚠️ DOLNA STREFA TIKTOK (OPIS, DŹWIĘK, PROFIL)", width / 2, 1710);
-        ctx.restore();
+        drawTikTokGuides(ctx, width, height);
       }
     },
     [customBgType, selectedTheme, showTikTokGuides, phrases, reelFormat, duration, fontFamily],
