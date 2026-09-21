@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  gate:
+    name: typecheck + lint + test + build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build (frontend + server bundle)
+        run: npm run build
+
+      - name: Check file size budget (> 25 KB sources)
+        run: |
+          BIG=$(find src -name '*.ts' -o -name '*.tsx' | xargs ls -la 2>/dev/null | awk '$5 > 25600 {print $5, $9}')
+          if [ -n "$BIG" ]; then
+            echo "::warning::Pliki ponad budżet 25 KB (plan podziału: docs/REFACTORING_PLAN.md)"
+            echo "$BIG"
+          else
+            echo "Wszystkie pliki src/ w budżecie 25 KB."
+          fi

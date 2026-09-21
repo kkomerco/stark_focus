@@ -108,6 +108,7 @@ Serwer dev (`tsx server.ts`) uruchamia jednocześnie API i Vite w trybie middlew
 ## 📝 Konwencje pracy
 
 - Nie przepisujemy opublikowanej historii git (force push / rebase opublikowanych commitów) — patrz `AGENTS.md`.
+- Bramkę jakości (typecheck + lint + test + build) wymusza CI: `.github/workflows/ci.yml` (push/PR do `main`).
 - Końcówki linii: LF w repozytorium (`.gitattributes`), formatowanie przez prettier.
 - Duże pliki (komponenty/utility > ~25 KB) rozbijamy stopniowo wg `docs/REFACTORING_PLAN.md` — czyste przenosiny kodu, jeden krok = jeden commit.
 - Pin `overrides.rolldown` w `package.json` jest opisany w polu `"//"` — sprawdź je przed aktualizacją Vite.
