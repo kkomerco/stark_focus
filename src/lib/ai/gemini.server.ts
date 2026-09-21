@@ -123,9 +123,14 @@ export interface GeminiRawConfig {
 }
 
 /**
- * Bezpośrednie wywołanie SDK z wielopoziomowym fallbackiem i retry — zachowuje
- * parytet z dawną implementacją monolitu (model →-lite→main, 2 próby na model,
- * backoff ~1.2 s przy 503/429). Zwraca odpowiedź SDK ({ text }) jak wcześniej.
+ * CENTRALNA pętla fallbacku modeli + retry (jedyna w projekcie — patrz AGENTS.md):
+ * — 503 UNAVAILABLE / "high demand" (przeciążenie modelu)
+ * — 429 RESOURCE_EXHAUSTED / quota (limity zapytań)
+ *
+ * Kolejno próbuje: preferredModel → GEMINI_LITE_MODEL → GEMINI_MODEL.
+ * Na każdym modelu dwie próby z krótkim backoffem (~1.2 s) w razie tymczasowego błędu.
+ * Zwraca surową odpowiedź SDK ({ text }) — warstwy wyższe (generateContentWithFallback,
+ * generateJsonWithFallback) tylko delegują tutaj.
  */
 export async function callGeminiWithFallback(
   ai: { models: { generateContent: (args: any) => Promise<any> } },
@@ -188,13 +193,8 @@ export async function generateJsonWithFallback<T = any>(
 }
 
 /**
- * generateContent z wielopoziomowym fallbackiem i retry w przypadku:
- * — 503 UNAVAILABLE / "high demand" (przeciążenie modelu)
- * — 429 RESOURCE_EXHAUSTED / quota (limity zapytań)
- *
- * Kolejno próbuje: preferredModel → GEMINI_LITE_MODEL → GEMINI_MODEL.
- * Na każdym modelu dwarazy z krótkim backoffem (~1.2 s) w razie tymczasowego błędu.
- * To jest centralna implementacja — nie reimplementuj jej w route handlerach.
+ * generateContent z wielopoziomowym fallbackiem i retry przy błędach 503/429.
+ * Deleguje do centralnej pętli w callGeminiWithFallback() — nie reimplementuje logiki.
  */
 export async function generateContentWithFallback(
   options: GenerateContentOptions & { preferredModel?: string },
@@ -204,38 +204,17 @@ export async function generateContentWithFallback(
     throw new AiResponseError("Brak skonfigurowanego klucza GEMINI_API_KEY w pliku .env serwera");
   }
 
-  const modelList = options.preferredModel
-    ? [options.preferredModel, GEMINI_LITE_MODEL, GEMINI_MODEL].filter(
-        (v, i, a) => a.indexOf(v) === i,
-      )
-    : [GEMINI_LITE_MODEL, GEMINI_MODEL];
+  const config: GeminiRawConfig = {};
+  if (options.systemInstruction) config.systemInstruction = options.systemInstruction;
+  if (options.temperature !== undefined) config.temperature = options.temperature;
+  if (options.responseMimeType) config.responseMimeType = options.responseMimeType;
+  if (options.abortSignal) config.abortSignal = options.abortSignal;
 
-  let lastError: unknown = null;
+  const response = await callGeminiWithFallback(ai, {
+    contents: options.contents,
+    config: Object.keys(config).length > 0 ? config : undefined,
+    preferredModel: options.preferredModel,
+  });
 
-  for (const model of modelList) {
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        const text = await generateContent({
-          ...options,
-          model,
-        });
-        return text;
-      } catch (err: any) {
-        lastError = err;
-        const msg = String(err?.message || err);
-        const isUnavailable =
-          msg.includes("503") || msg.includes("UNAVAILABLE") || msg.includes("high demand");
-        const isRateLimit =
-          msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("quota");
-
-        if ((isUnavailable || isRateLimit) && attempt === 0) {
-          await new Promise((resolve) => setTimeout(resolve, 1200));
-          continue;
-        }
-        break;
-      }
-    }
-  }
-
-  throw lastError;
+  return response.text ?? "";
 }
