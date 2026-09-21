@@ -6,8 +6,10 @@ import { GoogleGenAI } from "@google/genai";
  */
 export const GEMINI_MODEL = "gemini-3.8-flash";
 
-/** Model zapasowy dla zadań, które nie wymagają pełnej mocy (tanio i szybko). */
-export const GEMINI_LITE_MODEL = "gemini-3.1-flash-lite";
+/** Model zapasowy dla zadań, które nie wymagają pełnej mocy (tanio i szybko).
+ * UWAGA: "gemini-3.1-flash-lite" został wycofany przez Google (shut down) —
+ * nie wracaj do niego; obecny model lite to gemini-3.5-flash-lite. */
+export const GEMINI_LITE_MODEL = "gemini-3.5-flash-lite";
 
 let cachedClient: GoogleGenAI | null = null;
 let cachedKey: string | null = null;
