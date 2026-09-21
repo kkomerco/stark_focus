@@ -6,7 +6,7 @@ Platforma kreatywna do generowania treści social media (posty 1:1, karuzele 4:5
 
 - **Frontend:** React 19, TypeScript, Vite 8, Tailwind CSS 4, lucide-react
 - **Backend:** Node.js, Express 5 (`server.ts`) + moduły tras w `src/lib/ai/`
-- **Silnik AI:** Google Gemini (`gemini-3.8-flash`, zapasowo `gemini-3.1-flash-lite`)
+- **Silnik AI:** Google Gemini (`gemini-3.8-flash`, zapasowo `gemini-3.5-flash-lite`)
 - **Renderowanie:** Canvas API (klatki rolek, slajdy karuzel), JSZip (pakiety eksportu)
 - **Stan aplikacji:** localStorage (bez bazy danych) — narzędzie jednoosobowe
 
@@ -24,6 +24,8 @@ src/lib/ai/routes/               # trasy AI podzielone domenowo:
   carousel.server.ts             #   szablony karuzel
   mentor.server.ts               #   warianty mentora
   reels.server.ts                #   multi-warianty rolek (A/B/C)
+  growth.server.ts               #   eksperymenty A/B, autopilot tygodniowy, reroll promptow, pick-broll
+  batch.server.ts                #   generator masowy cytatow 9:16
   daily-pack.server.ts           #   paczka dnia (rolki + karuzela + post)
   idea-stream.server.ts          #   nieskonczony generator pomyslow z anty-powtorka
   status.server.ts               #   status klucza API
@@ -31,11 +33,15 @@ src/lib/safe-url.ts              # ochrona SSRF (jedna implementacja dla calego 
 src/lib/cache.ts                 # cache TTL + LRU (jedna implementacja)
 src/lib/caption.ts               # format opisow marki @stark_focus
 src/lib/mini-express.server.ts   # lekki adapter Web Request -> handlery tras
+src/lib/*.test.ts                # testy jednostkowe (node:test przez tsx)
 src/components/StarkFocusApp.tsx # powloka aplikacji (zakladki + modale)
-src/components/tabs/             # AiRadarTab, PipelineTab, VaultTab, MentorTab
-src/components/                  # VideoStudioModal, CarouselStudioModal, HookBattleModal,
-                                 # InspirationStudio1to1, QRModal, Header,
-                                 # DailyPackModal, IdeaStreamModal, DeconstructViralModal
+src/components/tabs/             # AiRadarTab
+src/components/                  # VideoStudioModal, InspirationStudio1to1,
+                                 # AbModal, AutopilotModal, PromptLibraryModal,
+                                 # DailyPackModal, IdeaStreamModal, DeconstructViralModal,
+                                 # QRModal, Header, StarkLogo
+src/components/video/            # silnik rolek (useReelDirector, useTTS, useVideoExporter, ...)
+src/components/carousel/         # dane startowe studia karuzeli
 src/hooks/useIdeaStream.ts       # anty-powtorka: fingerprinty pomyslow w localStorage
 src/data/                        # banki tresci i motywow (ideaMatrix, reelTemplates, starkCodex, ...)
 src/utils/canvasRenderer.ts      # renderer klatek i slajdow
@@ -55,9 +61,11 @@ Bez klucza aplikacja działa w trybie offline (endpointy zwracają treści zapas
 ## 🛠️ Uruchomienie lokalne
 
 ```bash
-bun install        # lub: npm install
-bun run dev        # lub: npm run dev   -> http://localhost:3000
+npm install
+npm run dev       # -> http://localhost:3000
 ```
+
+Repozytorium zawiera `package-lock.json` — instaluj przez **npm** (bun może wygenerować inną wersję zależności niż zablokowana).
 
 Serwer dev (`tsx server.ts`) uruchamia jednocześnie API i Vite w trybie middleware — jeden port (3000), jeden proces.
 
@@ -72,7 +80,7 @@ Serwer dev (`tsx server.ts`) uruchamia jednocześnie API i Vite w trybie middlew
 | `npm run lint`      | ESLint (z regułą prettier)                                          |
 | `npm run typecheck` | `tsc --noEmit`                                                      |
 | `npm test`          | uruchomienie testów jednostkowych (`node:test` przez `tsx`)         |
-| `npm run smoke`     | smoke test endpointów AI (startuje serwer, sprawdza 3 endpointy)    |
+| `npm run smoke`     | smoke test endpointów AI (startuje serwer, sprawdza idea-stream, deconstruct-viral, daily-pack) |
 
 ## 🧠 Silnik treści (fazy 1–2)
 
