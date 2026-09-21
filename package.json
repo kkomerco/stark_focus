@@ -3,6 +3,7 @@
   "private": true,
   "sideEffects": false,
   "type": "module",
+  "//": "overrides.rolldown=1.2.1 — Vite 8.1.5 deklaruje rolldown ~1.1.5; pin świadomie wymusza nowszą 1.2.1. Zweryfikowano 2026-09-21, że `npm run build` przechodzi również na wersji deklarowanej przez Vite, więc pin to tylko blokada wersji: usuń go przy najbliższej aktualizacji Vite, jeśli nic go nie wymusza (np. błąd w 1.1.x w trybie dev).",
   "scripts": {
     "dev": "tsx server.ts",
     "client": "vite",

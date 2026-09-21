@@ -109,3 +109,6 @@ Serwer dev (`tsx server.ts`) uruchamia jednocześnie API i Vite w trybie middlew
 
 - Nie przepisujemy opublikowanej historii git (force push / rebase opublikowanych commitów) — patrz `AGENTS.md`.
 - Końcówki linii: LF w repozytorium (`.gitattributes`), formatowanie przez prettier.
+- Duże pliki (komponenty/utility > ~25 KB) rozbijamy stopniowo wg `docs/REFACTORING_PLAN.md` — czyste przenosiny kodu, jeden krok = jeden commit.
+- Pin `overrides.rolldown` w `package.json` jest opisany w polu `"//"` — sprawdź je przed aktualizacją Vite.
+- `npm run smoke` jest częścią arsenału (nie „tymczasowy skrypt"): startuje serwer offline i weryfikuje kluczowe endpointy AI; sprząta drzewo procesów także na Windows.
