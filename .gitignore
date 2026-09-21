@@ -1,0 +1,51 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+.output
+.vinxi
+.env
+.env.*
+!.env.example
+*.local
+package-lock.json
+
+# Logi lokalnych uruchomień / buildów
+*_log.txt
+build_*.txt
+dev_*.txt
+install_*.txt
+npm_*.txt
+_create_log.txt
+
+# Dumpy repo / listy plików (artefakty robocze)
+dump.txt
+repo-dump.txt
+filelist.txt
+
+# Lokalne skrypty uruchamianiowe Windows
+*.bat
+
+# Wrangler / Cloudflare
+.wrangler/
+.dev.vars
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+klucz.env
