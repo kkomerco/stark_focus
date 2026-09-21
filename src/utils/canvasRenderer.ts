@@ -8,7 +8,6 @@ import type {
   SlideData,
   CarouselFontFamily,
   UniversalLayoutSpec,
-  UniversalTextLayer,
 } from "../types";
 import {
   getStarkThemeConfig,
@@ -1337,7 +1336,6 @@ export function drawSlideToCanvas(canvas: HTMLCanvasElement, options: RenderSlid
     highlightWords = "",
     fontChoice = "plus_jakarta",
     isContinuous = false,
-    footerSignature = "THE UNFORGIVING STANDARD",
     bgStyle = "flat_fog",
   } = options;
 

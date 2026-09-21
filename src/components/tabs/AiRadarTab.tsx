@@ -10,21 +10,18 @@ import {
   Bookmark,
   Flame,
   RefreshCw,
-  ExternalLink,
   Film,
   Layers,
   Compass,
   Zap,
   Repeat,
   Sparkles,
-  ArrowRight,
   BookOpen,
   Link,
   CheckCircle2,
   AlertTriangle,
 } from "lucide-react";
 import { StarkFocusData, TrendItem, Post } from "../../types";
-import { formatStarkCaption } from "../../lib/caption";
 
 interface AiRadarTabProps {
   data: StarkFocusData;
@@ -75,7 +72,6 @@ interface BatchPostItem {
 export const AiRadarTab: React.FC<AiRadarTabProps> = ({
   data,
   onUpdateData,
-  onOpenQR,
   onNavigateToTab,
   onOpenVideoStudio,
   onSendToPost,
@@ -95,7 +91,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
   const [trends, setTrends] = useState<TrendItem[]>(() => data.saved_trends || []);
   const [scanMessage, setScanMessage] = useState<string>("");
   const [viralFormats, setViralFormats] = useState<ViralFormatItem[]>([]);
-  const [isLoadingFormats, setIsLoadingFormats] = useState<boolean>(false);
+  const [, setIsLoadingFormats] = useState<boolean>(false);
 
   // 2. Matryca Kątów Psychologicznych
   const [angleTopic, setAngleTopic] = useState<string>(
@@ -327,40 +323,6 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
     }));
 
     setAddedBatchIds(new Set(batchPosts.map((p) => p.id)));
-  };
-
-  const handleAddTrendToPipeline = (trend: TrendItem) => {
-    const hooks =
-      Array.isArray(trend.viral_hooks) && trend.viral_hooks.length > 0
-        ? trend.viral_hooks
-        : ["Stay ruthless with your standards."];
-    const primaryHook = hooks[0];
-
-    const newPost: Post = {
-      id: "post-" + Date.now(),
-      title: trend.title,
-      platform: "Instagram",
-      format: trend.suggested_format || "🎬 Rolka 7-Sekundowa (Short Reel)",
-      asset: "AI_RADAR_" + trend.id,
-      caption: formatStarkCaption(
-        primaryHook,
-        [
-          trend.core_message || "Hold your standards without debate.",
-          "Execute in silence especially when unwatched.",
-          "Let undeniable results do the talking.",
-        ],
-        "Save this reminder. Execute in silence.",
-      ),
-      created_date: new Date().toISOString().split("T")[0],
-      published_date: null,
-      notes: `Wywiad Trendu: ${trend.source_context || "Sieć"}. Ból widza: ${trend.audience_pain || "N/A"}`,
-    };
-
-    onUpdateData((prev) => ({
-      ...prev,
-      posts: [newPost, ...prev.posts],
-      xp: prev.xp + 25,
-    }));
   };
 
   return (

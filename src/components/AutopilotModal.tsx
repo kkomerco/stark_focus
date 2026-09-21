@@ -43,14 +43,13 @@ interface DayPlan {
 export const AutopilotModal: React.FC<AutopilotModalProps> = ({
   isOpen,
   onClose,
-  data,
   onUpdateData,
 }) => {
   const [planning, setPlanning] = useState(false);
   const [packing, setPacking] = useState(false);
   const [progress, setProgress] = useState(0);
   const [stage, setStage] = useState<string>("");
-  const [week, setWeek] = useState<DayPlan[] | null>(null);
+  const [, setWeek] = useState<DayPlan[] | null>(null);
   const [packs, setPacks] = useState<DayPack[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);

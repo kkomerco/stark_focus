@@ -1,5 +1,5 @@
 import { NarrativeFormat, ReelTemplate, ReelVisualTheme } from "./reelTemplates";
-import { getRandomBackgroundScene, EXPANDED_BACKGROUND_LIBRARY } from "./expandedBackgrounds";
+import { getRandomBackgroundScene } from "./expandedBackgrounds";
 
 // Matryca Tematyczna do generowania niepowtarzalnych, powiązanych logicznie narracji stoickich
 export interface StoicTopicCategory {

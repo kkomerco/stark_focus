@@ -58,6 +58,15 @@ GEMINI_API_KEY="twoj-klucz"
 
 Bez klucza aplikacja działa w trybie offline (endpointy zwracają treści zapasowe), a `/api/ai/status` zwraca `configured: false`.
 
+Opcjonalne zmienne serwera:
+
+| Zmienna | Domyślnie     | Opis                                                                                    |
+| ------- | ------------- | --------------------------------------------------------------------------------------- |
+| `PORT`  | `3000`        | Port serwera (API + frontend)                                                           |
+| `HOST`  | `127.0.0.1`   | Interfejs nasłuchu. `0.0.0.0` udostępnia aplikację w sieci lokalnej — używaj świadomie   |
+
+CORS jest zawężony do własnego origin (`localhost` / `127.0.0.1` na wybranym porcie), więc odwiedzane strony WWW nie mogą wywoływać API i zużywać limitu Gemini.
+
 ## 🛠️ Uruchomienie lokalne
 
 ```bash

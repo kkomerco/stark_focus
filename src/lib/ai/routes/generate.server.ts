@@ -1,7 +1,5 @@
 import type { MiniApp } from "../../mini-express.server";
 import {
-  GEMINI_LITE_MODEL,
-  GEMINI_MODEL,
   getGeminiClient,
   safeJsonParse,
   callGeminiWithFallback,
@@ -193,7 +191,6 @@ export function registerGenerateRoutes(app: MiniApp): void {
       slideIndex = 0,
       totalSlides = 5,
       existingHeadline = "",
-      existingBody = "",
       slideType = "principle", // "hook" | "principle" | "cta"
     } = req.body || {};
 

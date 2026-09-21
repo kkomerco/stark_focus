@@ -94,7 +94,7 @@ export function registerMentorRoutes(app: MiniApp): void {
         },
       ];
 
-      return pool.map((item, idx) => ({
+      return pool.map((item) => ({
         format,
         hook: item.hook,
         caption: formatStarkCaption(item.hook, [item.p1, item.p2, item.p3], item.directive),

@@ -16,11 +16,7 @@ import {
   Plus,
   Trash2,
   ArrowRight,
-  Zap,
-  Layers,
-  Sparkle,
   Quote,
-  Sliders,
   X,
   Package,
 } from "lucide-react";

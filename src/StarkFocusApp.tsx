@@ -378,7 +378,7 @@ export default function StarkFocusApp() {
               setDailyPackOpen(false);
               handleSendToReel(hookText);
             }}
-            onOpenCarouselStudio={(title, slides) => {
+            onOpenCarouselStudio={(_title, _slides) => {
               setDailyPackOpen(false);
               // Przekierowanie do zakładki Trendy gdzie jest Studio Karuzeli
               setActiveTab(2);

@@ -9,12 +9,10 @@ import {
   Check,
   Clock,
   Palette,
-  Sliders,
   Copy,
   Smartphone,
   Type,
   RefreshCw,
-  SlidersHorizontal,
   BookmarkCheck,
   Upload,
   Trash2,
@@ -30,26 +28,15 @@ import {
   getRandomUniqueFormula,
   CATEGORY_BACKGROUND_RECOMMENDATIONS,
 } from "../data/ideaMatrix";
-import {
-  EXPANDED_BACKGROUND_LIBRARY,
-  getRandomBackgroundScene,
-  BackgroundScene,
-} from "../data/expandedBackgrounds";
+import { EXPANDED_BACKGROUND_LIBRARY, getRandomBackgroundScene } from "../data/expandedBackgrounds";
 import type {
   FontFamily,
   HighlightStyle,
   PacingMode,
   ReelDuration,
-  ThemeMeta,
   VisualTheme,
 } from "./video/reel-helpers";
-import {
-  getPhraseTimeline,
-  isOrphanWord,
-  layoutLines,
-  parseTokens,
-  VISUAL_THEMES,
-} from "./video/reel-helpers";
+import { getPhraseTimeline, isOrphanWord, layoutLines } from "./video/reel-helpers";
 
 interface VideoStudioModalProps {
   onClose?: () => void;
@@ -193,18 +180,13 @@ export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [showTikTokGuides, setShowTikTokGuides] = useState<boolean>(false);
   const [isGeneratingAi, setIsGeneratingAi] = useState<boolean>(false);
-  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [selectedCategory] = useState<string>("all");
   const seenTitlesRef = useRef<string[]>([]);
 
   // Dynamic Pacing Timeline and Metrics
   const activeTimeline = useMemo(() => {
     return getPhraseTimeline(phrases, duration, pacingMode);
   }, [phrases, duration, pacingMode]);
-
-  const avgPhraseDuration = useMemo(() => {
-    if (phrases.length <= 1) return duration;
-    return duration / phrases.length;
-  }, [duration, phrases.length]);
 
   const currentPhraseIndex = useMemo(() => {
     if (phrases.length <= 1) return 0;
