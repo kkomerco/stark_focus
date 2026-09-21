@@ -16,7 +16,6 @@ dist-ssr
 .env.*
 !.env.example
 *.local
-package-lock.json
 
 # Logi lokalnych uruchomień / buildów
 *_log.txt
