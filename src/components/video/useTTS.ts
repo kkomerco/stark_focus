@@ -17,11 +17,7 @@ interface UseTtsOutput {
  * Automatyczny lektor TTS, synchroniczny z frazami.
  * Przeniesione 1:1 z VideoStudioModal.tsx (logika bez zmian).
  */
-export function useTts({
-  isPlaying,
-  currentPhraseIndex,
-  phrases,
-}: UseTtsInput): UseTtsOutput {
+export function useTts({ isPlaying, currentPhraseIndex, phrases }: UseTtsInput): UseTtsOutput {
   const [enableTts, setEnableTts] = useState<boolean>(false);
   const spokenPhraseRef = useRef<number>(-1);
 

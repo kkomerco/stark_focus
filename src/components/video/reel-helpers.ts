@@ -50,9 +50,7 @@ export function getPhraseTimeline(
 
   const N = phrases.length;
   // Word count analysis per phrase for reading comfort
-  const wordCounts = phrases.map((p) =>
-    Math.max(3, p.trim().split(/\s+/).filter(Boolean).length),
-  );
+  const wordCounts = phrases.map((p) => Math.max(3, p.trim().split(/\s+/).filter(Boolean).length));
   const avgWords = wordCounts.reduce((acc, c) => acc + c, 0) / N;
 
   let baseWeights: number[];
@@ -100,10 +98,7 @@ export function getPhraseTimeline(
   return phrases.map((text, idx) => {
     const rawDur = (weights[idx] / sumWeights) * totalDuration;
     const start = Math.round(currentStart * 100) / 100;
-    const end =
-      idx === N - 1
-        ? totalDuration
-        : Math.round((currentStart + rawDur) * 100) / 100;
+    const end = idx === N - 1 ? totalDuration : Math.round((currentStart + rawDur) * 100) / 100;
     currentStart = end;
     return {
       index: idx,

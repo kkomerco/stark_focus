@@ -1,18 +1,8 @@
 // Stan "deski reżyserskiej" studia rolek — tworzenie, format, opisy, presety.
 // Przeniesione 1:1 z VideoStudioModal.tsx (logika bez zmian).
 import { useMemo, useState } from "react";
-import {
-  NarrativeFormat,
-  ReelTemplate,
-  ReelVisualTheme,
-} from "../../data/reelTemplates";
-import {
-  FontFamily,
-  HighlightStyle,
-  PacingMode,
-  ReelDuration,
-  VisualTheme,
-} from "./reel-helpers";
+import { NarrativeFormat, ReelTemplate, ReelVisualTheme } from "../../data/reelTemplates";
+import { FontFamily, HighlightStyle, PacingMode, ReelDuration, VisualTheme } from "./reel-helpers";
 import { VIRAL_REEL_TEMPLATES } from "../../data/reelTemplates";
 
 const PRESET_STORAGE_KEY = "stark_reel_default_preset_v2";
@@ -50,34 +40,24 @@ export function useReelDirector({ initialHook }: DirectorStateInput) {
 
   // Director Controls
   const [duration, setDuration] = useState<ReelDuration>(
-    (savedPreset?.duration as ReelDuration) ||
-      (initialTpl.suggestedDuration as ReelDuration) ||
-      7,
+    (savedPreset?.duration as ReelDuration) || (initialTpl.suggestedDuration as ReelDuration) || 7,
   );
   const [pacingMode, setPacingMode] = useState<PacingMode>(
     savedPreset?.pacingMode || "climax_hold",
   );
-  const [format, setFormat] = useState<NarrativeFormat>(
-    initialTpl.format || "three_phases",
-  );
+  const [format, setFormat] = useState<NarrativeFormat>(initialTpl.format || "three_phases");
   const [selectedTheme, setSelectedTheme] = useState<VisualTheme>(
     savedPreset?.selectedTheme || initialTpl.suggestedTheme || "obsidian_void",
   );
   const [fontFamily, setFontFamily] = useState<FontFamily>(
-    savedPreset?.fontFamily === "syne"
-      ? "montserrat"
-      : savedPreset?.fontFamily || "cinzel",
+    savedPreset?.fontFamily === "syne" ? "montserrat" : savedPreset?.fontFamily || "cinzel",
   );
   const [fontSize, setFontSize] = useState<number>(savedPreset?.fontSize ?? 76);
-  const [textCase, setTextCase] = useState<TextCase>(
-    savedPreset?.textCase ?? "natural",
-  );
+  const [textCase, setTextCase] = useState<TextCase>(savedPreset?.textCase ?? "natural");
   const [highlightStyle, setHighlightStyle] = useState<HighlightStyle>(
     savedPreset?.highlightStyle || "white_halo",
   );
-  const [verticalPos, setVerticalPos] = useState<number>(
-    savedPreset?.verticalPos ?? 42,
-  );
+  const [verticalPos, setVerticalPos] = useState<number>(savedPreset?.verticalPos ?? 42);
   const [captionStyle, setCaptionStyle] = useState<CaptionStyle>(
     savedPreset?.captionStyle || "short",
   );
@@ -92,8 +72,7 @@ export function useReelDirector({ initialHook }: DirectorStateInput) {
   });
 
   // Current template reference for caption toggling
-  const [activeTemplate, setActiveTemplate] =
-    useState<ReelTemplate>(initialTpl);
+  const [activeTemplate, setActiveTemplate] = useState<ReelTemplate>(initialTpl);
 
   // Ready-to-copy Caption & Hashtags
   const [caption, setCaption] = useState<string>(
