@@ -6,13 +6,26 @@ import { createServer as createViteServer } from "vite";
 import { handleStarkApi } from "./src/lib/ai/router.server";
 import { isSafeUrl } from "./src/lib/safe-url";
 
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
+// Narzędzie jednoosobowe: domyślnie nasłuchujemy tylko na loopbacku.
+// HOST=0.0.0.0 ODBLOKOWUJE dostęp z sieci lokalnej — używaj świadomie.
+const HOST = process.env.HOST || "127.0.0.1";
+// Frontend jest serwowany z tego samego portu, więc CORS zawężamy do własnego
+// origin — odwiedzane strony WWW nie mogą wywoływać API i palić limitu Gemini.
+const ALLOWED_ORIGINS = new Set([`http://localhost:${PORT}`, `http://127.0.0.1:${PORT}`]);
+// Limit rozmiaru obrazka przepuszczanego przez proxy (ochrona RAM-u serwera).
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
 async function startServer() {
   const app = express();
 
   // Middleware
-  app.use(cors({ origin: true, credentials: true }));
+  app.use(
+    cors({
+      origin: (origin, cb) => cb(null, !origin || ALLOWED_ORIGINS.has(origin)),
+      credentials: false, // brak cookies/auth — nie potrzebujemy credentials
+    }),
+  );
   app.use(express.json({ limit: "10mb" }));
 
   // === ENDPOINTY API ===
@@ -33,6 +46,7 @@ async function startServer() {
       const r = await fetch(imageUrl, {
         headers: { "User-Agent": "VisionaryMediaLab/1.0" },
         redirect: "manual",
+        signal: AbortSignal.timeout(15_000), // twardy timeout pobierania
       });
 
       if (r.status >= 300 && r.status < 400) {
@@ -47,10 +61,17 @@ async function startServer() {
       if (!ct.startsWith("image/"))
         return res.status(400).json({ error: "Zasób nie jest obrazem" });
 
+      if (Number(r.headers.get("content-length") || 0) > MAX_IMAGE_BYTES) {
+        return res.status(413).json({ error: "Obraz przekracza limit 10 MB" });
+      }
+
       res.setHeader("Content-Type", ct);
       res.setHeader("Cache-Control", "public, max-age=86400");
 
       const buffer = await r.arrayBuffer();
+      if (buffer.byteLength > MAX_IMAGE_BYTES) {
+        return res.status(413).json({ error: "Obraz przekracza limit 10 MB" });
+      }
       return res.send(Buffer.from(buffer));
     } catch (e) {
       console.error("Błąd /api/proxy-image:", e);
@@ -102,8 +123,8 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`🚀 SF VOID / Visionary Media Lab running on http://0.0.0.0:${PORT}`);
+  app.listen(PORT, HOST, () => {
+    console.log(`🚀 SF VOID / Visionary Media Lab running on http://${HOST}:${PORT}`);
   });
 }
 

@@ -5,7 +5,8 @@ import path from "path";
 // CLEAN - bez Lovable, bez lightningcss minify (fix dla Tailwind v4 source(none))
 export default defineConfig({
   server: {
-    host: "0.0.0.0",
+    // Loopback tylko — spójnie z server.ts (HOST/PORT via env w server.ts)
+    host: "localhost",
     port: 3000,
   },
   plugins: [react()],
