@@ -2,6 +2,28 @@
 
 > Data: 2026-09-21. Rozmiary i numery linii z chwili powstania — po każdym etapie mogą się przesunąć.
 
+## STATUS WYKONANIA (aktualizowany)
+
+| Etap | Status | Efekt |
+| --- | --- | --- |
+| 1. `canvasRenderer.ts` (57 KB) | ✅ DONE | `src/utils/canvas/` (10 modułów) + fasada `canvasRenderer.ts` zachowująca stare API |
+| 2. `AiRadarTab.tsx` (60 KB) | ✅ DONE | `tabs/radar/` (5 paneli + shared) — rodzic 18,6 KB |
+| 3. `VideoStudioModal.tsx` (84 KB) | 🔶 W TOKU | Zrobione: `video/reel-render/` (background/typography/overlays), `video/useAiReelGeneration.ts`, `video/useReelExports.ts` → rodzic 59,5 KB. Zostało: `video/useCustomBackground.ts` (upload/tło) i podział JSX (`studioBody`) na podkomponenty |
+| 4. `InspirationStudio1to1.tsx` (69 KB) | ⬜ TODO | najpierw inwentaryzacja sekcji (brak znaczników `// SECTION:`) |
+
+### Martwy kod do decyzji (odkryte w etapie 3)
+
+Poniższe moduły w `src/components/video/` **nie mają żadnego importera** (zweryfikowane grepem po `src/`):
+
+`useVideoExporter.ts`, `ReelStagePreview.tsx`, `useReelDirector.ts`, `useTTS.ts`,
+`useVariantGenerator.ts`, `VariantPickerModal.tsx`, `ReelExportOverlays.tsx`, `CodexRulesModal.tsx`
+
+(~35 KB). To prawdopodobnie planowana „nowa architektura" studia rolek, której modal nigdy nie
+podłączył (ma własną implementację inline — część właśnie wyciągnięto do `useReelExports`/`reel-render`).
+Do decyzji właściciela: **podłączyć** (np. `ReelStagePreview` zamiast inline canvasu) albo **usunąć**
+(`git rm`) i odtworzyć z historii, gdy będą potrzebne.
+
+
 Do podziału: `VideoStudioModal.tsx` (~84 KB), `InspirationStudio1to1.tsx` (~69 KB),
 `AiRadarTab.tsx` (~60 KB), `canvasRenderer.ts` (~57 KB). Wzorzec, który już dobrze
 działa w tym repo: `src/components/video/` i `src/components/carousel/`.
