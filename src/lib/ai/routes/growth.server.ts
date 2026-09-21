@@ -1,5 +1,10 @@
 import type { MiniApp } from "../../mini-express.server";
-import { GEMINI_MODEL, generateJson, getGeminiClient } from "../gemini.server";
+import {
+  GEMINI_MODEL,
+  generateJson,
+  getGeminiClient,
+  callGeminiWithFallback,
+} from "../gemini.server";
 import { CINEMATIC_BROLL_LIBRARY } from "../../../data/brollLibrary";
 import { pickBroll } from "../../../utils/brollPicker";
 
@@ -218,8 +223,7 @@ Zwróć WYŁĄCZNIE JSON:
 Wyniki: ${JSON.stringify(scored)}.
 Zwycięzca: wariant ${winner.label} (engagement ${(winner.engagement * 100).toFixed(1)}%).
 W 2-3 zdaniach po polsku wyciągnij LEKCJĘ: jaki wzorzec hooka wygrał i jak go stosować w kolejnych generacjach. Bez lania wody.`;
-        const response = await ai.models.generateContent({
-          model: GEMINI_MODEL,
+        const response = await callGeminiWithFallback(ai, {
           contents: prompt,
           config: { temperature: 0.7 },
         });

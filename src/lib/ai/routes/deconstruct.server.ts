@@ -1,5 +1,5 @@
 import type { MiniApp } from "../../mini-express.server";
-import { GEMINI_MODEL, getGeminiClient, safeJsonParse } from "../gemini.server";
+import { getGeminiClient, safeJsonParse, callGeminiWithFallback } from "../gemini.server";
 
 /**
  * DECONSTRUCT VIRAL — analiza rynku z linków.
@@ -134,8 +134,7 @@ Zwróć WYŁĄCZNIE JSON: { "deconstruction": {...}, "starkVariants": [...] }`;
       const contents: any[] = [prompt];
       if (imagePart) contents.push(imagePart);
 
-      const response = await ai.models.generateContent({
-        model: GEMINI_MODEL,
+      const response = await callGeminiWithFallback(ai, {
         contents: contents as never,
         config: { temperature: 0.85 },
       });

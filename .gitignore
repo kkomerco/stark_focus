@@ -12,6 +12,7 @@ dist
 dist-ssr
 .output
 .vinxi
+.env
 *.local
 package-lock.json
 
@@ -22,6 +23,14 @@ dev_*.txt
 install_*.txt
 npm_*.txt
 _create_log.txt
+
+# Dumpy repo / listy plików (artefakty robocze)
+dump.txt
+repo-dump.txt
+filelist.txt
+
+# Lokalne skrypty uruchamianiowe Windows
+*.bat
 
 # Wrangler / Cloudflare
 .wrangler/

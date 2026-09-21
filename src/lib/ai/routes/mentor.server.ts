@@ -1,5 +1,5 @@
 import type { MiniApp } from "../../mini-express.server";
-import { GEMINI_LITE_MODEL, GEMINI_MODEL, getGeminiClient, safeJsonParse } from "../gemini.server";
+import { getGeminiClient, safeJsonParse, callGeminiWithFallback } from "../gemini.server";
 import { formatStarkCaption } from "../../caption";
 
 export function registerMentorRoutes(app: MiniApp): void {
@@ -144,8 +144,7 @@ export function registerMentorRoutes(app: MiniApp): void {
     ]
   }`;
 
-      const response = await ai.models.generateContent({
-        model: GEMINI_MODEL,
+      const response = await callGeminiWithFallback(ai, {
         contents: prompt,
         config: { temperature: 0.92 },
       });

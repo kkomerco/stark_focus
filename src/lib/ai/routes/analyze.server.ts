@@ -1,5 +1,5 @@
 import type { MiniApp } from "../../mini-express.server";
-import { GEMINI_LITE_MODEL, GEMINI_MODEL, getGeminiClient, safeJsonParse } from "../gemini.server";
+import { getGeminiClient, safeJsonParse, callGeminiWithFallback } from "../gemini.server";
 import { formatStarkCaption } from "../../caption";
 
 export function registerAnalyzeRoutes(app: MiniApp): void {
@@ -247,8 +247,7 @@ export function registerAnalyzeRoutes(app: MiniApp): void {
 
     try {
       const contentsPayload = imagePart ? [imagePart, universalPrompt] : [universalPrompt];
-      const response = await ai.models.generateContent({
-        model: GEMINI_MODEL,
+      const response = await callGeminiWithFallback(ai, {
         contents: contentsPayload,
         config: { temperature: 0.85 },
       });
@@ -320,8 +319,7 @@ export function registerAnalyzeRoutes(app: MiniApp): void {
       "recommendation": "Rekomendacja reżyserska (wizualia, tempo, dźwięk)"
     }
   }`;
-      const response = await ai.models.generateContent({
-        model: GEMINI_MODEL,
+      const response = await callGeminiWithFallback(ai, {
         contents: prompt,
         config: { temperature: 0.7 },
       });
@@ -476,8 +474,7 @@ export function registerAnalyzeRoutes(app: MiniApp): void {
     ]
   }`;
 
-      const response = await ai.models.generateContent({
-        model: GEMINI_MODEL,
+      const response = await callGeminiWithFallback(ai, {
         contents: prompt,
         config: { temperature: 0.95 },
       });

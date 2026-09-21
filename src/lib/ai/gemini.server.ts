@@ -111,7 +111,118 @@ export async function generateText(options: {
   });
 }
 
+/** Klasyczny kształt konfiguracji (kompatybilny z bezpośrednimi wywołaniami SDK). */
+export interface GeminiRawConfig {
+  temperature?: number;
+  responseMimeType?: string;
+  systemInstruction?: unknown;
+  abortSignal?: AbortSignal;
+  [key: string]: unknown;
+}
+
+/**
+ * Bezpośrednie wywołanie SDK z wielopoziomowym fallbackiem i retry — zachowuje
+ * parytet z dawną implementacją monolitu (model →-lite→main, 2 próby na model,
+ * backoff ~1.2 s przy 503/429). Zwraca odpowiedź SDK ({ text }) jak wcześniej.
+ */
+export async function callGeminiWithFallback(
+  ai: { models: { generateContent: (args: any) => Promise<any> } },
+  options: {
+    contents: any;
+    config?: GeminiRawConfig;
+    preferredModel?: string;
+  },
+): Promise<{ text?: string }> {
+  const modelList = options.preferredModel
+    ? [options.preferredModel, GEMINI_LITE_MODEL, GEMINI_MODEL].filter(
+        (v, i, a) => a.indexOf(v) === i,
+      )
+    : [GEMINI_LITE_MODEL, GEMINI_MODEL];
+
+  let lastError: unknown = null;
+
+  for (const model of modelList) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        return await ai.models.generateContent({
+          model,
+          contents: options.contents,
+          config: options.config,
+        });
+      } catch (err: any) {
+        lastError = err;
+        const msg = String(err?.message || err);
+        const isUnavailable =
+          msg.includes("503") || msg.includes("UNAVAILABLE") || msg.includes("high demand");
+        const isRateLimit =
+          msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("quota");
+
+        if ((isUnavailable || isRateLimit) && attempt === 0) {
+          await new Promise((resolve) => setTimeout(resolve, 1200));
+          continue;
+        }
+        break;
+      }
+    }
+  }
+
+  throw lastError;
+}
+
 /** Jak generateContent, ale od razu parsuje odpowiedź do obiektu JSON. */
 export async function generateJson<T = any>(options: GenerateContentOptions): Promise<T> {
   return safeJsonParse<T>(await generateContent(options));
+}
+
+/**
+ * generateContent z wielopoziomowym fallbackiem i retry w przypadku:
+ * — 503 UNAVAILABLE / "high demand" (przeciążenie modelu)
+ * — 429 RESOURCE_EXHAUSTED / quota (limity zapytań)
+ *
+ * Kolejno próbuje: preferredModel → GEMINI_LITE_MODEL → GEMINI_MODEL.
+ * Na każdym modelu dwarazy z krótkim backoffem (~1.2 s) w razie tymczasowego błędu.
+ * To jest centralna implementacja — nie reimplementuj jej w route handlerach.
+ */
+export async function generateContentWithFallback(
+  options: GenerateContentOptions & { preferredModel?: string },
+): Promise<string> {
+  const ai = getGeminiClient();
+  if (!ai) {
+    throw new AiResponseError("Brak skonfigurowanego klucza GEMINI_API_KEY w pliku .env serwera");
+  }
+
+  const modelList = options.preferredModel
+    ? [options.preferredModel, GEMINI_LITE_MODEL, GEMINI_MODEL].filter(
+        (v, i, a) => a.indexOf(v) === i,
+      )
+    : [GEMINI_LITE_MODEL, GEMINI_MODEL];
+
+  let lastError: unknown = null;
+
+  for (const model of modelList) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const text = await generateContent({
+          ...options,
+          model,
+        });
+        return text;
+      } catch (err: any) {
+        lastError = err;
+        const msg = String(err?.message || err);
+        const isUnavailable =
+          msg.includes("503") || msg.includes("UNAVAILABLE") || msg.includes("high demand");
+        const isRateLimit =
+          msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("quota");
+
+        if ((isUnavailable || isRateLimit) && attempt === 0) {
+          await new Promise((resolve) => setTimeout(resolve, 1200));
+          continue;
+        }
+        break;
+      }
+    }
+  }
+
+  throw lastError;
 }

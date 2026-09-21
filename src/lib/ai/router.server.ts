@@ -11,6 +11,7 @@ import { registerStatusRoutes } from "./routes/status.server";
 import { registerDailyPackRoutes } from "./routes/daily-pack.server";
 import { registerIdeaStreamRoutes } from "./routes/idea-stream.server";
 import { registerGrowthRoutes } from "./routes/growth.server";
+import { registerBatchRoutes } from "./routes/batch.server";
 
 // Cache odpowiedzi AI (identyczne zapytanie = ta sama odpowiedz)
 const aiCache = createTtlCache<{ body: string; contentType: string }>({
@@ -39,6 +40,7 @@ registerStatusRoutes(app);
 registerDailyPackRoutes(app);
 registerIdeaStreamRoutes(app);
 registerGrowthRoutes(app);
+registerBatchRoutes(app);
 
 // Endpointy AI, ktorych odpowiedzi warto cache'owac (identyczne zapytanie = ta sama odpowiedz)
 const CACHEABLE_AI_PATHS = new Set([
@@ -52,6 +54,7 @@ const CACHEABLE_AI_PATHS = new Set([
   "/api/ai/cognitive-friction",
   "/api/ai/evergreen-recycle",
   "/api/ai/generate-multi-variant-reels",
+  "/api/ai/batch-generator",
 ]);
 
 export async function handleStarkApi(request: Request): Promise<Response> {

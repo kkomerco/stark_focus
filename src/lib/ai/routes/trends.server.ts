@@ -1,6 +1,5 @@
 import type { MiniApp } from "../../mini-express.server";
-import { GEMINI_LITE_MODEL, GEMINI_MODEL, getGeminiClient, safeJsonParse } from "../gemini.server";
-import { formatStarkCaption } from "../../caption";
+import { getGeminiClient, safeJsonParse, callGeminiWithFallback } from "../gemini.server";
 
 export function registerTrendsRoutes(app: MiniApp): void {
   app.post("/api/ai/scan-trends", async (req, res) => {
@@ -115,8 +114,7 @@ export function registerTrendsRoutes(app: MiniApp): void {
       }
     ]
   }`;
-      const response = await ai.models.generateContent({
-        model: GEMINI_MODEL,
+      const response = await callGeminiWithFallback(ai, {
         contents: prompt,
         config: { temperature: 0.9 },
       });
@@ -226,8 +224,7 @@ export function registerTrendsRoutes(app: MiniApp): void {
     ]
   }`;
 
-      const response = await ai.models.generateContent({
-        model: GEMINI_MODEL,
+      const response = await callGeminiWithFallback(ai, {
         contents: prompt,
         config: { temperature: 0.85 },
       });
@@ -337,8 +334,7 @@ export function registerTrendsRoutes(app: MiniApp): void {
     ]
   }`;
 
-      const response = await ai.models.generateContent({
-        model: GEMINI_MODEL,
+      const response = await callGeminiWithFallback(ai, {
         contents: prompt,
         config: { temperature: 0.82 },
       });
@@ -423,8 +419,7 @@ export function registerTrendsRoutes(app: MiniApp): void {
     ]
   }`;
 
-      const response = await ai.models.generateContent({
-        model: GEMINI_MODEL,
+      const response = await callGeminiWithFallback(ai, {
         contents: prompt,
         config: { temperature: 0.9 },
       });
@@ -523,8 +518,7 @@ export function registerTrendsRoutes(app: MiniApp): void {
     "caption": "string"
   }`;
 
-      const response = await ai.models.generateContent({
-        model: GEMINI_MODEL,
+      const response = await callGeminiWithFallback(ai, {
         contents: prompt,
         config: { temperature: 0.8 },
       });

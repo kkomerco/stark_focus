@@ -1,6 +1,5 @@
 import type { MiniApp } from "../../mini-express.server";
-import { GEMINI_LITE_MODEL, GEMINI_MODEL, getGeminiClient, safeJsonParse } from "../gemini.server";
-import { formatStarkCaption } from "../../caption";
+import { getGeminiClient, safeJsonParse, callGeminiWithFallback } from "../gemini.server";
 
 export function registerReelsRoutes(app: MiniApp): void {
   app.post("/api/ai/generate-multi-variant-reels", async (req, res) => {
@@ -84,8 +83,7 @@ export function registerReelsRoutes(app: MiniApp): void {
     ]
   }`;
 
-      const response = await ai.models.generateContent({
-        model: GEMINI_MODEL,
+      const response = await callGeminiWithFallback(ai, {
         contents: prompt,
         config: { temperature: 0.85 },
       });

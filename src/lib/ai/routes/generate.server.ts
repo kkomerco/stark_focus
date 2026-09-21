@@ -1,5 +1,11 @@
 import type { MiniApp } from "../../mini-express.server";
-import { GEMINI_LITE_MODEL, GEMINI_MODEL, getGeminiClient, safeJsonParse } from "../gemini.server";
+import {
+  GEMINI_LITE_MODEL,
+  GEMINI_MODEL,
+  getGeminiClient,
+  safeJsonParse,
+  callGeminiWithFallback,
+} from "../gemini.server";
 import { formatStarkCaption } from "../../caption";
 
 export function registerGenerateRoutes(app: MiniApp): void {
@@ -42,8 +48,7 @@ export function registerGenerateRoutes(app: MiniApp): void {
     if (!ai) return res.status(503).json({ error: "Brak klucza GEMINI_API_KEY." });
 
     try {
-      const response = await ai.models.generateContent({
-        model: GEMINI_MODEL,
+      const response = await callGeminiWithFallback(ai, {
         contents: prompt,
         config: { temperature: 0.95 },
       });
@@ -161,8 +166,7 @@ export function registerGenerateRoutes(app: MiniApp): void {
     "mood": "Krótkie określenie nastroju po polsku (np. 'Zagadkowa szczelina światła w próżni')"
   }`;
 
-      const response = await ai.models.generateContent({
-        model: GEMINI_MODEL,
+      const response = await callGeminiWithFallback(ai, {
         contents: prompt,
         config: { temperature: 0.8 },
       });
@@ -248,8 +252,7 @@ export function registerGenerateRoutes(app: MiniApp): void {
     "highlightWords": "2-3 najważniejsze słowa rozdzielone przecinkiem"
   }`;
 
-      const response = await ai.models.generateContent({
-        model: GEMINI_MODEL,
+      const response = await callGeminiWithFallback(ai, {
         contents: prompt,
         config: { temperature: 0.88 },
       });
@@ -378,8 +381,7 @@ export function registerGenerateRoutes(app: MiniApp): void {
 
         let response;
         try {
-          response = await ai.models.generateContent({
-            model: GEMINI_LITE_MODEL,
+          response = await callGeminiWithFallback(ai, {
             contents: prompt,
             config: {
               temperature: 1.0,
@@ -388,8 +390,7 @@ export function registerGenerateRoutes(app: MiniApp): void {
             },
           });
         } catch {
-          response = await ai.models.generateContent({
-            model: GEMINI_MODEL,
+          response = await callGeminiWithFallback(ai, {
             contents: prompt,
             config: {
               temperature: 1.0,

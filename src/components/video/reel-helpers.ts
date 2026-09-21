@@ -5,7 +5,7 @@ import { ReelVisualTheme } from "../../data/reelTemplates";
 
 export type VisualTheme = ReelVisualTheme;
 export type HighlightStyle = "white_halo" | "bold";
-export type FontFamily = "cinzel" | "cormorant" | "montserrat";
+export type FontFamily = "cinzel" | "sans" | "inter" | "cormorant";
 export type ReelDuration = 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 14 | 15;
 export type PacingMode = "climax_hold" | "stoic_steady" | "uniform";
 

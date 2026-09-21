@@ -128,6 +128,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
 
     // Załaduj początkowe formaty wiralowe
     loadViralFormats();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleCopy = (id: string, text: string) => {
