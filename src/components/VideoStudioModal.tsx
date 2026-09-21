@@ -38,6 +38,7 @@ import { drawTikTokGuides } from "./video/reel-render/overlays";
 import { useAiReelGeneration } from "./video/useAiReelGeneration";
 import { useReelExports } from "./video/useReelExports";
 
+import { useCustomBackground } from "./video/useCustomBackground";
 interface VideoStudioModalProps {
   onClose?: () => void;
   initialHook?: string;
@@ -99,43 +100,6 @@ export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
   );
   const [captionStyle, setCaptionStyle] = useState<"short" | "deep">("deep");
 
-  // Custom Background State (Image or Video)
-  const [customBgType, setCustomBgType] = useState<"none" | "image" | "video">("none");
-  const [customBgName, setCustomBgName] = useState<string>("");
-  const customImageRef = useRef<HTMLImageElement | null>(null);
-  const customVideoRef = useRef<HTMLVideoElement | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-
-  // Auto-load initial background if provided
-  useEffect(() => {
-    if (initialBgUrl) {
-      const isVid = initialBgUrl.match(/\.(mp4|webm|mov)(\?.*)?$/i);
-      if (isVid) {
-        const vid = document.createElement("video");
-        vid.crossOrigin = "anonymous";
-        vid.src = initialBgUrl;
-        vid.muted = true;
-        vid.loop = true;
-        vid.playsInline = true;
-        vid.onloadeddata = () => {
-          customVideoRef.current = vid;
-          setCustomBgType("video");
-          setCustomBgName("Vault Video");
-          vid.play().catch(() => {});
-        };
-      } else {
-        const img = new Image();
-        img.crossOrigin = "anonymous";
-        img.src = initialBgUrl;
-        img.onload = () => {
-          customImageRef.current = img;
-          setCustomBgType("image");
-          setCustomBgName("Vault Background");
-        };
-      }
-    }
-  }, [initialBgUrl]);
-
   // Editable phrases for quick preview & correction (Viral thought-provoking default)
   const [phrases, setPhrases] = useState<string[]>(() => {
     if (initialHook) {
@@ -174,6 +138,15 @@ export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
     "#starkfocus",
   ]);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const {
+    customBgType,
+    customBgName,
+    customImageRef,
+    customVideoRef,
+    fileInputRef,
+    handleFileUpload,
+    handleClearCustomBg,
+  } = useCustomBackground(initialBgUrl, setToastMessage);
 
   // Playback & Canvas Loop
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
@@ -213,55 +186,6 @@ export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
 
   // TURNKEY EXPORT: 1. "Ready-to-Post" ZIP Bundle
   const [isExportingZip, setIsExportingZip] = useState<boolean>(false);
-
-  // Handle Custom Media Upload (Image or Video)
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const fileUrl = URL.createObjectURL(file);
-    setCustomBgName(file.name);
-
-    if (file.type.startsWith("video/")) {
-      const vid = document.createElement("video");
-      vid.src = fileUrl;
-      vid.muted = true;
-      vid.loop = true;
-      vid.playsInline = true;
-      vid.autoplay = true;
-      vid.play().catch(() => {});
-      customVideoRef.current = vid;
-      customImageRef.current = null;
-      setCustomBgType("video");
-      setToastMessage("✓ Załadowano własne tło wideo!");
-    } else if (file.type.startsWith("image/")) {
-      const img = new Image();
-      img.src = fileUrl;
-      img.onload = () => {
-        customImageRef.current = img;
-        customVideoRef.current = null;
-        setCustomBgType("image");
-        setToastMessage("✓ Załadowano własne tło graficzne!");
-      };
-    }
-    setTimeout(() => setToastMessage(null), 3000);
-  };
-
-  const handleClearCustomBg = () => {
-    if (customVideoRef.current) {
-      customVideoRef.current.pause();
-      customVideoRef.current.src = "";
-      customVideoRef.current = null;
-    }
-    customImageRef.current = null;
-    setCustomBgType("none");
-    setCustomBgName("");
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-    setToastMessage("Przywrócono domyślny motyw wizualny.");
-    setTimeout(() => setToastMessage(null), 2500);
-  };
 
   // Toggle between Short Punchy Caption vs Deep Stoic Breakdown
   const handleCaptionStyleToggle = (style: "short" | "deep") => {
@@ -389,7 +313,17 @@ export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
         drawTikTokGuides(ctx, width, height);
       }
     },
-    [customBgType, selectedTheme, showTikTokGuides, phrases, reelFormat, duration, fontFamily],
+    [
+      customBgType,
+      selectedTheme,
+      showTikTokGuides,
+      phrases,
+      reelFormat,
+      duration,
+      fontFamily,
+      customImageRef,
+      customVideoRef,
+    ],
   );
 
   const { handleExportZipBundle, handleExportVideo, handleExportPng } = useReelExports({
