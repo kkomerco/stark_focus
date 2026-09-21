@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect } from "react";
 import {
   Radio,
   Search,
   Copy,
   Check,
-  PlusCircle,
   ShieldCheck,
   AlertCircle,
   Bookmark,
@@ -16,12 +15,18 @@ import {
   Zap,
   Repeat,
   Sparkles,
-  BookOpen,
-  Link,
-  CheckCircle2,
   AlertTriangle,
 } from "lucide-react";
 import { StarkFocusData, TrendItem, Post } from "../../types";
+import type {
+  AngleItem,
+  ParadoxItem,
+  ViralFormatItem,
+  BatchPostItem,
+  SubModule,
+} from "./radar/shared";
+import { RecyclerPanel } from "./radar/RecyclerPanel";
+import { BatchPanel } from "./radar/BatchPanel";
 
 interface AiRadarTabProps {
   data: StarkFocusData;
@@ -31,42 +36,6 @@ interface AiRadarTabProps {
   onOpenVideoStudio?: (hookText?: string, bgUrl?: string) => void;
   onSendToPost?: (text: string, caption?: string) => void;
   onSendToReel?: (hookText: string) => void;
-}
-
-type SubModule = "radar" | "angles" | "friction" | "recycler" | "batch";
-
-interface AngleItem {
-  angleId: string;
-  angleName: string;
-  hook: string;
-  phrases: string[];
-  caption: string;
-  rationale: string;
-}
-
-interface ParadoxItem {
-  title: string;
-  hook: string;
-  explanation: string;
-  phrases: string[];
-}
-
-interface ViralFormatItem {
-  formatKey: string;
-  formatName: string;
-  hook: string;
-  phrases: string[];
-  suggestedTheme: string;
-  rationale: string;
-}
-
-interface BatchPostItem {
-  id: string;
-  pillar: string;
-  sayingMain: string;
-  sayingSub?: string;
-  caption: string;
-  template?: string;
 }
 
 export const AiRadarTab: React.FC<AiRadarTabProps> = ({
@@ -897,390 +866,38 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
 
       {/* SUB-MODUŁ 4: EVERGREEN RECYCLER (Klonowanie i Remiks z Linku lub Tekstu) */}
       {activeSubModule === "recycler" && (
-        <div className="space-y-6 animate-in fade-in">
-          <div className="p-4 bg-[#0E0E0E] border border-[rgba(255,255,255,0.1)] rounded-lg space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <label className="text-[10px] text-neutral-400 font-mono uppercase font-bold flex items-center gap-1.5">
-                <Link className="w-3.5 h-3.5 text-white" />
-                Wklej Bezpośredni Link (Reels, TikTok, Shorts) LUB Wpisz Tekst:
-              </label>
-              {/^(https?:\/\/|[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\/)/i.test(sourceText.trim()) && (
-                <span className="px-2 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 font-mono text-[10px] uppercase font-bold flex items-center gap-1">
-                  <Check className="w-3 h-3" /> Wykryto Bezpośredni Link Social Media
-                </span>
-              )}
-            </div>
-            <textarea
-              rows={3}
-              value={sourceText}
-              onChange={(e) => setSourceText(e.target.value)}
-              placeholder="Wklej bezpośredni link do posta/rolki (np. https://www.instagram.com/reel/... lub TikTok / YouTube Shorts) ALBO wpisz własną myśl, stary post lub notatkę..."
-              className="w-full px-3 py-2 bg-[#050505] border border-[rgba(255,255,255,0.1)] rounded text-xs font-mono text-white placeholder-neutral-500 focus:outline-none focus:border-white resize-none"
-            />
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <p className="text-[11px] font-mono text-neutral-400">
-                AI zdekonstruuje mechanizm psychologiczny z podanego linku/tekstu i wygeneruje 4
-                kompletne formaty STARK w 100% po angielsku.
-              </p>
-              <button
-                onClick={handleRecycleContent}
-                disabled={isRecycling}
-                className="px-5 py-2 bg-white hover:bg-neutral-200 text-black text-xs font-mono font-bold uppercase rounded flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-50 shrink-0"
-              >
-                {isRecycling ? (
-                  <>
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    <span>Dekonstrukcja & Remiks...</span>
-                  </>
-                ) : (
-                  <>
-                    <Repeat className="w-3.5 h-3.5" />
-                    <span>Zremiksuj na 4 Formaty STARK</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-
-          {recycledData && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Format 1: Rolka Wideo */}
-              <div className="p-4 bg-[#0E0E0E] border border-[rgba(255,255,255,0.1)] rounded-lg space-y-3">
-                <div className="flex items-center justify-between border-b border-[rgba(255,255,255,0.1)] pb-2">
-                  <span className="text-xs font-mono font-bold text-white uppercase flex items-center gap-1.5">
-                    <Film className="w-4 h-4 text-amber-400" />
-                    1. Rolka 7-Sekundowa (Wideo)
-                  </span>
-                  <span className="text-[10px] font-mono text-neutral-400">
-                    {recycledData.reel?.duration || 8}s • Climax Hold
-                  </span>
-                </div>
-
-                <div className="p-2.5 bg-[#050505] rounded border border-[rgba(255,255,255,0.1)]">
-                  <span className="text-[10px] text-neutral-500 uppercase font-mono block">
-                    Hook 0-3s:
-                  </span>
-                  <p className="text-xs font-mono font-bold text-white">
-                    "{recycledData.reel?.hook}"
-                  </p>
-                </div>
-
-                <ol className="list-decimal list-inside space-y-1 text-xs font-mono text-neutral-300">
-                  {recycledData.reel?.phrases?.map((ph: string, idx: number) => (
-                    <li key={idx}>{ph}</li>
-                  ))}
-                </ol>
-
-                <button
-                  onClick={() => {
-                    if (onSendToReel) onSendToReel(recycledData.reel?.hook);
-                    else onOpenVideoStudio?.(recycledData.reel?.hook);
-                  }}
-                  className="w-full py-1.5 px-3 rounded bg-white hover:bg-neutral-200 text-black text-xs font-mono font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <Film className="w-3.5 h-3.5" />
-                  <span>🎬 Wyrzuć do Rolki</span>
-                </button>
-              </div>
-
-              {/* Format 2: 5-Slajdowa Karuzela */}
-              <div className="p-4 bg-[#0E0E0E] border border-[rgba(255,255,255,0.1)] rounded-lg space-y-3">
-                <div className="flex items-center justify-between border-b border-[rgba(255,255,255,0.1)] pb-2">
-                  <span className="text-xs font-mono font-bold text-white uppercase flex items-center gap-1.5">
-                    <Layers className="w-4 h-4 text-emerald-400" />
-                    2. Karuzela 5 Slajdów
-                  </span>
-                  <span className="text-[10px] font-mono text-neutral-400">
-                    5 Slajdów • Format 4:5
-                  </span>
-                </div>
-
-                <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                  {recycledData.carousel?.slides?.map((sl: any, sIdx: number) => (
-                    <div
-                      key={sIdx}
-                      className="p-2 bg-[#050505] rounded border border-[rgba(255,255,255,0.1)] text-[11px] font-mono space-y-0.5"
-                    >
-                      <div className="text-white font-bold">
-                        #{sIdx + 1} {sl.headline}
-                      </div>
-                      <div className="text-neutral-400 truncate">{sl.bodyText}</div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => {
-                      const firstSlide = recycledData.carousel?.slides?.[0];
-                      const text = firstSlide
-                        ? `${firstSlide.headline}\n${firstSlide.bodyText}`
-                        : "";
-                      const cap = recycledData.caption || "";
-                      if (onSendToPost) onSendToPost(text, cap);
-                      else onNavigateToTab(0);
-                    }}
-                    className="flex-1 py-1.5 px-3 rounded bg-white hover:bg-neutral-200 text-black font-bold uppercase text-xs font-mono transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>📸 Wyrzuć do Posta</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      const text = recycledData.carousel?.slides
-                        ?.map(
-                          (s: { headline: string; bodyText: string }, i: number) =>
-                            `Slajd ${i + 1}: ${s.headline}\n${s.bodyText}`,
-                        )
-                        .join("\n\n");
-                      if (text) {
-                        navigator.clipboard.writeText(text);
-                        handleCopy("rec-car", text);
-                      }
-                    }}
-                    className="p-1.5 rounded bg-[#161616] hover:bg-white hover:text-black border border-[rgba(255,255,255,0.1)] text-xs font-mono text-white transition-all cursor-pointer"
-                    title="Kopiuj treść slajdów"
-                  >
-                    <Copy className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Format 3: Stoicki Manifest */}
-              <div className="p-4 bg-[#0E0E0E] border border-[rgba(255,255,255,0.1)] rounded-lg space-y-3">
-                <span className="text-xs font-mono font-bold text-white uppercase flex items-center gap-1.5 border-b border-[rgba(255,255,255,0.1)] pb-2">
-                  <BookOpen className="w-4 h-4 text-neutral-300" />
-                  3. Stoicki Manifest (1 Zdanie)
-                </span>
-                <p className="text-xs font-mono font-bold text-white p-3 bg-[#050505] rounded border border-[rgba(255,255,255,0.1)]">
-                  "{recycledData.manifesto}"
-                </p>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => {
-                      if (onSendToPost) onSendToPost(recycledData.manifesto, recycledData.caption);
-                      else onNavigateToTab(0);
-                    }}
-                    className="flex-1 py-1.5 px-3 rounded bg-white hover:bg-neutral-200 text-black font-bold uppercase text-xs font-mono transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>📸 Wyrzuć do Posta</span>
-                  </button>
-                  <button
-                    onClick={() => handleCopy("rec-man", recycledData.manifesto)}
-                    className="p-1.5 rounded bg-[#161616] hover:bg-white hover:text-black border border-[rgba(255,255,255,0.1)] text-xs font-mono text-white transition-all cursor-pointer"
-                    title="Kopiuj Manifest"
-                  >
-                    <Copy className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Format 4: Opis Instagram (Caption) */}
-              <div className="p-4 bg-[#0E0E0E] border border-[rgba(255,255,255,0.1)] rounded-lg space-y-3">
-                <span className="text-xs font-mono font-bold text-white uppercase flex items-center gap-1.5 border-b border-[rgba(255,255,255,0.1)] pb-2">
-                  <Zap className="w-4 h-4 text-purple-400" />
-                  4. Gotowy Opis Posta (Instagram)
-                </span>
-                <p className="text-[11px] font-mono text-neutral-300 p-2.5 bg-[#050505] rounded border border-[rgba(255,255,255,0.1)] max-h-24 overflow-y-auto whitespace-pre-wrap">
-                  {recycledData.caption}
-                </p>
-                <button
-                  onClick={() => handleCopy("rec-cap", recycledData.caption)}
-                  className="w-full py-1.5 px-3 rounded bg-[#161616] hover:bg-white hover:text-black border border-[rgba(255,255,255,0.1)] text-xs font-mono text-white transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <Copy className="w-3.5 h-3.5" />
-                  <span>Kopiuj Opis i Hashtagi</span>
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+        <RecyclerPanel
+          sourceText={sourceText}
+          onSourceTextChange={setSourceText}
+          isRecycling={isRecycling}
+          recycledData={recycledData}
+          onRecycle={handleRecycleContent}
+          onCopy={handleCopy}
+          onNavigateToTab={onNavigateToTab}
+          onOpenVideoStudio={onOpenVideoStudio}
+          onSendToPost={onSendToPost}
+          onSendToReel={onSendToReel}
+        />
       )}
 
       {/* SUB-MODUŁ 5: GENEROWANIE MASOWE (BATCH GENERATOR) */}
       {activeSubModule === "batch" && (
-        <div className="space-y-6 animate-in fade-in">
-          {/* Panel Sterowania Masowego */}
-          <div className="p-4 bg-[#0E0E0E] border border-[rgba(255,255,255,0.1)] rounded-lg space-y-3">
-            <div className="flex flex-col sm:flex-row gap-3 items-end">
-              <div className="flex-1">
-                <label className="text-[10px] text-neutral-400 font-mono uppercase font-bold block mb-1">
-                  Nisza Psychologiczna & Tematyka:
-                </label>
-                <input
-                  type="text"
-                  value={niche}
-                  onChange={(e) => setNiche(e.target.value)}
-                  placeholder="np. dark psychology, ruthless discipline, monk mode"
-                  className="w-full px-3 py-2 bg-[#050505] border border-[rgba(255,255,255,0.1)] rounded text-xs font-mono text-white placeholder-neutral-500 focus:outline-none focus:border-white"
-                />
-              </div>
-
-              <div className="w-full sm:w-48">
-                <label className="text-[10px] text-neutral-400 font-mono uppercase font-bold block mb-1">
-                  Liczba Rolek w Serii:
-                </label>
-                <select
-                  value={batchCount}
-                  onChange={(e) => setBatchCount(Number(e.target.value))}
-                  className="w-full px-3 py-2 bg-[#050505] border border-[rgba(255,255,255,0.1)] rounded text-xs font-mono text-white focus:outline-none focus:border-white"
-                >
-                  <option value={3}>3 Rolki (Szybki pakiet)</option>
-                  <option value={6}>6 Rolek (Standardowy tydzień)</option>
-                  <option value={10}>10 Rolek (Mocna kampania)</option>
-                </select>
-              </div>
-
-              <button
-                onClick={handleGenerateBatch}
-                disabled={isGeneratingBatch}
-                className="w-full sm:w-auto px-5 py-2 rounded bg-white hover:bg-neutral-200 text-black text-xs font-mono font-bold uppercase tracking-wider transition-all disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
-              >
-                {isGeneratingBatch ? (
-                  <>
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    <span>Generuję Serię...</span>
-                  </>
-                ) : (
-                  <>
-                    <Layers className="w-3.5 h-3.5" />
-                    <span>Generuj Masowo AI</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-
-          {/* Lista Wygenerowanych Rolek Masowych */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-bold text-white uppercase font-mono tracking-wider flex items-center gap-2">
-                <Layers className="w-4 h-4 text-emerald-400" />
-                <span>Wygenerowane Rolki Masowe ({batchPosts.length})</span>
-              </h3>
-
-              {batchPosts.length > 0 && (
-                <button
-                  onClick={handleAddAllBatchToPipeline}
-                  disabled={batchPosts.every((p) => addedBatchIds.has(p.id))}
-                  className="px-3 py-1.5 rounded bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 text-xs font-mono font-bold uppercase transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
-                >
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>
-                    {batchPosts.every((p) => addedBatchIds.has(p.id))
-                      ? "Wszystkie Dodane"
-                      : "Dodaj Wszystkie do Harmonogramu"}
-                  </span>
-                </button>
-              )}
-            </div>
-
-            {batchPosts.length === 0 ? (
-              <div className="p-8 text-center bg-[#0E0E0E] border border-[rgba(255,255,255,0.05)] rounded-lg">
-                <Layers className="w-8 h-8 text-neutral-600 mx-auto mb-2" />
-                <p className="text-xs font-mono text-neutral-400">
-                  Brak wygenerowanych rolek. Kliknij "Generuj Masowo AI", aby stworzyć spójną serię
-                  publikacji z życiowym uderzeniem.
-                </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {batchPosts.map((post, idx) => {
-                  const isAdded = addedBatchIds.has(post.id);
-                  return (
-                    <div
-                      key={post.id || idx}
-                      className="p-4 bg-[#0E0E0E] border border-[rgba(255,255,255,0.1)] rounded-lg flex flex-col justify-between space-y-3 hover:border-white/20 transition-all"
-                    >
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between text-[10px] font-mono">
-                          <span className="px-2 py-0.5 rounded bg-white/10 text-neutral-300 uppercase font-bold">
-                            {post.pillar}
-                          </span>
-                          <span className="text-neutral-500">#{idx + 1}</span>
-                        </div>
-
-                        {/* Główny Hook */}
-                        <div className="p-3 bg-[#050505] border border-white/5 rounded">
-                          <p className="text-xs font-serif font-bold text-white leading-relaxed">
-                            "{post.sayingMain}"
-                          </p>
-                          {post.sayingSub && (
-                            <p className="text-[11px] font-mono text-neutral-400 mt-1.5 border-t border-white/5 pt-1.5">
-                              {post.sayingSub}
-                            </p>
-                          )}
-                        </div>
-
-                        {/* Skrót Opisu */}
-                        <div className="text-[10px] font-mono text-neutral-400 line-clamp-3 bg-[#080808] p-2 rounded border border-white/5 whitespace-pre-wrap">
-                          {post.caption}
-                        </div>
-                      </div>
-
-                      {/* Akcje dla Rolki */}
-                      <div className="space-y-1.5 pt-2 border-t border-white/10">
-                        <div className="flex gap-1.5">
-                          <button
-                            onClick={() => {
-                              const fullText = post.sayingSub
-                                ? `${post.sayingMain}\n${post.sayingSub}`
-                                : post.sayingMain;
-                              if (onOpenVideoStudio) {
-                                onOpenVideoStudio(fullText);
-                              } else if (onSendToReel) {
-                                onSendToReel(fullText);
-                              }
-                            }}
-                            className="flex-1 py-1.5 px-2 rounded bg-white hover:bg-neutral-200 text-black text-[11px] font-mono font-bold uppercase transition-all flex items-center justify-center gap-1 cursor-pointer"
-                          >
-                            <Film className="w-3 h-3" />
-                            <span>Otwórz w Studio</span>
-                          </button>
-
-                          <button
-                            onClick={() => handleCopy(`batch-${post.id}`, post.caption)}
-                            className="p-1.5 rounded bg-[#161616] hover:bg-white hover:text-black border border-white/10 text-neutral-400 hover:text-black transition-all cursor-pointer"
-                            title="Kopiuj opis"
-                          >
-                            {copiedId === `batch-${post.id}` ? (
-                              <Check className="w-3 h-3 text-emerald-400" />
-                            ) : (
-                              <Copy className="w-3 h-3" />
-                            )}
-                          </button>
-                        </div>
-
-                        <button
-                          onClick={() => handleAddBatchToPipeline(post)}
-                          disabled={isAdded}
-                          className={`w-full py-1.5 px-2 rounded text-[10px] font-mono uppercase transition-all flex items-center justify-center gap-1 cursor-pointer ${
-                            isAdded
-                              ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 cursor-default"
-                              : "bg-[#161616] hover:bg-white/10 text-neutral-300 border border-white/10"
-                          }`}
-                        >
-                          {isAdded ? (
-                            <>
-                              <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                              <span>W harmonogramie</span>
-                            </>
-                          ) : (
-                            <>
-                              <PlusCircle className="w-3 h-3" />
-                              <span>Dodaj do postów</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
+        <BatchPanel
+          niche={niche}
+          onNicheChange={setNiche}
+          batchCount={batchCount}
+          onBatchCountChange={setBatchCount}
+          isGeneratingBatch={isGeneratingBatch}
+          batchPosts={batchPosts}
+          addedBatchIds={addedBatchIds}
+          onGenerateBatch={handleGenerateBatch}
+          onAddToPipeline={handleAddBatchToPipeline}
+          onAddAllToPipeline={handleAddAllBatchToPipeline}
+          copiedId={copiedId}
+          onCopy={handleCopy}
+          onOpenVideoStudio={onOpenVideoStudio}
+          onSendToReel={onSendToReel}
+        />
       )}
     </div>
   );
