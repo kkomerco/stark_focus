@@ -1,10 +1,15 @@
-// Tymczasowy skrypt weryfikujący nowe endpointy Fazy 2 (idea-stream, deconstruct-viral).
+// Smoke test endpointów AI: startuje serwer dev (bez klucza działa offline) i weryfikuje
+// idea-stream (anty-powtórka), deconstruct-viral oraz daily-pack. Uruchamiaj przez
+// `npm run smoke`. Sprząta całe drzewo procesów także na Windows (taskkill /T).
 import { spawn } from "node:child_process";
 
-const server = spawn("npm", ["run", "dev"], {
+// UWAGA: celowo spawnujemy `node --import tsx server.ts` BEZ npm i bez shell —
+// na Windows `npm run dev` (npm.cmd -> cmd.exe -> node) tworzy drzewo procesów,
+// którego SIGTERM nie ubija i port 3000 zostaje zajęty przez osierocony serwer.
+const server = spawn(process.execPath, ["--import", "tsx", "server.ts"], {
   cwd: process.cwd(),
-  shell: true,
   stdio: ["ignore", "pipe", "pipe"],
+  windowsHide: true,
 });
 
 let serverOut = "";
@@ -37,8 +42,15 @@ async function post(path, body) {
 }
 
 function cleanup(code) {
+  // /T ubija całe drzewo procesów (tsx, esbuild service), /F to twarde zabicie.
   try {
-    server.kill("SIGTERM");
+    if (process.platform === "win32") {
+      spawn("taskkill", ["/PID", String(server.pid), "/T", "/F"], { windowsHide: true });
+    } else {
+      server.kill("SIGTERM");
+      const t = setTimeout(() => server.kill("SIGKILL"), 2000);
+      t.unref();
+    }
   } catch {
     /* ignore */
   }
