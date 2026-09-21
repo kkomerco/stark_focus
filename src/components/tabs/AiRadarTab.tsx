@@ -1,15 +1,8 @@
 ﻿import React, { useState, useEffect } from "react";
 import {
   Radio,
-  Search,
-  Copy,
-  Check,
   ShieldCheck,
   AlertCircle,
-  Bookmark,
-  Flame,
-  RefreshCw,
-  Film,
   Layers,
   Compass,
   Zap,
@@ -25,6 +18,9 @@ import type {
   BatchPostItem,
   SubModule,
 } from "./radar/shared";
+import { RadarPanel } from "./radar/RadarPanel";
+import { AngleMatrixPanel } from "./radar/AngleMatrixPanel";
+import { FrictionPanel } from "./radar/FrictionPanel";
 import { RecyclerPanel } from "./radar/RecyclerPanel";
 import { BatchPanel } from "./radar/BatchPanel";
 
@@ -418,450 +414,61 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
 
       {/* SUB-MODUŁ 1: RADAR TRENDÓW & FORMATÓW WIRALOWYCH */}
       {activeSubModule === "radar" && (
-        <div className="space-y-6 animate-in fade-in">
-          {/* Panel Wyszukiwania */}
-          <div className="p-4 bg-[#0E0E0E] border border-[rgba(255,255,255,0.1)] rounded-lg space-y-3">
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="flex-1">
-                <label className="text-[10px] text-neutral-400 font-mono uppercase font-bold block mb-1">
-                  Nisza & Psychologia Odbiorcy:
-                </label>
-                <input
-                  type="text"
-                  value={niche}
-                  onChange={(e) => setNiche(e.target.value)}
-                  placeholder="np. dark stoicism, digital dopamine detox, discipline"
-                  className="w-full px-3 py-2 bg-[#050505] border border-[rgba(255,255,255,0.1)] rounded text-xs font-mono text-white placeholder-neutral-500 focus:outline-none focus:border-white"
-                />
-              </div>
-              <div className="w-full sm:w-64">
-                <label className="text-[10px] text-neutral-400 font-mono uppercase font-bold block mb-1">
-                  Format Publikacji:
-                </label>
-                <select
-                  value={platform}
-                  onChange={(e) => setPlatform(e.target.value)}
-                  className="w-full px-3 py-2 bg-[#050505] border border-[rgba(255,255,255,0.1)] rounded text-xs font-mono text-white focus:outline-none focus:border-white"
-                >
-                  <option value="Instagram Karuzela / TikTok">Instagram Karuzela / TikTok</option>
-                  <option value="Rolka 7s B-Roll z Basem">Rolka 7s B-Roll z Basem</option>
-                </select>
-              </div>
-              <div className="flex items-end gap-2">
-                <button
-                  onClick={handleScanTrends}
-                  disabled={isScanning}
-                  className="w-full sm:w-auto px-5 py-2 rounded bg-white hover:bg-neutral-200 text-black text-xs font-mono font-bold uppercase tracking-wider transition-all disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
-                >
-                  {isScanning ? (
-                    <>
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      <span>Skanowanie...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Search className="w-3.5 h-3.5" />
-                      <span>Skanuj Sieć</span>
-                    </>
-                  )}
-                </button>
-
-                <button
-                  onClick={() => {
-                    setActiveSubModule("batch");
-                    if (batchPosts.length === 0) handleGenerateBatch();
-                  }}
-                  className="w-full sm:w-auto px-4 py-2 rounded bg-[#1A1A1A] hover:bg-neutral-800 text-neutral-200 border border-white/10 text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-1.5"
-                  title="Przejdź do generatora masowego"
-                >
-                  <Layers className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Masowe Rolki</span>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {scanMessage && (
-            <div className="p-3 bg-[#161616] border border-[rgba(255,255,255,0.1)] rounded text-xs font-mono text-neutral-300 flex items-center justify-between">
-              <span>{scanMessage}</span>
-              <span className="text-[10px] text-neutral-500 font-mono">Baza: STARK_OS_RADAR</span>
-            </div>
-          )}
-
-          {/* Sekcja: Psychologiczne Formaty Wiralowe (Wysoka Konwersja) */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-bold text-white uppercase font-mono tracking-wider flex items-center gap-2">
-                <Flame className="w-4 h-4 text-amber-400" />
-                Matryca Sprawdzonych Formatów Wirali (Reels / TikTok Hooks)
-              </h3>
-              <span className="text-[10px] font-mono text-neutral-500">
-                Szablony o udowodnionej retencji 0-3s
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {viralFormats.map((fmt, fIdx) => (
-                <div
-                  key={fmt.formatKey || fIdx}
-                  className="p-4 bg-[#0E0E0E] border border-[rgba(255,255,255,0.1)] hover:border-white/40 rounded-lg space-y-3 transition-all"
-                >
-                  <div className="flex items-center justify-between border-b border-[rgba(255,255,255,0.1)] pb-2">
-                    <span className="text-xs font-mono font-bold text-white uppercase flex items-center gap-1.5">
-                      <span className="text-amber-400">⚡</span> {fmt.formatName}
-                    </span>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white/10 text-neutral-300">
-                      Format STARK
-                    </span>
-                  </div>
-
-                  <div className="p-2.5 bg-[#050505] rounded border border-[rgba(255,255,255,0.1)] space-y-1">
-                    <span className="text-[10px] text-neutral-500 uppercase font-mono block">
-                      Hook 0-3s:
-                    </span>
-                    <p className="text-xs font-mono text-white font-bold">"{fmt.hook}"</p>
-                  </div>
-
-                  <div className="space-y-1 text-xs font-mono text-neutral-400">
-                    <span className="text-[10px] text-neutral-500 uppercase block">
-                      Struktura 3 Faz:
-                    </span>
-                    <ol className="list-decimal list-inside space-y-0.5 text-[11px] text-neutral-300">
-                      {fmt.phrases.map((phrase, pIdx) => (
-                        <li key={pIdx}>{phrase}</li>
-                      ))}
-                    </ol>
-                  </div>
-
-                  <div className="text-[11px] font-mono text-neutral-400 italic">
-                    💡 {fmt.rationale}
-                  </div>
-
-                  <div className="flex items-center gap-2 pt-1">
-                    <button
-                      onClick={() => {
-                        if (onSendToPost) onSendToPost(fmt.hook, fmt.rationale);
-                        else onNavigateToTab(0);
-                      }}
-                      className="flex-1 py-1.5 px-2.5 rounded bg-white hover:bg-neutral-200 text-black text-xs font-mono font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                    >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      <span>📸 Do Posta</span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (onSendToReel) onSendToReel(fmt.hook);
-                        else onOpenVideoStudio?.(fmt.hook);
-                      }}
-                      className="flex-1 py-1.5 px-2.5 rounded bg-[#161616] hover:bg-white hover:text-black border border-[rgba(255,255,255,0.1)] text-white text-xs font-mono font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                    >
-                      <Film className="w-3.5 h-3.5" />
-                      <span>🎬 Do Rolki</span>
-                    </button>
-                    <button
-                      onClick={() => handleCopy(`vf-${fIdx}`, fmt.hook)}
-                      className="p-1.5 rounded bg-[#161616] hover:bg-white hover:text-black text-neutral-300 border border-[rgba(255,255,255,0.1)] text-xs font-mono transition-all cursor-pointer"
-                      title="Kopiuj hook"
-                    >
-                      {copiedId === `vf-${fIdx}` ? (
-                        <Check className="w-4 h-4 text-emerald-400" />
-                      ) : (
-                        <Copy className="w-4 h-4" />
-                      )}
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Sekcja: Zidentyfikowane Wątki Sieciowe */}
-          <div className="space-y-3">
-            <h3 className="text-xs font-bold text-white uppercase font-mono tracking-wider flex items-center gap-2">
-              <Bookmark className="w-4 h-4 text-emerald-400" />
-              Przeskanowane Wątki Sieci ({trends.length})
-            </h3>
-
-            <div className="space-y-3">
-              {trends.map((trend, idx) => (
-                <div
-                  key={trend.id || idx}
-                  className="p-4 bg-[#0E0E0E] border border-[rgba(255,255,255,0.1)] hover:border-white/20 rounded-lg space-y-2.5 transition-all"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-mono font-bold text-white uppercase">
-                      #{idx + 1} {trend.title}
-                    </span>
-                    <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-                      Wirusowość: {trend.estimated_virality || "95%"}
-                    </span>
-                  </div>
-
-                  <p className="text-xs font-mono text-neutral-300">{trend.core_message}</p>
-
-                  <div className="flex flex-wrap items-center gap-2 pt-1">
-                    <button
-                      onClick={() => {
-                        const text = trend.viral_hooks?.[0] || trend.title;
-                        const cap = `${trend.title}\n\n${trend.core_message}\n\n#stoicism #discipline #mindset`;
-                        if (onSendToPost) onSendToPost(text, cap);
-                        else onNavigateToTab(0);
-                      }}
-                      className="flex items-center gap-1.5 py-1.5 px-3 rounded bg-white hover:bg-neutral-200 text-black text-xs font-mono font-bold transition-all cursor-pointer"
-                    >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      <span>📸 Wyrzuć do Posta</span>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        const hook = trend.viral_hooks?.[0] || trend.title;
-                        if (onSendToReel) onSendToReel(hook);
-                        else onOpenVideoStudio?.(hook);
-                      }}
-                      className="flex items-center gap-1.5 py-1.5 px-3 rounded bg-[#161616] hover:bg-white hover:text-black border border-[rgba(255,255,255,0.1)] text-white text-xs font-mono font-bold transition-all cursor-pointer"
-                    >
-                      <Film className="w-3.5 h-3.5" />
-                      <span>🎬 Wyrzuć do Rolki</span>
-                    </button>
-
-                    <button
-                      onClick={() =>
-                        handleCopy(`tr-${idx}`, `${trend.title}\n${trend.core_message}`)
-                      }
-                      className="p-1.5 rounded bg-[#050505] hover:bg-[#161616] border border-[rgba(255,255,255,0.1)] text-xs font-mono font-bold text-neutral-300 transition-all cursor-pointer"
-                      title="Kopiuj treść"
-                    >
-                      {copiedId === `tr-${idx}` ? (
-                        <Check className="w-3.5 h-3.5 text-emerald-400" />
-                      ) : (
-                        <Copy className="w-3.5 h-3.5" />
-                      )}
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+        <RadarPanel
+          niche={niche}
+          onNicheChange={setNiche}
+          platform={platform}
+          onPlatformChange={setPlatform}
+          isScanning={isScanning}
+          scanMessage={scanMessage}
+          viralFormats={viralFormats}
+          trends={trends}
+          copiedId={copiedId}
+          onCopy={handleCopy}
+          onScanTrends={handleScanTrends}
+          onGoToBatch={() => {
+            setActiveSubModule("batch");
+            if (batchPosts.length === 0) handleGenerateBatch();
+          }}
+          onNavigateToTab={onNavigateToTab}
+          onOpenVideoStudio={onOpenVideoStudio}
+          onSendToPost={onSendToPost}
+          onSendToReel={onSendToReel}
+        />
       )}
 
       {/* SUB-MODUŁ 2: MATRYCA KĄTÓW PSYCHOLOGICZNYCH */}
       {activeSubModule === "angles" && (
-        <div className="space-y-6 animate-in fade-in">
-          <div className="p-4 bg-[#0E0E0E] border border-[rgba(255,255,255,0.1)] rounded-lg space-y-3">
-            <label className="text-[10px] text-neutral-400 font-mono uppercase font-bold block">
-              Wpisz Surowy Temat lub Problem:
-            </label>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <input
-                type="text"
-                value={angleTopic}
-                onChange={(e) => setAngleTopic(e.target.value)}
-                placeholder="np. Strach przed samotnością, prokrastynacja, budowanie firmy w ciszy"
-                className="flex-1 px-3 py-2 bg-[#050505] border border-[rgba(255,255,255,0.1)] rounded text-xs font-mono text-white placeholder-neutral-500 focus:outline-none focus:border-white"
-              />
-              <button
-                onClick={handleGenerateAngles}
-                disabled={isGeneratingAngles}
-                className="px-5 py-2 bg-white hover:bg-neutral-200 text-black text-xs font-mono font-bold uppercase rounded flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-50"
-              >
-                {isGeneratingAngles ? (
-                  <>
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    <span>Rozbijanie...</span>
-                  </>
-                ) : (
-                  <>
-                    <Zap className="w-3.5 h-3.5" />
-                    <span>Rozbij na 4 Kąty</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {angles.map((ang, idx) => (
-              <div
-                key={ang.angleId || idx}
-                className="p-4 bg-[#0E0E0E] border border-[rgba(255,255,255,0.1)] hover:border-white/40 rounded-lg space-y-3 transition-all"
-              >
-                <div className="flex items-center justify-between border-b border-[rgba(255,255,255,0.1)] pb-2">
-                  <span className="text-xs font-mono font-bold text-white uppercase">
-                    {ang.angleName}
-                  </span>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white/10 text-neutral-300">
-                    Kąt #{idx + 1}
-                  </span>
-                </div>
-
-                <div className="p-2.5 bg-[#050505] rounded border border-[rgba(255,255,255,0.1)]">
-                  <span className="text-[10px] text-neutral-500 uppercase font-mono block mb-0.5">
-                    Magnetyczny Hook:
-                  </span>
-                  <p className="text-xs font-mono font-bold text-white">"{ang.hook}"</p>
-                </div>
-
-                <div className="space-y-1 text-xs font-mono">
-                  <span className="text-[10px] text-neutral-500 uppercase block">
-                    Struktura Wideo (3 Fazy):
-                  </span>
-                  <div className="space-y-1">
-                    {ang.phrases.map((ph, pIdx) => (
-                      <div
-                        key={pIdx}
-                        className="p-1.5 bg-[#050505] rounded border border-[rgba(255,255,255,0.1)] text-[11px] text-neutral-300"
-                      >
-                        {pIdx + 1}. {ph}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <p className="text-[11px] font-mono text-neutral-400 italic">🧠 {ang.rationale}</p>
-
-                <div className="flex items-center gap-2 pt-2 border-t border-[rgba(255,255,255,0.1)]">
-                  <button
-                    onClick={() => {
-                      if (onSendToPost) onSendToPost(ang.hook, ang.caption);
-                      else onNavigateToTab(0);
-                    }}
-                    className="flex-1 py-1.5 px-2.5 rounded bg-white hover:bg-neutral-200 text-black text-xs font-mono font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>📸 Do Posta</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (onSendToReel) onSendToReel(ang.hook);
-                      else onOpenVideoStudio?.(ang.hook);
-                    }}
-                    className="flex-1 py-1.5 px-2.5 rounded bg-[#161616] hover:bg-white hover:text-black border border-[rgba(255,255,255,0.1)] text-white text-xs font-mono font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <Film className="w-3.5 h-3.5" />
-                    <span>🎬 Do Rolki</span>
-                  </button>
-                  <button
-                    onClick={() =>
-                      handleCopy(`ang-${idx}`, `${ang.hook}\n\n${ang.phrases.join("\n")}`)
-                    }
-                    className="p-1.5 rounded bg-[#161616] hover:bg-white hover:text-black text-neutral-300 border border-[rgba(255,255,255,0.1)] text-xs font-mono transition-all cursor-pointer"
-                    title="Kopiuj tekst"
-                  >
-                    {copiedId === `ang-${idx}` ? (
-                      <Check className="w-4 h-4 text-emerald-400" />
-                    ) : (
-                      <Copy className="w-4 h-4" />
-                    )}
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+        <AngleMatrixPanel
+          angleTopic={angleTopic}
+          onAngleTopicChange={setAngleTopic}
+          isGeneratingAngles={isGeneratingAngles}
+          angles={angles}
+          onGenerateAngles={handleGenerateAngles}
+          copiedId={copiedId}
+          onCopy={handleCopy}
+          onNavigateToTab={onNavigateToTab}
+          onOpenVideoStudio={onOpenVideoStudio}
+          onSendToPost={onSendToPost}
+          onSendToReel={onSendToReel}
+        />
       )}
 
       {/* SUB-MODUŁ 3: GENERATOR SPRZECZNOŚCI I PARADOKSÓW (Cognitive Friction) */}
       {activeSubModule === "friction" && (
-        <div className="space-y-6 animate-in fade-in">
-          <div className="p-4 bg-[#0E0E0E] border border-[rgba(255,255,255,0.1)] rounded-lg space-y-3">
-            <label className="text-[10px] text-neutral-400 font-mono uppercase font-bold block">
-              Obszar tematyczny do poszukiwania sprzeczności:
-            </label>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <input
-                type="text"
-                value={frictionTopic}
-                onChange={(e) => setFrictionTopic(e.target.value)}
-                placeholder="np. praca, odpoczynek, relacje, pieniądze, ambicja"
-                className="flex-1 px-3 py-2 bg-[#050505] border border-[rgba(255,255,255,0.1)] rounded text-xs font-mono text-white placeholder-neutral-500 focus:outline-none focus:border-white"
-              />
-              <button
-                onClick={handleGenerateFriction}
-                disabled={isGeneratingFriction}
-                className="px-5 py-2 bg-white hover:bg-neutral-200 text-black text-xs font-mono font-bold uppercase rounded flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-50"
-              >
-                {isGeneratingFriction ? (
-                  <>
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    <span>Generowanie...</span>
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>Generuj Paradoksy</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {paradoxes.map((pdx, idx) => (
-              <div
-                key={idx}
-                className="p-4 bg-[#0E0E0E] border border-[rgba(255,255,255,0.1)] hover:border-white/40 rounded-lg space-y-3 transition-all"
-              >
-                <div className="flex items-center justify-between border-b border-[rgba(255,255,255,0.1)] pb-2">
-                  <span className="text-xs font-mono font-bold text-white uppercase">
-                    ⚡ {pdx.title}
-                  </span>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20">
-                    Pattern Interrupt
-                  </span>
-                </div>
-
-                <div className="p-3 bg-[#050505] rounded border border-[rgba(255,255,255,0.1)]">
-                  <p className="text-xs font-mono font-black text-white leading-relaxed">
-                    "{pdx.hook}"
-                  </p>
-                </div>
-
-                <p className="text-xs font-mono text-neutral-300">
-                  <strong className="text-neutral-500 uppercase text-[10px] block">
-                    Psychologia:
-                  </strong>
-                  {pdx.explanation}
-                </p>
-
-                <div className="flex items-center gap-2 pt-2 border-t border-[rgba(255,255,255,0.1)]">
-                  <button
-                    onClick={() => {
-                      if (onSendToPost) onSendToPost(pdx.hook, pdx.explanation);
-                      else onNavigateToTab(0);
-                    }}
-                    className="flex-1 py-1.5 px-2.5 rounded bg-white hover:bg-neutral-200 text-black text-xs font-mono font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>📸 Do Posta</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (onSendToReel) onSendToReel(pdx.hook);
-                      else onOpenVideoStudio?.(pdx.hook);
-                    }}
-                    className="flex-1 py-1.5 px-2.5 rounded bg-[#161616] hover:bg-white hover:text-black border border-[rgba(255,255,255,0.1)] text-white text-xs font-mono font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <Film className="w-3.5 h-3.5" />
-                    <span>🎬 Do Rolki</span>
-                  </button>
-                  <button
-                    onClick={() => handleCopy(`pdx-${idx}`, pdx.hook)}
-                    className="p-1.5 rounded bg-[#161616] hover:bg-white hover:text-black text-neutral-300 border border-[rgba(255,255,255,0.1)] text-xs font-mono transition-all cursor-pointer"
-                    title="Kopiuj"
-                  >
-                    {copiedId === `pdx-${idx}` ? (
-                      <Check className="w-4 h-4 text-emerald-400" />
-                    ) : (
-                      <Copy className="w-4 h-4" />
-                    )}
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+        <FrictionPanel
+          frictionTopic={frictionTopic}
+          onFrictionTopicChange={setFrictionTopic}
+          isGeneratingFriction={isGeneratingFriction}
+          paradoxes={paradoxes}
+          onGenerateFriction={handleGenerateFriction}
+          copiedId={copiedId}
+          onCopy={handleCopy}
+          onNavigateToTab={onNavigateToTab}
+          onOpenVideoStudio={onOpenVideoStudio}
+          onSendToPost={onSendToPost}
+          onSendToReel={onSendToReel}
+        />
       )}
 
       {/* SUB-MODUŁ 4: EVERGREEN RECYCLER (Klonowanie i Remiks z Linku lub Tekstu) */}
