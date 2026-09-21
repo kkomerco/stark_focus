@@ -1,4 +1,4 @@
-import { StarkFocusData } from "../types";
+import { StarkFocusData, VaultAsset } from "../types";
 import { INITIAL_DATA } from "../data/initialData";
 
 const STORAGE_KEY = "stark_focus_os_v31_data";
@@ -11,7 +11,33 @@ const LEGACY_KEYS = [
   "stark_focus_os_data",
 ];
 
-export function calculateStreakFromStartDate(startDateStr: string = "2026-08-29"): number {
+/**
+ * [MIGRACJA v31→v32] Jednorazowe czyszczenie starych sztywnych teł (.webp)
+ * i posągów z galerii (żądanie użytkownika przy przejściu na nowy bank teł).
+ * Do USUNIĘCIA, gdy wszyscy użytkownicy przeniosą localStorage na nową wersję —
+ * nowi użytkownicy (puste konto) nie mają czego migrować.
+ */
+function migrateLegacyVaultAssets(rawAssets: VaultAsset[]): VaultAsset[] {
+  const BLOCKED_FRAGMENTS = [
+    ".webp",
+    "seneca",
+    "marcus_aurelius",
+    "brutalist_concrete",
+    "solitary_shadow",
+    "obsidian_basalt",
+  ];
+  return (rawAssets || []).filter((a: any) => {
+    if (!a) return false;
+    const fn = String(a.filename || a.name || "").toLowerCase();
+    const u = String(a.url || "").toLowerCase();
+    return !BLOCKED_FRAGMENTS.some((frag) => fn.includes(frag) || u.includes(frag));
+  });
+}
+
+/** Data startu marki — streak liczony od niej (cecha produktu, nie bug). */
+export const APP_START_DATE = "2026-08-29";
+
+export function calculateStreakFromStartDate(startDateStr: string = APP_START_DATE): number {
   try {
     const [year, month, day] = startDateStr.split("-").map(Number);
     const start = new Date(year, month - 1, day);
@@ -59,20 +85,10 @@ export function loadStoredData(): StarkFocusData {
       finalStats = INITIAL_DATA.account_stats || [];
     }
 
-    // Filtracja starych sztywnych teł .webp i posągów z galerii na życzenie użytkownika
+    // [MIGRACJA v31→v32] Jednorazowe czyszczenie starych sztywnych teł (.webp)
+    // i posągów z galerii — patrz migrateLegacyVaultAssets() poniżej.
     const rawAssets = Array.isArray(parsed?.vault_assets) ? parsed.vault_assets : [];
-    const cleanedAssets = rawAssets.filter((a: any) => {
-      if (!a) return false;
-      const fn = String(a.filename || a.name || "").toLowerCase();
-      const u = String(a.url || "").toLowerCase();
-      if (fn.includes(".webp") || u.includes(".webp")) return false;
-      if (fn.includes("seneca") || u.includes("seneca")) return false;
-      if (fn.includes("marcus_aurelius") || u.includes("marcus_aurelius")) return false;
-      if (fn.includes("brutalist_concrete") || u.includes("brutalist_concrete")) return false;
-      if (fn.includes("solitary_shadow") || u.includes("solitary_shadow")) return false;
-      if (fn.includes("obsidian_basalt") || u.includes("obsidian_basalt")) return false;
-      return true;
-    });
+    const cleanedAssets = migrateLegacyVaultAssets(rawAssets);
 
     // Bezpieczne wartości domyślne – nic nie rzuci błędem .filter()
     const safeData: StarkFocusData = {
