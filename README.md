@@ -81,7 +81,7 @@ Serwer dev (`tsx server.ts`) uruchamia jednocześnie API i Vite w trybie middlew
 - **Silnik wzrostu** (`POST /api/ai/ab-variants`, `/api/ai/ab-conclusion`, `/api/ai/weekly-autopilot`, `/api/ai/reroll-prompt`, `/api/ai/pick-broll`) — eksperymenty A/B z pętlą uczenia, tygodniowy autopilot, reroll promptów tła w tym samym stylu i auto-dobór B-roll.
 - **Generator masowy** (`POST /api/ai/batch-generator`) — paczka N unikalnych cytatów 9:16 (hook + podpis + caption).
 
-> **Architektura:** runtime używa wyłącznie modularnych tras z `src/lib/ai/routes/*` spiętych przez `src/lib/ai/router.server.ts` (z cache odpowiedzi AI — pomijającym odpowiedzi zapasowe). Jedyne źródło prawdy dla klienta Gemini, modeli (`GEMINI_MODEL` / `GEMINI_LITE_MODEL`) i retry/fallbacku (503/429) to `src/lib/ai/gemini.server.ts`. Każda trasa ma własny bank treści zapasowych; wspólny `src/lib/ai/offline-content.ts` czeka na przeniesienie do niego tych kopii.
+> **Architektura:** runtime używa wyłącznie modularnych tras z `src/lib/ai/routes/*` spiętych przez `src/lib/ai/router.server.ts` (z cache odpowiedzi AI — pomijającym odpowiedzi zapasowe). Jedyne źródło prawdy dla klienta Gemini, modeli (`GEMINI_MODEL` / `GEMINI_LITE_MODEL`) i retry/fallbacku (503/429) to `src/lib/ai/gemini.server.ts`. Każda trasa ma własny bank treści zapasowych (oznaczany nagłówkiem `x-stark-degraded`, żeby router go nie cache'ował).
 
 ## 🧭 Roadmapa automatyzacji (docelowo 1–2–3 kliknięcia)
 

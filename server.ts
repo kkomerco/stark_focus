@@ -11,7 +11,16 @@ import { isSafeUrl } from "./src/lib/safe-url";
 import { generateContentWithFallback } from "./src/lib/ai/gemini.server";
 
 const PORT = Number(process.env.PORT) || 3000;
-const HOST = process.env.HOST || "0.0.0.0";
+
+/**
+ * Domyślnie tylko localhost. `0.0.0.0` wystawia API bez uwierzytelnienia na
+ * całą sieć lokalną — każdy w LAN (i każda strona otwarta w tej przeglądarce,
+ * dopóki nie ma allowlisty originów) mógłby przepalać klucz Gemini.
+ * Świadomie NIE dodajemy tokenu API dopóki UI nie ma wspólnego wrapperka
+ * `fetch`, bo serwer wymagający nagłówka, którego klient nie wysyła, jest
+ * gorszy niż oba te stany.
+ */
+const HOST = process.env.HOST || "127.0.0.1";
 
 /**
  * Serwer z budowy odpala się wyłącznie jawnie (`npm start` → `--prod`).
