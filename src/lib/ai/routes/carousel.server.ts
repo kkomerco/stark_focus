@@ -1,10 +1,12 @@
 import type { MiniApp } from "../../mini-express.server";
 import { getGeminiClient, safeJsonParse, callGeminiWithFallback } from "../gemini.server";
+import { sendDegraded } from "../normalize.server";
+import { clampText } from "../../limits";
 
 export function registerCarouselRoutes(app: MiniApp): void {
   app.post("/api/ai/generate-carousel-template", async (req, res) => {
-    const { topic = "Stoicka Dyscyplina", slideCount = 5 } = req.body || {};
-    const cleanTopic = String(topic).trim() || "Stoic Discipline and High Standards";
+    const { slideCount = 5 } = req.body || {};
+    const cleanTopic = clampText(req.body?.topic, 200) || "Stoicka Dyscyplina";
     const targetCount = Math.min(10, Math.max(3, Number(slideCount) || 5));
     const ai = getGeminiClient();
 
@@ -54,7 +56,7 @@ export function registerCarouselRoutes(app: MiniApp): void {
     };
 
     if (!ai) {
-      return res.json({ template: buildDynamicCarouselFallback(cleanTopic, targetCount) });
+      return sendDegraded(res, { template: buildDynamicCarouselFallback(cleanTopic, targetCount) });
     }
 
     try {
@@ -100,13 +102,13 @@ export function registerCarouselRoutes(app: MiniApp): void {
         return res.json({ template: parsed.template });
       }
 
-      return res.json({ template: buildDynamicCarouselFallback(cleanTopic, targetCount) });
+      return sendDegraded(res, { template: buildDynamicCarouselFallback(cleanTopic, targetCount) });
     } catch (err: any) {
       console.warn(
         "Błąd generowania karuzeli AI, użyto dynamicznego fallbacku:",
         err?.message || err,
       );
-      return res.json({ template: buildDynamicCarouselFallback(cleanTopic, targetCount) });
+      return sendDegraded(res, { template: buildDynamicCarouselFallback(cleanTopic, targetCount) });
     }
   });
 }

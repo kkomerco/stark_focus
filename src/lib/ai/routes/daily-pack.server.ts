@@ -3,6 +3,10 @@ import { GEMINI_MODEL, generateJson, getGeminiClient } from "../gemini.server";
 import { VIRAL_REEL_TEMPLATES } from "../../../data/reelTemplates";
 import { STARK_CODEX_RULES } from "../../../data/starkCodex";
 import { getRandomBackgroundScene } from "../../../data/expandedBackgrounds";
+import { hookFingerprint } from "../../similarity";
+import { pick, pickForDay, shuffle } from "../../random";
+import { clampInt, clampText, LIMITS } from "../../limits";
+import { asArray, asString, asStringArray, oneOf } from "../normalize.server";
 
 const REEL_THEMES = [
   "obsidian_void",
@@ -11,6 +15,29 @@ const REEL_THEMES = [
   "carbon_aura",
   "silver_mist",
 ] as const;
+
+/** Ile rolek w paczce maksymalnie — każda to osobne, płatne wywołanie modelu. */
+const MAX_PACK_REELS = 6;
+
+/**
+ * UI robi `reel.phrases.map()` i `reel.hashtags.join()` bez sprawdzania pola,
+ * więc kompletne kształty robimy tutaj: jedna rolka bez `phrases` nie może
+ * rozbijać całej paczki dnia.
+ */
+function normalizeReel(item: unknown) {
+  const reel = (item ?? {}) as Record<string, unknown>;
+  const hook = asString(reel.hook);
+  const phrases = asStringArray(reel.phrases, 5);
+
+  return {
+    hook: hook || phrases[0] || "",
+    phrases: phrases.length > 0 ? phrases : hook ? [hook] : [],
+    theme: oneOf(reel.theme, REEL_THEMES, "obsidian_void"),
+    duration: clampInt(reel.duration, 5, 15, 8),
+    captionShort: asString(reel.captionShort),
+    hashtags: asStringArray(reel.hashtags, 12),
+  };
+}
 
 // Nisza dark motivation — auto-rotacja kategorii dla różnorodności treści
 const DARK_MOTIVATION_CATEGORIES = [
@@ -24,28 +51,16 @@ const DARK_MOTIVATION_CATEGORIES = [
   "time urgency & memento mori",
 ] as const;
 
-function pick<T>(items: readonly T[]): T {
-  return items[Math.floor(Math.random() * items.length)];
-}
-
 function pickDailyCategory(): string {
-  return pick([...DARK_MOTIVATION_CATEGORIES]);
+  return pickForDay(DARK_MOTIVATION_CATEGORIES);
 }
 
 /** Paczka z lokalnych banków treści — działa w 100% offline (zero klucza API, zero limitów). */
 function buildOfflinePack(topic: string, reelsCount: number, excludeHooks: string[] = []) {
-  const excluded = new Set(excludeHooks.map((h) => h.toLowerCase().trim()));
-  const reels = [...VIRAL_REEL_TEMPLATES]
-    .sort(() => Math.random() - 0.5)
-    .filter(
-      (t) =>
-        !excluded.has(
-          String(t.phrases[0] || t.title)
-            .toLowerCase()
-            .trim(),
-        ),
-    )
-    .slice(0, Math.max(1, Math.min(reelsCount, 4)))
+  const excluded = new Set(excludeHooks.map(hookFingerprint));
+  const reels = shuffle(VIRAL_REEL_TEMPLATES)
+    .filter((t) => !excluded.has(hookFingerprint(String(t.phrases[0] || t.title))))
+    .slice(0, reelsCount)
     .map((template) => ({
       hook: template.phrases[0] || template.title,
       phrases: template.phrases,
@@ -87,15 +102,21 @@ function buildOfflinePack(topic: string, reelsCount: number, excludeHooks: strin
  */
 export function registerDailyPackRoutes(app: MiniApp): void {
   app.post("/api/ai/daily-pack", async (req, res) => {
-    const {
-      topic = "dark motivation, brutal discipline, hard work and mental toughness",
-      reelsCount = 3,
-      excludeHooks = [],
-    } = req.body || {};
-    const safeExclude = Array.isArray(excludeHooks) ? excludeHooks.map(String) : [];
+    const topic = clampText(
+      req.body?.topic,
+      300,
+      "dark motivation, brutal discipline, hard work and mental toughness",
+    );
+    const reelsCount = clampInt(req.body?.reelsCount, 1, MAX_PACK_REELS, 3);
+    const safeExclude: string[] = (
+      Array.isArray(req.body?.excludeHooks) ? req.body.excludeHooks : []
+    )
+      .map((hook: unknown) => asString(hook))
+      .filter(Boolean)
+      .slice(0, LIMITS.maxExcludeHooks);
 
     if (!getGeminiClient()) {
-      return res.json(buildOfflinePack(topic, Number(reelsCount) || 3, safeExclude));
+      return res.json(buildOfflinePack(topic, reelsCount, safeExclude));
     }
 
     try {
@@ -116,7 +137,7 @@ ${
     .join("\n") || "  (brak)"
 }
 
-1. Rolki 9:16 w liczbie ${Number(reelsCount) || 3} — każda z:
+1. Rolki 9:16 w liczbie ${reelsCount} — każda z:
    - hook: bezwzględny hook 0-3s po angielsku (max 8 słów, konkret, zero lania wody)
    - phrases: dokładnie 3 frazy po angielsku [hook, bolesny kontrast, puenta/climax]
    - theme: jeden z: "obsidian_void" | "crimson_eclipse" | "emerald_abyss" | "carbon_aura" | "silver_mist"
@@ -156,27 +177,41 @@ Zwróć WYŁĄCZNIE poprawny JSON wg schematu:
         model: GEMINI_MODEL,
       });
 
-      const valid =
-        Array.isArray(parsed?.reels) &&
-        parsed.reels.length > 0 &&
-        Array.isArray(parsed?.carousel?.slides) &&
-        parsed.carousel.slides.length > 0 &&
-        typeof parsed?.post?.headline === "string";
+      const reels = asArray(parsed.reels)
+        .map(normalizeReel)
+        .filter((reel) => reel.phrases.length > 0 && reel.hook)
+        .slice(0, MAX_PACK_REELS);
 
-      if (!valid) return res.json(buildOfflinePack(topic, Number(reelsCount) || 3, safeExclude));
+      const slides = asArray(parsed.carousel?.slides)
+        .map((slide: unknown) => ({
+          headline: asString((slide as Record<string, unknown>)?.headline),
+          bodyText: asString((slide as Record<string, unknown>)?.bodyText),
+        }))
+        .filter((slide) => slide.headline || slide.bodyText)
+        .slice(0, 10);
+
+      const postHeadline = asString(parsed.post?.headline);
+
+      if (reels.length === 0 || slides.length === 0 || !postHeadline) {
+        return res.json(buildOfflinePack(topic, reelsCount, safeExclude));
+      }
 
       return res.json({
         generatedAt: new Date().toISOString(),
         source: "ai",
         topic,
-        category: parsed.category || dailyCategory,
-        reels: parsed.reels,
-        carousel: parsed.carousel,
-        post: parsed.post,
+        category: asString(parsed.category, dailyCategory),
+        reels,
+        carousel: { title: asString(parsed.carousel?.title, "Stark Focus Codex"), slides },
+        post: {
+          headline: postHeadline,
+          body: asString(parsed.post?.body),
+          bingPrompt: asString(parsed.post?.bingPrompt),
+        },
       });
     } catch (err) {
       console.warn("Błąd daily-pack:", err);
-      return res.json(buildOfflinePack(topic, Number(reelsCount) || 3, safeExclude));
+      return res.json(buildOfflinePack(topic, reelsCount, safeExclude));
     }
   });
 }

@@ -35,6 +35,12 @@ export class AiResponseError extends Error {
   }
 }
 
+/** Budżet czasowego jednego wywołania modelu. Bez niego zawieszony request trzyma trasę w nieskończoność. */
+const GEMINI_ATTEMPT_TIMEOUT_MS = 90_000;
+
+/** Backoff przy błędach przejściowych (przeciążenie / limit zapytań). */
+const GEMINI_RETRY_BACKOFF_MS = 1_200;
+
 /**
  * Gemini nagminnie opakowuje JSON w bloki markdown lub dodaje komentarz.
  * Funkcja wyciąga pierwszą poprawną strukturę JSON z odpowiedzi.
@@ -44,16 +50,60 @@ export function safeJsonParse<T = any>(text: string): T {
     .replace(/```json/gi, "")
     .replace(/```/g, "")
     .trim();
-  try {
-    return JSON.parse(clean) as T;
-  } catch {
-    const firstBrace = clean.indexOf("{");
-    const lastBrace = clean.lastIndexOf("}");
-    if (firstBrace !== -1 && lastBrace > firstBrace) {
-      return JSON.parse(clean.substring(firstBrace, lastBrace + 1)) as T;
-    }
+
+  const candidate = extractJsonSpan(clean);
+  if (candidate === null) {
     throw new AiResponseError("Nie znaleziono poprawnej struktury JSON w odpowiedzi AI");
   }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(candidate);
+  } catch {
+    throw new AiResponseError("Odpowiedź AI wygląda na JSON, ale nie jest poprawna składniowo");
+  }
+
+  if (parsed === null || typeof parsed !== "object") {
+    throw new AiResponseError("Odpowiedź AI nie jest obiektem JSON");
+  }
+
+  return parsed as T;
+}
+
+/**
+ * Wycina pierwszy DOMYKNIĘTY fragment JSON. Cięcie "od pierwszego `{` do
+ * ostatniego `}`" łączyłoby kilka struktur w jedną i zwracało błędny obiekt,
+ * a przy odpowiedzi tablicowej zwracało obiekt z przemieszanymi kluczami.
+ */
+function extractJsonSpan(text: string): string | null {
+  const start = text.search(/[[{]/);
+  if (start === -1) return null;
+
+  const stack: string[] = [];
+  let inString = false;
+  let escaped = false;
+
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+
+    if (ch === '"') inString = true;
+    else if (ch === "{" || ch === "[") stack.push(ch);
+    else if (ch === "}" || ch === "]") {
+      const open = stack.pop();
+      const closes = (open === "{" && ch === "}") || (open === "[" && ch === "]");
+      if (!closes) return null;
+      if (stack.length === 0) return text.slice(start, i + 1);
+    }
+  }
+
+  return null;
 }
 
 export interface GenerateContentOptions {
@@ -69,33 +119,47 @@ export interface GenerateContentOptions {
 /**
  * Jedno wejście do generowania treści: zwraca surowy tekst odpowiedzi.
  * Rzuca AiResponseError, gdy klient nie jest skonfigurowany.
+ *
+ * `attemptSignal` pozwala pętli fallbacku dać każdej próbie własny budżet
+ * czasowy; bez niego i bez wartości domyślnej request mógłby wiszieć wiecznie.
  */
-export async function generateContent({
-  contents,
-  systemInstruction,
-  model = GEMINI_MODEL,
-  temperature,
-  responseMimeType,
-  abortSignal,
-}: GenerateContentOptions): Promise<string> {
+export async function generateContent(
+  options: GenerateContentOptions,
+  attemptSignal?: AbortSignal,
+): Promise<string> {
   const ai = getGeminiClient();
   if (!ai) {
     throw new AiResponseError("Brak skonfigurowanego klucza GEMINI_API_KEY w pliku .env serwera");
   }
 
   const config: Record<string, unknown> = {};
-  if (systemInstruction) config.systemInstruction = systemInstruction;
-  if (temperature !== undefined) config.temperature = temperature;
-  if (responseMimeType) config.responseMimeType = responseMimeType;
-  if (abortSignal) config.abortSignal = abortSignal;
+  if (options.systemInstruction) config.systemInstruction = options.systemInstruction;
+  if (options.temperature !== undefined) config.temperature = options.temperature;
+  if (options.responseMimeType) config.responseMimeType = options.responseMimeType;
+  config.abortSignal = anySignal([
+    attemptSignal,
+    options.abortSignal,
+    AbortSignal.timeout(GEMINI_ATTEMPT_TIMEOUT_MS),
+  ]);
 
   const response = await ai.models.generateContent({
-    model,
-    contents: contents as never,
-    config: Object.keys(config).length > 0 ? (config as never) : undefined,
+    model: options.model ?? GEMINI_MODEL,
+    contents: options.contents as never,
+    config: config as never,
   });
 
   return response.text ?? "";
+}
+
+/** Sygnał przerwania aktywny, gdy przerwie KTÓRYKOLWEK z podanych. */
+function anySignal(signals: (AbortSignal | undefined)[]): AbortSignal {
+  const controller = new AbortController();
+  for (const signal of signals) {
+    if (!signal) continue;
+    if (signal.aborted) controller.abort(signal.reason);
+    else signal.addEventListener("abort", () => controller.abort(signal.reason), { once: true });
+  }
+  return controller.signal;
 }
 
 /** Skrót dla klasycznego promptu tekstowego. */
@@ -120,10 +184,61 @@ export interface GeminiRawConfig {
   [key: string]: unknown;
 }
 
+function modelChain(preferredModel?: string): string[] {
+  return preferredModel
+    ? [preferredModel, GEMINI_LITE_MODEL, GEMINI_MODEL].filter((v, i, a) => a.indexOf(v) === i)
+    : [GEMINI_LITE_MODEL, GEMINI_MODEL];
+}
+
+/** Przeciążenie modelu (503) albo limit zapytań (429) — warto spróbować ponownie. */
+function isTransientGeminiError(err: unknown): boolean {
+  const msg = String((err as any)?.message || err);
+  return (
+    msg.includes("503") ||
+    msg.includes("UNAVAILABLE") ||
+    msg.includes("high demand") ||
+    msg.includes("429") ||
+    msg.includes("RESOURCE_EXHAUSTED") ||
+    msg.includes("quota")
+  );
+}
+
 /**
- * Bezpośrednie wywołanie SDK z wielopoziomowym fallbackiem i retry — zachowuje
- * parytet z dawną implementacją monolitu (model →-lite→main, 2 próby na model,
- * backoff ~1.2 s przy 503/429). Zwraca odpowiedź SDK ({ text }) jak wcześniej.
+ * Centralna pętla fallbacku: preferredModel → GEMINI_LITE_MODEL → GEMINI_MODEL,
+ * po dwie próby na model z ~1.2 s backoffem przy błędach przejściowych.
+ * To jedyne miejsce implementujące retry — nie reimplementuj jej w trasach.
+ *
+ * Każda próba dostaje WŁASNY sygnał przerwania. Współdzielony AbortSignal
+ * sprawiałby, że po pierwszym przekroczeniu czasu wszystkie pozostałe modele
+ * przerywałyby się natychmiast i łańcuch fallbacku nie miałby sensu.
+ */
+async function withModelFallback<T>(
+  run: (model: string, attemptSignal: AbortSignal) => Promise<T>,
+  preferredModel?: string,
+): Promise<T> {
+  let lastError: unknown = null;
+
+  for (const model of modelChain(preferredModel)) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        return await run(model, AbortSignal.timeout(GEMINI_ATTEMPT_TIMEOUT_MS));
+      } catch (err) {
+        lastError = err;
+        if (isTransientGeminiError(err) && attempt === 0) {
+          await new Promise((resolve) => setTimeout(resolve, GEMINI_RETRY_BACKOFF_MS));
+          continue;
+        }
+        break;
+      }
+    }
+  }
+
+  throw lastError;
+}
+
+/**
+ * Bezpośrednie wywołanie SDK z fallbackiem — dla tras budujących własną
+ * konfigurację SDK. Nowy kod powinien raczej użyć generateContentWithFallback().
  */
 export async function callGeminiWithFallback(
   ai: { models: { generateContent: (args: any) => Promise<any> } },
@@ -133,40 +248,20 @@ export async function callGeminiWithFallback(
     preferredModel?: string;
   },
 ): Promise<{ text?: string }> {
-  const modelList = options.preferredModel
-    ? [options.preferredModel, GEMINI_LITE_MODEL, GEMINI_MODEL].filter(
-        (v, i, a) => a.indexOf(v) === i,
-      )
-    : [GEMINI_LITE_MODEL, GEMINI_MODEL];
+  const callerSignal = options.config?.abortSignal;
 
-  let lastError: unknown = null;
-
-  for (const model of modelList) {
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        return await ai.models.generateContent({
-          model,
-          contents: options.contents,
-          config: options.config,
-        });
-      } catch (err: any) {
-        lastError = err;
-        const msg = String(err?.message || err);
-        const isUnavailable =
-          msg.includes("503") || msg.includes("UNAVAILABLE") || msg.includes("high demand");
-        const isRateLimit =
-          msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("quota");
-
-        if ((isUnavailable || isRateLimit) && attempt === 0) {
-          await new Promise((resolve) => setTimeout(resolve, 1200));
-          continue;
-        }
-        break;
-      }
-    }
-  }
-
-  throw lastError;
+  return withModelFallback(
+    (model, attemptSignal) =>
+      ai.models.generateContent({
+        model,
+        contents: options.contents,
+        config: {
+          ...options.config,
+          abortSignal: anySignal([callerSignal, attemptSignal]),
+        },
+      }),
+    options.preferredModel,
+  );
 }
 
 /** Jak generateContent, ale od razu parsuje odpowiedź do obiektu JSON. */
@@ -175,54 +270,17 @@ export async function generateJson<T = any>(options: GenerateContentOptions): Pr
 }
 
 /**
- * generateContent z wielopoziomowym fallbackiem i retry w przypadku:
- * — 503 UNAVAILABLE / "high demand" (przeciążenie modelu)
- * — 429 RESOURCE_EXHAUSTED / quota (limity zapytań)
- *
- * Kolejno próbuje: preferredModel → GEMINI_LITE_MODEL → GEMINI_MODEL.
- * Na każdym modelu dwarazy z krótkim backoffem (~1.2 s) w razie tymczasowego błędu.
- * To jest centralna implementacja — nie reimplementuj jej w route handlerach.
+ * generateContent z fallbackem modeli i retry. Zwraca surowy tekst odpowiedzi.
  */
 export async function generateContentWithFallback(
   options: GenerateContentOptions & { preferredModel?: string },
 ): Promise<string> {
-  const ai = getGeminiClient();
-  if (!ai) {
+  if (!getGeminiClient()) {
     throw new AiResponseError("Brak skonfigurowanego klucza GEMINI_API_KEY w pliku .env serwera");
   }
 
-  const modelList = options.preferredModel
-    ? [options.preferredModel, GEMINI_LITE_MODEL, GEMINI_MODEL].filter(
-        (v, i, a) => a.indexOf(v) === i,
-      )
-    : [GEMINI_LITE_MODEL, GEMINI_MODEL];
-
-  let lastError: unknown = null;
-
-  for (const model of modelList) {
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        const text = await generateContent({
-          ...options,
-          model,
-        });
-        return text;
-      } catch (err: any) {
-        lastError = err;
-        const msg = String(err?.message || err);
-        const isUnavailable =
-          msg.includes("503") || msg.includes("UNAVAILABLE") || msg.includes("high demand");
-        const isRateLimit =
-          msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("quota");
-
-        if ((isUnavailable || isRateLimit) && attempt === 0) {
-          await new Promise((resolve) => setTimeout(resolve, 1200));
-          continue;
-        }
-        break;
-      }
-    }
-  }
-
-  throw lastError;
+  return withModelFallback(
+    (model, attemptSignal) => generateContent({ ...options, model }, attemptSignal),
+    options.preferredModel,
+  );
 }

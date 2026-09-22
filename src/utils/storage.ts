@@ -11,6 +11,12 @@ const LEGACY_KEYS = [
   "stark_focus_os_data",
 ];
 
+// Nieczytelny blob trafia tutaj zamiast zostać nadpisany domyślnymi danymi
+const CORRUPT_BACKUP_KEY = "stark_focus_corrupt_backup";
+
+// Ile wpisów historii zostawiamy przy walce o limit miejsca
+const HISTORY_KEEP = 20;
+
 export function calculateStreakFromStartDate(startDateStr: string = "2026-08-29"): number {
   try {
     const [year, month, day] = startDateStr.split("-").map(Number);
@@ -24,8 +30,8 @@ export function calculateStreakFromStartDate(startDateStr: string = "2026-08-29"
 }
 
 export function loadStoredData(): StarkFocusData {
+  let raw: string | null = null;
   try {
-    let raw: string | null = null;
     for (const key of LEGACY_KEYS) {
       const candidate = localStorage.getItem(key);
       if (candidate) {
@@ -42,10 +48,13 @@ export function loadStoredData(): StarkFocusData {
       // ignore parsing errors from backup
     }
 
+    // Głęboka kopia – wywołujący nie mutują współdzielonych tablic modułu
+    const base = structuredClone(INITIAL_DATA);
+
     if (!raw) {
       return {
-        ...INITIAL_DATA,
-        account_stats: backupStats.length > 0 ? backupStats : INITIAL_DATA.account_stats || [],
+        ...base,
+        account_stats: backupStats.length > 0 ? backupStats : base.account_stats,
         streak: calculateStreakFromStartDate(),
       };
     }
@@ -56,7 +65,7 @@ export function loadStoredData(): StarkFocusData {
         ? parsed.account_stats
         : backupStats;
     if (!Array.isArray(finalStats) || finalStats.length === 0) {
-      finalStats = INITIAL_DATA.account_stats || [];
+      finalStats = base.account_stats;
     }
 
     // Filtracja starych sztywnych teł .webp i posągów z galerii na życzenie użytkownika
@@ -76,7 +85,7 @@ export function loadStoredData(): StarkFocusData {
 
     // Bezpieczne wartości domyślne – nic nie rzuci błędem .filter()
     const safeData: StarkFocusData = {
-      ...INITIAL_DATA,
+      ...base,
       ...parsed,
       posts: Array.isArray(parsed?.posts) ? parsed.posts : [],
       account_stats: finalStats,
@@ -85,37 +94,86 @@ export function loadStoredData(): StarkFocusData {
       used_assets: Array.isArray(parsed?.used_assets) ? parsed.used_assets : [],
       daily_logs:
         parsed?.daily_logs && typeof parsed.daily_logs === "object" ? parsed.daily_logs : {},
-      dynamic_db: parsed?.dynamic_db || INITIAL_DATA.dynamic_db,
-      streak: calculateStreakFromStartDate(),
+      // Fallback polami: starszy blob może mieć tylko część dynamic_db
+      dynamic_db: {
+        formats: Array.isArray(parsed?.dynamic_db?.formats)
+          ? parsed.dynamic_db.formats
+          : base.dynamic_db.formats,
+        cta_presets: Array.isArray(parsed?.dynamic_db?.cta_presets)
+          ? parsed.dynamic_db.cta_presets
+          : base.dynamic_db.cta_presets,
+      },
+      // Streak z zapisanej wartości, inaczej liczony od daty utworzenia konta
+      streak: readStreak(parsed),
     };
 
     localStorage.setItem(STORAGE_KEY, JSON.stringify(safeData));
     return safeData;
   } catch (e) {
     console.error("Błąd ładowania danych:", e);
-    return INITIAL_DATA;
+    try {
+      if (raw) localStorage.setItem(CORRUPT_BACKUP_KEY, raw);
+    } catch (backupErr) {
+      console.warn("Nie udało się zachować kopii uszkodzonych danych:", backupErr);
+    }
+    return structuredClone(INITIAL_DATA);
   }
+}
+
+function readStreak(parsed: any): number {
+  const stored = Number(parsed?.streak);
+  if (Number.isFinite(stored) && stored > 0) return Math.floor(stored);
+  const rawDate = typeof parsed?.created_at === "string" ? parsed.created_at : "";
+  const createdAt = /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : "";
+  const fromDate = createdAt
+    ? calculateStreakFromStartDate(createdAt)
+    : calculateStreakFromStartDate();
+  return Number.isFinite(fromDate) && fromDate > 0 ? fromDate : 1;
+}
+
+// Etapy odzyskiwania miejsca: 1 = tylko ciężar odtwarzalny, 2 = + skrócona historia
+function shrinkForQuota(data: StarkFocusData, step: number): StarkFocusData {
+  const trimmed: StarkFocusData = { ...data, vault_assets: [] };
+  if (step >= 2) {
+    trimmed.used_assets = (data.used_assets || []).slice(-HISTORY_KEEP);
+    trimmed.used_idea_fingerprints = (data.used_idea_fingerprints || []).slice(-HISTORY_KEEP);
+  }
+  return trimmed;
 }
 
 export function saveStoredData(data: StarkFocusData): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  } catch (e: any) {
+    console.warn("Przekroczono limit LocalStorage, zwalniam miejsce odtwarzalnymi danymi:", e);
+    // Kluczy legacy nie usuwamy – to jedyne źródło danych ze starszych wersji.
+    // Zwalniamy miejsce najcięższymi payloadami zapisywanego obiektu (zapis best-effort).
+    let written = false;
+    for (const step of [1, 2]) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(shrinkForQuota(data, step)));
+        console.warn(
+          step === 1
+            ? "Zapis bez vault_assets (tła doczytają się ponownie)."
+            : "Zapis ze skróconą historią użytych assetów i pomysłów.",
+        );
+        written = true;
+        break;
+      } catch (retryErr) {
+        console.warn(`Nie udało się zapisać danych (etap ${step}):`, retryErr);
+      }
+    }
+    if (!written) {
+      console.error("Krytyczny błąd zapisu danych aplikacji mimo czyszczenia bufora.");
+    }
+  }
+
+  try {
     if (Array.isArray(data.account_stats) && data.account_stats.length > 0) {
       localStorage.setItem("stark_focus_account_stats_backup", JSON.stringify(data.account_stats));
     }
-  } catch (e: any) {
-    console.warn("Przekroczono limit LocalStorage, uruchamiam kompresję i czyszczenie buforów:", e);
-    try {
-      // Usunięcie starych kluczy legacy w celu zwolnienia miejsca
-      for (const legacyKey of LEGACY_KEYS) {
-        if (legacyKey !== STORAGE_KEY) {
-          localStorage.removeItem(legacyKey);
-        }
-      }
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    } catch (criticalErr) {
-      console.error("Krytyczny błąd zapisu po czyszczeniu bufora:", criticalErr);
-    }
+  } catch (e) {
+    console.warn("Nie udało się zapisać kopii statystyk:", e);
   }
 }
 

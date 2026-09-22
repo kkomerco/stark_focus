@@ -1,5 +1,7 @@
 import type { MiniApp } from "../../mini-express.server";
 import { generateContentWithFallback, getGeminiClient, safeJsonParse } from "../gemini.server";
+import { clampCount, clampText } from "../../limits";
+import { asArray, asString, sendDegraded } from "../normalize.server";
 
 const PILLARS = [
   {
@@ -94,25 +96,40 @@ const PILLARS = [
   },
 ];
 
-export const BATCH_FALLBACK = PILLARS.map((p, idx) => ({
-  id: `batch-post-${idx + 1}-${Date.now()}`,
-  pillar: p.name,
-  pillarId: p.id,
-  sayingMain: p.hook,
-  sayingSub: p.sub,
-  caption: `${p.hook.toUpperCase()}\n\n1. Hold your standards without debate.\n2. Execute especially in private.\n3. Reclaim your sovereignty.\n\nSave this reminder. Follow @stark_focus.\n\n#stoicism #discipline #mindset #focus #starkfocus`,
-  template: "none_solid" as const,
-  fontColor: "white" as const,
-}));
+/**
+ * Ids MUSZĄ być liczone per żądanie: `AiRadarTab` pilnuje "dodane do planera"
+ * po zbiorze identyfikatorów, więc stały zestaw id z evaluate'u modułu sprawiał,
+ * że druga i każda następna partia "dodaj wszystko" nie robiły nic.
+ */
+export function buildBatchFallback() {
+  const stamp = Date.now();
+  return PILLARS.map((p, idx) => ({
+    id: `batch-post-${idx + 1}-${stamp}`,
+    pillar: p.name,
+    pillarId: p.id,
+    sayingMain: p.hook,
+    sayingSub: p.sub,
+    caption: `${p.hook.toUpperCase()}\n\n1. Hold your standards without debate.\n2. Execute especially in private.\n3. Reclaim your sovereignty.\n\nSave this reminder. Follow @stark_focus.\n\n#stoicism #discipline #mindset #focus #starkfocus`,
+    template: "none_solid" as const,
+    fontColor: "white" as const,
+  }));
+}
 
 // 6. BATCH GENERATOR (Mass High-Variance Posts Engine - 9:16 Cytat na Czerni)
 export function registerBatchRoutes(app: MiniApp): void {
   app.post("/api/ai/batch-generator", async (req, res) => {
-    const { topic = "stoic discipline, silence, and standards", count = 10 } = req.body || {};
+    // Klient wysyła `niche`, trasa czytała `topic` — nisza była wyrzucana,
+    // a cache oddawał ten sam zestaw postów dla każdej niszy.
+    const topic =
+      clampText(req.body?.niche, 200) ||
+      clampText(req.body?.topic, 200) ||
+      "stoic discipline, silence, and standards";
+    const count = clampCount(req.body?.count, 10);
     const ai = getGeminiClient();
+    const fallbackPosts = buildBatchFallback();
 
     if (!ai) {
-      return res.json({ posts: BATCH_FALLBACK });
+      return sendDegraded(res, { posts: fallbackPosts.slice(0, count) });
     }
 
     try {
@@ -155,25 +172,32 @@ Return ONLY valid JSON:
       });
 
       const parsed = safeJsonParse(text || "");
-      if (Array.isArray(parsed?.posts) && parsed.posts.length > 0) {
-        const enriched = parsed.posts.map((item: any, idx: number) => ({
-          id: `batch-${Date.now()}-${idx + 1}`,
-          pillar: item.pillar || `Principle ${idx + 1}`,
-          sayingMain:
-            item.sayingMain || item.hook || BATCH_FALLBACK[idx % BATCH_FALLBACK.length].sayingMain,
-          sayingSub:
-            item.sayingSub || item.sub || BATCH_FALLBACK[idx % BATCH_FALLBACK.length].sayingSub,
-          caption: item.caption || BATCH_FALLBACK[idx % BATCH_FALLBACK.length].caption,
-          template: "none_solid",
-          fontColor: "white",
-        }));
+      const enriched = asArray(parsed.posts)
+        .map((item: any, idx: number) => {
+          const filler = fallbackPosts[idx % fallbackPosts.length];
+          const sayingMain =
+            asString(item?.sayingMain) || asString(item?.hook) || filler.sayingMain;
+          return {
+            id: `batch-${Date.now()}-${idx + 1}`,
+            pillar: asString(item?.pillar, `Principle ${idx + 1}`),
+            sayingMain,
+            sayingSub: asString(item?.sayingSub) || asString(item?.sub),
+            caption: asString(item?.caption, filler.caption),
+            template: "none_solid",
+            fontColor: "white",
+          };
+        })
+        .filter((post) => post.sayingMain.length > 0)
+        .slice(0, count);
+
+      if (enriched.length > 0) {
         return res.json({ posts: enriched });
       }
 
-      return res.json({ posts: BATCH_FALLBACK });
+      return sendDegraded(res, { posts: fallbackPosts.slice(0, count) });
     } catch (err) {
       console.warn("Błąd batch-generator:", err);
-      return res.json({ posts: BATCH_FALLBACK });
+      return sendDegraded(res, { posts: fallbackPosts.slice(0, count) });
     }
   });
 }

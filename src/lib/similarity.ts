@@ -10,6 +10,16 @@ export function normalizeHook(hook: string): string {
     .trim();
 }
 
+/**
+ * Krótki, kanoniczny kształt hooka do porównywania "czy już to mieliśmy".
+ * Historia między klientem a serwerem przenosi WYŁĄCZNIE odciski, więc obie
+ * strony muszą liczyć je tą samą funkcją — porównanie odcisku z surowym
+ * zdaniem nie wypadłoby równe nigdy.
+ */
+export function hookFingerprint(hook: string): string {
+  return normalizeHook(hook).slice(0, 60);
+}
+
 /** Zestaw tokenów (słowa >= 2 znaki, bez stop-wordów generycznych). */
 const STOP_WORDS = new Set([
   "the",

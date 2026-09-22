@@ -77,9 +77,18 @@ export function createApp() {
 
       let body: any = undefined;
       if (request.method === "POST") {
+        const isJson = (request.headers.get("content-type") || "").includes("application/json");
         try {
           body = await request.json();
         } catch {
+          // Zgłoszenie "JSON uszkodzony" zamiast cichej pustki: trasa odpowiadająca
+          // 200 z domyślnymi wartościami ukrywa błąd po stronie klienta.
+          if (isJson) {
+            return new Response(JSON.stringify({ error: "Nieprawidłowe JSON w ciele żądania" }), {
+              status: 400,
+              headers: { "content-type": "application/json" },
+            });
+          }
           body = {};
         }
       }
@@ -98,7 +107,8 @@ export function createApp() {
       } catch (err) {
         console.error("[stark-api]", err);
         if (!res.result) {
-          return new Response(JSON.stringify({ error: String(err) }), {
+          // `String(err)` do przeglądarki to szczegóły SDK, ścieżki i układ env.
+          return new Response(JSON.stringify({ error: "Obsługa żądania AI nie powiodła się" }), {
             status: 500,
             headers: { "content-type": "application/json" },
           });

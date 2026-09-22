@@ -62,6 +62,11 @@ export default function StarkFocusApp() {
   // Injected data from "Trendy i Pomysły" tab
   const [postPreset, setPostPreset] = useState<{ text?: string; caption?: string }>({});
   const [reelPreset, setReelPreset] = useState<{ hook?: string; bgUrl?: string }>({});
+  // Karuzela z Paczki Dnia czekająca aż Studio Karuzeli (zakładka Trendy) ją przejmie
+  const [pendingCarousel, setPendingCarousel] = useState<{
+    title: string;
+    slides: Array<{ headline: string; bodyText: string }>;
+  } | null>(null);
 
   const [dailyPackOpen, setDailyPackOpen] = useState(false);
   const [ideaStreamOpen, setIdeaStreamOpen] = useState(false);
@@ -323,6 +328,8 @@ export default function StarkFocusApp() {
               <AiRadarTab
                 data={data}
                 onUpdateData={handleUpdateData}
+                incomingCarousel={pendingCarousel}
+                onIncomingCarouselUsed={() => setPendingCarousel(null)}
                 onOpenQR={(title, payload) => setQrModal({ isOpen: true, title, data: payload })}
                 onNavigateToTab={(tabIdx) => setActiveTab(tabIdx)}
                 onSendToPost={handleSendToPost}
@@ -350,7 +357,8 @@ export default function StarkFocusApp() {
             }}
             onOpenCarouselStudio={(title, slides) => {
               setDailyPackOpen(false);
-              // Przekierowanie do zakładki Trendy gdzie jest Studio Karuzeli
+              setPendingCarousel({ title, slides });
+              // Studio karuzeli działa w zakładce Trendy i przejmuje paczkę raz przy starcie
               setActiveTab(2);
             }}
             onSchedulePack={handleSchedulePack}

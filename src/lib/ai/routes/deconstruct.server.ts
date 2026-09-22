@@ -1,5 +1,7 @@
 import type { MiniApp } from "../../mini-express.server";
 import { getGeminiClient, safeJsonParse, callGeminiWithFallback } from "../gemini.server";
+import { isSafeUrl } from "../../safe-url";
+import { fetchSafeImage } from "../../fetch-image.server";
 
 /**
  * DECONSTRUCT VIRAL — analiza rynku z linków.
@@ -12,6 +14,9 @@ export function registerDeconstructRoutes(app: MiniApp): void {
     let cleanUrl = String(req.body?.url || "").trim();
     if (!cleanUrl.startsWith("http://") && !cleanUrl.startsWith("https://")) {
       cleanUrl = "https://" + cleanUrl;
+    }
+    if (!isSafeUrl(cleanUrl)) {
+      return res.status(400).json({ error: "Nieprawidłowy lub zablokowany URL" });
     }
 
     const isTikTok = cleanUrl.includes("tiktok.com");
@@ -99,24 +104,16 @@ export function registerDeconstructRoutes(app: MiniApp): void {
 
     try {
       let imagePart: any = null;
-      if (thumbnail) {
-        try {
-          const imgRes = await fetch(thumbnail, {
-            headers: { "User-Agent": "Mozilla/5.0" },
-            signal: AbortSignal.timeout(5000),
-          });
-          if (imgRes.ok) {
-            const buffer = await imgRes.arrayBuffer();
-            imagePart = {
-              inlineData: {
-                data: Buffer.from(buffer).toString("base64"),
-                mimeType: (imgRes.headers.get("content-type") || "image/jpeg").split(";")[0],
-              },
-            };
-          }
-        } catch (imgErr) {
-          console.warn("Deconstruct image fetch error:", imgErr);
-        }
+      // Adres miniatury pochodzi z odpowiedzi serwisu trzeciego, więc nie
+      // jest zaufany — fetchSafeImage() pilnuje SSRF, typu i rozmiaru.
+      const image = await fetchSafeImage(thumbnail);
+      if (image) {
+        imagePart = {
+          inlineData: {
+            data: image.buffer.toString("base64"),
+            mimeType: image.mimeType,
+          },
+        };
       }
 
       const prompt = `Jesteś ekspertem od dekonstrukcji viralowych treści dla @stark_focus (dark motivation).

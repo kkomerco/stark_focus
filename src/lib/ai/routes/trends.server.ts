@@ -1,10 +1,29 @@
 import type { MiniApp } from "../../mini-express.server";
 import { getGeminiClient, safeJsonParse, callGeminiWithFallback } from "../gemini.server";
+import { asArray, asString, asStringArray, sendDegraded } from "../normalize.server";
+import { clampText } from "../../limits";
+
+/**
+ * UI woła `fmt.phrases.map()` i `ang.phrases.join()` bez sprawdzania pola, a
+ * w aplikacji nie ma granicy błędu na dane — więc każda karta odchodzi stąd
+ * z tablicą frazami i hashtagami, nawet gdy model jej nie zwrócił.
+ */
+function normalizeCard(card: unknown) {
+  const item = (card ?? {}) as Record<string, unknown>;
+  const phrases = asStringArray(item.phrases, 8);
+  const hook = asString(item.hook);
+
+  return {
+    ...item,
+    phrases: phrases.length > 0 ? phrases : hook ? [hook] : [],
+    hashtags: asStringArray(item.hashtags, 12),
+  };
+}
 
 export function registerTrendsRoutes(app: MiniApp): void {
   app.post("/api/ai/scan-trends", async (req, res) => {
-    const { niche = "stoicism and dark discipline", platform = "Instagram / TikTok" } =
-      req.body || {};
+    const niche = clampText(req.body?.niche, 200, "stoicism and dark discipline");
+    const platform = clampText(req.body?.platform, 100, "Instagram / TikTok");
     const ai = getGeminiClient();
 
     const fallbackTrends = [
@@ -82,7 +101,7 @@ export function registerTrendsRoutes(app: MiniApp): void {
     ];
 
     if (!ai) {
-      return res.json({
+      return sendDegraded(res, {
         trends: fallbackTrends,
         message: "Wygenerowano sprofilowane wątki wirusowe z bazy algorytmicznej.",
       });
@@ -119,19 +138,25 @@ export function registerTrendsRoutes(app: MiniApp): void {
         config: { temperature: 0.9 },
       });
       const parsed = safeJsonParse(response.text || "");
-      if (parsed?.trends && Array.isArray(parsed.trends)) {
+      const trends = asArray(parsed.trends).map((trend, idx) => ({
+        ...normalizeCard(trend),
+        // `trend.id` jest kluczem Reacta — bez niego lista dostaje duplikaty kluczy.
+        id: asString((trend as Record<string, unknown>).id, `trend-${Date.now()}-${idx}`),
+        viral_hooks: asStringArray((trend as Record<string, unknown>).viral_hooks, 6),
+      }));
+      if (trends.length > 0) {
         return res.json({
-          trends: parsed.trends,
+          trends,
           message: "✓ Wykryto świeże trendy algorytmiczne.",
         });
       }
-      return res.json({
+      return sendDegraded(res, {
         trends: fallbackTrends,
         message: "Wygenerowano sprofilowane wątki wirusowe.",
       });
     } catch (err: any) {
       console.warn("Skaner trendów - użyto bezpiecznego generatora:", err?.message || err);
-      return res.json({
+      return sendDegraded(res, {
         trends: fallbackTrends,
         message: "Aktywowano zoptymalizowany zestaw trendów wirusowych.",
       });
@@ -196,7 +221,7 @@ export function registerTrendsRoutes(app: MiniApp): void {
     ];
 
     if (!ai) {
-      return res.json({ formats: fallbackFormats });
+      return sendDegraded(res, { formats: fallbackFormats });
     }
 
     try {
@@ -230,13 +255,16 @@ export function registerTrendsRoutes(app: MiniApp): void {
       });
 
       const parsed = safeJsonParse(response.text || "");
-      if (Array.isArray(parsed?.formats) && parsed.formats.length > 0) {
-        return res.json({ formats: parsed.formats });
+      const formats = asArray(parsed.formats)
+        .map(normalizeCard)
+        .filter((format) => format.phrases.length > 0);
+      if (formats.length > 0) {
+        return res.json({ formats });
       }
-      return res.json({ formats: fallbackFormats });
+      return sendDegraded(res, { formats: fallbackFormats });
     } catch (err) {
       console.warn("Błąd viral-format-radar:", err);
-      return res.json({ formats: fallbackFormats });
+      return sendDegraded(res, { formats: fallbackFormats });
     }
   });
   app.post("/api/ai/angle-matrix", async (req, res) => {
@@ -301,7 +329,7 @@ export function registerTrendsRoutes(app: MiniApp): void {
     ];
 
     if (!ai) {
-      return res.json({ angles: fallbackAngles });
+      return sendDegraded(res, { angles: fallbackAngles });
     }
 
     try {
@@ -340,13 +368,14 @@ export function registerTrendsRoutes(app: MiniApp): void {
       });
 
       const parsed = safeJsonParse(response.text || "");
-      if (Array.isArray(parsed?.angles) && parsed.angles.length === 4) {
-        return res.json({ angles: parsed.angles });
+      const angles = asArray(parsed.angles).map(normalizeCard);
+      if (angles.length === 4) {
+        return res.json({ angles });
       }
-      return res.json({ angles: fallbackAngles });
+      return sendDegraded(res, { angles: fallbackAngles });
     } catch (err) {
       console.warn("Błąd angle-matrix:", err);
-      return res.json({ angles: fallbackAngles });
+      return sendDegraded(res, { angles: fallbackAngles });
     }
   });
   app.post("/api/ai/cognitive-friction", async (req, res) => {
@@ -398,7 +427,7 @@ export function registerTrendsRoutes(app: MiniApp): void {
     ];
 
     if (!ai) {
-      return res.json({ paradoxes: fallbackParadoxes });
+      return sendDegraded(res, { paradoxes: fallbackParadoxes });
     }
 
     try {
@@ -425,13 +454,14 @@ export function registerTrendsRoutes(app: MiniApp): void {
       });
 
       const parsed = safeJsonParse(response.text || "");
-      if (Array.isArray(parsed?.paradoxes) && parsed.paradoxes.length > 0) {
-        return res.json({ paradoxes: parsed.paradoxes });
+      const paradoxes = asArray(parsed.paradoxes).map(normalizeCard);
+      if (paradoxes.length > 0) {
+        return res.json({ paradoxes });
       }
-      return res.json({ paradoxes: fallbackParadoxes });
+      return sendDegraded(res, { paradoxes: fallbackParadoxes });
     } catch (err) {
       console.warn("Błąd cognitive-friction:", err);
-      return res.json({ paradoxes: fallbackParadoxes });
+      return sendDegraded(res, { paradoxes: fallbackParadoxes });
     }
   });
   app.post("/api/ai/evergreen-recycle", async (req, res) => {
@@ -486,7 +516,7 @@ export function registerTrendsRoutes(app: MiniApp): void {
     };
 
     if (!ai) {
-      return res.json(fallbackRecycled);
+      return sendDegraded(res, fallbackRecycled);
     }
 
     try {
@@ -527,10 +557,10 @@ export function registerTrendsRoutes(app: MiniApp): void {
       if (parsed?.reel && parsed?.carousel) {
         return res.json(parsed);
       }
-      return res.json(fallbackRecycled);
+      return sendDegraded(res, fallbackRecycled);
     } catch (err) {
       console.warn("Błąd evergreen-recycle:", err);
-      return res.json(fallbackRecycled);
+      return sendDegraded(res, fallbackRecycled);
     }
   });
 }

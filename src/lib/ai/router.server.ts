@@ -1,5 +1,7 @@
+import { createHash } from "node:crypto";
 import { createApp } from "../mini-express.server";
 import { createTtlCache } from "../cache";
+import { DEGRADED_HEADER } from "./normalize.server";
 import { registerAnalyzeRoutes } from "./routes/analyze.server";
 import { registerDeconstructRoutes } from "./routes/deconstruct.server";
 import { registerGenerateRoutes } from "./routes/generate.server";
@@ -63,8 +65,11 @@ export async function handleStarkApi(request: Request): Promise<Response> {
 
   if (!cacheable) return app.handle(request);
 
+  // Klucz to skrót żądania, nie całe body: body potrafi mieć setki kilobajtów
+  // (historia hooków, analizowany tekst), a trzymałoby je w pamięci 200 kluczów.
   const rawBody = await request.clone().text();
-  const key = `${url.pathname}:${rawBody}`;
+  const key = createHash("sha256").update(`${url.pathname}\n${rawBody}`).digest("hex");
+
   const hit = cacheGet(key);
   if (hit) {
     return new Response(hit.body, {
@@ -74,7 +79,8 @@ export async function handleStarkApi(request: Request): Promise<Response> {
   }
 
   const response = await app.handle(request);
-  if (response.status === 200) {
+  const degraded = response.headers.get(DEGRADED_HEADER);
+  if (response.status === 200 && !degraded) {
     const text = await response.clone().text();
     cacheSet(key, text, response.headers.get("content-type") ?? "application/json");
   }

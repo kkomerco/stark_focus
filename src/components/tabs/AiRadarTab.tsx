@@ -24,6 +24,11 @@ import {
 } from "lucide-react";
 import { StarkFocusData, TrendItem, Post } from "../../types";
 
+interface IncomingCarousel {
+  title: string;
+  slides: Array<{ headline: string; bodyText: string }>;
+}
+
 interface AiRadarTabProps {
   data: StarkFocusData;
   onUpdateData: (updater: (prev: StarkFocusData) => StarkFocusData) => void;
@@ -32,6 +37,8 @@ interface AiRadarTabProps {
   onOpenVideoStudio?: (hookText?: string, bgUrl?: string) => void;
   onSendToPost?: (text: string, caption?: string) => void;
   onSendToReel?: (hookText: string) => void;
+  incomingCarousel?: IncomingCarousel | null;
+  onIncomingCarouselUsed?: () => void;
 }
 
 type SubModule = "radar" | "angles" | "friction" | "recycler" | "batch";
@@ -78,6 +85,8 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
   onOpenVideoStudio,
   onSendToPost,
   onSendToReel,
+  incomingCarousel,
+  onIncomingCarouselUsed,
 }) => {
   // Status check
   const [aiStatus, setAiStatus] = useState<{ configured: boolean; model: string } | null>(null);
@@ -130,6 +139,15 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
     loadViralFormats();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Karuzela z Paczki Dnia wchodzi do studia raz i kasuje się u rodzica
+  useEffect(() => {
+    if (!incomingCarousel) return;
+    setActiveSubModule("recycler");
+    setSourceText(incomingCarousel.title);
+    setRecycledData({ carousel: incomingCarousel });
+    onIncomingCarouselUsed?.();
+  }, [incomingCarousel, onIncomingCarouselUsed]);
 
   const handleCopy = (id: string, text: string) => {
     navigator.clipboard.writeText(text);
@@ -996,6 +1014,11 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                 </div>
 
                 <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                  {recycledData.carousel?.title && (
+                    <div className="p-2 bg-[#050505] rounded border border-[rgba(255,255,255,0.1)] text-[11px] font-mono text-emerald-300 font-bold">
+                      {recycledData.carousel.title}
+                    </div>
+                  )}
                   {recycledData.carousel?.slides?.map((sl: any, sIdx: number) => (
                     <div
                       key={sIdx}

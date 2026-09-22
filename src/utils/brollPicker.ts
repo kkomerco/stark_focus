@@ -12,62 +12,76 @@ export interface BrollMatch {
   confidenceReason: string;
 }
 
-/** Punktuj każdą scenę: trafienia keywords w tekście + zgodność motywu wizualnego. */
-export function pickBroll(text: string, theme?: string): BrollMatch {
-  const lower = text.toLowerCase();
-  let best: Omit<BrollMatch, "confidenceReason"> | null = null;
+/**
+ * Trafienie liczy się tylko jako osobne słowo. `lower.includes("iron")`
+ * łapało "environment", a `"time"` łapało "sometimes" — przez to dobór
+ * potrafił trafić w zupełnie obcą scenę.
+ */
+function containsWord(haystack: string, needle: string): boolean {
+  const escaped = needle.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  if (!escaped) return false;
+  return new RegExp(`\\b${escaped}\\b`, "i").test(haystack);
+}
 
+interface SceneScore {
+  scene: BrollScene;
+  score: number;
+  matchedKeywords: string[];
+  matchedTags: string[];
+}
+
+function scoreScene(scene: BrollScene, lower: string, theme?: string): SceneScore {
+  const matchedKeywords = scene.matchKeywords.filter((kw) => containsWord(lower, kw));
+  const matchedTags = (scene.tags || []).filter((t) => containsWord(lower, t));
+  let score = matchedKeywords.length * 2 + matchedTags.length * 2;
+  if (theme && scene.suggestedTheme === theme) score += 1.5;
+  return { scene, score, matchedKeywords, matchedTags };
+}
+
+function describe(match: SceneScore): string {
+  const hits = match.matchedKeywords.length + match.matchedTags.length;
+  return hits > 0
+    ? `Dobrano "${match.scene.name}" na podstawie ${hits} trafień (score ${match.score})`
+    : `Brak trafień — domyślna scena STARK: ${match.scene.name}`;
+}
+
+/**
+ * Punktuj każdą scenę: trafienia keywords w tekście + zgodność motywu.
+ * `excludeIds` pozwala rotować klipy w dłuższej paczce (autopilot), inaczej
+ * każda rolka z tym samym słowem-kluczem dostawałaby ten sam B-roll.
+ */
+export function pickBroll(text: string, theme?: string, excludeIds: string[] = []): BrollMatch {
+  const lower = String(text || "").toLowerCase();
+  const excluded = new Set(excludeIds);
+
+  let best: SceneScore | null = null;
   for (const scene of CINEMATIC_BROLL_LIBRARY) {
-    const matchedKeywords = scene.matchKeywords.filter((kw) => lower.includes(kw.toLowerCase()));
-    const matchedTags = (scene.tags || []).filter((t) => lower.includes(t.toLowerCase()));
-    let score = matchedKeywords.length * 2 + matchedTags.length * 2;
-    if (theme && scene.suggestedTheme === theme) score += 1.5;
-
-    if (!best || score > best.score) {
-      best = { scene, score, matchedKeywords, matchedTags };
-    }
+    if (excluded.has(scene.id)) continue;
+    const scored = scoreScene(scene, lower, theme);
+    // Scena kandyduje dopiero z realnym trafieniem — dawniej `best` ustawiał
+    // się już przy pierwszej scenie (nawet ze score 0), więc gałąź fallbacku
+    // poniżej była nieosiągalna.
+    if (scored.score <= 0) continue;
+    if (!best || scored.score > best.score) best = scored;
   }
 
-  // Fallback: pierwsza scena (biblioteka jest cała "on-brand")
-  const chosen = best ?? {
-    scene: CINEMATIC_BROLL_LIBRARY[0],
+  const chosen: SceneScore = best ?? {
+    scene: CINEMATIC_BROLL_LIBRARY.find((s) => !excluded.has(s.id)) ?? CINEMATIC_BROLL_LIBRARY[0],
     score: 0,
     matchedKeywords: [],
     matchedTags: [],
   };
-  const hits = chosen.matchedKeywords.length + chosen.matchedTags.length;
-  return {
-    ...chosen,
-    confidenceReason:
-      hits > 0
-        ? `Dobrano "${chosen.scene.name}" na podstawie ${hits} trafień (score ${chosen.score})`
-        : `Brak trafień — domyślna scena STARK: ${chosen.scene.name}`,
-  };
+
+  return { ...chosen, confidenceReason: describe(chosen) };
 }
 
 /** Ranking — top N scen (sortowane po score). Do wyboru potwierdzonego przez AI. */
 export function rankBroll(text: string, theme?: string, limit = 3): BrollMatch[] {
-  const lower = text.toLowerCase();
-  const scored = CINEMATIC_BROLL_LIBRARY.map((scene) => {
-    const matchedKeywords = scene.matchKeywords.filter((kw) => lower.includes(kw.toLowerCase()));
-    const matchedTags = (scene.tags || []).filter((t) => lower.includes(t.toLowerCase()));
-    let score = matchedKeywords.length * 2 + matchedTags.length * 2;
-    if (theme && scene.suggestedTheme === theme) score += 1.5;
-    const hits = matchedKeywords.length + matchedTags.length;
-    return {
-      scene,
-      score,
-      matchedKeywords,
-      matchedTags,
-      confidenceReason:
-        hits > 0
-          ? `Dobrano "${scene.name}" na podstawie ${hits} trafień (score ${score})`
-          : `Brak trafień — domyślna scena STARK: ${scene.name}`,
-    };
-  });
-  return scored
+  const lower = String(text || "").toLowerCase();
+  return CINEMATIC_BROLL_LIBRARY.map((scene) => scoreScene(scene, lower, theme))
     .sort((a, b) => b.score - a.score)
-    .slice(0, Math.max(1, Math.min(limit, scored.length)));
+    .slice(0, Math.max(1, Math.min(limit, CINEMATIC_BROLL_LIBRARY.length)))
+    .map((match) => ({ ...match, confidenceReason: describe(match) }));
 }
 
 /** Skrót: gotowy opis do wklejenia w studio. */

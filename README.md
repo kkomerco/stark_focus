@@ -78,8 +78,10 @@ Serwer dev (`tsx server.ts`) uruchamia jednocześnie API i Vite w trybie middlew
 - **Paczka dnia** (`POST /api/ai/daily-pack`) — 3 rolki + karuzela 4:5 + post 1:1 z auto-rotacją 8 kategorii dark motivation. Klik „Zaplanuj publikację” tworzy zadania w plannerze (12:00 / 14:00 / 15:00 / 18:00).
 - **Nieskończone pomysły** (`POST /api/ai/idea-stream`) — generator bez limitu z **anty-powtórką**: każdy hook trafia do historii fingerprintów w `localStorage` (`used_idea_fingerprints`), a kolejne paczki dostają listę wykluczeń. Dodatkowo macierz kombinatoryczna: 10 kategorii × 10 archetypów × 8 celów emocjonalnych × 5 formatów.
 - **Analiza virala** (`POST /api/ai/deconstruct-viral`) — wklejasz link (TikTok/IG/Shorts), AI rozbiera post na hook, strukturę, wyzwalacze psychologiczne i generuje 3 własne warianty w stylu @stark_focus.
+- **Silnik wzrostu** (`POST /api/ai/ab-variants`, `/api/ai/ab-conclusion`, `/api/ai/weekly-autopilot`, `/api/ai/reroll-prompt`, `/api/ai/pick-broll`) — eksperymenty A/B z pętlą uczenia, tygodniowy autopilot, reroll promptów tła w tym samym stylu i auto-dobór B-roll.
+- **Generator masowy** (`POST /api/ai/batch-generator`) — paczka N unikalnych cytatów 9:16 (hook + podpis + caption).
 
-> **Uwaga architektoniczna:** runtime używa `src/lib/stark-api.server.ts` (monolit, 20 endpointów). Modularne trasy z `src/lib/ai/routes/*` są rejestrowane **na końcu** monolitu — mini-express dopasowuje pierwszą pasującą trasę, więc endpointy monolitu mają priorytet, a moduły obsługują nowe ścieżki.
+> **Architektura:** runtime używa wyłącznie modularnych tras z `src/lib/ai/routes/*` spiętych przez `src/lib/ai/router.server.ts` (z cache odpowiedzi AI — pomijającym odpowiedzi zapasowe). Jedyne źródło prawdy dla klienta Gemini, modeli (`GEMINI_MODEL` / `GEMINI_LITE_MODEL`) i retry/fallbacku (503/429) to `src/lib/ai/gemini.server.ts`. Każda trasa ma własny bank treści zapasowych; wspólny `src/lib/ai/offline-content.ts` czeka na przeniesienie do niego tych kopii.
 
 ## 🧭 Roadmapa automatyzacji (docelowo 1–2–3 kliknięcia)
 

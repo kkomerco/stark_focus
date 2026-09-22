@@ -969,6 +969,16 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    // `duration` bywa podsunięty przez AI ("8s", 999, NaN). Gdy nie jest liczbą,
+    // warunek końcowy pętli poniżej nigdy nie zachodzi, a MediaRecorder nagrywa
+    // w nieskończoność i dokłada chunki do pamięci.
+    const totalDur = Number(duration);
+    if (!Number.isFinite(totalDur) || totalDur < 1 || totalDur > 60) {
+      setToastMessage("Czas trwania rolki jest poza zakresem 1-60 s — nie ma czego nagrać.");
+      setTimeout(() => setToastMessage(null), 3500);
+      return;
+    }
+
     isExportingRef.current = true;
     setIsExporting(true);
     setExportProgress(0);
@@ -993,52 +1003,85 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
         "video/webm",
       ];
       const selectedMime = mimeTypes.find((t) => MediaRecorder.isTypeSupported(t)) || "video/webm";
+      // Firefox/Safari wybierają z listy webm — plik .mp4 z bajtami webm nie da się otworzyć.
+      const extension = selectedMime.includes("mp4") ? "mp4" : "webm";
 
       const recorder = new MediaRecorder(stream, {
         mimeType: selectedMime,
         videoBitsPerSecond: exportFps === 60 ? 24000000 : 18000000,
       });
 
+      // Canvas capture track żyje dopóki go nie zamkniemy — bez tego każda
+      // kolejna eksport zostawia w karcie aktywny strumień.
+      const releaseStream = () => stream.getTracks().forEach((track) => track.stop());
+
       const chunks: Blob[] = [];
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) chunks.push(e.data);
       };
+      recorder.onerror = () => {
+        console.error("Błąd MediaRecorder:", recorder.state);
+        releaseStream();
+        isExportingRef.current = false;
+        setIsExporting(false);
+        setToastMessage("Nagrywanie przerwane przez przeglądarkę.");
+        setTimeout(() => setToastMessage(null), 3500);
+      };
 
       recorder.onstop = () => {
+        releaseStream();
         const blob = new Blob(chunks, { type: selectedMime });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `stark_reel_1080x1920_${duration}s_${selectedTheme}_${Date.now()}.mp4`;
+        a.download = `stark_reel_1080x1920_${totalDur}s_${selectedTheme}_${Date.now()}.${extension}`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        // Synchroniczne revoke() kasuje pobieranie w Firefox/Safari — pobieranie
+        // startuje asynchronicznie i potrzebuje adresu jeszcze przez chwilę.
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
 
         isExportingRef.current = false;
         setIsExporting(false);
         setIsPlaying(true);
-        setToastMessage(`✓ Rolka 1080x1920 pobrana! Dokładny czas trwania: ${duration}.00s`);
+        setToastMessage(`✓ Rolka 1080x1920 pobrana! Dokładny czas trwania: ${totalDur}.00s`);
         setTimeout(() => setToastMessage(null), 3000);
       };
 
       recorder.start();
 
       const startTime = performance.now();
-      const totalDur = duration;
+
+      // Zabezpieczenie po czasie zegara ściennego: ukryta albo zamrożona karta
+      // przestaje dostawać requestAnimationFrame, a nagrywarka leci dalej — bez
+      // tego kill switcha plik rósłby w nieskończoność z jedną zamrożoną klatką.
+      const killSwitch = setTimeout(
+        () => {
+          if (recorder.state === "recording") recorder.stop();
+        },
+        totalDur * 1000 + 5000,
+      );
+
+      const stopRecording = () => {
+        clearTimeout(killSwitch);
+        setTimeout(() => {
+          try {
+            if (recorder.state === "recording") recorder.stop();
+          } catch (e) {
+            console.error(e);
+          }
+        }, 150);
+      };
 
       const step = (stamp: number) => {
         const elapsed = (stamp - startTime) / 1000;
         if (elapsed >= totalDur) {
-          renderFrame(totalDur);
+          // Ostatnia klatka tuż przed końcem fade-outu — inaczej film urywa się
+          // czarnym kadrze bez tekstu.
+          renderFrame(Math.max(0, totalDur - 1 / 30));
           setExportProgress(100);
-          setTimeout(() => {
-            try {
-              if (recorder.state === "recording") recorder.stop();
-            } catch (e) {
-              console.error(e);
-            }
-          }, 150);
+          stopRecording();
           return;
         }
 

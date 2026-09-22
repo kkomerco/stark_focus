@@ -1,6 +1,6 @@
 // AutopilotModal.tsx — Tygodniowy autopilot: 7 paczek (po jednej kategorii na dzień),
 // pakowane do ZIP z folderami PON/WT/... i slotami 12-00/14-00/15-00/18-00.
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Check, Download, Loader2, Rocket, X } from "lucide-react";
 import { StarkFocusData, PlannerTask } from "../types";
 import { pickBroll } from "../utils/brollPicker";
@@ -53,8 +53,21 @@ export const AutopilotModal: React.FC<AutopilotModalProps> = ({
   const [done, setDone] = useState(false);
   const [addToPlanner, setAddToPlanner] = useState(true);
 
-  const fetchDayPlan = async (): Promise<DayPlan[] | null> => {
-    const res = await fetch("/api/ai/weekly-autopilot", { method: "POST", body: "{}" });
+  // Zamknięcie modala odmontowuje komponent - przerwaj 8 zapytań i nie wstawiaj wyników "w pustkę"
+  const cancelledRef = useRef(false);
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    cancelledRef.current = false;
+    return () => {
+      cancelledRef.current = true;
+      abortRef.current?.abort();
+    };
+  }, [isOpen]);
+
+  const fetchDayPlan = async (signal: AbortSignal): Promise<DayPlan[] | null> => {
+    const res = await fetch("/api/ai/weekly-autopilot", { method: "POST", body: "{}", signal });
     if (!res.ok) return null;
     const json = await res.json();
     return json.week || null;
@@ -64,11 +77,13 @@ export const AutopilotModal: React.FC<AutopilotModalProps> = ({
     day: DayPlan,
     index: number,
     taken: string[],
+    signal: AbortSignal,
   ): Promise<DayPack> => {
     const res = await fetch("/api/ai/daily-pack", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ topic: day.topic, reelsCount: 2, excludeHooks: taken }),
+      signal,
     });
     if (!res.ok) throw new Error("HTTP " + res.status);
     const json = await res.json();
@@ -102,13 +117,19 @@ export const AutopilotModal: React.FC<AutopilotModalProps> = ({
     ].join("\n");
     zip.file("README-TYGODNIEN.txt", readme);
 
+    // Rotacja klipów w obrębie całego tygodnia: pickBroll to funkcja tekstu,
+    // więc bez wykluczeń każda rolka z tym samym słowem-kluczem dostawała
+    // identyczny B-roll w siedmiu paczkach.
+    const usedBroll = new Set<string>();
+
     for (const pack of allPacks) {
       const dayFolder = zip.folder(DAY_PL[pack.dayIndex])!;
       const reelSlots = ["12-00_ROLKA-1", "15-00_ROLKA-2"];
 
       pack.reels.slice(0, 2).forEach((reel, idx) => {
         const slot = dayFolder.folder(reelSlots[idx])!;
-        const broll = pickBroll(reel.hook, reel.theme);
+        const broll = pickBroll(reel.hook, reel.theme, [...usedBroll]);
+        usedBroll.add(broll.scene.id);
         slot.file("HOOK.txt", reel.hook);
         slot.file("FRAZY.txt", reel.phrases.join("\n"));
         slot.file("OPIS.txt", reel.captionShort || "");
@@ -143,6 +164,8 @@ export const AutopilotModal: React.FC<AutopilotModalProps> = ({
   };
 
   const run = async () => {
+    const controller = new AbortController();
+    abortRef.current = controller;
     setPlanning(true);
     setPacking(false);
     setProgress(0);
@@ -151,7 +174,8 @@ export const AutopilotModal: React.FC<AutopilotModalProps> = ({
     setPacks([]);
     try {
       setStage("Planuję tydzień...");
-      const plan = await fetchDayPlan();
+      const plan = await fetchDayPlan(controller.signal);
+      if (cancelledRef.current) return;
       if (!plan || plan.length !== 7) throw new Error("Nie udało się zaplanować tygodnia.");
       setWeek(plan);
 
@@ -159,7 +183,8 @@ export const AutopilotModal: React.FC<AutopilotModalProps> = ({
       const takenHooks: string[] = [];
       for (let i = 0; i < plan.length; i++) {
         setStage(`Generuję paczkę na ${DAY_PL[plan[i].dayIndex]} (${i + 1}/7)...`);
-        const pack = await fetchPackForDay(plan[i], i, takenHooks);
+        const pack = await fetchPackForDay(plan[i], i, takenHooks, controller.signal);
+        if (cancelledRef.current) return;
         pack.reels.forEach((r) => takenHooks.push(r.hook));
         all.push(pack);
         setPacks([...all]);
@@ -169,6 +194,7 @@ export const AutopilotModal: React.FC<AutopilotModalProps> = ({
       setStage("Pakuję ZIP...");
       setPacking(true);
       const blob = await buildZip(all);
+      if (cancelledRef.current) return;
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -176,9 +202,10 @@ export const AutopilotModal: React.FC<AutopilotModalProps> = ({
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      // Natychmiastowe revokeObjectURL ucina pobierany ZIP w Firefox i Safari
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
 
-      if (addToPlanner) {
+      if (addToPlanner && !cancelledRef.current) {
         const tasks: PlannerTask[] = [];
         for (const pack of all) {
           const day = new Date();
@@ -223,13 +250,18 @@ export const AutopilotModal: React.FC<AutopilotModalProps> = ({
         }));
       }
 
+      if (cancelledRef.current) return;
       setStage("Gotowe!");
       setDone(true);
     } catch (err) {
+      if (cancelledRef.current) return;
       setError("Autopilot nie dokończył pracy: " + (err as Error).message);
     } finally {
-      setPlanning(false);
-      setPacking(false);
+      if (abortRef.current === controller) abortRef.current = null;
+      if (!cancelledRef.current) {
+        setPlanning(false);
+        setPacking(false);
+      }
     }
   };
 

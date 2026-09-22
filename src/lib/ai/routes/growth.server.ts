@@ -6,7 +6,9 @@ import {
   callGeminiWithFallback,
 } from "../gemini.server";
 import { CINEMATIC_BROLL_LIBRARY } from "../../../data/brollLibrary";
-import { pickBroll } from "../../../utils/brollPicker";
+import { pickBroll, rankBroll } from "../../../utils/brollPicker";
+import { clampText } from "../../limits";
+import { asString, asStringArray } from "../normalize.server";
 
 /**
  * GROWTH ENGINE — eksperymenty A/B i tygodniowy autopilot.
@@ -15,6 +17,9 @@ import { pickBroll } from "../../../utils/brollPicker";
  * 3. /api/ai/weekly-autopilot — 7 paczek (po jednej kategorii na dzień z rotacji)
  * 4. /api/ai/reroll-prompt — nowy prompt tła w TYM SAMYM stylu (spójny feed)
  */
+
+/** Minimalna liczba wyświetleń na wariant, żeby w ogóle porównywać engagement. */
+const MIN_AB_VIEWS = 30;
 
 // Rotacja kategorii — spójna z idea-stream.server.ts
 const WEEK_CATEGORIES = [
@@ -32,7 +37,8 @@ const DAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"] as const;
 export function registerGrowthRoutes(app: MiniApp): void {
   // ============ A/B WARIANTY TEJ SAMEJ ROLKI ============
   app.post("/api/ai/ab-variants", async (req, res) => {
-    const { topic = "dark motivation and brutal discipline", history = [] } = req.body || {};
+    const { history = [] } = req.body || {};
+    const topic = clampText(req.body?.topic, 200, "dark motivation and brutal discipline");
     const ai = getGeminiClient();
     const seed = Date.now();
 
@@ -126,20 +132,28 @@ Zwróć WYŁĄCZNIE JSON:
       });
 
       const variants = Array.isArray(parsed?.variants)
-        ? parsed.variants.slice(0, 2).map((v: any, idx: number) => ({
-            label: v.label || (idx === 0 ? "A" : "B"),
-            hook: String(v.hook || "")
+        ? parsed.variants.slice(0, 2).map((v: any, idx: number) => {
+            const hook = String(v.hook || "")
               .replace(/["#*]/g, "")
-              .trim(),
-            angle: String(v.angle || ""),
-            phrases: Array.isArray(v.phrases) ? v.phrases.slice(0, 4).map(String) : [v.hook],
-            theme: ["obsidian_void", "carbon_aura"].includes(v.theme)
-              ? v.theme
-              : idx === 0
-                ? "obsidian_void"
-                : "carbon_aura",
-            cta: String(v.cta || ""),
-          }))
+              .trim();
+            const phrases = asStringArray(v.phrases, 4);
+
+            return {
+              // Etykieta PO INDEKSIE, nie od modelu: `ab-conclusion` rozróżnia
+              // warianty po "A"/"B", a UI klika po niej inputy — dowolna
+              // etykieta z JSON-a collapse'uje oba wiersze eksperymentu.
+              label: idx === 0 ? "A" : "B",
+              hook,
+              angle: String(v.angle || ""),
+              phrases: phrases.length > 0 ? phrases : hook ? [hook] : [],
+              theme: ["obsidian_void", "carbon_aura"].includes(v.theme)
+                ? v.theme
+                : idx === 0
+                  ? "obsidian_void"
+                  : "carbon_aura",
+              cta: String(v.cta || ""),
+            };
+          })
         : [];
 
       if (variants.length === 2 && variants.every((v) => v.hook.length > 5)) {
@@ -193,8 +207,10 @@ Zwróć WYŁĄCZNIE JSON:
     const { experimentId = "", results = [] } = req.body || {};
     const ai = getGeminiClient();
 
-    const norm = (Array.isArray(results) ? results : []).map((r: any) => ({
-      label: String(r.label || "?"),
+    const norm = (Array.isArray(results) ? results : []).map((r: any, idx: number) => ({
+      // Jak wyżej: etykieta po pozycji, bo dalsza logika (i UI) rozróżnia
+      // warianty wyłącznie po "A" / "B".
+      label: r.label === "A" || r.label === "B" ? String(r.label) : idx === 0 ? "A" : "B",
       views: Number(r.views) || 0,
       likes: Number(r.likes) || 0,
       comments: Number(r.comments) || 0,
@@ -210,6 +226,21 @@ Zwróć WYŁĄCZNIE JSON:
       ...r,
       engagement: r.views > 0 ? (r.likes + r.comments + r.shares + r.saves) / r.views : 0,
     }));
+
+    // Lekcja wyciągnięta z 5 wyświetleń to zgadywanka, która wraca potem do
+    // promptu generatora jako "udowodniony" wzorzec — poniżej progu nie ma
+    // zwycięzcy i mówimy o tym wprost zamiast typować.
+    if (norm.some((r) => r.views < MIN_AB_VIEWS)) {
+      return res.json({
+        source: "offline" as const,
+        status: "insufficient_data" as const,
+        experimentId,
+        winner: null,
+        scored,
+        lesson: `Za mało danych: każdy wariant potrzebuje min. ${MIN_AB_VIEWS} wyświetleń, żeby porównanie engagementu cokolwiek udowodniło.`,
+      });
+    }
+
     const winner = [...scored].sort((a, b) => b.engagement - a.engagement)[0];
 
     let lesson =
@@ -357,20 +388,21 @@ Zwróć WYŁĄCZNIE JSON: { "prompt": "..." }`;
   // ============ AUTO-DOBOR B-ROLL PRZEZ AI (tagi + temat) ============
   // AI potwierdza wybór spośród kandydatów z słów-kluczy + tagów.
   app.post("/api/ai/pick-broll", async (req, res) => {
-    const { text = "", theme = "" } = req.body || {};
+    const text = clampText(req.body?.text, 500);
+    const theme = clampText(req.body?.theme, 60);
     const ai = getGeminiClient();
 
     // Krok 1 — dopasowanie słów-kluczy + tagów (działa offline, zawsze)
-    const kwMatch = pickBroll(String(text || ""), theme ? String(theme) : undefined);
+    const kwMatch = pickBroll(text, theme || undefined);
 
-    if (!ai || !text.trim()) {
+    if (!ai || !text) {
       return res.json({ source: "keywords" as const, matched: kwMatch });
     }
 
     try {
       // Krok 2 — AI: spośród kandydatów wybiera/scen id, potwierdzając nasz wybór
       const prompt = `Jesteś kuraturą wizualnym dla marki @stark_focus (dark motivation, mroczny minimalizm).
-Treść/hook rolki: "${String(text)}"
+Treść/hook rolki: "${text}"
 Motyw: ${theme || "brak"}
 
 Twoja biblioteka ma sceny (id | nazwa): ${CINEMATIC_BROLL_LIBRARY.map((c) => c.id + " | " + c.name).join(", ")}.
@@ -389,14 +421,23 @@ Wybierz JEDNĄ scenę, która najlepiej oddaje nastrój tej treści. Zwróć WYL
         : null;
 
       if (aiScene) {
+        // Score i trafienia muszą opisywać scenę wybraną przez AI, nie kandydata
+        // ze słowa-klucza — inaczej UI pokazuje uzasadnienie nie swojego wyboru.
+        const honest = rankBroll(text, theme || undefined, CINEMATIC_BROLL_LIBRARY.length).find(
+          (match) => match.scene.id === aiScene.id,
+        ) ?? {
+          scene: aiScene,
+          score: 0,
+          matchedKeywords: [] as string[],
+          matchedTags: [] as string[],
+          confidenceReason: "",
+        };
+
         return res.json({
           source: "ai" as const,
           matched: {
-            scene: aiScene,
-            score: kwMatch.score,
-            matchedKeywords: kwMatch.matchedKeywords,
-            matchedTags: kwMatch.matchedTags,
-            confidenceReason: parsed.confidenceReason ?? kwMatch.confidenceReason,
+            ...honest,
+            confidenceReason: asString(parsed.confidenceReason) || honest.confidenceReason,
           },
         });
       }

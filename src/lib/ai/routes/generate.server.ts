@@ -7,6 +7,7 @@ import {
   callGeminiWithFallback,
 } from "../gemini.server";
 import { formatStarkCaption } from "../../caption";
+import { sendDegraded } from "../normalize.server";
 
 export function registerGenerateRoutes(app: MiniApp): void {
   app.post("/api/ai/generate-post", async (req, res) => {
@@ -224,7 +225,7 @@ export function registerGenerateRoutes(app: MiniApp): void {
           };
 
     if (!ai) {
-      return res.json({ slide: fallbackData });
+      return sendDegraded(res, { slide: fallbackData });
     }
 
     try {
@@ -268,10 +269,10 @@ export function registerGenerateRoutes(app: MiniApp): void {
         });
       }
 
-      return res.json({ slide: fallbackData });
+      return sendDegraded(res, { slide: fallbackData });
     } catch (err: any) {
       console.warn("Błąd generowania pojedynczego slajdu:", err?.message || err);
-      return res.json({ slide: fallbackData });
+      return sendDegraded(res, { slide: fallbackData });
     }
   });
   app.post("/api/ai/generate-scheme-post", async (req, res) => {

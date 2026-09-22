@@ -1,9 +1,53 @@
 import type { MiniApp } from "../../mini-express.server";
 import { getGeminiClient, safeJsonParse, callGeminiWithFallback } from "../gemini.server";
+import { asArray, asString, asStringArray, oneOf, sendDegraded } from "../normalize.server";
+import { clampInt, clampText } from "../../limits";
+
+/** Dozwolone wartości — zgodne z unią `VisualTheme` i słownikiem b-roll. */
+const REEL_THEMES = [
+  "obsidian_void",
+  "crimson_eclipse",
+  "silver_mist",
+  "carbon_aura",
+  "emerald_abyss",
+] as const;
+
+const REEL_BROLL = [
+  "antyczny_marmur_posag",
+  "nocna_metropolia_stal",
+  "brutalizm_monolit",
+  "deszcz_asfalt_430am",
+  "ciemna_sala_asceza",
+  "mgla_horyzont_pustka",
+] as const;
+
+const VARIANT_LETTERS = ["A", "B", "C"] as const;
+
+/**
+ * Model potrafi pominąć `phrases` albo podać temat spoza słownika, a UI
+ * mapuje te pola bez sprawdzania — więc każdy wariant wychodzi stąd
+ * z kompletem pól i wartościami z dozwolonego zbioru.
+ */
+function normalizeVariant(item: unknown, index: number) {
+  const variant = (item ?? {}) as Record<string, unknown>;
+  const hook = asString(variant.hook);
+  const phrases = asStringArray(variant.phrases, 5);
+  const letter = VARIANT_LETTERS[index] ?? String(index + 1);
+
+  return {
+    variantLetter: oneOf(variant.variantLetter, VARIANT_LETTERS, letter),
+    variantName: asString(variant.variantName, `Wariant ${letter}`),
+    hook: hook || phrases[0] || "",
+    phrases: phrases.length > 0 ? phrases : hook ? [hook] : [],
+    theme: oneOf(variant.theme, REEL_THEMES, "obsidian_void"),
+    brollSuggestion: oneOf(variant.brollSuggestion, REEL_BROLL, "deszcz_asfalt_430am"),
+    duration: clampInt(variant.duration, 5, 12, 8),
+  };
+}
 
 export function registerReelsRoutes(app: MiniApp): void {
   app.post("/api/ai/generate-multi-variant-reels", async (req, res) => {
-    const { topic = "Solitude and relentless standards" } = req.body || {};
+    const topic = clampText(req.body?.topic, 300, "Solitude and relentless standards");
     const ai = getGeminiClient();
 
     const fallbackVariants = [
@@ -49,7 +93,7 @@ export function registerReelsRoutes(app: MiniApp): void {
     ];
 
     if (!ai) {
-      return res.json({ variants: fallbackVariants });
+      return sendDegraded(res, { variants: fallbackVariants });
     }
 
     try {
@@ -89,13 +133,18 @@ export function registerReelsRoutes(app: MiniApp): void {
       });
 
       const parsed = safeJsonParse(response.text || "");
-      if (Array.isArray(parsed?.variants) && parsed.variants.length === 3) {
-        return res.json({ variants: parsed.variants });
+      const variants = asArray(parsed.variants)
+        .map(normalizeVariant)
+        .filter((variant) => variant.phrases.length > 0)
+        .slice(0, 3);
+
+      if (variants.length === 3) {
+        return res.json({ variants });
       }
-      return res.json({ variants: fallbackVariants });
+      return sendDegraded(res, { variants: fallbackVariants });
     } catch (err) {
       console.warn("Błąd multi-variant-reels:", err);
-      return res.json({ variants: fallbackVariants });
+      return sendDegraded(res, { variants: fallbackVariants });
     }
   });
 }

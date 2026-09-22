@@ -1,5 +1,9 @@
 import type { MiniApp } from "../../mini-express.server";
 import { GEMINI_MODEL, generateJson, getGeminiClient } from "../gemini.server";
+import { hookFingerprint, maxSimilarity, SIMILARITY } from "../../similarity";
+import { pick, pickN } from "../../random";
+import { clampCount, clampInt, clampText, LIMITS } from "../../limits";
+import { asArray, asString, asStringArray, oneOf } from "../normalize.server";
 
 /**
  * IDEA STREAM — nieskończony generator pomysłów z silną anty-powtórką.
@@ -59,18 +63,13 @@ const THEMES = [
   "silver_mist",
 ] as const;
 
-function pick<T>(items: readonly T[]): T {
-  return items[Math.floor(Math.random() * items.length)];
-}
-
-function pickN<T>(items: readonly T[], n: number): T[] {
-  const shuffled = [...items].sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, Math.max(1, Math.min(n, items.length)));
-}
-
 /** Offline fallback — rotuje bank po liczbie użytych pomysłów, filtruje excludeHooks. */
 function buildOfflineIdeas(count: number, usedCount: number, excludeHooks: string[]) {
-  const excluded = new Set(excludeHooks.map((h) => h.toLowerCase().trim()));
+  // Klient przesyła ODCISKI hooków (patrz hookFingerprint), więc obie strony
+  // muszą porównywać odciski — surowy hook nigdy nie wypadłby równo.
+  const excluded = new Set(excludeHooks.map(hookFingerprint));
+  // Tylko najnowsze 50: pełna historia × cały bank to tysiące porównań tokenów.
+  const recentHooks = excludeHooks.slice(-50);
   const ideas = [];
   const timestamp = Date.now();
   const cats = pickN([...CATEGORIES], Math.min(count, CATEGORIES.length));
@@ -108,7 +107,8 @@ function buildOfflineIdeas(count: number, usedCount: number, excludeHooks: strin
     const hook = offlineHookBank[bankIdx % offlineHookBank.length];
     scanned++;
     bankIdx++;
-    if (excluded.has(hook.toLowerCase().trim())) continue;
+    if (excluded.has(hookFingerprint(hook))) continue;
+    if (maxSimilarity(hook, recentHooks).score >= SIMILARITY.HARD_BLOCK) continue;
     const cat = cats[picked % cats.length];
     ideas.push({
       id: `idea-${timestamp}-${picked + 1}`,
@@ -134,16 +134,17 @@ function buildOfflineIdeas(count: number, usedCount: number, excludeHooks: strin
 
 export function registerIdeaStreamRoutes(app: MiniApp): void {
   app.post("/api/ai/idea-stream", async (req, res) => {
-    const {
-      count = 5,
-      excludeHooks = [],
-      usedCount = 0,
-      topic = "dark motivation and brutal discipline",
-    } = req.body || {};
-
-    const safeCount = Math.max(1, Math.min(Number(count) || 5, 20));
-    const safeExclude = Array.isArray(excludeHooks) ? excludeHooks.map(String) : [];
-    const safeUsed = Number(usedCount) || 0;
+    const safeCount = clampCount(req.body?.count, 5);
+    const topic = clampText(req.body?.topic, 300, "dark motivation and brutal discipline");
+    const safeExclude: string[] = (
+      Array.isArray(req.body?.excludeHooks) ? req.body.excludeHooks : []
+    )
+      .map((hook: unknown) => asString(hook))
+      .filter(Boolean)
+      .slice(0, LIMITS.maxExcludeHooks);
+    // usedCount indeksuje bank offline: ujemny lub ułamkowy dałby `undefined`,
+    // a potem `hook.toLowerCase()` poza try/catchem = 500.
+    const safeUsed = clampInt(req.body?.usedCount, 0, 1_000_000, 0);
 
     if (!getGeminiClient()) {
       return res.json({
@@ -210,24 +211,40 @@ Zwróć WYŁĄCZNIE JSON:
         model: GEMINI_MODEL,
       });
 
-      const ideas = Array.isArray(parsed?.ideas) ? parsed.ideas : [];
-      const validIdeas = ideas
-        .filter((i) => typeof i?.hook === "string" && i.hook.trim().length > 5)
-        .map((i, idx) => ({
-          id: `idea-${Date.now()}-${idx + 1}`,
-          hook: String(i.hook).replace(/["#*]/g, "").trim(),
-          category: String(i.category || chosenCats[idx % chosenCats.length]),
-          archetype: String(i.archetype || chosenArchs[idx % chosenArchs.length]),
-          emotionalTarget: String(i.emotionalTarget || chosenEmos[idx % chosenEmos.length]),
-          format: String(i.format || chosenFormats[idx % chosenFormats.length]),
-          phrases: Array.isArray(i.phrases) ? i.phrases.slice(0, 4) : [i.hook],
-          caption: String(i.caption || ""),
-          hashtags: Array.isArray(i.hashtags) ? i.hashtags.slice(0, 6) : ["#darkmotivation"],
-          theme: String(i.theme || "obsidian_void"),
-          viralityScore: typeof i.viralityScore === "number" ? i.viralityScore : 92,
-        }));
+      // Model ignoruje zakaz powtórek częściej, niżby chcieć — więc filtrujemy
+      // po swojej stronie, a nie tylko prosimy w prompcie.
+      const recentHooks = safeExclude.slice(-50);
+      const seenInBatch = new Set<string>();
+      const ideas = asArray(parsed.ideas)
+        .map((item, idx) => {
+          const idea = (item ?? {}) as Record<string, unknown>;
+          const hook = asString(idea.hook).replace(/["#*]/g, "");
+          const phrases = asStringArray(idea.phrases, 4);
+          return {
+            id: `idea-${Date.now()}-${idx + 1}`,
+            hook,
+            category: asString(idea.category, chosenCats[idx % chosenCats.length]),
+            archetype: asString(idea.archetype, chosenArchs[idx % chosenArchs.length]),
+            emotionalTarget: asString(idea.emotionalTarget, chosenEmos[idx % chosenEmos.length]),
+            format: asString(idea.format, chosenFormats[idx % chosenFormats.length]),
+            phrases: phrases.length > 0 ? phrases : [hook],
+            caption: asString(idea.caption),
+            hashtags: asStringArray(idea.hashtags, 6),
+            theme: oneOf(idea.theme, THEMES, "obsidian_void"),
+            viralityScore: clampInt(idea.viralityScore, 0, 100, 92),
+          };
+        })
+        .filter((idea) => idea.hook.length > 5)
+        .filter((idea) => {
+          const fingerprint = hookFingerprint(idea.hook);
+          if (seenInBatch.has(fingerprint)) return false;
+          if (maxSimilarity(idea.hook, recentHooks).score >= SIMILARITY.HARD_BLOCK) return false;
+          seenInBatch.add(fingerprint);
+          return true;
+        })
+        .slice(0, safeCount);
 
-      if (validIdeas.length === 0) {
+      if (ideas.length === 0) {
         return res.json({
           generatedAt: new Date().toISOString(),
           source: "offline" as const,
@@ -238,7 +255,7 @@ Zwróć WYŁĄCZNIE JSON:
       return res.json({
         generatedAt: new Date().toISOString(),
         source: "ai" as const,
-        ideas: validIdeas,
+        ideas,
       });
     } catch (err) {
       console.warn("Idea stream error:", err);

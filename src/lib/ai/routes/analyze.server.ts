@@ -1,12 +1,79 @@
 import type { MiniApp } from "../../mini-express.server";
 import { getGeminiClient, safeJsonParse, callGeminiWithFallback } from "../gemini.server";
 import { formatStarkCaption } from "../../caption";
+import { isSafeUrl } from "../../safe-url";
+import { fetchSafeImage } from "../../fetch-image.server";
+import {
+  asArray,
+  asNumber,
+  asString,
+  asStringArray,
+  oneOf,
+  sendDegraded,
+} from "../normalize.server";
+import { clampCount, clampInt, clampOffset, clampText } from "../../limits";
+
+/**
+ * Studio 1:1 robi `setSpec(data.layoutSpec)` a potem `spec.textLayers.map()`.
+ * Model, który pominie `textLayers` albo zwróci je jako string, wywraca więc
+ * cały widok — kompletne pole dostajemy tutaj, a nie w dwudziestu `?.` w UI.
+ */
+function normalizeLayoutSpec(spec: unknown, rawMetadata: Record<string, unknown>) {
+  const source = (spec ?? {}) as Record<string, unknown>;
+  const detectedAudio = asString(rawMetadata.audioTrack);
+
+  const layers = asArray(source.textLayers).map((layer, idx) => {
+    const item = (layer ?? {}) as Record<string, unknown>;
+    return {
+      id: asString(item.id, `t${idx + 1}`),
+      text: asString(item.text),
+      fontFamily: asString(item.fontFamily, "sans"),
+      fontSize: clampInt(item.fontSize, 8, 300, 72),
+      fontWeight: asString(item.fontWeight, "bold"),
+      fontStyle: asString(item.fontStyle, "normal"),
+      casing: asString(item.casing, "preserve"),
+      color: asString(item.color, "#FFFFFF"),
+      align: oneOf(item.align, ["left", "center", "right"] as const, "left"),
+      posY: asNumber(item.posY, 0.46),
+      posX: asNumber(item.posX, 0.12),
+    };
+  });
+
+  return {
+    ...source,
+    layoutName: asString(source.layoutName, "Analiza AI"),
+    slotCount: clampInt(source.slotCount, 0, 12, 1),
+    slotLabels: asStringArray(source.slotLabels, 12),
+    detectedAudio: detectedAudio || asString(source.detectedAudio, "Czysty dźwięk"),
+    textLayers:
+      layers.length > 0
+        ? layers
+        : [
+            {
+              id: "t1",
+              text: asString(rawMetadata.title),
+              fontFamily: "sans",
+              fontSize: 72,
+              fontWeight: "bold",
+              fontStyle: "normal",
+              casing: "preserve",
+              color: "#FFFFFF",
+              align: "left" as const,
+              posY: 0.46,
+              posX: 0.12,
+            },
+          ],
+  };
+}
 
 export function registerAnalyzeRoutes(app: MiniApp): void {
   app.post("/api/ai/analyze-link", async (req, res) => {
     let cleanUrl = String(req.body?.url || "").trim();
     if (!cleanUrl.startsWith("http://") && !cleanUrl.startsWith("https://")) {
       cleanUrl = "https://" + cleanUrl;
+    }
+    if (!isSafeUrl(cleanUrl)) {
+      return res.status(400).json({ error: "Nieprawidłowy lub zablokowany URL" });
     }
 
     const isTikTokPhoto = cleanUrl.includes("tiktok.com") && cleanUrl.includes("/photo/");
@@ -54,24 +121,16 @@ export function registerAnalyzeRoutes(app: MiniApp): void {
     }
 
     let imagePart: any = null;
-    if (rawMetadata.thumbnail) {
-      try {
-        const imgRes = await fetch(rawMetadata.thumbnail, {
-          headers: { "User-Agent": "Mozilla/5.0" },
-          signal: AbortSignal.timeout(5000),
-        });
-        if (imgRes.ok) {
-          const buffer = await imgRes.arrayBuffer();
-          imagePart = {
-            inlineData: {
-              data: Buffer.from(buffer).toString("base64"),
-              mimeType: (imgRes.headers.get("content-type") || "image/jpeg").split(";")[0],
-            },
-          };
-        }
-      } catch (imgErr) {
-        console.warn("Błąd pobrania klatki do Vision:", imgErr);
-      }
+    // `thumbnail_url` z oEmbed to adres kontrolowany przez serwis trzeci —
+    // może wskazywać sieć wewnętrzną, więc przechodzi przez fetchSafeImage().
+    const image = await fetchSafeImage(rawMetadata.thumbnail);
+    if (image) {
+      imagePart = {
+        inlineData: {
+          data: image.buffer.toString("base64"),
+          mimeType: image.mimeType,
+        },
+      };
     }
 
     const ai = getGeminiClient();
@@ -141,7 +200,7 @@ export function registerAnalyzeRoutes(app: MiniApp): void {
   }`;
 
     if (!ai) {
-      return res.json({
+      return sendDegraded(res, {
         layoutSpec: {
           layoutName: "Litery 3D na Ścianie z Lampą",
           gridType: "studio_wall_3d",
@@ -253,13 +312,15 @@ export function registerAnalyzeRoutes(app: MiniApp): void {
       });
 
       const parsed = safeJsonParse(response.text || "");
-      if (rawMetadata.audioTrack && parsed?.layoutSpec) {
-        parsed.layoutSpec.detectedAudio = rawMetadata.audioTrack;
-      }
-      return res.json(parsed);
+      return res.json({
+        ...parsed,
+        layoutSpec: normalizeLayoutSpec(parsed.layoutSpec, rawMetadata),
+      });
     } catch (err: any) {
       console.error("Błąd analizy:", err);
-      res.status(500).json({ error: "Błąd analizy posta", details: String(err) });
+      // `String(err)` do przeglądarki to adresy upstreamu, szczegóły SDK i
+      // układ środowiska — zostaje tylko w logu serwera.
+      res.status(500).json({ error: "Błąd analizy posta" });
     }
   });
   app.post("/api/ai/analyze-hook", async (req, res) => {
@@ -305,7 +366,7 @@ export function registerAnalyzeRoutes(app: MiniApp): void {
         "Użyj ciemnego bazaltowego tła STARK_FOCUS, kinetic typography i mocnego basu 140BPM w pierwszych 500ms.",
     };
 
-    if (!ai) return res.json({ analysis: fallbackAnalysis });
+    if (!ai) return sendDegraded(res, { analysis: fallbackAnalysis });
 
     try {
       const prompt = `Oceń potencjał wirusowy tego hooka pod format ${platform} dla marki @stark_focus: "${clean}".
@@ -327,16 +388,20 @@ export function registerAnalyzeRoutes(app: MiniApp): void {
       if (parsed?.analysis) {
         return res.json(parsed);
       }
-      return res.json({ analysis: fallbackAnalysis });
+      return sendDegraded(res, { analysis: fallbackAnalysis });
     } catch {
-      return res.json({ analysis: fallbackAnalysis });
+      return sendDegraded(res, { analysis: fallbackAnalysis });
     }
   });
   app.post("/api/ai/hook-battle", async (req, res) => {
-    const { topic = "Dyscyplina", count = 5, offset = 0, excludeHooks = [] } = req.body || {};
+    // `count` steruje pętlą generującą wynik, więc musi być clampnięte.
+    const cleanTopic = clampText(req.body?.topic, 200) || "Dyscyplina i bezwzględne standardy";
+    const count = clampCount(req.body?.count, 5);
+    const currentBatch = clampOffset(req.body?.offset);
+    const excludeHooks = (Array.isArray(req.body?.excludeHooks) ? req.body.excludeHooks : [])
+      .map((hook: unknown) => asString(hook, ""))
+      .filter(Boolean);
     const ai = getGeminiClient();
-    const cleanTopic = String(topic).trim() || "Dyscyplina i bezwzględne standardy";
-    const currentBatch = Math.max(0, Number(offset) || 0);
 
     const generateIntelligentFallbackBattles = (rawTopic: string, batchIdx: number) => {
       const timestamp = Date.now();
@@ -444,7 +509,9 @@ export function registerAnalyzeRoutes(app: MiniApp): void {
     };
 
     if (!ai) {
-      return res.json({ battle: generateIntelligentFallbackBattles(cleanTopic, currentBatch) });
+      return sendDegraded(res, {
+        battle: generateIntelligentFallbackBattles(cleanTopic, currentBatch),
+      });
     }
 
     try {
@@ -496,10 +563,14 @@ export function registerAnalyzeRoutes(app: MiniApp): void {
         return res.json({ battle: validated });
       }
 
-      return res.json({ battle: generateIntelligentFallbackBattles(cleanTopic, currentBatch) });
+      return sendDegraded(res, {
+        battle: generateIntelligentFallbackBattles(cleanTopic, currentBatch),
+      });
     } catch (err) {
       console.warn("Hook battle fallback triggered:", err);
-      return res.json({ battle: generateIntelligentFallbackBattles(cleanTopic, currentBatch) });
+      return sendDegraded(res, {
+        battle: generateIntelligentFallbackBattles(cleanTopic, currentBatch),
+      });
     }
   });
 }

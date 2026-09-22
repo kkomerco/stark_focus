@@ -1,16 +1,6 @@
 import { useState, useCallback, useMemo } from "react";
 import { IdeaItem, IdeaStreamResponse, StarkFocusData } from "../types";
-import { hookSimilarity, SIMILARITY } from "../lib/similarity";
-
-/** Normalizuje hook do fingerprintu (odporny na drobne różnice formatowania). */
-function getFingerprint(hook: string): string {
-  return hook
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 60);
-}
+import { hookFingerprint, hookSimilarity, SIMILARITY } from "../lib/similarity";
 
 export interface ScoredIdea extends IdeaItem {
   /** 0..1 — maksymalne podobieństwo do hooków z historii. */
@@ -63,7 +53,7 @@ export function useIdeaStream(
         // Oceniamy KAŻDY pomysł: identyczność (fingerprint) i podobieństwo (tokeny).
         const exactSet = new Set(usedFingerprints);
         const scoredIdeas: ScoredIdea[] = newIdeas.map((idea) => {
-          const fp = getFingerprint(idea.hook);
+          const fp = hookFingerprint(idea.hook);
           if (exactSet.has(fp)) {
             return { ...idea, similarity: 1, similarTo: idea.hook, rejected: true };
           }
@@ -95,13 +85,15 @@ export function useIdeaStream(
           );
         }
 
-        setIdeas(kept);
+        // Zatrzymanie dobrej listy: jeśli filtr odrzucił WSZYSTKO, nie kasujemy
+        // tego, co użytkownik już ma — pokazujemy tylko powód.
+        if (kept.length > 0) setIdeas(kept);
 
         // Historia rośnie tylko o nowe fingerprinty (limit 500).
         if (kept.length > 0) {
           onUpdateData((prev) => {
             const prevFingerprints = prev.used_idea_fingerprints || [];
-            const merged = [...prevFingerprints, ...kept.map((idea) => getFingerprint(idea.hook))];
+            const merged = [...prevFingerprints, ...kept.map((idea) => hookFingerprint(idea.hook))];
             return {
               ...prev,
               used_idea_fingerprints: Array.from(new Set(merged)).slice(-500),
