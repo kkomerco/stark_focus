@@ -2,6 +2,7 @@ import type { MiniApp } from "../../mini-express.server";
 import { getGeminiClient, safeJsonParse, callGeminiWithFallback } from "../gemini.server";
 import { isSafeUrl } from "../../safe-url";
 import { fetchSafeImage } from "../../fetch-image.server";
+import { sendDegraded } from "../normalize.server";
 
 /**
  * DECONSTRUCT VIRAL — analiza rynku z linków.
@@ -171,8 +172,8 @@ Zwróć WYŁĄCZNIE JSON: { "deconstruction": {...}, "starkVariants": [...] }`;
       throw new Error("Invalid AI response");
     } catch (err) {
       console.warn("Deconstruct viral error:", err);
-      return res.json({
-        source: "offline",
+      return sendDegraded(res, {
+        source: "error",
         platform,
         original: { url: cleanUrl, title: metaTitle, author: metaAuthor, audioTrack },
         deconstruction: {

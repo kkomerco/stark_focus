@@ -152,8 +152,20 @@ export const DeconstructViralModal: React.FC<DeconstructViralModalProps> = ({
                 <div className="flex flex-wrap gap-2 text-[10px] font-mono text-slate-500">
                   {textOf(original?.author) && <span>👤 {textOf(original?.author)}</span>}
                   {textOf(original?.audioTrack) && <span>🎵 {textOf(original?.audioTrack)}</span>}
-                  <span className={result.source === "ai" ? "text-emerald-400" : "text-amber-400"}>
-                    {result.source === "ai" ? "🤖 GEMINI" : "📴 OFFLINE"}
+                  <span
+                    className={
+                      result.source === "ai"
+                        ? "text-emerald-400"
+                        : result.source === "error"
+                          ? "text-red-400"
+                          : "text-amber-400"
+                    }
+                  >
+                    {result.source === "ai"
+                      ? "🤖 GEMINI"
+                      : result.source === "error"
+                        ? "⚠ BŁĄD ANALIZY"
+                        : "📴 OFFLINE"}
                   </span>
                 </div>
               </section>

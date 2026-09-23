@@ -262,7 +262,9 @@ export interface StarkVariant {
 }
 
 export interface DeconstructViralResponse {
-  source: "ai" | "offline";
+  // "error" oddzielnie od "offline": inaczej awaria modelu udawała analizę
+  // z banku treści, a UI pokazywał „Błąd analizy" z odznaką OFFLINE.
+  source: "ai" | "offline" | "error";
   platform: string;
   original: {
     url: string;
