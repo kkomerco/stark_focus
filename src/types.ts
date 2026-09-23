@@ -178,7 +178,10 @@ export interface UniversalTextLayer {
 
 export interface UniversalLayoutSpec {
   layoutName: string;
-  gridType: "none_solid" | "single" | "split_horizontal" | "grid_2x2";
+  // "studio_wall_3d" to układ zwracany przez analizę linku — bez niego
+  // odtworzony kadr ze ścianą 3D nie dawał się przedstawić w typie i zapadał
+  // się do płaskiego cytatu na czerni.
+  gridType: "none_solid" | "single" | "split_horizontal" | "grid_2x2" | "studio_wall_3d";
   backgroundColor: string;
   dividerWidth: number;
   dividerColor: string;

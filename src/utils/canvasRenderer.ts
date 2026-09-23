@@ -1099,6 +1099,93 @@ export function drawMonolithLedgerSlide(
 // =========================================================================
 // UNIWERSALNY ROUTER RENDEROWANIA UKŁADÓW
 // =========================================================================
+
+function applyCasing(text: string, casing?: string): string {
+  if (casing === "uppercase") return text.toUpperCase();
+  if (casing === "lowercase") return text.toLowerCase();
+  return text;
+}
+
+function cssFontWeight(weight?: string): string {
+  if (weight === "black") return "900";
+  if (weight === "bold") return "700";
+  return "400";
+}
+
+/**
+ * Render warstwowy — każda warstwa z analizy układu ma własną geometrię
+ * (rozmiar, kolor, pozycję, wyrównanie, wielkie litery). Wcześniejszy
+ * `renderUniversalLayout` czytał tylko `textLayers[0]` i `[1]` i na sztywno
+ * przyjmował `align: "left"`, więc „odtwórz układ 1:1" spłaszczało każdy
+ * przekazany układ do jednego cytatu na czerni.
+ */
+function drawLayeredTextSlide(
+  canvas: HTMLCanvasElement,
+  spec: UniversalLayoutSpec,
+  options: {
+    width: number;
+    height: number;
+    textScale: number;
+    fontColor: "white" | "black";
+    handle: string;
+  },
+) {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  const { width, height, textScale, fontColor, handle } = options;
+
+  ctx.save();
+  ctx.fillStyle = spec.backgroundColor || (fontColor === "black" ? "#F5F5F5" : "#000000");
+  ctx.fillRect(0, 0, width, height);
+  ctx.restore();
+
+  const margin = Math.round(width * 0.09);
+  const usableWidth = width - margin * 2;
+
+  for (const layer of spec.textLayers) {
+    const rawText = applyCasing(String(layer.text || ""), layer.casing).trim();
+    if (!rawText) continue;
+
+    const size = Math.max(18, Math.min(340, Math.round((layer.fontSize || 64) * textScale)));
+    const style = layer.fontStyle === "italic" ? "italic " : "";
+    ctx.font = `${style}${cssFontWeight(layer.fontWeight)} ${size}px ${getFontFamilySpec(
+      layer.fontFamily || "sans",
+    )}`;
+
+    const lines = wrapTextLines(ctx, rawText, usableWidth);
+    const lineHeight = Math.round(size * 1.18);
+
+    const anchorX = Math.round(width * (layer.posX ?? 0.12));
+    const align = layer.align === "center" || layer.align === "right" ? layer.align : "left";
+    const x = align === "center" ? width / 2 : align === "right" ? width - margin : anchorX;
+
+    ctx.textAlign = align === "center" ? "center" : align === "right" ? "right" : "left";
+    ctx.textBaseline = "alphabetic";
+    ctx.fillStyle = layer.color || (fontColor === "black" ? "#161920" : "#FFFFFF");
+
+    let y = Math.round(height * (layer.posY ?? 0.46));
+    for (const line of lines) {
+      if (layer.strokeWidth && layer.strokeColor) {
+        ctx.lineWidth = layer.strokeWidth;
+        ctx.strokeStyle = layer.strokeColor;
+        ctx.strokeText(line, x, y);
+      }
+      ctx.fillText(line, x, y);
+      y += lineHeight;
+    }
+  }
+
+  ctx.textAlign = "left";
+  ctx.font = "700 18px monospace";
+  ctx.fillStyle = "rgba(160, 160, 160, 0.7)";
+  ctx.fillText(
+    `@${handle.replace("@", "").toUpperCase()}`,
+    70,
+    height - (height <= 1080 ? 30 : 60),
+  );
+}
+
 export function renderUniversalLayout(
   canvas: HTMLCanvasElement,
   spec: UniversalLayoutSpec,
@@ -1140,7 +1227,35 @@ export function renderUniversalLayout(
     return;
   }
 
-  // Format 2: Domyślny, nieskazitelny Cytat na Czerni (9:16)
+  // Format 2: Litery 3D na ścianie — renderer istniał i był kompletny, ale
+  // żaden układ z analizy linku do niego nie trafiał, więc „Odwzoruj układ"
+  // dawało płaski cytat zamiast kadru ze ściany.
+  if (spec.gridType === "studio_wall_3d") {
+    const lines = spec.textLayers
+      .flatMap((layer) => String(layer.text || "").split(/\r?\n/))
+      .map((line) => line.trim())
+      .filter(Boolean);
+    draw3DWallQuoteSlide(canvas, {
+      width,
+      height,
+      textLines: lines.length > 0 ? lines : ["Silence cannot be misquoted."],
+      wallImage: images[0] ?? null,
+      handle,
+      fontSize: spec.textLayers[0]?.fontSize,
+      fontFamily: spec.fontFamilyCustom || fontFamily,
+      textScale,
+      fontColor,
+    });
+    return;
+  }
+
+  // Format 3: wiele warstw tekstu — każda z własną geometrią z analizy.
+  if (spec.textLayers.length > 2) {
+    drawLayeredTextSlide(canvas, spec, { width, height, textScale, fontColor, handle });
+    return;
+  }
+
+  // Format 4: Domyślny, nieskazitelny Cytat na Czerni (9:16)
   const l1 = spec.textLayers[0]?.text?.trim() || "Silence cannot be misquoted.";
   // Subtext jest uwzględniany TYLKO jeśli użytkownik celowo dodał 2. warstwę z tekstem
   const l2 = spec.textLayers.length > 1 ? spec.textLayers[1]?.text?.trim() || "" : "";

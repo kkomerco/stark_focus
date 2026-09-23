@@ -43,6 +43,12 @@ function normalizeLayoutSpec(spec: unknown, rawMetadata: Record<string, unknown>
   return {
     ...source,
     layoutName: asString(source.layoutName, "Analiza AI"),
+    // Model może wymyślić dowolny gridType; tylko znane układy mają renderer.
+    gridType: oneOf(
+      source.gridType,
+      ["none_solid", "single", "split_horizontal", "grid_2x2", "studio_wall_3d"] as const,
+      "none_solid",
+    ),
     slotCount: clampInt(source.slotCount, 0, 12, 1),
     slotLabels: asStringArray(source.slotLabels, 12),
     detectedAudio: detectedAudio || asString(source.detectedAudio, "Czysty dźwięk"),
