@@ -78,9 +78,29 @@ export function registerBackgroundRoutes(app: MiniApp): void {
         });
       }
       return res.json({ dataUrl: image.dataUrl, scenePrompt: image.prompt, aspect });
-    } catch (err) {
-      console.error("Błąd generowania tła:", err);
-      return res.status(502).json({ error: "Generowanie tła nie powiodło się." });
+    } catch (err: any) {
+      const msg = String(err?.message || err);
+      console.error("Błąd generowania tła:", msg);
+
+      // Obrazu nie da się zastąpić bankiem treści, więc użytkownik musi
+      // usłyszeć realny powód: na darmowym tierze limit modeli obrazowych
+      // wynosi 0 i żadna ponowna próba tego nie obejdzie.
+      if (msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED")) {
+        return res.status(429).json({
+          error:
+            "Generowanie obrazów ma limit 0 na darmowym tierze Gemini. Włącz billing w AI Studio albo użyj banku gotowych scen.",
+          reason: "quota",
+        });
+      }
+      if (msg.includes("503") || msg.includes("UNAVAILABLE")) {
+        return res.status(503).json({
+          error: "Model obrazowy jest teraz przeciążony. Spróbuj za chwilę.",
+          reason: "overloaded",
+        });
+      }
+      return res
+        .status(502)
+        .json({ error: "Generowanie tła nie powiodło się.", reason: "unknown" });
     }
   });
 }

@@ -29,9 +29,15 @@ export interface GeneratedImage {
 }
 
 /**
- * Jedno tło z promptu tekstowego. Zwraca `null`, gdy model nie oddał
- * bajtów (filtry RAI zwracają 200 bez obrazu), a rzuca AiResponseError
- * dopiero przy realnym braku konfiguracji.
+ * Jedno tło z promptu tekstowego.
+ *
+ * `ai.models.generateImages` (Imagen) jest tylko w Vertex/Enterprise — na
+ * zwykłym kluczu z AI Studio rzuca „This method is only supported by…".
+ * Obrazy przez Gemini API idą więc normalnym `generateContent` z
+ * `responseModalities: ["IMAGE"]`, a bajty wracają w `inlineData`.
+ *
+ * Zwraca `null`, gdy model odda odpowiedź bez obrazu (filtr treści), a rzuca
+ * AiResponseError tylko przy realnym braku konfiguracji.
  */
 export async function generateImage(options: {
   prompt: string;
@@ -43,28 +49,28 @@ export async function generateImage(options: {
   }
 
   const aspect = options.aspect ?? "9:16";
-  const prompt = `${options.prompt.trim()}. ${BRAND_IMAGE_STYLE}. Vertical framing ${aspect}.`;
+  const orientation =
+    aspect === "1:1" ? "Square composition" : aspect === "4:5" ? "Portrait 4:5" : "Vertical 9:16";
+  const prompt = `${options.prompt.trim()}. ${BRAND_IMAGE_STYLE}. ${orientation} framing.`;
 
-  const response = await ai.models.generateImages({
+  const response = await ai.models.generateContent({
     model: GEMINI_IMAGE_MODEL,
-    prompt,
+    contents: prompt,
     config: {
-      numberOfImages: 1,
-      aspectRatio: aspect,
+      responseModalities: ["IMAGE"],
       abortSignal: AbortSignal.timeout(GEMINI_IMAGE_TIMEOUT_MS),
     },
   });
 
-  const generated = response.generatedImages?.[0];
-  const bytes = generated?.image?.imageBytes;
-  if (!bytes) return null;
+  const parts = response.candidates?.[0]?.content?.parts ?? [];
+  for (const part of parts) {
+    const data = part.inlineData?.data;
+    if (!data) continue;
+    const mimeType = part.inlineData?.mimeType || "image/png";
+    return { dataUrl: `data:${mimeType};base64,${data}`, mimeType, prompt };
+  }
 
-  const mimeType = generated?.image?.mimeType || "image/png";
-  return {
-    dataUrl: `data:${mimeType};base64,${bytes}`,
-    mimeType,
-    prompt: generated?.enhancedPrompt || prompt,
-  };
+  return null;
 }
 
 let cachedClient: GoogleGenAI | null = null;
@@ -328,6 +334,20 @@ export async function callGeminiWithFallback(
 /** Jak generateContent, ale od razu parsuje odpowiedź do obiektu JSON. */
 export async function generateJson<T = any>(options: GenerateContentOptions): Promise<T> {
   return safeJsonParse<T>(await generateContent(options));
+}
+
+/**
+ * generateJson z łańcuchem fallbacku modeli.
+ *
+ * Trasy, które przypiął-y sobie `model: GEMINI_MODEL` bez fallbacku, przy
+ * 503 („model w wysokim popycie") cicho zjeżdżały do banku treści, choć model
+ * zapasowy odpowiadał normalnie — czyli oddawały gorszą jakość zamiast
+ * gorszego modelu.
+ */
+export async function generateJsonWithFallback<T = any>(
+  options: GenerateContentOptions & { preferredModel?: string },
+): Promise<T> {
+  return safeJsonParse<T>(await generateContentWithFallback(options));
 }
 
 /**

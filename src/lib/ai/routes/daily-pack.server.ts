@@ -1,5 +1,5 @@
 import type { MiniApp } from "../../mini-express.server";
-import { GEMINI_MODEL, generateJson, getGeminiClient } from "../gemini.server";
+import { GEMINI_MODEL, generateJsonWithFallback, getGeminiClient } from "../gemini.server";
 import { VIRAL_REEL_TEMPLATES } from "../../../data/reelTemplates";
 import { STARK_CODEX_RULES } from "../../../data/starkCodex";
 import { getRandomBackgroundScene } from "../../../data/expandedBackgrounds";
@@ -172,10 +172,10 @@ Zwróć WYŁĄCZNIE poprawny JSON wg schematu:
   }
 }`;
 
-      const parsed = await generateJson<any>({
+      const parsed = await generateJsonWithFallback<any>({
         contents: prompt,
         temperature: 0.9,
-        model: GEMINI_MODEL,
+        preferredModel: GEMINI_MODEL,
       });
 
       const reels = asArray(parsed.reels)

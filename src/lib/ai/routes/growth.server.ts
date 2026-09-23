@@ -1,7 +1,7 @@
 import type { MiniApp } from "../../mini-express.server";
 import {
   GEMINI_MODEL,
-  generateJson,
+  generateJsonWithFallback,
   getGeminiClient,
   callGeminiWithFallback,
 } from "../gemini.server";
@@ -123,10 +123,10 @@ Zwróć WYŁĄCZNIE JSON:
   ]
 }`;
 
-      const parsed = await generateJson<{ variants?: any[] }>({
+      const parsed = await generateJsonWithFallback<{ variants?: any[] }>({
         contents: prompt,
         temperature: 0.9,
-        model: GEMINI_MODEL,
+        preferredModel: GEMINI_MODEL,
       });
 
       const variants = Array.isArray(parsed?.variants)
@@ -301,10 +301,10 @@ Dla każdego dnia zwróć:
 Zwróć WYŁĄCZNIE JSON:
 { "week": [ { "day": "MON", "category": "...", "topic": "...", "hookOfDay": "...", "plan": "..." } ] }`;
 
-      const parsed = await generateJson<{ week?: any[] }>({
+      const parsed = await generateJsonWithFallback<{ week?: any[] }>({
         contents: prompt,
         temperature: 0.85,
-        model: GEMINI_MODEL,
+        preferredModel: GEMINI_MODEL,
       });
 
       const week = Array.isArray(parsed?.week) && parsed.week.length === 7 ? parsed.week : null;
@@ -364,10 +364,10 @@ Zasady: po angielsku, jeden akapit, 8k ${format}, bez tekstu na obrazie, bez zna
 
 Zwróć WYŁĄCZNIE JSON: { "prompt": "..." }`;
 
-      const parsed = await generateJson<{ prompt?: string }>({
+      const parsed = await generateJsonWithFallback<{ prompt?: string }>({
         contents: prompt,
         temperature: 0.9,
-        model: GEMINI_MODEL,
+        preferredModel: GEMINI_MODEL,
       });
 
       if (parsed?.prompt && parsed.prompt.length > 40) {

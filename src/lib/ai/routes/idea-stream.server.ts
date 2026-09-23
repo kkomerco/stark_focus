@@ -1,5 +1,5 @@
 import type { MiniApp } from "../../mini-express.server";
-import { GEMINI_MODEL, generateJson, getGeminiClient } from "../gemini.server";
+import { GEMINI_MODEL, generateJsonWithFallback, getGeminiClient } from "../gemini.server";
 import { hookFingerprint, maxSimilarity, SIMILARITY } from "../../similarity";
 import { pick, pickN } from "../../random";
 import { clampCount, clampInt, clampText, LIMITS } from "../../limits";
@@ -227,10 +227,10 @@ Zwróć WYŁĄCZNIE JSON:
   ]
 }`;
 
-      const parsed = await generateJson<{ ideas?: any[] }>({
+      const parsed = await generateJsonWithFallback<{ ideas?: any[] }>({
         contents: prompt,
         temperature: 0.95,
-        model: GEMINI_MODEL,
+        preferredModel: GEMINI_MODEL,
       });
 
       // Model ignoruje zakaz powtórek częściej, niżby chcieć — więc filtrujemy
