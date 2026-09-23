@@ -9,12 +9,14 @@ import {
   Download,
   ExternalLink,
   ListChecks,
+  Package,
   Trash2,
   Undo2,
   Upload,
 } from "lucide-react";
 import { PlannerTask, StarkFocusData } from "../types";
 import { importStoredData, serializeBackup } from "../utils/storage";
+import { buildPlatformPack } from "../utils/platformPack";
 
 interface PipelineTabProps {
   data: StarkFocusData;
@@ -128,6 +130,44 @@ export const PipelineTab: React.FC<PipelineTabProps> = ({
     }));
   };
 
+  const [packing, setPacking] = useState(false);
+
+  /**
+   * Jeden klik -> gotowy zestaw kadrów i opisów na wszystkie trzy platformy.
+   * Bez tego trzeba pobierać grafikę osobno dla każdego formatu i ręcznie
+   * przycinać opis pod limit platformy.
+   */
+  const handlePlatformPack = async () => {
+    const queued = tasks.filter((t) => !t.completed);
+    if (queued.length === 0) {
+      setNotice({ kind: "err", text: "Brak zaplanowanych zadań do spakowania." });
+      return;
+    }
+    setPacking(true);
+    setNotice(null);
+    try {
+      const { blob, files, skipped } = await buildPlatformPack(queued);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `STARK_PAKIET_PLATFORMY_${today}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      setNotice({
+        kind: "ok",
+        text: `Pakiet pobrany: ${files} plików dla ${queued.length} zadań${
+          skipped.length > 0 ? ` (pominięto ${skipped.length} bez treści)` : ""
+        }.`,
+      });
+    } catch (e: any) {
+      setNotice({ kind: "err", text: `Pakiet nie powstał: ${e?.message || "nieznany błąd"}` });
+    } finally {
+      setPacking(false);
+    }
+  };
+
   const handleExport = () => {
     const blob = new Blob([serializeBackup(data)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -192,6 +232,16 @@ export const PipelineTab: React.FC<PipelineTabProps> = ({
               {hidePublished ? "Pokaż opublikowane" : "Ukryj opublikowane"}
             </button>
           )}
+          <button
+            type="button"
+            onClick={handlePlatformPack}
+            disabled={packing}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600/20 border border-rose-500/40 text-[10px] font-mono font-bold uppercase tracking-wider text-rose-300 hover:bg-rose-600/30 transition-colors cursor-pointer disabled:opacity-50"
+            title="Kadry 1:1, 4:5 i 9:16 plus opis miesciacy sie w limit Instagram / TikToka / Shorts, wszystko w jednym ZIP"
+          >
+            <Package className={`w-3.5 h-3.5 ${packing ? "animate-pulse" : ""}`} />
+            {packing ? "Pakuje…" : "Pakiet na platformy"}
+          </button>
           <button
             type="button"
             onClick={handleExport}
