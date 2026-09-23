@@ -242,7 +242,7 @@ export const DailyPackModal: React.FC<DailyPackModalProps> = ({
                               hashtags,
                             });
                           }}
-                          className="py-1.5 px-3 rounded bg-[#38BDF8]/15 hover:bg-[#38BDF8]/25 border border-[#38BDF8]/40 text-[11px] font-mono font-bold text-[#38BDF8] uppercase tracking-wider flex items-center gap-1.5 cursor-pointer"
+                          className="py-1.5 px-3 rounded bg-rose-600/15 hover:bg-rose-600/25 border border-rose-500/40 text-[11px] font-mono font-bold text-rose-400 uppercase tracking-wider flex items-center gap-1.5 cursor-pointer"
                         >
                           <Film className="w-3 h-3" />
                           Studio Wideo

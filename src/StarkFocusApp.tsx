@@ -302,7 +302,7 @@ export default function StarkFocusApp() {
             </button>
             <button
               onClick={() => setDeconstructOpen(true)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-sky-500/20 to-cyan-500/20 hover:from-sky-500/30 hover:to-cyan-500/30 border border-sky-500/30 text-sky-300 text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-zinc-500/20 to-zinc-400/20 hover:from-zinc-500/30 hover:to-zinc-400/30 border border-zinc-500/30 text-zinc-200 text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer"
             >
               <Link2 className="w-4 h-4" />
               Analiza Virala (Link)

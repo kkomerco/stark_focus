@@ -6,6 +6,14 @@ import {
   TopHeaderMode,
 } from "../types";
 
+/**
+ * Kanon marki: czerń obsydianu, kościelna biel i JEDEN akcent — głęboki
+ * karmazyn. Wcześniejszy „platynowo-cyjanowy” akcent (#38BDF8) sprawiał, że
+ * materiał wyglądał jak produkt technologiczny, a nie marka dyscypliny.
+ */
+export const BRAND_ACCENT = "#E11D48";
+export const BRAND_ACCENT_DIM = "#9F1239";
+
 export interface ThemeConfig {
   id: VisualTheme;
   name: string;
@@ -23,22 +31,22 @@ export const STARK_THEMES: ThemeConfig[] = [
   {
     id: "obsidian_monolith",
     name: "1. STARK OBSIDIAN (Czysta Czerń)",
-    badge: "Mroczna Czerń & Platyna",
+    badge: "Mroczna Czerń & Karmazyn",
     primaryColor: "#FFFFFF",
-    accentColor: "#E2E8F0",
-    desc: "Bezwzględna, mroczna czerń otchłani, matowa platyna i surowy stoicki minimalizm.",
+    accentColor: BRAND_ACCENT,
+    desc: "Bezwzględna czerń otchłani, kościelna biel i jeden akcent głębokiego karmazynu.",
     bgGradStart: "#06080C",
     bgGradMid: "#030406",
     bgGradEnd: "#010102",
-    borderColor: "rgba(226, 232, 240, 0.15)",
+    borderColor: "rgba(225, 29, 72, 0.20)",
   },
   {
     id: "titanium_slate",
     name: "2. TITANIUM CHARCOAL (Grafit & Węgiel)",
     badge: "Stal & Ciemny Antracyt",
     primaryColor: "#F8FAFC",
-    accentColor: "#94A3B8",
-    desc: "Architektoniczny matowy grafit, szczotkowany tytan i stalowy światłocień bez jaskrawych barw.",
+    accentColor: BRAND_ACCENT,
+    desc: "Architektoniczny matowy grafit, szczotkowany tytan i surowy światłocień bez jaskrawych barw.",
     bgGradStart: "#0D1117",
     bgGradMid: "#080B10",
     bgGradEnd: "#030407",
@@ -70,8 +78,25 @@ export const STARK_THEMES: ThemeConfig[] = [
   },
 ];
 
+/**
+ * Studia rolek operują własną listą motywów (obsidian_void, carbon_aura…),
+ * a marka czterema. Bez mostu `getStarkThemeConfig("emerald_abyss")` cicho
+ * zwracało motyw #0, więc wybrany motyw nigdy nie wchodził w kadr.
+ * ZIELENIE i srebro sprowadzamy do chłodnego grafitu — markę robi czerń,
+ * kość i karmazyn, a nie paleta losowych odcieni.
+ */
+const REEL_THEME_ALIASES: Record<string, VisualTheme> = {
+  obsidian_void: "obsidian_monolith",
+  carbon_aura: "obsidian_monolith",
+  silver_mist: "titanium_slate",
+  emerald_abyss: "titanium_slate",
+  crimson_eclipse: "crimson_eclipse",
+};
+
 export function getStarkThemeConfig(themeId: string): ThemeConfig {
-  const found = STARK_THEMES.find((t) => t.id === themeId);
+  const alias = REEL_THEME_ALIASES[themeId];
+  const wanted = alias ?? themeId;
+  const found = STARK_THEMES.find((t) => t.id === wanted);
   return found || STARK_THEMES[0];
 }
 

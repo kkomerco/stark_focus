@@ -208,7 +208,7 @@ export const PromptLibraryModal: React.FC<PromptLibraryModalProps> = ({
                 <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-500/10 text-slate-300 border border-slate-500/25">
                   {item.style}
                 </span>
-                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-300 border border-sky-500/25">
+                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-zinc-500/15 text-zinc-200 border border-zinc-500/40">
                   {item.source}
                 </span>
                 <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/25">

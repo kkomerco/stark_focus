@@ -78,11 +78,11 @@ export const DeconstructViralModal: React.FC<DeconstructViralModalProps> = ({
       <div className={`w-full max-w-4xl max-h-[88vh] flex flex-col ${PANEL} p-5 space-y-4`}>
         <div className="flex items-center justify-between pb-3 border-b border-[#2C354B]">
           <div className="flex items-center gap-2">
-            <Link2 className="w-4 h-4 text-sky-400" />
+            <Link2 className="w-4 h-4 text-rose-400" />
             <h3 className="text-sm font-mono font-black uppercase tracking-wider text-white">
               Analiza Virala
             </h3>
-            <span className="text-[9px] font-mono px-2 py-0.5 rounded font-bold bg-sky-500/15 text-sky-400 border border-sky-500/30">
+            <span className="text-[9px] font-mono px-2 py-0.5 rounded font-bold bg-zinc-500/15 text-zinc-300 border border-zinc-500/30">
               📊 Dekonstrukcja + warianty
             </span>
           </div>
@@ -102,13 +102,13 @@ export const DeconstructViralModal: React.FC<DeconstructViralModalProps> = ({
             onChange={(e) => onUrlChange(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && analyze()}
             placeholder="https://www.tiktok.com/@user/video/... lub link IG / Shorts"
-            className="flex-1 min-w-[240px] px-3 py-2 rounded-lg bg-[#141824] border border-[#2C354B] text-xs font-mono text-white placeholder-slate-500 focus:outline-none focus:border-sky-500/50"
+            className="flex-1 min-w-[240px] px-3 py-2 rounded-lg bg-[#141824] border border-[#2C354B] text-xs font-mono text-white placeholder-slate-500 focus:outline-none focus:border-rose-500/50"
           />
           <button
             type="button"
             onClick={analyze}
             disabled={loading}
-            className="py-2 px-4 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/40 text-xs font-mono font-bold text-sky-300 uppercase tracking-wider flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            className="py-2 px-4 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-xs font-mono font-bold text-rose-300 uppercase tracking-wider flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
           >
             {loading ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -122,7 +122,7 @@ export const DeconstructViralModal: React.FC<DeconstructViralModalProps> = ({
         <div className="flex-1 overflow-y-auto space-y-4 pr-1">
           {loading && (
             <div className="flex flex-col items-center gap-3 py-16">
-              <Loader2 className="w-7 h-7 animate-spin text-sky-400" />
+              <Loader2 className="w-7 h-7 animate-spin text-rose-400" />
               <p className="text-xs font-mono text-slate-400">
                 Pobieram metadane i dekonstruuję wzorzec...
               </p>
@@ -216,7 +216,7 @@ export const DeconstructViralModal: React.FC<DeconstructViralModalProps> = ({
                           {v.viralityScore}%
                         </span>
                       </div>
-                      <p className="text-[10px] font-mono text-sky-300">⚡ {textOf(v.angle)}</p>
+                      <p className="text-[10px] font-mono text-zinc-200">⚡ {textOf(v.angle)}</p>
                       <div className="space-y-0.5 pl-2 border-l border-[#2C354B]">
                         {phrases.map((p, i) => (
                           <p key={i} className="text-[10px] font-mono text-slate-400">

@@ -250,7 +250,7 @@ export const AbModal: React.FC<AbModalProps> = ({
                   <span className="text-[9px] font-mono text-slate-500">{textOf(v.theme)}</span>
                 </div>
                 <p className="text-sm font-mono font-bold text-white">{hook}</p>
-                <p className="text-[10px] font-mono text-sky-300">⚡ {textOf(v.angle)}</p>
+                <p className="text-[10px] font-mono text-zinc-200">⚡ {textOf(v.angle)}</p>
                 <div className="space-y-0.5 pl-2 border-l border-[#2C354B]">
                   {phrases.map((p, i) => (
                     <p key={i} className="text-[10px] font-mono text-slate-400">

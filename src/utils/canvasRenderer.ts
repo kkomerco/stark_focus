@@ -11,6 +11,7 @@ import type {
   UniversalTextLayer,
 } from "../types";
 import {
+  BRAND_ACCENT,
   getStarkThemeConfig,
   normalizeLogoPlacement,
   resolveTopHeaderText,
@@ -1537,10 +1538,10 @@ export function drawSlideToCanvas(canvas: HTMLCanvasElement, options: RenderSlid
     : isGold
       ? "#C5A059" // Mroczne złoto cesarza
       : isObsidian
-        ? "#38BDF8" // Chłodny platynowo-cyjanowy akcent w stylu Stark
+        ? "#E11D48" // Karmazyn na czerni — kanoniczny akcent marki
         : isTitanium
           ? "#94A3B8" // Chłodna stal / tytan
-          : themeConfig.accentColor || "#38BDF8";
+          : themeConfig.accentColor || BRAND_ACCENT;
 
   const fontFam = getCarouselFontFamilyCSS(fontChoice);
 

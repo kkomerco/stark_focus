@@ -2,13 +2,13 @@ import { CTAPreset } from "../types";
 
 export const ENGLISH_BING_MOTIFS = [
   "Colossal shattered marble statue of Marcus Aurelius submerged in dark rolling fog, dramatic single-source museum key light, chiaroscuro",
-  "Monumental brutalist basalt fortress standing in infinite midnight fog ocean, glowing cyan laser reticle at the summit",
-  "Dark Spartan warrior helmet forged from matte black titanium, razor sharp geometric edges, cold electric cyan rim lighting",
+  "Monumental brutalist basalt fortress standing in infinite midnight fog ocean, single deep crimson light band at the summit",
+  "Dark Spartan warrior helmet forged from matte black titanium, razor sharp geometric edges, cold bone-white rim lighting",
   "Massive obsidian geometric artifact with glowing molten gold fracture veins, floating amber embers, pitch black void",
   "Giant ancient Roman temple pillars swallowed by black volcanic dust storm, dramatic cold moonlight slicing through dark clouds",
   "Heavy hourglass forged from dark tungsten metal filled with black magnetic ferrofluid sand, macro cinematic lighting",
   "Solitary cloaked figure standing at the razor edge of a massive basalt cliff looking into deep cosmic abyss",
-  "Geometric black marble sculpture bathed in dramatic cold cyan laser shadows, brutalist minimalism, hyper-sharp",
+  "Geometric black marble sculpture bathed in dramatic crimson and shadow, brutalist minimalism, hyper-sharp",
 ];
 
 export const DEFAULT_PRESETS_EN: CTAPreset[] = [
