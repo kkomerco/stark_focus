@@ -41,17 +41,13 @@ registerBatchRoutes(app);
 // Świadomie poza CACHEABLE_AI_PATHS: tło ma być za każdym razem inne.
 registerBackgroundRoutes(app);
 
-// Endpointy AI, ktorych odpowiedzi warto cache'owac (identyczne zapytanie = ta sama odpowiedz)
-const CACHEABLE_AI_PATHS = new Set([
-  "/api/ai/scan-trends",
-  "/api/ai/generate-background-prompt",
-  "/api/ai/analyze-link",
-  "/api/ai/viral-format-radar",
-  "/api/ai/angle-matrix",
-  "/api/ai/cognitive-friction",
-  "/api/ai/evergreen-recycle",
-  "/api/ai/batch-generator",
-]);
+/**
+ * Cache zostaje tylko tam, gdzie identyczne zapytanie MA znaczyć identyczną
+ * odpowiedź (analiza tego samego linku). Generatory pomysłów są poza listą
+ * celowo: dla właściciela powtórka z 5 minut to nie jest „ta sama odpowiedź",
+ * tylko zmarnowany klik i mniej treści na feed.
+ */
+const CACHEABLE_AI_PATHS = new Set(["/api/ai/analyze-link"]);
 
 export async function handleStarkApi(request: Request): Promise<Response> {
   const url = new URL(request.url);
