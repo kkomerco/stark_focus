@@ -1,29 +1,28 @@
 import { IdeaItem, UniversalLayoutSpec, UniversalTextLayer } from "../types";
 import { formatStarkCaption } from "../lib/caption";
+import { layerGroup, PRIMARY_LAYER_ID, textLayer } from "./canvas/layerRoles";
 
 /**
  * POMYSŁ -> KADR.
  *
  * Model od tej pory zwraca także `layout` i `structure`. Bez tego mapowania
- * informacja o układzie umierałaby w locie: studio i tak renderowałoby cytat
- * na czerni, czyli dokładnie to, z czego materiał miał przestać się składać.
+ * informacja o układzie umierałaby w locie: studio i tak renderowałoby cytat na
+ * czerni, czyli dokładnie to, z czego materiał miał przestać się składać.
+ *
+ * Cała treść kadru mieszka w `textLayers` z id-grupami (canvas/layerRoles.ts).
+ * Dopóki leżała w osobnym `layoutData`, edytor poprawiał warstwy, a kadr dalej
+ * rysował stare zdania. To samo buduje presety w studio — dzięki temu wybrany
+ * format i wygenerowany pomysł wyglądają identycznie.
  */
 
-function layer(
-  partial: Partial<UniversalTextLayer> & { text: string; id: string },
-): UniversalTextLayer {
-  return {
-    fontFamily: "cinzel",
-    fontSize: 74,
-    fontWeight: "bold",
-    fontStyle: "normal",
-    casing: "preserve",
-    color: "#F3F0EA",
-    align: "left",
-    posY: 0.18,
-    posX: 0.09,
-    ...partial,
-  };
+export interface StructuredContent {
+  /** Teza, pytanie albo nagłówek — zawsze pierwsza warstwa (`t1`). */
+  primary: string;
+  subtext?: string;
+  steps?: string[];
+  cost?: string[];
+  forfeit?: string[];
+  closing?: string;
 }
 
 const LAYOUT_NAMES: Record<string, string> = {
@@ -34,16 +33,51 @@ const LAYOUT_NAMES: Record<string, string> = {
   studio_wall_3d: "Litery na ścianie",
 };
 
-export function specFromIdea(idea: IdeaItem): UniversalLayoutSpec {
-  const structure = idea.structure ?? {};
-  const statement = structure.statement || structure.question || idea.hook;
-  const isQuote = !idea.layout || idea.layout === "quote";
-  const gridType: UniversalLayoutSpec["gridType"] = isQuote
-    ? "none_solid"
-    : (idea.layout as UniversalLayoutSpec["gridType"]);
+const BODY_FONT_SIZE = 38;
+
+export function structuredSpec(
+  layoutName: string,
+  gridType: UniversalLayoutSpec["gridType"],
+  content: StructuredContent,
+  meta: UniversalLayoutSpec["layoutData"] = {},
+): UniversalLayoutSpec {
+  const layers: UniversalTextLayer[] = [textLayer(PRIMARY_LAYER_ID, content.primary)];
+
+  if (content.subtext) {
+    layers.push(
+      textLayer("sub1", content.subtext, { fontFamily: "sans", fontSize: 34, posY: 0.3 }),
+    );
+  }
+  if (content.steps?.length) {
+    layers.push(
+      ...layerGroup("step", content.steps, {
+        fontSize: BODY_FONT_SIZE,
+        firstY: 0.42,
+        stepY: 0.1,
+      }),
+    );
+  }
+  if (content.cost?.length) {
+    layers.push(
+      ...layerGroup("cost", content.cost, { fontSize: BODY_FONT_SIZE, firstY: 0.4, stepY: 0.12 }),
+    );
+  }
+  if (content.forfeit?.length) {
+    layers.push(
+      ...layerGroup("forfeit", content.forfeit, {
+        fontSize: BODY_FONT_SIZE,
+        firstY: 0.4,
+        stepY: 0.12,
+        posX: 0.54,
+      }),
+    );
+  }
+  if (content.closing) {
+    layers.push(textLayer("closing", content.closing, { fontSize: 46, posY: 0.84 }));
+  }
 
   return {
-    layoutName: LAYOUT_NAMES[idea.layout ?? "quote"] || "Cytat",
+    layoutName,
     gridType,
     backgroundColor: "#050505",
     dividerWidth: 0,
@@ -53,37 +87,37 @@ export function specFromIdea(idea: IdeaItem): UniversalLayoutSpec {
     textEffect: "flat",
     fontFamilyCustom: "cinzel",
     fontColorMode: "white",
-    textLayers: [
-      layer({ id: "t1", text: statement }),
-      // Kroki jako warstwy: studio pokazuje je w edytorze tekstu i da się je
-      // poprawić ręcznie bez wracania do generatora.
-      ...(structure.steps ?? []).map((step, index) =>
-        layer({
-          id: `step-${index + 1}`,
-          text: step,
-          fontFamily: "sans",
-          fontSize: 40,
-          posY: 0.42 + index * 0.1,
-        }),
-      ),
-    ],
-    layoutData: {
-      eyebrow: structure.eyebrow,
-      statement,
+    textLayers: layers,
+    layoutData: meta,
+    caption: formatStarkCaption(content.primary, [
+      "Comfort is paid for in regret, later and with interest.",
+      "The standard you hold alone is the only one that counts.",
+      "Silence protects the work; results announce it.",
+    ]),
+    detectedAudio: "bez dźwięku — dodaj w aplikacji social media",
+  };
+}
+
+export function specFromIdea(idea: IdeaItem): UniversalLayoutSpec {
+  const structure = idea.structure ?? {};
+  const isQuote = !idea.layout || idea.layout === "quote";
+  const gridType: UniversalLayoutSpec["gridType"] = isQuote
+    ? "none_solid"
+    : (idea.layout as UniversalLayoutSpec["gridType"]);
+
+  const spec = structuredSpec(
+    LAYOUT_NAMES[idea.layout ?? "quote"] || "Cytat",
+    gridType,
+    {
+      primary: structure.statement || structure.question || idea.hook,
+      subtext: structure.subtext,
       steps: structure.steps,
-      figure: structure.figure,
-      question: structure.question || statement,
       cost: structure.cost,
       forfeit: structure.forfeit,
       closing: structure.closing,
     },
-    caption:
-      idea.caption?.trim() ||
-      formatStarkCaption(statement, [
-        "Comfort is paid for in regret, later and with interest.",
-        "The standard you hold alone is the only one that counts.",
-        "Silence protects the work; results announce it.",
-      ]),
-    detectedAudio: "bez dźwięku — dodaj w aplikacji social media",
-  };
+    { eyebrow: structure.eyebrow, figure: structure.figure },
+  );
+
+  return { ...spec, caption: idea.caption?.trim() || spec.caption };
 }

@@ -18,6 +18,7 @@ import {
   drawBrandLogoOnContext,
 } from "./starkBrandTheme";
 import { drawCostVsRewardSlide, drawProtocolListSlide } from "./canvas/layouts-v2";
+import { groupText, layerById, PRIMARY_LAYER_ID } from "./canvas/layerRoles";
 
 export type { SlideData };
 
@@ -60,6 +61,7 @@ export {
 } from "./canvas/primitives";
 import {
   drawImageCover,
+  fitLines,
   getFontFamilySpec,
   parseLineTokens,
   stripHighlightSyntax,
@@ -437,17 +439,30 @@ export function draw3DWallQuoteSlide(
   ctx.setTransform(1, -0.055, 0.065, 1, width * 0.05, height * 0.06);
 
   const baseFontSize = options.fontSize || (height <= 1080 ? 52 : height <= 1350 ? 62 : 72);
-  const fontSize = Math.round(baseFontSize * textScale);
-  const lineHeight = fontSize * 1.34;
-
+  let fontSize = Math.round(baseFontSize * textScale);
   const fontSpec = getFontFamilySpec(fontFamily);
 
-  ctx.font = `900 ${fontSize}px ${fontSpec}`;
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
 
   const startX = width * 0.12;
-  const totalTextH = (textLines.length - 1) * lineHeight;
+  // Macierz nachyla kadr o 0,065*y, więc w połowie wysokości litera wędruje o
+  // ~115 px w prawo. Bez oddania tego miejsca najdłuższy wiersz schodził za
+  // prawą krawędź kadru.
+  const maxTextWidth = width - startX - Math.round(width * 0.19);
+  const fitted = fitLines(
+    ctx,
+    textLines.join("\n"),
+    maxTextWidth,
+    6,
+    (size) => `900 ${size}px ${fontSpec}`,
+    fontSize,
+  );
+  const lines = fitted.lines;
+  fontSize = fitted.size;
+
+  const lineHeight = fontSize * 1.34;
+  const totalTextH = (lines.length - 1) * lineHeight;
 
   let curY =
     height <= 1080
@@ -470,7 +485,8 @@ export function draw3DWallQuoteSlide(
       ? "#252A34"
       : "#0A0B0E";
 
-  textLines.forEach((rawLine) => {
+  ctx.font = `900 ${fontSize}px ${fontSpec}`;
+  lines.forEach((rawLine) => {
     const line = rawLine;
     const shadowOffsetX = -14;
     const shadowOffsetY = 18;
@@ -868,6 +884,10 @@ export function drawMonolithLedgerSlide(
     headline: string;
     subtext?: string;
     points?: string[];
+    /** Krótka rubryka nad nagłówkiem, np. "LEDGER". */
+    eyebrow?: string;
+    /** Cyfra wypełniająca górną połowę, gdy nie ma zdjęcia. */
+    figure?: string;
     handle?: string;
     bgImage?: CanvasImageSource | null;
     accentColor?: string;
@@ -881,6 +901,8 @@ export function drawMonolithLedgerSlide(
     headline = "",
     subtext = "",
     points = [],
+    eyebrow = "",
+    figure = "",
     handle = "stark_focus",
     bgImage,
     accentColor = "#E2E8F0",
@@ -928,23 +950,42 @@ export function drawMonolithLedgerSlide(
   ctx.fillStyle = accentColor;
   ctx.fillRect(width / 2 - 45, splitY - 2, 90, 4);
 
-  ctx.font = "700 16px monospace";
+  // Górna połowa to normalnie zdjęcie. Bez niego kadr miał dziurę, więc
+  // goszczą ją cyfry z układu — ten sam motyw co w protokole.
+  if (!bgImage && figure) {
+    const figureSize = Math.round(width * 0.3);
+    ctx.font = `700 ${figureSize}px ${getFontFamilySpec("cinzel")}`;
+    ctx.textAlign = "center";
+    ctx.fillStyle = "rgba(243,240,234,0.1)";
+    ctx.fillText(figure, width / 2, splitY * 0.72);
+    ctx.textAlign = "left";
+  }
+
+  const sans = getFontFamilySpec("sans");
+  const rubryka = `[ ${(eyebrow || "LEDGER").toUpperCase()} // ${handle.replace("@", "").toUpperCase()} ]`;
+  ctx.font = `700 16px ${sans}`;
   ctx.fillStyle = accentColor;
   ctx.textAlign = "left";
-  ctx.fillText("[ STANDARD OPERACYJNY // STARK_FOCUS ]", 70, splitY + 50);
+  ctx.fillText(rubryka, 70, splitY + 50);
 
   const headlineSize = Math.round((height <= 1080 ? 38 : 48) * textScale);
-  ctx.font = `900 ${headlineSize}px "Plus Jakarta Sans", sans-serif`;
+  const headlineFit = fitLines(
+    ctx,
+    headline.toUpperCase(),
+    width - 140,
+    2,
+    (size) => `900 ${size}px ${sans}`,
+    headlineSize,
+  );
   ctx.fillStyle = "#FFFFFF";
-  const headlineLines = wrapTextLines(ctx, headline.toUpperCase(), width - 140);
   let textY = splitY + (height <= 1080 ? 95 : 115);
-  headlineLines.slice(0, 2).forEach((line) => {
+  headlineFit.lines.forEach((line) => {
     ctx.fillText(line, 70, textY);
-    textY += headlineSize * 1.25;
+    textY += headlineFit.size * 1.25;
   });
 
   if (subtext) {
-    ctx.font = '500 20px "Plus Jakarta Sans", sans-serif';
+    ctx.font = `500 20px ${sans}`;
     ctx.fillStyle = "rgba(226, 232, 240, 0.75)";
     ctx.fillText(subtext, 70, textY + 8);
     textY += 45;
@@ -964,10 +1005,18 @@ export function drawMonolithLedgerSlide(
     ctx.fillStyle = accentColor;
     ctx.fillText(`0${idx + 1}`, 95, curY + cardH * 0.6);
 
-    ctx.font = '600 19px "Plus Jakarta Sans", sans-serif';
+    // Pozycja rejestru musi zmieścić się w karcie — dawniej brany był tylko
+    // pierwszy wiersz, więc dłuższa pozycja urywała się w połowie zdania.
+    const pointFit = fitLines(ctx, pt, width - 240, 2, (size) => `600 ${size}px ${sans}`, 19, 14);
     ctx.fillStyle = "#FFFFFF";
-    const pointLines = wrapTextLines(ctx, pt, width - 240);
-    ctx.fillText(pointLines[0] || pt, 150, curY + cardH * 0.6);
+    const blockH = pointFit.lines.length * pointFit.size * 1.25;
+    pointFit.lines.forEach((line, lineIndex) => {
+      ctx.fillText(
+        line,
+        150,
+        curY + (cardH - blockH) / 2 + pointFit.size * 0.85 + lineIndex * pointFit.size * 1.25,
+      );
+    });
     curY += cardH + 14;
   });
 
@@ -979,11 +1028,8 @@ export function drawMonolithLedgerSlide(
     height - (height <= 1080 ? 30 : 60),
   );
   ctx.textAlign = "right";
-  ctx.fillText(
-    "SAVE FOR MORNING DISCIPLINE // ♟️",
-    width - 70,
-    height - (height <= 1080 ? 30 : 60),
-  );
+  ctx.fillText("STARK STANDARD", width - 70, height - (height <= 1080 ? 30 : 60));
+  ctx.textAlign = "left";
 }
 
 // =========================================================================
@@ -1139,10 +1185,8 @@ export function renderUniversalLayout(
       height,
       handle,
       eyebrow: spec.layoutData?.eyebrow || "PROTOCOL",
-      statement: spec.layoutData?.statement || l1Fallback(spec),
-      steps: spec.layoutData?.steps?.length
-        ? spec.layoutData.steps
-        : spec.textLayers.slice(1).map((layer) => layer.text),
+      statement: layerById(spec, PRIMARY_LAYER_ID) || l1Fallback(spec),
+      steps: groupText(spec, "step"),
       figure: spec.layoutData?.figure,
       bgImage: options.backgroundImage ?? images[0] ?? null,
       headlineFont: spec.fontFamilyCustom || fontFamily,
@@ -1156,10 +1200,10 @@ export function renderUniversalLayout(
       width,
       height,
       handle,
-      question: spec.layoutData?.question || l1Fallback(spec),
-      cost: spec.layoutData?.cost || [],
-      forfeit: spec.layoutData?.forfeit || [],
-      closing: spec.layoutData?.closing,
+      question: layerById(spec, PRIMARY_LAYER_ID) || l1Fallback(spec),
+      cost: groupText(spec, "cost"),
+      forfeit: groupText(spec, "forfeit"),
+      closing: layerById(spec, "closing"),
       bgImage: options.backgroundImage ?? images[0] ?? null,
     });
     return;
@@ -1171,10 +1215,10 @@ export function renderUniversalLayout(
       width,
       height,
       headline: l1Fallback(spec),
-      subtext: spec.textLayers[1]?.text || "",
-      points: spec.layoutData?.steps?.length
-        ? spec.layoutData.steps
-        : spec.textLayers.slice(2).map((layer) => layer.text),
+      subtext: layerById(spec, "sub1"),
+      points: groupText(spec, "step"),
+      eyebrow: spec.layoutData?.eyebrow,
+      figure: spec.layoutData?.figure,
       handle,
       bgImage: options.backgroundImage ?? images[0] ?? null,
       accentColor: BRAND_ACCENT,

@@ -97,6 +97,31 @@ export function wrapTextLines(ctx: CanvasRenderingContext2D, text: string, maxWi
   return resultLines;
 }
 
+/**
+ * Dobiera stopień pisma tak, żeby tekst zmieścił się w `maxLines`.
+ * Zwraca rozmiar razem z wierszami — rysujący musi użyć TYCH samych wartości,
+ * bo miara branego z innego kroju niż malowany wypycha linie za margines.
+ */
+export function fitLines(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+  maxLines: number,
+  font: (size: number) => string,
+  startSize: number,
+  minSize = Math.round(startSize * 0.55),
+): { size: number; lines: string[] } {
+  let size = startSize;
+  let lines: string[] = [];
+  for (;;) {
+    ctx.font = font(size);
+    lines = wrapTextLines(ctx, text, maxWidth);
+    if (lines.length <= maxLines || size <= minSize) break;
+    size = Math.max(minSize, size - Math.max(2, Math.round(size * 0.06)));
+  }
+  return { size, lines: lines.slice(0, maxLines) };
+}
+
 /** Wypełnienie obszaru obrazem bez zniekształcenia (cover + środkowe kadrowanie). */
 export function drawImageCover(
   ctx: CanvasRenderingContext2D,

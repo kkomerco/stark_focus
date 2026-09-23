@@ -205,7 +205,7 @@ UKŁADY (dobieraj świadomie; w jednej paczce użyj MINIMUM 3 różnych, nigdy n
 - "protocol_list" — teza + 3 numerowane kroki do wykonania dziś. Struktura "zrób to".
 - "cost_vs_reward" — pytanie + 3 rzeczy, które kosztują dziś + 3 rzeczy, które to zabiera później + zdanie domykające BEZ odpowiedzi.
 - "monolith_ledger" — nagłówek + 3 pozycje rejestru (co policzone, co odnotowane). Chłodna księgowość własnych obietnic.
-- "studio_wall_3d" — jedno zdanie jako物理yczny napis na ścianie; musi działać jako obraz.
+- "studio_wall_3d" — jedno zdanie jako fizyczny napis na ścianie; musi działać jako obraz.
 
 GŁĘBIA (to warunek jakości, nie opcja):
 - Żadnych sloganów motywacyjnych. Zamiast "bądź zdyscyplinowany" — konkretna, niewygodna obserwacja, którą czytelnik musi dokończyć sam.
@@ -238,6 +238,7 @@ Zwróć WYŁĄCZNIE JSON:
       "structure": {
         "eyebrow": "tylko protocol/ledger: krótka etykieta, np. PROTOCOL 04:30",
         "statement": "teza albo pytanie otwierające",
+        "subtext": "tylko ledger: jeden krótki podtytuł pod nagłówkiem",
         "steps": ["tylko protocol/ledger: 3 kroki/pozycje"],
         "figure": "tylko protocol: liczba-pieczęć, np. 72h",
         "question": "tylko cost_vs_reward: pytanie",
@@ -286,6 +287,7 @@ Zwróć WYŁĄCZNIE JSON:
             structure: {
               eyebrow: asString(rawStructure.eyebrow).slice(0, 40),
               statement: asString(rawStructure.statement).slice(0, 160),
+              subtext: asString(rawStructure.subtext).slice(0, 90),
               steps: asStringArray(rawStructure.steps, 4).map((s) => s.slice(0, 90)),
               figure: asString(rawStructure.figure).slice(0, 12),
               question: asString(rawStructure.question).slice(0, 160),

@@ -27,6 +27,8 @@ import {
 } from "lucide-react";
 import { UniversalLayoutSpec, UniversalTextLayer } from "../types";
 import { renderUniversalLayout, drawMinimalBlackQuoteSlide } from "../utils/canvasRenderer";
+import { structuredSpec } from "../utils/ideaLayout";
+import { groupText, nextLayerId, PRIMARY_LAYER_ID } from "../utils/canvas/layerRoles";
 
 interface InspirationStudioProps {
   onSaveToPipeline?: (post: any) => void;
@@ -136,62 +138,26 @@ const SPEC_COLLAGE_4: UniversalLayoutSpec = {
  * czarnym tle — ten sam kształt po trzydziestu postach przestaje zatrzymywać
  * kciuk. Protokół, tabela kosztu i księga niosą treść, którą czytelnik musi
  * dokończyć, więc działają niezależnie od tego, jak mocny jest sam hook.
+ *
+ * Presety buduje ten sam `structuredSpec`, z którego powstaje kadr z pomysłu:
+ * wybrany format i wygenerowana treść nie mogą się od siebie różnić geometrycznie.
  */
-function structuredSpec(
-  layoutName: string,
-  gridType: UniversalLayoutSpec["gridType"],
-  headline: string,
-  layoutData: UniversalLayoutSpec["layoutData"],
-): UniversalLayoutSpec {
-  return {
-    layoutName,
-    gridType,
-    backgroundColor: "#050505",
-    dividerWidth: 0,
-    dividerColor: "#000000",
-    slotCount: 0,
-    slotLabels: [],
-    textEffect: "flat",
-    fontFamilyCustom: "cinzel",
-    fontColorMode: "white",
-    textLayers: [
-      {
-        id: "t1",
-        text: headline,
-        fontFamily: "cinzel",
-        fontSize: 74,
-        fontWeight: "bold",
-        fontStyle: "normal",
-        casing: "preserve",
-        color: "#F3F0EA",
-        align: "left",
-        posY: 0.18,
-        posX: 0.09,
-      },
+const SPEC_PROTOCOL = structuredSpec(
+  "Protokół",
+  "protocol_list",
+  {
+    primary: "You don't lack discipline. You lack a sequence.",
+    steps: [
+      "Phone in another room before you decide anything.",
+      "First block of the day belongs to the hardest task.",
+      "No negotiations before noon. The deal is already signed.",
     ],
-    layoutData,
-    caption: formatStarkCaption(headline, [
-      "Comfort is paid for in regret, later and with interest.",
-      "The standard you hold alone is the only one that counts.",
-      "Silence protects the work; results announce it.",
-    ]),
-    detectedAudio: "bez dźwięku — dodaj w aplikacji social media",
-  };
-}
+  },
+  { eyebrow: "PROTOCOL 04:30", figure: "04:30" },
+);
 
-const SPEC_PROTOCOL = structuredSpec("Protokół", "protocol_list", "PROTOCOL 04:30", {
-  eyebrow: "PROTOCOL 04:30",
-  statement: "You don't lack discipline. You lack a sequence.",
-  steps: [
-    "Phone in another room before you decide anything.",
-    "First block of the day belongs to the hardest task.",
-    "No negotiations before noon. The deal is already signed.",
-  ],
-  figure: "04:30",
-});
-
-const SPEC_COST_REWARD = structuredSpec("Koszt i utrata", "cost_vs_reward", "", {
-  question: "What does it cost to stay who you are?",
+const SPEC_COST_REWARD = structuredSpec("Koszt i utrata", "cost_vs_reward", {
+  primary: "What does it cost to stay who you are?",
   cost: [
     "One hour you will never get back",
     "The promise you broke in private",
@@ -205,23 +171,27 @@ const SPEC_COST_REWARD = structuredSpec("Koszt i utrata", "cost_vs_reward", "", 
   closing: "You already paid. Decide what it bought.",
 });
 
-const SPEC_LEDGER = structuredSpec("Księga standardu", "monolith_ledger", "STARK // LEDGER", {
-  eyebrow: "LEDGER",
-  statement: "Keep score in private.",
-  steps: [
-    "Days executed without an audience",
-    "Times you chose the harder option",
-    "Promises kept to yourself alone",
-  ],
-  figure: "365",
-});
+const SPEC_LEDGER = structuredSpec(
+  "Księga standardu",
+  "monolith_ledger",
+  {
+    primary: "Keep score in private.",
+    subtext: "Audience optional. Entries permanent.",
+    steps: [
+      "Days executed without an audience",
+      "Times you chose the harder option",
+      "Promises kept to yourself alone",
+    ],
+  },
+  { eyebrow: "LEDGER", figure: "365" },
+);
 
-const SPEC_WALL_3D = structuredSpec("Litery na ścianie", "studio_wall_3d", "", {
-  statement: "Silence cannot be misquoted.",
+const SPEC_WALL_3D = structuredSpec("Litery na ścianie", "studio_wall_3d", {
+  primary: "Silence cannot be misquoted.",
 });
 
 /**
- * Lista formatów w jednym miejscu — dawniej każdy układ był dokladanym
+ * Lista formatów w jednym miejscu — dawniej każdy układ był dodawanym
  * przyciskiem w JSX, przez co pasek rósł szybciej niż możliwości.
  */
 const LAYOUT_PICKER: Array<{
@@ -236,6 +206,28 @@ const LAYOUT_PICKER: Array<{
   { gridType: "studio_wall_3d", label: "Ściana 3D", spec: SPEC_WALL_3D },
   { gridType: "grid_2x2", label: "Kolaż", spec: SPEC_COLLAGE_4 },
 ];
+
+/**
+ * Etykieta wiersza edytora z roli warstwy. Bez niej przy protokole było osiem
+ * pól "Wers 1..8" i nie dało się zgadnąć, które idzie do lewego słupka.
+ */
+const ROLE_LABELS: Record<string, string> = {
+  step: "Krok",
+  cost: "Cena",
+  forfeit: "Utrata",
+  sub: "Podtytuł",
+};
+
+function layerLabel(spec: UniversalLayoutSpec, layer: UniversalTextLayer, index: number): string {
+  if (spec.gridType === "none_solid") {
+    return spec.textLayers.length === 1 ? "Zdanie:" : `Linia ${index + 1}:`;
+  }
+  const role = /^([a-z]+)(\d+)$/.exec(layer.id);
+  if (role && ROLE_LABELS[role[1]]) return `${ROLE_LABELS[role[1]]} ${role[2]}:`;
+  if (layer.id === "closing") return "Puenta:";
+  if (layer.id === PRIMARY_LAYER_ID) return "Teza:";
+  return `Wers ${index + 1}:`;
+}
 
 export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
   onSaveToPipeline,
@@ -356,7 +348,7 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
         };
       });
     }
-  }, [initialText, initialCaption]);
+  }, [initialText, initialCaption, initialSpec]);
 
   // Załadowane obrazy
   const [loadedImages, setLoadedImages] = useState<(HTMLImageElement | null)[]>([]);
@@ -637,14 +629,26 @@ Zwróć WYŁĄCZNIE czysty JSON:
   };
 
   const handleAddTextLayer = () => {
-    const newId = `t${spec.textLayers.length + 1}`;
+    // W układach strukturalnych render bierze wiersze z grup id (`step-N`,
+    // `cost-N`); warstwa poza grupą wylądowałaby w edytorze i na żadnym kadrze.
+    const costs = groupText(spec, "cost").length;
+    const forfeits = groupText(spec, "forfeit").length;
+    const prefix =
+      spec.gridType === "protocol_list" || spec.gridType === "monolith_ledger"
+        ? "step"
+        : spec.gridType === "cost_vs_reward"
+          ? costs <= forfeits
+            ? "cost"
+            : "forfeit"
+          : "t";
+    const newId = nextLayerId(spec, prefix);
     setSpec((prev) => ({
       ...prev,
       textLayers: [
         ...prev.textLayers,
         {
           id: newId,
-          text: "Nowa linia",
+          text: "New line",
           fontFamily: prev.textLayers[0]?.fontFamily || "sans",
           fontSize: prev.textLayers[0]?.fontSize || 62,
           fontWeight: "black",
@@ -653,7 +657,7 @@ Zwróć WYŁĄCZNIE czysty JSON:
           color: prev.textLayers[0]?.color || "#161920",
           align: "left",
           posY: 0.28 + prev.textLayers.length * 0.08,
-          posX: 0.14,
+          posX: prefix === "forfeit" ? 0.54 : 0.14,
         },
       ],
     }));
@@ -1464,7 +1468,7 @@ Zwróć WYŁĄCZNIE czysty JSON:
                     ? spec.textLayers.length === 1
                       ? "Cytat (Jedno zdanie, ~5 słów):"
                       : "Linie Cytatu (Ściśle po 1 linijce każda):"
-                    : "Linijki Tekstu na Grafice:"}
+                    : "Treść kadru — zawsze po angielsku:"}
                 </label>
                 <button
                   type="button"
@@ -1478,13 +1482,7 @@ Zwróć WYŁĄCZNIE czysty JSON:
               {spec.textLayers.map((layer, idx) => (
                 <div key={layer.id} className="flex items-center gap-2">
                   <div className="text-[10px] font-mono text-neutral-400 w-16 shrink-0">
-                    {spec.gridType === "none_solid" && spec.textLayers.length === 1
-                      ? "Zdanie:"
-                      : spec.gridType === "none_solid" && idx === 0
-                        ? "Linia 1:"
-                        : spec.gridType === "none_solid" && idx === 1
-                          ? "Linia 2:"
-                          : `Wers ${idx + 1}:`}
+                    {layerLabel(spec, layer, idx)}
                   </div>
                   <input
                     type="text"

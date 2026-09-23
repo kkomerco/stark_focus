@@ -161,16 +161,14 @@ export interface UniversalLayoutSpec {
     | "monolith_ledger"
     | "protocol_list"
     | "cost_vs_reward";
-  /** Dane układu: kroki protokołu, słupki koszt/utrata. Nie każdy układ ich potrzebuje. */
+  /**
+   * Dekoracja kadru, której edytor tekstu nie dotyka: nadtytuł i duża cyfra.
+   * Cała treść językowa mieszka w `textLayers` (patrz `canvas/layerRoles.ts`) —
+   * dzięki temu poprawka w edytorze jest widoczna na kadrze.
+   */
   layoutData?: {
     eyebrow?: string;
-    statement?: string;
-    steps?: string[];
     figure?: string;
-    question?: string;
-    cost?: string[];
-    forfeit?: string[];
-    closing?: string;
   };
   backgroundColor: string;
   dividerWidth: number;
@@ -243,6 +241,7 @@ export interface StarkFocusData {
 export interface IdeaStructure {
   eyebrow?: string;
   statement?: string;
+  subtext?: string;
   steps?: string[];
   figure?: string;
   question?: string;

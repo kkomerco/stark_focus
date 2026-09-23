@@ -142,6 +142,9 @@ export function drawProtocolListSlide(
   const steps = options.steps.slice(0, 4);
 
   steps.forEach((step, index) => {
+    // `wrapTextLines` mierzy bieżącym ctx.font — kroki muszą być łamane krojem
+    // kroków, inaczej linia liczona pod 32 px wychodzi za margines przy 36 px.
+    ctx.font = `500 ${stepSize}px ${getFontFamilySpec("sans")}`;
     const stepLines = wrapTextLines(ctx, stripHighlightSyntax(step), usable - stepSize * 2.4);
     const lineTop = y;
 
@@ -159,12 +162,17 @@ export function drawProtocolListSlide(
   });
 
   // Pieczęć z liczbą w prawym dolnym rogu — to, co zostaje w pamięci.
+  // Zsuwa się tylko do granicy kroków, nigdy pod stopkę.
   if (options.figure) {
     const figureSize = Math.round(width * 0.13);
     ctx.textAlign = "right";
     ctx.font = `700 ${figureSize}px ${getFontFamilySpec("cinzel")}`;
     ctx.fillStyle = "rgba(243,240,234,0.13)";
-    ctx.fillText(options.figure, width - margin, height - Math.round(height * 0.1));
+    ctx.fillText(
+      options.figure,
+      width - margin,
+      Math.min(y + figureSize, height - Math.round(height * 0.09)),
+    );
     ctx.textAlign = "left";
   }
 
@@ -231,36 +239,46 @@ export function drawCostVsRewardSlide(
     );
 
     let rowY = y + headerSize * 2.9;
+    ctx.font = `500 ${bodySize}px ${getFontFamilySpec("sans")}`;
     items.slice(0, 4).forEach((item) => {
       const lines = wrapTextLines(ctx, stripHighlightSyntax(item), columnWidth);
-      ctx.font = `500 ${bodySize}px ${getFontFamilySpec("sans")}`;
       ctx.fillStyle = INK;
       lines.slice(0, 3).forEach((line, index) => {
         ctx.fillText(line, x, rowY + index * bodySize * 1.3);
       });
       rowY += Math.max(lines.length, 1) * bodySize * 1.3 + bodySize * 0.5;
     });
+    return rowY;
   };
 
-  column("Cena dziś", options.cost, margin, false);
-  column("Utrata potem", options.forfeit, margin + columnWidth + gutter, true);
-
-  y =
-    Math.max(...[options.cost.length, options.forfeit.length]) > 3
-      ? height - Math.round(height * 0.19)
-      : y + height * 0.2;
+  // Treść kadru po angielsku — aplikacja jest polska, materiał nie.
+  const costEnd = column("Cost today", options.cost, margin, false);
+  const forfeitEnd = column(
+    "What it forfeits",
+    options.forfeit,
+    margin + columnWidth + gutter,
+    true,
+  );
 
   if (options.closing) {
     const closingSize = Math.round(width * 0.045);
     ctx.font = `700 ${closingSize}px ${getFontFamilySpec("cinzel")}`;
-    ctx.fillStyle = accent;
     const closingLines = wrapTextLines(
       ctx,
       stripHighlightSyntax(options.closing),
       width - margin * 2,
-    );
-    closingLines.slice(0, 2).forEach((line, index) => {
-      ctx.fillText(line, margin, Math.min(y, height * 0.86) + index * closingSize * 1.25);
+    ).slice(0, 2);
+
+    // Domknięcie siada POD niższym słupkiem. Wcześniej liczba wierszy była
+    // wnioskowana z długości tablicy, nie z realnie narysowanego tekstu, więc
+    // przy długich hasłach wchodziła w treść słupków.
+    const blockHeight = closingLines.length * closingSize * 1.25;
+    const floor = height - Math.round(height * 0.1) - blockHeight;
+    const closingTop = Math.min(Math.max(costEnd, forfeitEnd) + height * 0.045, floor);
+
+    ctx.fillStyle = accent;
+    closingLines.forEach((line, index) => {
+      ctx.fillText(line, margin, closingTop + index * closingSize * 1.25);
     });
   }
 
