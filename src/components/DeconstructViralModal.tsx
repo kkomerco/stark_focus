@@ -2,25 +2,38 @@
 // AI rozbiera go na czynniki i generuje własne warianty @stark_focus.
 import React, { useState } from "react";
 import { Check, Copy, Film, Link2, Loader2, Sparkles, TrendingUp, X } from "lucide-react";
-import { DeconstructViralResponse } from "../types";
+import { DeconstructViralResponse, ReelHandoff, StarkVariant } from "../types";
 
 interface DeconstructViralModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSendToReel?: (hookText: string) => void;
+  /** Wynik analizy trzyma rodzic — po wysłaniu wariantu do studia okno się zamyka. */
+  url: string;
+  onUrlChange: (url: string) => void;
+  result: DeconstructViralResponse | null;
+  onResultChange: (result: DeconstructViralResponse | null) => void;
+  onSendToReel?: (reel: ReelHandoff) => void;
 }
 
 const PANEL = "bg-[#0F121C] border border-[#2C354B] rounded-xl";
 const ACTION_BTN =
   "py-1.5 px-3 rounded bg-[#141824] hover:bg-[#1E2638] border border-[#2C354B] text-[11px] font-mono font-bold text-slate-200 hover:text-white transition-colors flex items-center gap-1.5 cursor-pointer";
 
+/** Odpowiedź trasy to kształt od modelu — nie mapujemy niczego bez sprawdzenia pola. */
+const textList = (value: unknown): string[] =>
+  Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+const textOf = (value: unknown): string => (typeof value === "string" ? value : "");
+const listOf = <T,>(value: unknown): T[] => (Array.isArray(value) ? (value as T[]) : []);
+
 export const DeconstructViralModal: React.FC<DeconstructViralModalProps> = ({
   isOpen,
   onClose,
+  url,
+  onUrlChange,
+  result,
+  onResultChange,
   onSendToReel,
 }) => {
-  const [url, setUrl] = useState("");
-  const [result, setResult] = useState<DeconstructViralResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -32,7 +45,7 @@ export const DeconstructViralModal: React.FC<DeconstructViralModalProps> = ({
     }
     setLoading(true);
     setError(null);
-    setResult(null);
+    onResultChange(null);
     try {
       const res = await fetch("/api/ai/deconstruct-viral", {
         method: "POST",
@@ -40,7 +53,7 @@ export const DeconstructViralModal: React.FC<DeconstructViralModalProps> = ({
         body: JSON.stringify({ url: url.trim() }),
       });
       if (!res.ok) throw new Error("HTTP " + res.status);
-      setResult((await res.json()) as DeconstructViralResponse);
+      onResultChange((await res.json()) as DeconstructViralResponse);
     } catch {
       setError("Nie udało się przeanalizować linku. Spróbuj ponownie.");
     } finally {
@@ -55,6 +68,10 @@ export const DeconstructViralModal: React.FC<DeconstructViralModalProps> = ({
   };
 
   if (!isOpen) return null;
+
+  const original = result?.original;
+  const deconstruction = result?.deconstruction;
+  const variants = result ? listOf<StarkVariant>(result.starkVariants) : [];
 
   return (
     <div className="fixed inset-0 z-60 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
@@ -82,7 +99,7 @@ export const DeconstructViralModal: React.FC<DeconstructViralModalProps> = ({
           <input
             type="text"
             value={url}
-            onChange={(e) => setUrl(e.target.value)}
+            onChange={(e) => onUrlChange(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && analyze()}
             placeholder="https://www.tiktok.com/@user/video/... lub link IG / Shorts"
             className="flex-1 min-w-[240px] px-3 py-2 rounded-lg bg-[#141824] border border-[#2C354B] text-xs font-mono text-white placeholder-slate-500 focus:outline-none focus:border-sky-500/50"
@@ -122,17 +139,19 @@ export const DeconstructViralModal: React.FC<DeconstructViralModalProps> = ({
             <>
               <section className="p-3 bg-[#141824] border border-[#2C354B] rounded-lg space-y-2">
                 <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500">
-                  🔍 Oryginał ({result.platform})
+                  🔍 Oryginał ({textOf(result.platform)})
                 </h4>
-                <p className="text-xs font-mono text-slate-300 break-all">{result.original.url}</p>
-                {result.original.title && (
+                <p className="text-xs font-mono text-slate-300 break-all">
+                  {textOf(original?.url)}
+                </p>
+                {textOf(original?.title) && (
                   <p className="text-[11px] font-mono text-slate-400">
-                    Tytuł: {result.original.title}
+                    Tytuł: {textOf(original?.title)}
                   </p>
                 )}
                 <div className="flex flex-wrap gap-2 text-[10px] font-mono text-slate-500">
-                  {result.original.author && <span>👤 {result.original.author}</span>}
-                  {result.original.audioTrack && <span>🎵 {result.original.audioTrack}</span>}
+                  {textOf(original?.author) && <span>👤 {textOf(original?.author)}</span>}
+                  {textOf(original?.audioTrack) && <span>🎵 {textOf(original?.audioTrack)}</span>}
                   <span className={result.source === "ai" ? "text-emerald-400" : "text-amber-400"}>
                     {result.source === "ai" ? "🤖 GEMINI" : "📴 OFFLINE"}
                   </span>
@@ -146,20 +165,20 @@ export const DeconstructViralModal: React.FC<DeconstructViralModalProps> = ({
                 <div className="space-y-1.5 text-[11px] font-mono">
                   <p>
                     <span className="text-slate-500">Typ hooka:</span>{" "}
-                    <span className="text-white">{result.deconstruction.hookType}</span>
+                    <span className="text-white">{textOf(deconstruction?.hookType)}</span>
                   </p>
                   <p>
                     <span className="text-slate-500">Hook:</span>{" "}
-                    <span className="text-amber-300">{result.deconstruction.hookText}</span>
+                    <span className="text-amber-300">{textOf(deconstruction?.hookText)}</span>
                   </p>
                   <p>
                     <span className="text-slate-500">Struktura:</span>{" "}
                     <span className="text-slate-300">
-                      {result.deconstruction.structure.join(" → ")}
+                      {textList(deconstruction?.structure).join(" → ")}
                     </span>
                   </p>
                   <div className="flex flex-wrap gap-1.5 pt-1">
-                    {result.deconstruction.psychologicalTriggers.map((t, i) => (
+                    {textList(deconstruction?.psychologicalTriggers).map((t, i) => (
                       <span
                         key={i}
                         className="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-300 border border-purple-500/25"
@@ -168,12 +187,12 @@ export const DeconstructViralModal: React.FC<DeconstructViralModalProps> = ({
                       </span>
                     ))}
                   </div>
-                  <p className="text-slate-300 pt-1">{result.deconstruction.whyItWorks}</p>
-                  {result.deconstruction.visualStyle && (
-                    <p className="text-slate-500">🎨 {result.deconstruction.visualStyle}</p>
+                  <p className="text-slate-300 pt-1">{textOf(deconstruction?.whyItWorks)}</p>
+                  {textOf(deconstruction?.visualStyle) && (
+                    <p className="text-slate-500">🎨 {textOf(deconstruction?.visualStyle)}</p>
                   )}
-                  {result.deconstruction.audioStrategy && (
-                    <p className="text-slate-500">🎵 {result.deconstruction.audioStrategy}</p>
+                  {textOf(deconstruction?.audioStrategy) && (
+                    <p className="text-slate-500">🎵 {textOf(deconstruction?.audioStrategy)}</p>
                   )}
                 </div>
               </section>
@@ -182,52 +201,59 @@ export const DeconstructViralModal: React.FC<DeconstructViralModalProps> = ({
                 <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500">
                   ⚔️ Twoje warianty @stark_focus
                 </h4>
-                {result.starkVariants.map((v) => (
-                  <div
-                    key={v.id}
-                    className="p-3 bg-[#141824] border border-[#2C354B] rounded-lg space-y-2"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <p className="text-sm font-mono font-black text-white flex-1">{v.hook}</p>
-                      <span className="text-[9px] font-mono px-2 py-0.5 rounded font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 whitespace-nowrap flex items-center gap-1">
-                        <TrendingUp className="w-3 h-3" />
-                        {v.viralityScore}%
-                      </span>
-                    </div>
-                    <p className="text-[10px] font-mono text-sky-300">⚡ {v.angle}</p>
-                    <div className="space-y-0.5 pl-2 border-l border-[#2C354B]">
-                      {v.phrases.map((p, i) => (
-                        <p key={i} className="text-[10px] font-mono text-slate-400">
-                          {i + 1}. {p}
-                        </p>
-                      ))}
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2 pt-1">
-                      {onSendToReel && (
+                {variants.map((v) => {
+                  const hook = textOf(v.hook);
+                  const phrases = textList(v.phrases);
+                  return (
+                    <div
+                      key={textOf(v.id) || hook}
+                      className="p-3 bg-[#141824] border border-[#2C354B] rounded-lg space-y-2"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="text-sm font-mono font-black text-white flex-1">{hook}</p>
+                        <span className="text-[9px] font-mono px-2 py-0.5 rounded font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 whitespace-nowrap flex items-center gap-1">
+                          <TrendingUp className="w-3 h-3" />
+                          {v.viralityScore}%
+                        </span>
+                      </div>
+                      <p className="text-[10px] font-mono text-sky-300">⚡ {textOf(v.angle)}</p>
+                      <div className="space-y-0.5 pl-2 border-l border-[#2C354B]">
+                        {phrases.map((p, i) => (
+                          <p key={i} className="text-[10px] font-mono text-slate-400">
+                            {i + 1}. {p}
+                          </p>
+                        ))}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 pt-1">
+                        {onSendToReel && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              // Dekonstrukcja nie zwraca opisu — studio dopnie kadry i firmowe CTA.
+                              onSendToReel({ hook: hook || phrases[0] || "", phrases })
+                            }
+                            className="py-1.5 px-3 rounded bg-white/10 hover:bg-white/20 border border-white/20 text-[11px] font-mono font-bold text-white uppercase tracking-wider flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <Film className="w-3 h-3" />
+                            Do studia rolek
+                          </button>
+                        )}
                         <button
                           type="button"
-                          onClick={() => onSendToReel(v.hook)}
-                          className="py-1.5 px-3 rounded bg-white/10 hover:bg-white/20 border border-white/20 text-[11px] font-mono font-bold text-white uppercase tracking-wider flex items-center gap-1.5 cursor-pointer"
+                          onClick={() => handleCopy(textOf(v.id) || hook, phrases.join("\n"))}
+                          className={ACTION_BTN}
                         >
-                          <Film className="w-3 h-3" />
-                          Do studia rolek
+                          {copiedId === (textOf(v.id) || hook) ? (
+                            <Check className="w-3 h-3 text-emerald-400" />
+                          ) : (
+                            <Copy className="w-3 h-3" />
+                          )}
+                          {copiedId === (textOf(v.id) || hook) ? "Skopiowano" : "Kopiuj frazy"}
                         </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => handleCopy(v.id, v.phrases.join("\n"))}
-                        className={ACTION_BTN}
-                      >
-                        {copiedId === v.id ? (
-                          <Check className="w-3 h-3 text-emerald-400" />
-                        ) : (
-                          <Copy className="w-3 h-3" />
-                        )}
-                        {copiedId === v.id ? "Skopiowano" : "Kopiuj frazy"}
-                      </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </section>
             </>
           )}

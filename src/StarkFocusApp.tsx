@@ -11,8 +11,17 @@ import {
   Rocket,
   Image as ImageIcon,
 } from "lucide-react";
-import { StarkFocusData, Post, PlannerTask } from "./types";
+import {
+  DailyPack,
+  DeconstructViralResponse,
+  ReelHandoff,
+  StarkFocusData,
+  Post,
+  PlannerTask,
+} from "./types";
 import { loadStoredData, saveStoredData } from "./utils/storage";
+import { useIdeaStream } from "./hooks/useIdeaStream";
+import type { AbDraft } from "./components/AbModal";
 import { Header } from "./components/Header";
 
 // Lazy - aktywne moduły
@@ -55,18 +64,35 @@ function TabFallback() {
   );
 }
 
+const AB_DEFAULT_TOPIC = "dark motivation and brutal discipline";
+
+const EMPTY_AB_DRAFT: AbDraft = {
+  topic: AB_DEFAULT_TOPIC,
+  variants: [],
+  experimentId: "",
+  results: [],
+  conclusion: null,
+};
+
 export default function StarkFocusApp() {
   const [data, setData] = useState<StarkFocusData>(() => loadStoredData());
   const [activeTab, setActiveTab] = useState<number>(0);
 
   // Injected data from "Trendy i Pomysły" tab
   const [postPreset, setPostPreset] = useState<{ text?: string; caption?: string }>({});
-  const [reelPreset, setReelPreset] = useState<{ hook?: string; bgUrl?: string }>({});
+  const [reelPreset, setReelPreset] = useState<{ reel: ReelHandoff; bgUrl?: string } | null>(null);
   // Karuzela z Paczki Dnia czekająca aż Studio Karuzeli (zakładka Trendy) ją przejmie
   const [pendingCarousel, setPendingCarousel] = useState<{
     title: string;
     slides: Array<{ headline: string; bodyText: string }>;
   } | null>(null);
+
+  // Generatory renderujemy warunkowo — ich efekt żyje w rodzicu, żeby zamknięcie okna
+  // (które następuje przy każdym wysłaniu treści do studia) nie kasowało wygenerowanej treści.
+  const [pack, setPack] = useState<DailyPack | null>(null);
+  const [deconstructUrl, setDeconstructUrl] = useState("");
+  const [deconstructResult, setDeconstructResult] = useState<DeconstructViralResponse | null>(null);
+  const [abDraft, setAbDraft] = useState<AbDraft>(EMPTY_AB_DRAFT);
 
   const [dailyPackOpen, setDailyPackOpen] = useState(false);
   const [ideaStreamOpen, setIdeaStreamOpen] = useState(false);
@@ -89,6 +115,8 @@ export default function StarkFocusApp() {
     setData((prev) => updater(prev));
   };
 
+  const ideaStream = useIdeaStream(data, handleUpdateData);
+
   const handleSavePostFrom1to1 = (post: any) => {
     const newPost: Post = {
       id: post.id || "post-" + Date.now(),
@@ -108,27 +136,33 @@ export default function StarkFocusApp() {
     setActiveTab(0);
   };
 
-  const handleSendToReel = (hookText: string, bgUrl?: string) => {
-    setReelPreset({ hook: hookText, bgUrl });
+  /**
+   * Studio rolek przyjmuje cały pakiet. Starsze ścieżki (Studio 1:1, Radar trendów)
+   * oddają goły tekst — tu zamieniamy go na pakiet z samym hookiem.
+   */
+  const handleSendToReel = (incoming?: ReelHandoff | string, bgUrl?: string) => {
+    const reel = typeof incoming === "string" ? { hook: incoming } : incoming;
+    if (reel && (reel.hook || (Array.isArray(reel.phrases) && reel.phrases.length > 0))) {
+      setReelPreset({ reel, bgUrl });
+    }
     setActiveTab(1);
   };
 
   // Generuje zadania publikacji w plannerze na podstawie paczki dnia
-  const handleSchedulePack = (pack: {
-    reels: Array<{ hook: string; duration: number }>;
-    carousel: { title: string };
-    post: { headline: string };
-  }) => {
+  const handleSchedulePack = (pack: DailyPack) => {
     const today = new Date().toISOString().split("T")[0];
     const tasks: PlannerTask[] = [];
+    // Paczka przyszła z modelu: zanim weźmiemy z niej tytuł do zadania, sprawdzamy pole.
+    const labelOf = (value: unknown) => (typeof value === "string" ? value.slice(0, 40) : "");
+    const reels = Array.isArray(pack.reels) ? pack.reels : [];
 
     // Rolki — publikacja o 12:00, 15:00, 18:00
     const reelTimes = ["12:00", "15:00", "18:00"];
-    pack.reels.forEach((reel, idx) => {
+    reels.forEach((reel, idx) => {
       tasks.push({
         id: `task-${Date.now()}-reel-${idx}`,
         time: reelTimes[idx] || "18:00",
-        title: `Publikacja Rolki ${idx + 1}: ${reel.hook.slice(0, 40)}...`,
+        title: `Publikacja Rolki ${idx + 1}: ${labelOf(reel.hook)}...`,
         category: "post",
         targetTab: 1,
         completed: false,
@@ -141,7 +175,7 @@ export default function StarkFocusApp() {
     tasks.push({
       id: `task-${Date.now()}-carousel`,
       time: "14:00",
-      title: `Publikacja Karuzeli: ${pack.carousel.title.slice(0, 40)}...`,
+      title: `Publikacja Karuzeli: ${labelOf(pack.carousel?.title)}...`,
       category: "post",
       targetTab: 2,
       completed: false,
@@ -153,7 +187,7 @@ export default function StarkFocusApp() {
     tasks.push({
       id: `task-${Date.now()}-post`,
       time: "20:00",
-      title: `Publikacja Posta 1:1: ${pack.post.headline.slice(0, 40)}...`,
+      title: `Publikacja Posta 1:1: ${labelOf(pack.post?.headline)}...`,
       category: "post",
       targetTab: 0,
       completed: false,
@@ -315,10 +349,10 @@ export default function StarkFocusApp() {
             )}
             {activeTab === 1 && (
               <VideoStudioModal
-                key={reelPreset.hook || "default-reel"}
+                key={reelPreset?.reel.hook || "default-reel"}
                 embedded={true}
-                initialHook={reelPreset.hook}
-                initialBgUrl={reelPreset.bgUrl}
+                initialReel={reelPreset?.reel}
+                initialBgUrl={reelPreset?.bgUrl}
                 availablePosts={data.posts}
                 vaultAssets={data.vault_assets}
                 onSendToPost={handleSendToPost}
@@ -351,9 +385,11 @@ export default function StarkFocusApp() {
           <DailyPackModal
             isOpen={dailyPackOpen}
             onClose={() => setDailyPackOpen(false)}
-            onOpenVideoStudio={(hookText) => {
+            pack={pack}
+            onPackChange={setPack}
+            onOpenVideoStudio={(reel) => {
               setDailyPackOpen(false);
-              handleSendToReel(hookText);
+              handleSendToReel(reel);
             }}
             onOpenCarouselStudio={(title, slides) => {
               setDailyPackOpen(false);
@@ -368,15 +404,14 @@ export default function StarkFocusApp() {
           <IdeaStreamModal
             isOpen={ideaStreamOpen}
             onClose={() => setIdeaStreamOpen(false)}
-            data={data}
-            onUpdateData={handleUpdateData}
-            onSendToReel={(hookText) => {
+            stream={ideaStream}
+            onSendToReel={(reel) => {
               setIdeaStreamOpen(false);
-              handleSendToReel(hookText);
+              handleSendToReel(reel);
             }}
-            onSendToPost={(text) => {
+            onSendToPost={(text, caption) => {
               setIdeaStreamOpen(false);
-              handleSendToPost(text);
+              handleSendToPost(text, caption);
             }}
           />
         )}
@@ -384,9 +419,13 @@ export default function StarkFocusApp() {
           <DeconstructViralModal
             isOpen={deconstructOpen}
             onClose={() => setDeconstructOpen(false)}
-            onSendToReel={(hookText) => {
+            url={deconstructUrl}
+            onUrlChange={setDeconstructUrl}
+            result={deconstructResult}
+            onResultChange={setDeconstructResult}
+            onSendToReel={(reel) => {
               setDeconstructOpen(false);
-              handleSendToReel(hookText);
+              handleSendToReel(reel);
             }}
           />
         )}
@@ -396,9 +435,11 @@ export default function StarkFocusApp() {
             onClose={() => setAbOpen(false)}
             data={data}
             onUpdateData={handleUpdateData}
-            onSendToReel={(hookText) => {
+            draft={abDraft}
+            onDraftChange={setAbDraft}
+            onSendToReel={(reel) => {
               setAbOpen(false);
-              handleSendToReel(hookText);
+              handleSendToReel(reel);
             }}
           />
         )}

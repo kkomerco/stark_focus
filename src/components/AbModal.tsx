@@ -2,19 +2,9 @@
 // Publikujesz oba, wpisujesz wyniki, AI wyciąga zwycięski wzorzec (pętla uczenia).
 import React, { useState } from "react";
 import { Film, Loader2, Repeat, TrendingUp, X } from "lucide-react";
-import { AbVariant, AbExperiment, StarkFocusData } from "../types";
+import { AbVariant, AbExperiment, ReelHandoff, StarkFocusData } from "../types";
 
-interface AbModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  data: StarkFocusData;
-  onUpdateData: (updater: (prev: StarkFocusData) => StarkFocusData) => void;
-  onSendToReel?: (hookText: string) => void;
-}
-
-const PANEL = "bg-[#0F121C] border border-[#2C354B] rounded-xl";
-
-interface ResultRow {
+export interface AbResultRow {
   label: "A" | "B";
   views: number;
   likes: number;
@@ -23,27 +13,58 @@ interface ResultRow {
   saves: number;
 }
 
+/**
+ * Przebieg eksperymentu trzyma rodzic: modal jest renderowany warunkowo, a bez tego
+ * wysłanie zwycięzcy do studia kasowało warianty i wpisane wyniki.
+ */
+export interface AbDraft {
+  topic: string;
+  variants: AbVariant[];
+  experimentId: string;
+  results: AbResultRow[];
+  conclusion: { winner?: string; lesson?: string } | null;
+}
+
+interface AbModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  data: StarkFocusData;
+  onUpdateData: (updater: (prev: StarkFocusData) => StarkFocusData) => void;
+  draft: AbDraft;
+  // Aktualizacja przez funkcję, nie przez wartość: dwa zapisy w jednym handlerze
+  // nadpisaliby się nawzajem na starym domknięciu.
+  onDraftChange: (update: (prev: AbDraft) => AbDraft) => void;
+  onSendToReel?: (reel: ReelHandoff) => void;
+}
+
+const PANEL = "bg-[#0F121C] border border-[#2C354B] rounded-xl";
+
+/** Odpowiedź trasy to kształt od modelu — nie mapujemy bez sprawdzenia pola. */
+const textList = (value: unknown): string[] =>
+  Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+const textOf = (value: unknown): string => (typeof value === "string" ? value : "");
+
 export const AbModal: React.FC<AbModalProps> = ({
   isOpen,
   onClose,
   data,
   onUpdateData,
+  draft,
+  onDraftChange,
   onSendToReel,
 }) => {
-  const [topic, setTopic] = useState("dark motivation and brutal discipline");
+  const { topic, variants, experimentId, results, conclusion } = draft;
   const [loading, setLoading] = useState(false);
-  const [variants, setVariants] = useState<AbVariant[]>([]);
-  const [experimentId, setExperimentId] = useState<string>("");
   const [saved, setSaved] = useState(false);
-  const [results, setResults] = useState<ResultRow[]>([]);
   const [concluding, setConcluding] = useState(false);
-  const [conclusion, setConclusion] = useState<{ winner?: string; lesson?: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const patch = (next: Partial<AbDraft>) => onDraftChange((prev) => ({ ...prev, ...next }));
 
   const startExperiment = async () => {
     setLoading(true);
     setError(null);
-    setConclusion(null);
+    patch({ conclusion: null });
     setSaved(false);
     try {
       // Pętla uczenia: przekazujemy historię zakończonych eksperymentów do generatora,
@@ -67,11 +88,11 @@ export const AbModal: React.FC<AbModalProps> = ({
       });
       if (!res.ok) throw new Error("HTTP " + res.status);
       const json = await res.json();
-      const vs: AbVariant[] = json.variants || [];
-      setVariants(vs);
-      setExperimentId(String(json.experimentId || `ab-${Date.now()}`));
-      setResults(
-        vs.map((v) => ({
+      const vs: AbVariant[] = Array.isArray(json.variants) ? json.variants : [];
+      patch({
+        variants: vs,
+        experimentId: String(json.experimentId || `ab-${Date.now()}`),
+        results: vs.map((v) => ({
           label: v.label,
           views: 0,
           likes: 0,
@@ -79,7 +100,7 @@ export const AbModal: React.FC<AbModalProps> = ({
           shares: 0,
           saves: 0,
         })),
-      );
+      });
     } catch {
       setError("Nie udało się wygenerować wariantów A/B.");
     } finally {
@@ -87,9 +108,9 @@ export const AbModal: React.FC<AbModalProps> = ({
     }
   };
 
-  const setMetric = (idx: number, field: keyof ResultRow, value: string) => {
+  const setMetric = (idx: number, field: keyof AbResultRow, value: string) => {
     const n = Math.max(0, Math.floor(Number(value) || 0));
-    setResults((prev) => prev.map((r, i) => (i === idx ? { ...r, [field]: n } : r)));
+    patch({ results: results.map((r, i) => (i === idx ? { ...r, [field]: n } : r)) });
   };
 
   const conclude = async () => {
@@ -113,7 +134,7 @@ export const AbModal: React.FC<AbModalProps> = ({
       });
       if (!res.ok) throw new Error("HTTP " + res.status);
       const json = await res.json();
-      setConclusion(json);
+      patch({ conclusion: json });
 
       // ===== PĘTLA UCZENIA: zapisujemy eksperyment, aby wzorzec wracał do generatora =====
       const experiment: AbExperiment = {
@@ -154,6 +175,19 @@ export const AbModal: React.FC<AbModalProps> = ({
     ? variants.find((v) => v.label === conclusion.winner)
     : undefined;
 
+  /** Wariant A/B nie ma opisu — składamy go z hooka i firmowego CTA tego wariantu. */
+  const reelFromVariant = (v: AbVariant): ReelHandoff => {
+    const hook = textOf(v.hook);
+    const phrases = textList(v.phrases);
+    const caption = [hook, textOf(v.cta)].filter(Boolean).join("\n\n");
+    return {
+      hook: hook || phrases[0] || "",
+      phrases,
+      theme: textOf(v.theme) || undefined,
+      caption: caption || undefined,
+    };
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -180,7 +214,7 @@ export const AbModal: React.FC<AbModalProps> = ({
           <input
             type="text"
             value={topic}
-            onChange={(e) => setTopic(e.target.value)}
+            onChange={(e) => patch({ topic: e.target.value })}
             className="ml-2 w-full max-w-xs px-2 py-1 rounded bg-[#141824] border border-[#2C354B] text-xs font-mono text-white"
           />
         </label>
@@ -201,35 +235,41 @@ export const AbModal: React.FC<AbModalProps> = ({
         )}
 
         <div className="flex-1 overflow-y-auto space-y-3 pr-1">
-          {variants.map((v) => (
-            <div
-              key={v.label}
-              className="p-3 bg-[#141824] border border-[#2C354B] rounded-lg space-y-2"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-mono font-black text-white">WARIANT {v.label}</span>
-                <span className="text-[9px] font-mono text-slate-500">{v.theme}</span>
+          {variants.map((v) => {
+            const hook = textOf(v.hook);
+            const phrases = textList(v.phrases);
+            return (
+              <div
+                key={textOf(v.label) || phrases.join("-")}
+                className="p-3 bg-[#141824] border border-[#2C354B] rounded-lg space-y-2"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-mono font-black text-white">
+                    WARIANT {textOf(v.label)}
+                  </span>
+                  <span className="text-[9px] font-mono text-slate-500">{textOf(v.theme)}</span>
+                </div>
+                <p className="text-sm font-mono font-bold text-white">{hook}</p>
+                <p className="text-[10px] font-mono text-sky-300">⚡ {textOf(v.angle)}</p>
+                <div className="space-y-0.5 pl-2 border-l border-[#2C354B]">
+                  {phrases.map((p, i) => (
+                    <p key={i} className="text-[10px] font-mono text-slate-400">
+                      {i + 1}. {p}
+                    </p>
+                  ))}
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  <button
+                    type="button"
+                    onClick={() => onSendToReel?.(reelFromVariant(v))}
+                    className="py-1 px-2 rounded bg-white/10 hover:bg-white/20 text-[10px] font-mono font-bold text-white flex items-center gap-1 cursor-pointer"
+                  >
+                    <Film className="w-3 h-3" /> Do studia rolek
+                  </button>
+                </div>
               </div>
-              <p className="text-sm font-mono font-bold text-white">{v.hook}</p>
-              <p className="text-[10px] font-mono text-sky-300">⚡ {v.angle}</p>
-              <div className="space-y-0.5 pl-2 border-l border-[#2C354B]">
-                {v.phrases.map((p, i) => (
-                  <p key={i} className="text-[10px] font-mono text-slate-400">
-                    {i + 1}. {p}
-                  </p>
-                ))}
-              </div>
-              <div className="flex flex-wrap gap-1">
-                <button
-                  type="button"
-                  onClick={() => onSendToReel?.(v.hook)}
-                  className="py-1 px-2 rounded bg-white/10 hover:bg-white/20 text-[10px] font-mono font-bold text-white flex items-center gap-1 cursor-pointer"
-                >
-                  <Film className="w-3 h-3" /> Do studia rolek
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {variants.length >= 2 && (
@@ -313,11 +353,11 @@ export const AbModal: React.FC<AbModalProps> = ({
             {onSendToReel && winnerVariant && (
               <button
                 type="button"
-                onClick={() => onSendToReel(winnerVariant.hook)}
+                onClick={() => onSendToReel(reelFromVariant(winnerVariant))}
                 className="py-1.5 px-3 rounded bg-white/10 hover:bg-white/20 border border-white/20 text-[11px] font-mono font-bold text-white flex items-center gap-1.5 cursor-pointer"
               >
                 <Film className="w-3 h-3" />
-                Wyślij hook zwycięzcy do studia rolek
+                Wyślij zwycięzcę do studia rolek
               </button>
             )}
           </div>

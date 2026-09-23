@@ -307,6 +307,22 @@ export interface DeconstructViralResponse {
   starkVariants: StarkVariant[];
 }
 
+// ===== Przekazanie treści do studia rolek =====
+/**
+ * Jeden pakiet zamiast gołego hooka: dotąd każdy generator oddawał studiu tylko
+ * tekst hooka, więc reszta odpowiedzi modelu (frazy, motyw, czas, opis, hashtagi)
+ * przepadała. Pola są opcjonalne, bo generatorzy różnią się kształtem — A/B i
+ * dekonstrukcja nie zwracają `duration` — a Studio Rolek wypełnia tylko to, co przyszło.
+ */
+export interface ReelHandoff {
+  hook: string;
+  phrases?: string[];
+  theme?: string;
+  duration?: number;
+  caption?: string;
+  hashtags?: string[];
+}
+
 // ===== Paczka dnia (One-Click Factory) =====
 export interface DailyPackReel {
   hook: string;

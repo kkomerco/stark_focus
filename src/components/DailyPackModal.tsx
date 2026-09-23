@@ -12,35 +12,47 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
-import { DailyPack } from "../types";
+import { DailyPack, ReelHandoff } from "../types";
 
 interface DailyPackModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onOpenVideoStudio: (hookText: string) => void;
+  /** Paczka żyje w rodzicu — modal jest renderowany warunkowo i ginie przy zamknięciu. */
+  pack: DailyPack | null;
+  onPackChange: (pack: DailyPack | null) => void;
+  onOpenVideoStudio: (reel: ReelHandoff) => void;
   onOpenCarouselStudio: (
     title: string,
     slides: Array<{ headline: string; bodyText: string }>,
   ) => void;
-  onSchedulePack?: (pack: {
-    reels: Array<{ hook: string; duration: number }>;
-    carousel: { title: string };
-    post: { headline: string };
-  }) => void;
+  onSchedulePack?: (pack: DailyPack) => void;
 }
 
 const PANEL = "bg-[#0F121C] border border-[#2C354B] rounded-xl";
 const ACTION_BTN =
   "py-1.5 px-3 rounded bg-[#141824] hover:bg-[#1E2638] border border-[#2C354B] text-[11px] font-mono font-bold text-slate-200 hover:text-white transition-colors flex items-center gap-1.5 cursor-pointer";
 
+/** Kształt odpowiedzi modelu jest niezaufany — zanim coś trafi do studia, sprawdzamy pole. */
+const textList = (value: unknown): string[] =>
+  Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+const textOf = (value: unknown): string => (typeof value === "string" ? value : "");
+const slidesOf = (value: unknown): Array<{ headline: string; bodyText: string }> =>
+  Array.isArray(value)
+    ? value.map((slide) => ({
+        headline: textOf((slide as { headline?: unknown })?.headline),
+        bodyText: textOf((slide as { bodyText?: unknown })?.bodyText),
+      }))
+    : [];
+
 export const DailyPackModal: React.FC<DailyPackModalProps> = ({
   isOpen,
   onClose,
+  pack,
+  onPackChange,
   onOpenVideoStudio,
   onOpenCarouselStudio,
   onSchedulePack,
 }) => {
-  const [pack, setPack] = useState<DailyPack | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -56,17 +68,19 @@ export const DailyPackModal: React.FC<DailyPackModalProps> = ({
         body: JSON.stringify({}),
       });
       if (!res.ok) throw new Error("HTTP " + res.status);
-      setPack((await res.json()) as DailyPack);
+      onPackChange((await res.json()) as DailyPack);
     } catch {
       setError("Nie udało się wygenerować paczki. Spróbuj ponownie.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [onPackChange]);
 
   useEffect(() => {
-    if (isOpen) generate();
-  }, [isOpen, generate]);
+    // Odświeżamy tylko gdy rodzic nie ma jeszcze paczki — inaczej każde
+    // otwarcie okna kasowałoby to, co użytkownik zamierzał wysłać do studia.
+    if (isOpen && !pack) generate();
+  }, [isOpen, pack, generate]);
 
   const handleCopy = (id: string, text: string) => {
     navigator.clipboard.writeText(text);
@@ -75,6 +89,13 @@ export const DailyPackModal: React.FC<DailyPackModalProps> = ({
   };
 
   if (!isOpen) return null;
+
+  const reels = pack && Array.isArray(pack.reels) ? pack.reels : [];
+  const carouselTitle = textOf(pack?.carousel?.title);
+  const carouselSlides = slidesOf(pack?.carousel?.slides);
+  const postHeadline = textOf(pack?.post?.headline);
+  const postBody = textOf(pack?.post?.body);
+  const postPrompt = textOf(pack?.post?.bingPrompt);
 
   return (
     <div className="fixed inset-0 z-60 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
@@ -173,63 +194,77 @@ export const DailyPackModal: React.FC<DailyPackModalProps> = ({
               {/* Rolki */}
               <section className="space-y-2">
                 <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500">
-                  🎬 Rolki 9:16 ({pack.reels.length})
+                  🎬 Rolki 9:16 ({reels.length})
                 </h4>
-                {pack.reels.map((reel, idx) => (
-                  <div
-                    key={`reel-${idx}`}
-                    className="p-3 bg-[#141824] border border-[#2C354B] rounded-lg space-y-2"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-xs font-mono font-black text-amber-300">"{reel.hook}"</p>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-white/5 border border-[#2C354B] text-slate-400">
-                          {reel.theme}
-                        </span>
-                        <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-white/5 border border-[#2C354B] text-slate-400">
-                          {reel.duration}s
-                        </span>
+                {reels.map((reel, idx) => {
+                  const hook = textOf(reel.hook);
+                  const phrases = textList(reel.phrases);
+                  const hashtags = textList(reel.hashtags);
+                  const captionShort = textOf(reel.captionShort);
+                  const duration = Number(reel.duration);
+                  return (
+                    <div
+                      key={`reel-${idx}`}
+                      className="p-3 bg-[#141824] border border-[#2C354B] rounded-lg space-y-2"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-xs font-mono font-black text-amber-300">"{hook}"</p>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-white/5 border border-[#2C354B] text-slate-400">
+                            {textOf(reel.theme)}
+                          </span>
+                          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-white/5 border border-[#2C354B] text-slate-400">
+                            {Number.isFinite(duration) ? duration : ""}s
+                          </span>
+                        </div>
+                      </div>
+                      <ol className="space-y-0.5 list-decimal list-inside">
+                        {phrases.map((phrase, pIdx) => (
+                          <li key={pIdx} className="text-[11px] font-mono text-slate-300">
+                            {phrase}
+                          </li>
+                        ))}
+                      </ol>
+                      <p className="text-[10px] font-mono text-slate-500">{hashtags.join(" ")}</p>
+                      <div className="flex flex-wrap items-center gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onClose();
+                            // Cały pakiet, nie sam hook — studio ma wyrenderować to,
+                            // co użytkownik zobaczył w paczce.
+                            onOpenVideoStudio({
+                              hook: hook || phrases[0] || "",
+                              phrases,
+                              theme: textOf(reel.theme) || undefined,
+                              duration: Number.isFinite(duration) ? duration : undefined,
+                              caption: captionShort || undefined,
+                              hashtags,
+                            });
+                          }}
+                          className="py-1.5 px-3 rounded bg-[#38BDF8]/15 hover:bg-[#38BDF8]/25 border border-[#38BDF8]/40 text-[11px] font-mono font-bold text-[#38BDF8] uppercase tracking-wider flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <Film className="w-3 h-3" />
+                          Studio Wideo
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleCopy(`reel-caption-${idx}`, `${hook}\n\n${captionShort}`)
+                          }
+                          className={ACTION_BTN}
+                        >
+                          {copiedId === `reel-caption-${idx}` ? (
+                            <Check className="w-3 h-3 text-emerald-400" />
+                          ) : (
+                            <Copy className="w-3 h-3" />
+                          )}
+                          {copiedId === `reel-caption-${idx}` ? "Skopiowano" : "Kopiuj caption"}
+                        </button>
                       </div>
                     </div>
-                    <ol className="space-y-0.5 list-decimal list-inside">
-                      {reel.phrases.map((phrase, pIdx) => (
-                        <li key={pIdx} className="text-[11px] font-mono text-slate-300">
-                          {phrase}
-                        </li>
-                      ))}
-                    </ol>
-                    <p className="text-[10px] font-mono text-slate-500">
-                      {reel.hashtags.join(" ")}
-                    </p>
-                    <div className="flex flex-wrap items-center gap-2 pt-1">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onClose();
-                          onOpenVideoStudio(reel.hook);
-                        }}
-                        className="py-1.5 px-3 rounded bg-[#38BDF8]/15 hover:bg-[#38BDF8]/25 border border-[#38BDF8]/40 text-[11px] font-mono font-bold text-[#38BDF8] uppercase tracking-wider flex items-center gap-1.5 cursor-pointer"
-                      >
-                        <Film className="w-3 h-3" />
-                        Studio Wideo
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          handleCopy(`reel-caption-${idx}`, `${reel.hook}\n\n${reel.captionShort}`)
-                        }
-                        className={ACTION_BTN}
-                      >
-                        {copiedId === `reel-caption-${idx}` ? (
-                          <Check className="w-3 h-3 text-emerald-400" />
-                        ) : (
-                          <Copy className="w-3 h-3" />
-                        )}
-                        {copiedId === `reel-caption-${idx}` ? "Skopiowano" : "Kopiuj caption"}
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </section>
 
               {/* Karuzela */}
@@ -238,18 +273,16 @@ export const DailyPackModal: React.FC<DailyPackModalProps> = ({
                   🖼️ Karuzela 4:5
                 </h4>
                 <div className="p-3 bg-[#141824] border border-[#2C354B] rounded-lg space-y-2">
-                  <p className="text-xs font-mono font-black text-purple-300">
-                    {pack.carousel.title}
-                  </p>
+                  <p className="text-xs font-mono font-black text-purple-300">{carouselTitle}</p>
                   <p className="text-[10px] font-mono text-slate-500">
-                    {pack.carousel.slides.length} slajdów:{" "}
-                    {pack.carousel.slides.map((s) => s.headline).join(" → ")}
+                    {carouselSlides.length} slajdów:{" "}
+                    {carouselSlides.map((s) => s.headline).join(" → ")}
                   </p>
                   <button
                     type="button"
                     onClick={() => {
                       onClose();
-                      onOpenCarouselStudio(pack.carousel.title, pack.carousel.slides);
+                      onOpenCarouselStudio(carouselTitle, carouselSlides);
                     }}
                     className="py-1.5 px-3 rounded bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/40 text-[11px] font-mono font-bold text-purple-300 uppercase tracking-wider flex items-center gap-1.5 cursor-pointer"
                   >
@@ -265,21 +298,15 @@ export const DailyPackModal: React.FC<DailyPackModalProps> = ({
                   🏛️ Post 1:1 + prompt tła
                 </h4>
                 <div className="p-3 bg-[#141824] border border-[#2C354B] rounded-lg space-y-2">
-                  <p className="text-xs font-mono font-black text-emerald-300">
-                    {pack.post.headline}
-                  </p>
+                  <p className="text-xs font-mono font-black text-emerald-300">{postHeadline}</p>
                   <p className="text-[11px] font-mono text-slate-300 whitespace-pre-line">
-                    {pack.post.body}
+                    {postBody}
                   </p>
-                  <p className="text-[10px] font-mono text-slate-500 italic">
-                    {pack.post.bingPrompt}
-                  </p>
+                  <p className="text-[10px] font-mono text-slate-500 italic">{postPrompt}</p>
                   <div className="flex flex-wrap items-center gap-2 pt-1">
                     <button
                       type="button"
-                      onClick={() =>
-                        handleCopy("post-body", `${pack.post.headline}\n\n${pack.post.body}`)
-                      }
+                      onClick={() => handleCopy("post-body", `${postHeadline}\n\n${postBody}`)}
                       className={ACTION_BTN}
                     >
                       {copiedId === "post-body" ? (
@@ -291,7 +318,7 @@ export const DailyPackModal: React.FC<DailyPackModalProps> = ({
                     </button>
                     <button
                       type="button"
-                      onClick={() => handleCopy("post-prompt", pack.post.bingPrompt)}
+                      onClick={() => handleCopy("post-prompt", postPrompt)}
                       className={ACTION_BTN}
                     >
                       {copiedId === "post-prompt" ? (

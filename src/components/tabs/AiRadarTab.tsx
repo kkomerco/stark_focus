@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Radio,
   Search,
@@ -23,6 +23,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { StarkFocusData, TrendItem, Post } from "../../types";
+import { CarouselStudioModal } from "../CarouselStudioModal";
 
 interface IncomingCarousel {
   title: string;
@@ -129,6 +130,24 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
   // Copy feedback
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
+  // Studio karuzeli 4:5 — dostaje karuzelę surowo (kształt od modelu normalizuje sam modal)
+  const [carouselStudio, setCarouselStudio] = useState<{
+    id: number;
+    title: string;
+    slides: unknown;
+    caption: string;
+  } | null>(null);
+
+  const openCarouselStudio = useCallback((carousel: unknown, carouselCaption?: unknown) => {
+    const source = (carousel || {}) as { title?: unknown; slides?: unknown };
+    setCarouselStudio({
+      id: Date.now(),
+      title: typeof source.title === "string" ? source.title : "",
+      slides: source.slides,
+      caption: typeof carouselCaption === "string" ? carouselCaption : "",
+    });
+  }, []);
+
   useEffect(() => {
     fetch("/api/ai/status")
       .then((res) => res.json())
@@ -146,8 +165,9 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
     setActiveSubModule("recycler");
     setSourceText(incomingCarousel.title);
     setRecycledData({ carousel: incomingCarousel });
+    openCarouselStudio(incomingCarousel);
     onIncomingCarouselUsed?.();
-  }, [incomingCarousel, onIncomingCarouselUsed]);
+  }, [incomingCarousel, onIncomingCarouselUsed, openCarouselStudio]);
 
   const handleCopy = (id: string, text: string) => {
     navigator.clipboard.writeText(text);
@@ -1009,7 +1029,10 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                     2. Karuzela 5 Slajdów
                   </span>
                   <span className="text-[10px] font-mono text-neutral-400">
-                    5 Slajdów • Format 4:5
+                    {Array.isArray(recycledData.carousel?.slides)
+                      ? recycledData.carousel.slides.length
+                      : 0}{" "}
+                    Slajdów • Format 4:5
                   </span>
                 </div>
 
@@ -1019,26 +1042,42 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                       {recycledData.carousel.title}
                     </div>
                   )}
-                  {recycledData.carousel?.slides?.map((sl: any, sIdx: number) => (
-                    <div
-                      key={sIdx}
-                      className="p-2 bg-[#050505] rounded border border-[rgba(255,255,255,0.1)] text-[11px] font-mono space-y-0.5"
-                    >
-                      <div className="text-white font-bold">
-                        #{sIdx + 1} {sl.headline}
+                  {recycledData.carousel?.slides?.map((sl: any, sIdx: number) => {
+                    // Slajd od modelu to nie gwarancja obiektu — ani null, ani string nie mogą wywalić appki
+                    const headline = typeof sl === "string" ? sl : sl?.headline || "";
+                    const bodyText = typeof sl === "string" ? "" : sl?.bodyText || "";
+                    return (
+                      <div
+                        key={sIdx}
+                        className="p-2 bg-[#050505] rounded border border-[rgba(255,255,255,0.1)] text-[11px] font-mono space-y-0.5"
+                      >
+                        <div className="text-white font-bold">
+                          #{sIdx + 1} {headline}
+                        </div>
+                        <div className="text-neutral-400 truncate">{bodyText}</div>
                       </div>
-                      <div className="text-neutral-400 truncate">{sl.bodyText}</div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
+
+                <button
+                  onClick={() => openCarouselStudio(recycledData.carousel, recycledData.caption)}
+                  className="w-full py-1.5 px-3 rounded bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-300 font-bold uppercase text-xs font-mono transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Layers className="w-3.5 h-3.5" />
+                  <span>🎠 Studio Karuzeli — podgląd i eksport 4:5</span>
+                </button>
 
                 <div className="flex gap-2">
                   <button
                     onClick={() => {
                       const firstSlide = recycledData.carousel?.slides?.[0];
-                      const text = firstSlide
-                        ? `${firstSlide.headline}\n${firstSlide.bodyText}`
-                        : "";
+                      const text =
+                        firstSlide && typeof firstSlide === "object"
+                          ? `${firstSlide.headline || ""}\n${firstSlide.bodyText || ""}`
+                          : typeof firstSlide === "string"
+                            ? firstSlide
+                            : "";
                       const cap = recycledData.caption || "";
                       if (onSendToPost) onSendToPost(text, cap);
                       else onNavigateToTab(0);
@@ -1051,10 +1090,10 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                   <button
                     onClick={() => {
                       const text = recycledData.carousel?.slides
-                        ?.map(
-                          (s: { headline: string; bodyText: string }, i: number) =>
-                            `Slajd ${i + 1}: ${s.headline}\n${s.bodyText}`,
-                        )
+                        ?.map((s: any, i: number) => {
+                          if (typeof s === "string") return `Slajd ${i + 1}: ${s}`;
+                          return `Slajd ${i + 1}: ${s?.headline || ""}\n${s?.bodyText || ""}`;
+                        })
                         .join("\n\n");
                       if (text) {
                         navigator.clipboard.writeText(text);
@@ -1304,6 +1343,17 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
             )}
           </div>
         </div>
+      )}
+
+      {carouselStudio && (
+        <CarouselStudioModal
+          key={carouselStudio.id}
+          title={carouselStudio.title}
+          slides={carouselStudio.slides}
+          caption={carouselStudio.caption}
+          handle={data.social_handles?.instagram || "stark_focus"}
+          onClose={() => setCarouselStudio(null)}
+        />
       )}
     </div>
   );

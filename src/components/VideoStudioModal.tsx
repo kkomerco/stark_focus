@@ -23,7 +23,8 @@ import {
   Flame,
 } from "lucide-react";
 import JSZip from "jszip";
-import { Post, VaultAsset } from "../types";
+import { Post, ReelHandoff, VaultAsset } from "../types";
+import { STARK_CTA } from "../lib/caption";
 import { VIRAL_REEL_TEMPLATES, type ReelTemplate } from "../data/reelTemplates";
 import {
   STOIC_CATEGORIES,
@@ -53,7 +54,8 @@ import {
 
 interface VideoStudioModalProps {
   onClose?: () => void;
-  initialHook?: string;
+  /** Pełny pakiet z generatora (hook + frazy + motyw + czas + opis + hashtagi). */
+  initialReel?: ReelHandoff;
   initialBgUrl?: string;
   availablePosts?: Post[];
   vaultAssets?: VaultAsset[];
@@ -68,9 +70,134 @@ export type ViralReelFormat =
 
 const PRESET_STORAGE_KEY = "stark_reel_default_preset_v2";
 
+const DEFAULT_PHRASES = ["Walk like a king, or walk like you don't care who the king is."];
+
+const DEFAULT_CAPTION =
+  "WALK LIKE A KING.\n\nOr walk like you don't care who the king is.\n\n3 rules of sovereign posture:\n1. Never seek validation from spectators.\n2. Hold your standards in absolute silence.\n3. Reclaim your inner territory.\n\nSave this reminder. Follow @stark_focus.";
+
+const DEFAULT_HASHTAGS = [
+  "#stoicism",
+  "#discipline",
+  "#sovereign",
+  "#mindset",
+  "#focus",
+  "#starkfocus",
+];
+
+/** Studio ogarnia maksymalnie 4 kadry — dłuższe listy z modelu tniemy, nie renderujemy. */
+const MAX_PHRASES = 4;
+
+const ALLOWED_DURATIONS: ReelDuration[] = [5, 6, 7, 8, 9, 10, 11, 12, 14, 15];
+
+function asText(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value : null;
+}
+
+const squashSpaces = (text: string) => text.replace(/\s+/g, " ").trim();
+
+/**
+ * Wszystko poniżej schodzi z odpowiedzi modelu, więc nie zakładamy kształtu pola:
+ * brak tablicy = brak kadrów, brak liczby = brak czasu, zły motyw = zostaw obecny.
+ */
+function asPhraseList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => asText(item)?.trim())
+    .filter((item): item is string => Boolean(item))
+    .slice(0, MAX_PHRASES);
+}
+
+function asHashtagList(value: unknown): string[] | null {
+  if (!Array.isArray(value)) return null;
+  const tags = value
+    .map((item) => asText(item)?.trim())
+    .filter((item): item is string => Boolean(item))
+    .map((tag) => (tag.startsWith("#") ? tag : `#${tag}`))
+    .slice(0, 12);
+  return tags.length > 0 ? tags : null;
+}
+
+function asReelTheme(value: unknown): VisualTheme | null {
+  if (typeof value !== "string") return null;
+  const wanted = value.trim() as VisualTheme;
+  return VISUAL_THEMES.some((theme) => theme.id === wanted) ? wanted : null;
+}
+
+/** Model zwraca sekundy z zakresu 5-15 (trafia się 13), a studio zna tylko swoje kroki czasowe. */
+function asReelDuration(value: unknown): ReelDuration | null {
+  const raw = Number(value);
+  if (!Number.isFinite(raw)) return null;
+  const seconds = Math.round(raw);
+  return ALLOWED_DURATIONS.reduce((best, allowed) =>
+    Math.abs(allowed - seconds) < Math.abs(best - seconds) ? allowed : best,
+  );
+}
+
+/** Kadrami są frazy; hook to tylko ich pierwszy takt (albo całe zdanie w pętli). */
+function resolvePhrases(reel?: ReelHandoff): string[] {
+  if (!reel) return DEFAULT_PHRASES;
+  const fromList = asPhraseList(reel.phrases);
+  if (fromList.length > 0) return fromList;
+  const fromHook = asPhraseList(asText(reel.hook)?.split("\n"));
+  if (fromHook.length > 0) return fromHook;
+  const single = asPhraseList([reel.hook]);
+  return single.length > 0 ? single : DEFAULT_PHRASES;
+}
+
+/** Szablon z biblioteki łapiemy tylko gdy kadr/hook jest tym samym zdaniem. */
+function findMatchedTemplate(reel?: ReelHandoff): ReelTemplate | null {
+  if (!reel) return null;
+  const wanted = [squashSpaces(reel.hook || ""), squashSpaces(resolvePhrases(reel).join(" "))]
+    .map((text) => text.toUpperCase())
+    .filter((text) => text.length > 0);
+  const found = VIRAL_REEL_TEMPLATES.find((tpl) =>
+    wanted.includes(squashSpaces(tpl.phrases.join(" ")).toUpperCase()),
+  );
+  return found || null;
+}
+
+function resolveCaption(reel: ReelHandoff | undefined, matched: ReelTemplate | null): string {
+  if (!reel) return DEFAULT_CAPTION;
+  const fromReel = asText(reel.caption);
+  if (fromReel) return fromReel;
+  if (matched && asText(matched.captionShort)) return matched.captionShort;
+  // Generator bez opisu: dokładamy choćby kadry i firmowe CTA — twardy default
+  // wchodzi wyłącznie na zimny start studia.
+  return `${resolvePhrases(reel).join("\n")}\n\n${STARK_CTA}`;
+}
+
+/** Format to etykieta timingu — dobieramy ją do liczby kadrów z pakietu. */
+function formatForPhraseCount(count: number): ViralReelFormat {
+  if (count <= 1) return "viral_loop_6s";
+  if (count === 2) return "hook_payoff_5s";
+  return "three_phases";
+}
+
+/**
+ * Bazę (prompt tła, opis-głęboki) bierzemy z pasującego szablonu, ale pola pakietu
+ * je nadpisują — inaczej przełącznik „Krótki / Głębszy" cofnąłby opis do tekstu
+ * z biblioteki zamiast tego, co użytkownik wybrał.
+ */
+function pickTemplate(reel?: ReelHandoff): ReelTemplate {
+  const matched = findMatchedTemplate(reel);
+  const base = matched || VIRAL_REEL_TEMPLATES[0];
+  if (!reel) return base;
+
+  const caption = resolveCaption(reel, matched);
+  return {
+    ...base,
+    phrases: resolvePhrases(reel),
+    captionShort: caption,
+    captionDeep: caption,
+    hashtags: asHashtagList(reel.hashtags) || base.hashtags,
+    suggestedTheme: asReelTheme(reel.theme) || base.suggestedTheme,
+    suggestedDuration: asReelDuration(reel.duration) || base.suggestedDuration,
+  };
+}
+
 export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
   onClose,
-  initialHook,
+  initialReel,
   initialBgUrl,
   embedded = false,
   onSendToPost,
@@ -86,20 +213,16 @@ export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
     return null;
   }, []);
 
-  // 1. Initial State from curated templates
-  const initialTpl = useMemo(() => {
-    if (initialHook) {
-      const found = VIRAL_REEL_TEMPLATES.find(
-        (t) => t.phrases.join(" ").toUpperCase() === initialHook.toUpperCase(),
-      );
-      if (found) return found;
-    }
-    return VIRAL_REEL_TEMPLATES[0];
-  }, [initialHook]);
+  // 1. Initial State z pakietu generatora, a gdy pakietu brak — z curated templates
+  const initialTpl = useMemo(() => pickTemplate(initialReel), [initialReel]);
 
   // Director Controls - Formaty Łamiące Algorytmy (Domyślnie 7s, czcionka Cormorant)
-  const [reelFormat, setReelFormat] = useState<ViralReelFormat>("viral_loop_6s");
-  const [duration, setDuration] = useState<ReelDuration>(7);
+  const [reelFormat, setReelFormat] = useState<ViralReelFormat>(() =>
+    initialReel ? formatForPhraseCount(resolvePhrases(initialReel).length) : "viral_loop_6s",
+  );
+  const [duration, setDuration] = useState<ReelDuration>(
+    () => asReelDuration(initialReel?.duration) || 7,
+  );
   const [fontFamily, setFontFamily] = useState<FontFamily>("cormorant");
   const pacingMode: PacingMode = "climax_hold";
   const fontSize: number = 64;
@@ -108,7 +231,12 @@ export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
   const verticalPos: number = 42;
 
   const [selectedTheme, setSelectedTheme] = useState<VisualTheme>(
-    savedPreset?.selectedTheme || initialTpl.suggestedTheme || "obsidian_void",
+    // motyw z pakietu > zapisany styl > sugestia szablonu
+    () =>
+      asReelTheme(initialReel?.theme) ||
+      asReelTheme(savedPreset?.selectedTheme) ||
+      initialTpl.suggestedTheme ||
+      "obsidian_void",
   );
   const [captionStyle, setCaptionStyle] = useState<"short" | "deep">("deep");
 
@@ -149,44 +277,40 @@ export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
     }
   }, [initialBgUrl]);
 
-  // Editable phrases for quick preview & correction (Viral thought-provoking default)
-  const [phrases, setPhrases] = useState<string[]>(() => {
-    if (initialHook) {
-      const parts = initialHook.split("\n").filter(Boolean);
-      return parts.length > 0
-        ? parts
-        : ["Walk like a king, or walk like you don't care who the king is."];
-    }
-    return ["Walk like a king, or walk like you don't care who the king is."];
-  });
-
-  useEffect(() => {
-    if (initialHook) {
-      const parts = initialHook.split("\n").filter(Boolean);
-      if (parts.length > 0) {
-        setPhrases(parts);
-        timeRef.current = 0;
-        setCurrentTime(0);
-      }
-    }
-  }, [initialHook]);
+  // Editable phrases for quick preview & correction (kadry z pakietu generatora)
+  const [phrases, setPhrases] = useState<string[]>(() => resolvePhrases(initialReel));
 
   // Current template reference for caption toggling
   const [activeTemplate, setActiveTemplate] = useState<ReelTemplate>(initialTpl);
 
-  // Ready-to-copy Caption & Hashtags
+  // Ready-to-copy Caption & Hashtags — twardy default tylko na zimny start bez pakietu
   const [caption, setCaption] = useState<string>(
-    "WALK LIKE A KING.\n\nOr walk like you don't care who the king is.\n\n3 rules of sovereign posture:\n1. Never seek validation from spectators.\n2. Hold your standards in absolute silence.\n3. Reclaim your inner territory.\n\nSave this reminder. Follow @stark_focus.",
+    initialReel ? initialTpl.captionShort || DEFAULT_CAPTION : DEFAULT_CAPTION,
   );
-  const [hashtags, setHashtags] = useState<string[]>([
-    "#stoicism",
-    "#discipline",
-    "#sovereign",
-    "#mindset",
-    "#focus",
-    "#starkfocus",
-  ]);
+  const [hashtags, setHashtags] = useState<string[]>(
+    initialReel && initialTpl.hashtags.length > 0 ? initialTpl.hashtags : DEFAULT_HASHTAGS,
+  );
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Każdy pakiet — także ten wysłany bez przeładowania studia — nadpisuje kadry,
+  // motyw, czas i opis. Bez tego studio zostawało z treścią poprzedniej rolki.
+  useEffect(() => {
+    const reel = initialReel;
+    if (!reel) return;
+    const nextPhrases = resolvePhrases(reel);
+    const nextTemplate = pickTemplate(reel);
+    setPhrases(nextPhrases);
+    setActiveTemplate(nextTemplate);
+    setReelFormat(formatForPhraseCount(nextPhrases.length));
+    const nextDuration = asReelDuration(reel.duration);
+    if (nextDuration) setDuration(nextDuration);
+    const nextTheme = asReelTheme(reel.theme);
+    if (nextTheme) setSelectedTheme(nextTheme);
+    setCaption(nextTemplate.captionShort);
+    setHashtags(nextTemplate.hashtags);
+    timeRef.current = 0;
+    setCurrentTime(0);
+  }, [initialReel]);
 
   // Playback & Canvas Loop
   const [isPlaying, setIsPlaying] = useState<boolean>(true);

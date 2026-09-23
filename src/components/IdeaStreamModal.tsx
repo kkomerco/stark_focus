@@ -13,34 +13,41 @@ import {
   TrendingUp,
   X,
 } from "lucide-react";
-import { StarkFocusData } from "../types";
-import { useIdeaStream } from "../hooks/useIdeaStream";
+import { ReelHandoff } from "../types";
+import type { useIdeaStream } from "../hooks/useIdeaStream";
+
+/**
+ * Stan strumienia (lista pomysłów + historia anty-powtórek) trzyma rodzic:
+ * modal jest renderowany warunkowo, więc po wysłaniu pomysłu do studia i zamknięciu
+ * okna jego własny stan by przepadł.
+ */
+type IdeaStreamState = ReturnType<typeof useIdeaStream>;
 
 interface IdeaStreamModalProps {
   isOpen: boolean;
   onClose: () => void;
-  data: StarkFocusData;
-  onUpdateData: (updater: (prev: StarkFocusData) => StarkFocusData) => void;
-  onSendToReel?: (hookText: string) => void;
-  onSendToPost?: (text: string) => void;
+  stream: IdeaStreamState;
+  onSendToReel?: (reel: ReelHandoff) => void;
+  onSendToPost?: (text: string, caption?: string) => void;
 }
 
 const PANEL = "bg-[#0F121C] border border-[#2C354B] rounded-xl";
 const ACTION_BTN =
   "py-1.5 px-3 rounded bg-[#141824] hover:bg-[#1E2638] border border-[#2C354B] text-[11px] font-mono font-bold text-slate-200 hover:text-white transition-colors flex items-center gap-1.5 cursor-pointer";
 
+/** Kształt z modelu jest niezaufany — sprawdzamy pola zanim zaczniemy je mapować. */
+const textList = (value: unknown): string[] =>
+  Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+const textOf = (value: unknown): string => (typeof value === "string" ? value : "");
+
 export const IdeaStreamModal: React.FC<IdeaStreamModalProps> = ({
   isOpen,
   onClose,
-  data,
-  onUpdateData,
+  stream,
   onSendToReel,
   onSendToPost,
 }) => {
-  const { ideas, loading, error, generateIdeas, clearHistory, usedCount } = useIdeaStream(
-    data,
-    onUpdateData,
-  );
+  const { ideas, loading, error, generateIdeas, clearHistory, usedCount } = stream;
   const [copiedId, setCopiedId] = React.useState<string | null>(null);
 
   React.useEffect(() => {
@@ -118,91 +125,106 @@ export const IdeaStreamModal: React.FC<IdeaStreamModalProps> = ({
           )}
 
           {!loading &&
-            ideas.map((idea) => (
-              <div
-                key={idea.id}
-                className="p-3 bg-[#141824] border border-[#2C354B] rounded-lg space-y-2"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <p className="text-sm font-mono font-black text-white leading-snug flex-1">
-                    {idea.hook}
-                  </p>
-                  <span className="text-[9px] font-mono px-2 py-0.5 rounded font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 whitespace-nowrap flex items-center gap-1">
-                    <TrendingUp className="w-3 h-3" />
-                    {idea.viralityScore}%
-                  </span>
-                </div>
-
-                <div className="flex flex-wrap gap-1.5">
-                  <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-300 border border-purple-500/25">
-                    🎯 {idea.category}
-                  </span>
-                  <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-300 border border-sky-500/25">
-                    ⚡ {idea.archetype}
-                  </span>
-                  <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/25">
-                    💥 {idea.emotionalTarget}
-                  </span>
-                  {idea.similarity >= 0.45 ? (
-                    <span
-                      title={idea.similarTo ? `Najbliższy w historii: "${idea.similarTo}"` : ""}
-                      className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-orange-500/15 text-orange-300 border border-orange-500/30"
-                    >
-                      ⚠️ podobny {Math.round(idea.similarity * 100)}%
+            ideas.map((idea) => {
+              const hook = textOf(idea.hook);
+              const phrases = textList(idea.phrases);
+              const caption = textOf(idea.caption);
+              return (
+                <div
+                  key={idea.id}
+                  className="p-3 bg-[#141824] border border-[#2C354B] rounded-lg space-y-2"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="text-sm font-mono font-black text-white leading-snug flex-1">
+                      {hook}
+                    </p>
+                    <span className="text-[9px] font-mono px-2 py-0.5 rounded font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 whitespace-nowrap flex items-center gap-1">
+                      <TrendingUp className="w-3 h-3" />
+                      {idea.viralityScore}%
                     </span>
-                  ) : (
-                    <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/25">
-                      ✓ świeży (max {Math.round(idea.similarity * 100)}%)
-                    </span>
-                  )}
-                </div>
-
-                {idea.phrases.length > 1 && (
-                  <div className="space-y-0.5 pl-2 border-l border-[#2C354B]">
-                    {idea.phrases.map((p, i) => (
-                      <p key={i} className="text-[10px] font-mono text-slate-400">
-                        {i + 1}. {p}
-                      </p>
-                    ))}
                   </div>
-                )}
 
-                <div className="flex flex-wrap items-center gap-2 pt-1">
-                  {onSendToReel && (
-                    <button
-                      type="button"
-                      onClick={() => onSendToReel(idea.hook)}
-                      className="py-1.5 px-3 rounded bg-white/10 hover:bg-white/20 border border-white/20 text-[11px] font-mono font-bold text-white uppercase tracking-wider flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <Film className="w-3 h-3" />
-                      Do studia rolek
-                    </button>
+                  <div className="flex flex-wrap gap-1.5">
+                    <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-300 border border-purple-500/25">
+                      🎯 {idea.category}
+                    </span>
+                    <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-300 border border-sky-500/25">
+                      ⚡ {idea.archetype}
+                    </span>
+                    <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/25">
+                      💥 {idea.emotionalTarget}
+                    </span>
+                    {idea.similarity >= 0.45 ? (
+                      <span
+                        title={idea.similarTo ? `Najbliższy w historii: "${idea.similarTo}"` : ""}
+                        className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-orange-500/15 text-orange-300 border border-orange-500/30"
+                      >
+                        ⚠️ podobny {Math.round(idea.similarity * 100)}%
+                      </span>
+                    ) : (
+                      <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/25">
+                        ✓ świeży (max {Math.round(idea.similarity * 100)}%)
+                      </span>
+                    )}
+                  </div>
+
+                  {phrases.length > 1 && (
+                    <div className="space-y-0.5 pl-2 border-l border-[#2C354B]">
+                      {phrases.map((p, i) => (
+                        <p key={i} className="text-[10px] font-mono text-slate-400">
+                          {i + 1}. {p}
+                        </p>
+                      ))}
+                    </div>
                   )}
-                  {onSendToPost && (
+
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    {onSendToReel && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onSendToReel({
+                            hook,
+                            phrases,
+                            theme: textOf(idea.theme) || undefined,
+                            caption: caption || undefined,
+                            hashtags: textList(idea.hashtags),
+                          })
+                        }
+                        className="py-1.5 px-3 rounded bg-white/10 hover:bg-white/20 border border-white/20 text-[11px] font-mono font-bold text-white uppercase tracking-wider flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Film className="w-3 h-3" />
+                        Do studia rolek
+                      </button>
+                    )}
+                    {onSendToPost && (
+                      <button
+                        type="button"
+                        // Idea-stream jest jedyną trasą, która zwraca gotowy opis marki —
+                        // bez niego posta 1:1 startowałby z obcego szablonu.
+                        onClick={() => onSendToPost(hook, caption || undefined)}
+                        className={ACTION_BTN}
+                      >
+                        <Sparkles className="w-3 h-3" />
+                        Do posta 1:1
+                      </button>
+                    )}
                     <button
                       type="button"
-                      onClick={() => onSendToPost(idea.hook)}
+                      onClick={() => handleCopy(idea.id + "-caption", caption)}
                       className={ACTION_BTN}
                     >
-                      <Sparkles className="w-3 h-3" />
-                      Do posta 1:1
+                      {copiedId === idea.id + "-caption" ? (
+                        <Check className="w-3 h-3 text-emerald-400" />
+                      ) : (
+                        <Copy className="w-3 h-3" />
+                      )}
+                      {copiedId === idea.id + "-caption" ? "Skopiowano" : "Kopiuj opis"}
                     </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => handleCopy(idea.id + "-caption", idea.caption)}
-                    className={ACTION_BTN}
-                  >
-                    {copiedId === idea.id + "-caption" ? (
-                      <Check className="w-3 h-3 text-emerald-400" />
-                    ) : (
-                      <Copy className="w-3 h-3" />
-                    )}
-                    {copiedId === idea.id + "-caption" ? "Skopiowano" : "Kopiuj opis"}
-                  </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
 
           {!loading && !error && ideas.length === 0 && (
             <div className="text-center py-16 text-xs font-mono text-slate-500">
