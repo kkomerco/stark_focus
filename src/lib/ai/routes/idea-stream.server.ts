@@ -64,6 +64,15 @@ const THEMES = [
   "silver_mist",
 ] as const;
 
+/** UKŁADY, które potrafi narysować studio — prompt może żądać tylko tych. */
+const IDEA_LAYOUTS = [
+  "quote",
+  "protocol_list",
+  "cost_vs_reward",
+  "monolith_ledger",
+  "studio_wall_3d",
+] as const;
+
 /** Offline fallback — rotuje bank po liczbie użytych pomysłów, filtruje excludeHooks. */
 function buildOfflineIdeas(count: number, usedCount: number, excludeHooks: string[]) {
   // Klient przesyła ODCISKI hooków (patrz hookFingerprint), więc obie strony
@@ -186,10 +195,22 @@ export function registerIdeaStreamRoutes(app: MiniApp): void {
       const prompt = `Jesteś elitarnym strategiem treści dark motivation dla marki @stark_focus.
 Temat nadrzędny: "${topic}".
 
-ZADANIE: Wygeneruj DOKŁADNIE ${safeCount} CAŁKOWICIE UNIKALNYCH pomysłów na treści.
+ZADANIE: Wygeneruj DOKŁADNIE ${safeCount} CAŁKOWICIE UNIKALNYCH pomysłów, z których każdy ma UKŁAD WIZUALNY i GŁĘBIĘ, nie samo hasło.
 
 ZIARNO LOSOWOŚCI: ${dynamicSeed}
 LICZBA WCZEŚNIEJSZYCH POMYSŁÓW UŻYTKOWNIKA: ${safeUsed} (nie powtarzaj ich!)
+
+UKŁADY (dobieraj świadomie; w jednej paczce użyj MINIMUM 3 różnych, nigdy nie dawaj wszystkiego jako "quote"):
+- "quote" — jedno zdanie, dużo czerni wokół. Tylko na naprawdę mocne zdanie.
+- "protocol_list" — teza + 3 numerowane kroki do wykonania dziś. Struktura "zrób to".
+- "cost_vs_reward" — pytanie + 3 rzeczy, które kosztują dziś + 3 rzeczy, które to zabiera później + zdanie domykające BEZ odpowiedzi.
+- "monolith_ledger" — nagłówek + 3 pozycje rejestru (co policzone, co odnotowane). Chłodna księgowość własnych obietnic.
+- "studio_wall_3d" — jedno zdanie jako物理yczny napis na ścianie; musi działać jako obraz.
+
+GŁĘBIA (to warunek jakości, nie opcja):
+- Żadnych sloganów motywacyjnych. Zamiast "bądź zdyscyplinowany" — konkretna, niewygodna obserwacja, którą czytelnik musi dokończyć sam.
+- Każdy pomysł ma zawierać jeden koszt, jedną liczbę albo jedną sprzeczność. Abstrakcja bez ceny nie zatrzymuje kciuka.
+- 100% PO ANGIELSKU (hook, kroki, słupki, caption). Styl: Goggins spotyka Marka Aureliusza.
 
 MATRYCA (używaj różnych kombinacji):
 - Kategorie: ${chosenCats.join(" | ")}
@@ -207,20 +228,31 @@ ${
 }
 2. NIE używaj: "believe in yourself", "never give up", "stay motivated".
 3. NIE powtarzaj struktury zdania w tej samej paczce.
-4. Hook max 10 słów, 100% po angielsku. Styl: Goggins meets Aurelius.
+4. Hook max 10 słów.
 
 Zwróć WYŁĄCZNIE JSON:
 {
   "ideas": [
     {
-      "hook": "string",
+      "layout": "quote|protocol_list|cost_vs_reward|monolith_ledger|studio_wall_3d",
+      "structure": {
+        "eyebrow": "tylko protocol/ledger: krótka etykieta, np. PROTOCOL 04:30",
+        "statement": "teza albo pytanie otwierające",
+        "steps": ["tylko protocol/ledger: 3 kroki/pozycje"],
+        "figure": "tylko protocol: liczba-pieczęć, np. 72h",
+        "question": "tylko cost_vs_reward: pytanie",
+        "cost": ["3 rzeczy, które kosztują dziś"],
+        "forfeit": ["3 rzeczy, które to zabiera później"],
+        "closing": "tylko cost_vs_reward: zdanie domykające bez odpowiedzi"
+      },
+      "hook": "string (max 10 słów; dla układów strukturalnych to statement)",
       "category": "string",
       "archetype": "string",
       "emotionalTarget": "string",
       "format": "string",
       "phrases": ["hook", "kontrast", "puenta"],
       "caption": "opis z CTA i hashtagami",
-      "hashtags": ["#darkmotivation", "..."],
+      "hashtags": ["#stoicism", "..."],
       "theme": "obsidian_void|crimson_eclipse|emerald_abyss|carbon_aura|silver_mist",
       "viralityScore": 90
     }
@@ -242,8 +274,25 @@ Zwróć WYŁĄCZNIE JSON:
           const idea = (item ?? {}) as Record<string, unknown>;
           const hook = asString(idea.hook).replace(/["#*]/g, "");
           const phrases = asStringArray(idea.phrases, 4);
+          const rawStructure = (idea.structure ?? {}) as Record<string, unknown>;
+          const layout = oneOf(idea.layout, IDEA_LAYOUTS, "quote");
+
           return {
             id: `idea-${Date.now()}-${idx + 1}`,
+            layout,
+            // Struktura jest nieufna jak każde pole z modelu: kroki tylko
+            // stringowe, maks. 4, bez pustaków — render i tak by je pominął,
+            // ale UI pokazywałby dziury w kadrze.
+            structure: {
+              eyebrow: asString(rawStructure.eyebrow).slice(0, 40),
+              statement: asString(rawStructure.statement).slice(0, 160),
+              steps: asStringArray(rawStructure.steps, 4).map((s) => s.slice(0, 90)),
+              figure: asString(rawStructure.figure).slice(0, 12),
+              question: asString(rawStructure.question).slice(0, 160),
+              cost: asStringArray(rawStructure.cost, 4).map((s) => s.slice(0, 90)),
+              forfeit: asStringArray(rawStructure.forfeit, 4).map((s) => s.slice(0, 90)),
+              closing: asString(rawStructure.closing).slice(0, 120),
+            },
             hook,
             category: asString(idea.category, chosenCats[idx % chosenCats.length]),
             archetype: asString(idea.archetype, chosenArchs[idx % chosenArchs.length]),

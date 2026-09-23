@@ -240,6 +240,17 @@ export interface StarkFocusData {
 }
 
 // ===== Idea Stream (nieskończony generator z anty-powtórką) =====
+export interface IdeaStructure {
+  eyebrow?: string;
+  statement?: string;
+  steps?: string[];
+  figure?: string;
+  question?: string;
+  cost?: string[];
+  forfeit?: string[];
+  closing?: string;
+}
+
 export interface IdeaItem {
   id: string;
   hook: string;
@@ -252,6 +263,9 @@ export interface IdeaItem {
   hashtags: string[];
   theme: string;
   viralityScore: number;
+  /** Układ wizualny wybrany przez model — bez niego każdy pomysł lądowałby jako cytat. */
+  layout?: "quote" | "protocol_list" | "cost_vs_reward" | "monolith_ledger" | "studio_wall_3d";
+  structure?: IdeaStructure;
 }
 
 export interface IdeaStreamResponse {

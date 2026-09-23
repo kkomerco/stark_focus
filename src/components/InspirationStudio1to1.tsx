@@ -33,6 +33,8 @@ interface InspirationStudioProps {
   userHandle?: string;
   initialText?: string;
   initialCaption?: string;
+  /** Gotowy kadr z pomysłem i układem — ma priorytet nad initialText. */
+  initialSpec?: UniversalLayoutSpec;
   onSendToReel?: (text: string) => void;
 }
 
@@ -240,6 +242,7 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
   userHandle = "stark_focus",
   initialText,
   initialCaption,
+  initialSpec,
   onSendToReel,
 }) => {
   const [videoUrl, setVideoUrl] = useState("");
@@ -306,6 +309,14 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
 
   // Reakcja na przekazanie tekstu/pomysłu z zewnątrz (np. z zakładki Trendy i Pomysły)
   useEffect(() => {
+    // Pomysł z układem i strukturą jest gotowym kadrem — nie ma sensu
+    // rozbierać go z powrotem na same linie tekstu i renderować jako cytat.
+    if (initialSpec) {
+      setSpec(initialSpec);
+      setSlotImages(initialSpec.gridType === "grid_2x2" ? [null, null, null, null] : []);
+      return;
+    }
+
     if (initialText) {
       setSpec((prev) => {
         const lines = initialText

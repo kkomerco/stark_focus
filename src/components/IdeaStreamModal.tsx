@@ -13,7 +13,7 @@ import {
   TrendingUp,
   X,
 } from "lucide-react";
-import { ReelHandoff } from "../types";
+import { IdeaItem, ReelHandoff } from "../types";
 import type { useIdeaStream } from "../hooks/useIdeaStream";
 
 /**
@@ -28,7 +28,7 @@ interface IdeaStreamModalProps {
   onClose: () => void;
   stream: IdeaStreamState;
   onSendToReel?: (reel: ReelHandoff) => void;
-  onSendToPost?: (text: string, caption?: string) => void;
+  onSendToPost?: (text: string, caption?: string, idea?: IdeaItem) => void;
 }
 
 const PANEL = "bg-[#0F121C] border border-[#2C354B] rounded-xl";
@@ -209,7 +209,7 @@ export const IdeaStreamModal: React.FC<IdeaStreamModalProps> = ({
                         type="button"
                         // Idea-stream jest jedyną trasą, która zwraca gotowy opis marki —
                         // bez niego posta 1:1 startowałby z obcego szablonu.
-                        onClick={() => onSendToPost(hook, caption || undefined)}
+                        onClick={() => onSendToPost(hook, caption || undefined, idea)}
                         className={ACTION_BTN}
                       >
                         <Sparkles className="w-3 h-3" />

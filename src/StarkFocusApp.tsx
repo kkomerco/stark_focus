@@ -15,11 +15,14 @@ import {
 import {
   DailyPack,
   DeconstructViralResponse,
+  IdeaItem,
   ReelHandoff,
   StarkFocusData,
   Post,
   PlannerTask,
+  UniversalLayoutSpec,
 } from "./types";
+import { specFromIdea } from "./utils/ideaLayout";
 import { loadStoredData, normalizePlannerTasks, saveStoredData } from "./utils/storage";
 import { useIdeaStream } from "./hooks/useIdeaStream";
 import type { AbDraft } from "./components/AbModal";
@@ -83,7 +86,11 @@ export default function StarkFocusApp() {
   const [activeTab, setActiveTab] = useState<number>(0);
 
   // Injected data from "Trendy i Pomysły" tab
-  const [postPreset, setPostPreset] = useState<{ text?: string; caption?: string }>({});
+  const [postPreset, setPostPreset] = useState<{
+    text?: string;
+    caption?: string;
+    spec?: UniversalLayoutSpec;
+  }>({});
   const [reelPreset, setReelPreset] = useState<{ reel: ReelHandoff; bgUrl?: string } | null>(null);
   // Karuzela z Paczki Dnia czekająca aż Studio Karuzeli (zakładka Trendy) ją przejmie
   const [pendingCarousel, setPendingCarousel] = useState<{
@@ -135,8 +142,10 @@ export default function StarkFocusApp() {
     handleUpdateData((prev) => ({ ...prev, posts: [newPost, ...prev.posts], xp: prev.xp + 50 }));
   };
 
-  const handleSendToPost = (text: string, caption?: string) => {
-    setPostPreset({ text, caption });
+  const handleSendToPost = (text: string, caption?: string, idea?: IdeaItem) => {
+    // Pomysł z układu strumienia niesie układ i strukturę — bez tego
+    // studio i tak renderowałoby cytat na czerni.
+    setPostPreset(idea ? { text, caption, spec: specFromIdea(idea) } : { text, caption });
     setActiveTab(0);
   };
 
@@ -407,11 +416,12 @@ export default function StarkFocusApp() {
           <Suspense fallback={<TabFallback />}>
             {activeTab === 0 && (
               <InspirationStudio1to1
-                key={postPreset.text || "default-post"}
+                key={`${postPreset.spec?.layoutName ?? ""}-${postPreset.text ?? ""}`}
                 onSaveToPipeline={handleSavePostFrom1to1}
                 userHandle={data.social_handles?.instagram || "stark_focus"}
                 initialText={postPreset.text}
                 initialCaption={postPreset.caption}
+                initialSpec={postPreset.spec}
                 onSendToReel={handleSendToReel}
               />
             )}
