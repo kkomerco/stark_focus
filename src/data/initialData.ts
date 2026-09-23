@@ -29,39 +29,9 @@ export const POLISH_MONTHS = [
 
 export const INITIAL_DATA: StarkFocusData = {
   posts: [],
-  account_stats: [
-    {
-      id: "stat-baseline-ig",
-      platform: "Instagram",
-      followers: 0,
-      views: 0,
-      date: new Date().toISOString().split("T")[0],
-      notes: "Punkt startowy profilu.",
-    },
-    {
-      id: "stat-baseline-tt",
-      platform: "TikTok",
-      followers: 0,
-      views: 0,
-      date: new Date().toISOString().split("T")[0],
-      notes: "Punkt startowy profilu.",
-    },
-    {
-      id: "stat-baseline-yt",
-      platform: "YouTube Shorts",
-      followers: 0,
-      views: 0,
-      date: new Date().toISOString().split("T")[0],
-      notes: "Punkt startowy profilu.",
-    },
-  ],
-  daily_logs: {},
   xp: 0,
   streak: 1,
-  best_streak: 1,
-  used_assets: [],
   created_at: new Date().toISOString().split("T")[0],
-  carousel_packages: [], // Puste – tworzysz własne paczki
   vault_assets: [], // Puste – zero sztucznych teł
   dynamic_db: {
     formats: [
@@ -77,12 +47,6 @@ export const INITIAL_DATA: StarkFocusData = {
     instagram: "stark_focus",
     tiktok: "stark_focus",
     youtube: "@stark_focus",
-  },
-  monetization_goal: {
-    monthlyTargetRevenue: 10000,
-    productName: "The Ruthless Discipline Protocol",
-    productPrice: 97,
-    estimatedConversionRate: 1.5,
   },
   planner_tasks: [],
 };

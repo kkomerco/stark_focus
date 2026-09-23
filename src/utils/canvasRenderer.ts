@@ -847,6 +847,8 @@ export function drawMinimalBlackQuoteSlide(
     textScale?: number;
     fontColor?: "white" | "black";
     handle?: string;
+    /** Wygenerowane w aplikacji tło — bez tego studio posta miało tylko płaską czerń. */
+    backgroundImage?: CanvasImageSource | null;
   },
 ) {
   const {
@@ -859,6 +861,7 @@ export function drawMinimalBlackQuoteSlide(
     textScale = 1.0,
     fontColor = "white",
     handle = "stark_focus",
+    backgroundImage = null,
   } = options;
 
   canvas.width = width;
@@ -871,6 +874,13 @@ export function drawMinimalBlackQuoteSlide(
   // Wypełnienie tła: czarne dla białej czcionki, czyste białe dla czarnej czcionki
   ctx.fillStyle = isBlackFont ? "#FFFFFF" : "#000000";
   ctx.fillRect(0, 0, width, height);
+  if (backgroundImage) {
+    drawImageCover(ctx, backgroundImage, 0, 0, width, height);
+    // Zaciemnienie jest obowiązkowe: bez niego tekst na jasnej części zdjęcia
+    // znika, a to pierwszy błąd, jaki zobaczy użytkownik eksportu.
+    ctx.fillStyle = isBlackFont ? "rgba(255,255,255,0.72)" : "rgba(0,0,0,0.62)";
+    ctx.fillRect(0, 0, width, height);
+  }
 
   const paddingX = Math.round(width * 0.12);
   const maxLineWidth = width - paddingX * 2;
@@ -1128,17 +1138,25 @@ function drawLayeredTextSlide(
     textScale: number;
     fontColor: "white" | "black";
     handle: string;
+    backgroundImage?: CanvasImageSource | null;
   },
 ) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
 
-  const { width, height, textScale, fontColor, handle } = options;
+  const { width, height, textScale, fontColor, handle, backgroundImage } = options;
 
-  ctx.save();
+  // Ustawienie szerokości kasuje stan kontekstu, więc wszystkie style
+  // ustawiamy po tym, a nie w save()/restore().
+  canvas.width = width;
+  canvas.height = height;
   ctx.fillStyle = spec.backgroundColor || (fontColor === "black" ? "#F5F5F5" : "#000000");
   ctx.fillRect(0, 0, width, height);
-  ctx.restore();
+  if (backgroundImage) {
+    drawImageCover(ctx, backgroundImage, 0, 0, width, height);
+    ctx.fillStyle = fontColor === "black" ? "rgba(255,255,255,0.72)" : "rgba(0,0,0,0.62)";
+    ctx.fillRect(0, 0, width, height);
+  }
 
   const margin = Math.round(width * 0.09);
   const usableWidth = width - margin * 2;
@@ -1197,6 +1215,8 @@ export function renderUniversalLayout(
     textScale?: number;
     handle?: string;
     fontColor?: "white" | "black";
+    /** Obraz tła z `POST /api/ai/generate-background`. */
+    backgroundImage?: CanvasImageSource | null;
   } = {},
 ) {
   const width = options.width || 1080;
@@ -1239,7 +1259,7 @@ export function renderUniversalLayout(
       width,
       height,
       textLines: lines.length > 0 ? lines : ["Silence cannot be misquoted."],
-      wallImage: images[0] ?? null,
+      wallImage: images[0] ?? options.backgroundImage ?? null,
       handle,
       fontSize: spec.textLayers[0]?.fontSize,
       fontFamily: spec.fontFamilyCustom || fontFamily,
@@ -1251,7 +1271,14 @@ export function renderUniversalLayout(
 
   // Format 3: wiele warstw tekstu — każda z własną geometrią z analizy.
   if (spec.textLayers.length > 2) {
-    drawLayeredTextSlide(canvas, spec, { width, height, textScale, fontColor, handle });
+    drawLayeredTextSlide(canvas, spec, {
+      width,
+      height,
+      textScale,
+      fontColor,
+      handle,
+      backgroundImage: options.backgroundImage ?? null,
+    });
     return;
   }
 
@@ -1270,6 +1297,7 @@ export function renderUniversalLayout(
     textScale,
     fontColor,
     handle,
+    backgroundImage: options.backgroundImage ?? null,
   });
 }
 

@@ -9,6 +9,64 @@ export const GEMINI_MODEL = "gemini-3.8-flash";
 /** Model zapasowy dla zadań, które nie wymagają pełnej mocy (tanio i szybko). */
 export const GEMINI_LITE_MODEL = "gemini-3.1-flash-lite";
 
+/**
+ * Model obrazowy — też tylko tutaj, bo reguła projektu mówi: żaden plik
+ * poza tym nie wolna nazwy modelu. Darmowy tier nalicza obrazy osobno,
+ * więc można go przestawić przez `GEMINI_IMAGE_MODEL` bez ruszania kodu.
+ */
+export const GEMINI_IMAGE_MODEL = process.env["GEMINI_IMAGE_MODEL"] || "gemini-3.1-flash-image";
+
+/** Styl wymuszany na każdym tle, żeby kadr został marką, nie losowym art. */
+const BRAND_IMAGE_STYLE =
+  "Dark stoic minimalism for the brand @stark_focus: obsidian black and deep charcoal, bone-white light, a single deep crimson accent (#E11D48). Cinematic low-key lighting, high contrast chiaroscuro, monumental and quiet. Absolutely NO text, NO letters, NO watermarks, NO logos, NO cyan or neon blue.";
+
+export interface GeneratedImage {
+  /** Dane gotowe do wstawienia w <img src>. */
+  dataUrl: string;
+  mimeType: string;
+  /** Prompt, którego użyto — przy włączonym enhancerze modelu nie nasz. */
+  prompt: string;
+}
+
+/**
+ * Jedno tło z promptu tekstowego. Zwraca `null`, gdy model nie oddał
+ * bajtów (filtry RAI zwracają 200 bez obrazu), a rzuca AiResponseError
+ * dopiero przy realnym braku konfiguracji.
+ */
+export async function generateImage(options: {
+  prompt: string;
+  aspect?: "9:16" | "1:1" | "4:5";
+}): Promise<GeneratedImage | null> {
+  const ai = getGeminiClient();
+  if (!ai) {
+    throw new AiResponseError("Brak skonfigurowanego klucza GEMINI_API_KEY w pliku .env serwera");
+  }
+
+  const aspect = options.aspect ?? "9:16";
+  const prompt = `${options.prompt.trim()}. ${BRAND_IMAGE_STYLE}. Vertical framing ${aspect}.`;
+
+  const response = await ai.models.generateImages({
+    model: GEMINI_IMAGE_MODEL,
+    prompt,
+    config: {
+      numberOfImages: 1,
+      aspectRatio: aspect,
+      abortSignal: AbortSignal.timeout(GEMINI_IMAGE_TIMEOUT_MS),
+    },
+  });
+
+  const generated = response.generatedImages?.[0];
+  const bytes = generated?.image?.imageBytes;
+  if (!bytes) return null;
+
+  const mimeType = generated?.image?.mimeType || "image/png";
+  return {
+    dataUrl: `data:${mimeType};base64,${bytes}`,
+    mimeType,
+    prompt: generated?.enhancedPrompt || prompt,
+  };
+}
+
 let cachedClient: GoogleGenAI | null = null;
 let cachedKey: string | null = null;
 
@@ -40,6 +98,9 @@ const GEMINI_ATTEMPT_TIMEOUT_MS = 90_000;
 
 /** Backoff przy błędach przejściowych (przeciążenie / limit zapytań). */
 const GEMINI_RETRY_BACKOFF_MS = 1_200;
+
+/** Obrazy schodzą wyraźnie dłużej niż tekst — własny budżet, żeby nie dzielić limitu tekstu. */
+const GEMINI_IMAGE_TIMEOUT_MS = 120_000;
 
 /**
  * Gemini nagminnie opakowuje JSON w bloki markdown lub dodaje komentarz.

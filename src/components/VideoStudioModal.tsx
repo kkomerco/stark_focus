@@ -338,10 +338,10 @@ export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
     return found !== -1 ? found : activeTimeline.length - 1;
   }, [activeTimeline, currentTime, phrases.length]);
 
-  // Export State (Domyślnie 30 FPS zgodny ze standardem Instagram Reels / TikTok - brak podwajania czasu)
+  // Export State — 30 FPS to jedyny tryb: `canvas.captureStream(30)` poniżej,
+  // a standard Reels/TikTok/Shorts też wynosi 30 FPS (brak podwajania czasu).
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const [exportProgress, setExportProgress] = useState<number>(0);
-  const [exportFps, setExportFps] = useState<60 | 30>(30);
   const isExportingRef = useRef<boolean>(false);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -353,14 +353,15 @@ export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
     isPlayingRef.current = isPlaying;
   }, [isPlaying]);
 
-  // TURNKEY EXPORT: 1. "Ready-to-Post" ZIP Bundle
+  // TURNKEY EXPORT: 1. "Ready-to-Post" ZIP Bundle (2 klatki PNG + TXT — bez wideo,
+  // bo nagranie wymagałoby wcześniejszego eksportu rolki)
   const [isExportingZip, setIsExportingZip] = useState<boolean>(false);
 
   const handleExportZipBundle = async () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     setIsExportingZip(true);
-    setToastMessage("Pakowanie zestawu ZIP (Wideo + Klatki + Opis)...");
+    setToastMessage("Pakowanie zestawu ZIP (2 klatki PNG + opis)...");
 
     try {
       const zip = new JSZip();
@@ -378,11 +379,11 @@ export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
       zip.file("2_CLIMAX_PUNCHLINE_1080x1920.png", climaxBlob);
 
       // Gotowy plik tekstowy z opisem posta i hashtagami
-      const postText = `STARK FOCUS // READY-TO-POST CONTENT BUNDLE
+      const postText = `STARK FOCUS // READY-TO-POST CONTENT BUNDLE (2 klatki PNG + ten opis)
 ============================================================
 DATA GENERACJI: ${new Date().toISOString()}
-FORMAT: Rolka 9:16 (1080x1920 Full HD)
-CZAS TRWANIA: ${duration}.00s (${exportFps} FPS)
+FORMAT: Kadr 9:16 (1080x1920 Full HD) — pakiet nie zawiera wideo
+CZAS NARRACJI: ${duration}.00s (rolkę nagrywa osobny przycisk "Pobierz Rolkę")
 MOTYW: ${selectedTheme}
 
 ------------------------------------------------------------
@@ -1055,7 +1056,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
     [customBgType, selectedTheme, showTikTokGuides, phrases, reelFormat, duration, fontFamily],
   );
 
-  // 60 FPS Real-time Loop
+  // Pętla podglądu w czasie rzeczywistym (taktowana requestAnimationFrame)
   useEffect(() => {
     let lastStamp = performance.now();
 
@@ -1088,7 +1089,8 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
     };
   }, [duration, renderFrame]);
 
-  // Export Full Video MP4 (1080x1920 Full HD - Zegarmistrzowski czas 1:1, bez podwajania)
+  // Export rolki: nagranie z canvasu 1080x1920 w 30 FPS (mp4 albo webm, zależnie od
+  // przeglądarki) — zegarmistrzowski czas 1:1, bez podwajania, bez ścieżki dźwiękowej
   const handleExportVideo = async () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -1109,17 +1111,19 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
     setIsPlaying(false);
 
     try {
-      // FIX BŁĘDU 60 FPS (PODWAJANIE DŁUGOŚCI ROLKI):
-      // W silnikach Chromium (Chrome/Edge/Brave) CanvasCaptureMediaStreamTrack przy 60fps
-      // indeksuje klatki w kontenerze z domyślnym czasem 33.3ms (30fps), co powodowało odtwarzanie
-      // w zwolnionym tempie (0.5x) i podwajało czas trwania z np. 7s do 14s.
-      // Standardem platform wertykalnych (Instagram Reels, TikTok, YouTube Shorts) jest 30 FPS.
-      // Taktowanie captureStream na stabilne 30 FPS z bitrate 18-24 Mbps gwarantuje:
+      // FIX BŁĘDU PODWAJANIA DŁUGOŚCI ROLKI:
+      // W silnikach Chromium (Chrome/Edge/Brave) CanvasCaptureMediaStreamTrack przy taktowaniu
+      // wyższym niż 30 fps indeksuje klatki w kontenerze z domyślnym czasem 33,3 ms (30 fps),
+      // co powodowało odtwarzanie w zwolnionym tempie (0.5x) i podwajało czas trwania z np. 7s do 14s.
+      // Standardem platform wertykalnych (Instagram Reels, TikTok, YouTube Shorts) jest 30 FPS,
+      // więc stałe taktowanie captureStream(30) z bitrate 18 Mbps gwarantuje:
       // 1. Idealny czas trwania 1:1 (film 7s ma dokładnie 7.00s na każdym odtwarzaczu i w social media).
-      // 2. Maksymalną ostrość typografii i brak jakiegokolwiek zacinania czy rozbieżności audio/video.
+      // 2. Maksymalną ostrość typografii i brak zacinania.
+      // Strumień z canvasu jest wyłącznie wideo — dlatego na liście nie ma kodka audio, a eksport
+      // nie ma ścieżki dźwiękowej (dźwięk dodaje się w aplikacji social media).
       const stream = canvas.captureStream(30);
       const mimeTypes = [
-        "video/mp4;codecs=avc1.42E01E,mp4a.40.2",
+        "video/mp4;codecs=avc1.42E01E",
         "video/mp4;codecs=avc1",
         "video/mp4",
         "video/webm;codecs=vp9",
@@ -1132,7 +1136,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
 
       const recorder = new MediaRecorder(stream, {
         mimeType: selectedMime,
-        videoBitsPerSecond: exportFps === 60 ? 24000000 : 18000000,
+        videoBitsPerSecond: 18000000,
       });
 
       // Canvas capture track żyje dopóki go nie zamkniemy — bez tego każda
@@ -1261,7 +1265,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
               AUTOMONTAŻYSTA ROLEK // DARK STOIC ENGINE (1080x1920)
             </h2>
             <p className="text-[11px] text-neutral-400 font-mono">
-              1080x1920 Full HD • 60 FPS • Czysty monumentalny kadr • Slow Zoom & Chiaroscuro
+              1080x1920 Full HD • 30 FPS • Czysty monumentalny kadr • Slow Zoom & Chiaroscuro
             </p>
           </div>
         </div>
@@ -2027,40 +2031,22 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
             </div>
           </div>
 
-          {/* 6. Eksport 1080x1920 Full HD (Precyzyjny czas 1:1 bez podwajania) */}
+          {/* 6. Eksport 1080x1920 Full HD (30 FPS, precyzyjny czas 1:1 bez podwajania) */}
           <div className="pt-2 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2 text-xs font-mono text-neutral-400">
               <span>
-                Jakość: <strong className="text-white">1080x1920 Full HD</strong> • Czas:{" "}
-                <strong className="text-emerald-400">{duration}.00s (Dokładny 1:1)</strong>
+                Jakość: <strong className="text-white">1080x1920 Full HD</strong> • Klatki:{" "}
+                <strong className="text-neutral-300">30 FPS (standard Reels / TikTok)</strong> •
+                Czas: <strong className="text-emerald-400">{duration}.00s (Dokładny 1:1)</strong>
               </span>
 
-              <div className="flex items-center bg-[#181818] border border-white/10 rounded p-0.5 ml-1">
-                <button
-                  type="button"
-                  onClick={() => setExportFps(30)}
-                  className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold cursor-pointer transition-all ${
-                    exportFps === 30
-                      ? "bg-white text-black shadow-sm"
-                      : "text-neutral-400 hover:text-white"
-                  }`}
-                  title="Oficjalny standard Instagram Reels & TikTok (Brak podwajania czasu trwania, 18 Mbps)"
-                >
-                  30 FPS (Zalecane)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setExportFps(60)}
-                  className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold cursor-pointer transition-all ${
-                    exportFps === 60
-                      ? "bg-white text-black shadow-sm"
-                      : "text-neutral-400 hover:text-white"
-                  }`}
-                  title="Ultra płynność i maksymalny bitrate 24 Mbps z precyzyjnym czasem 1:1"
-                >
-                  60 FPS (Ultra)
-                </button>
-              </div>
+              {/* captureStream(30) daje sam obraz — plik nie ma ścieżki dźwiękowej. */}
+              <span
+                className="text-[10px] text-amber-300"
+                title="Nagrywarka dostaje wyłącznie strumień z canvasu, więc w pliku nie ma audio."
+              >
+                🔇 bez dźwięku — dodaj go w aplikacji social media
+              </span>
 
               {isExporting && (
                 <span className="text-white font-mono font-bold animate-pulse ml-2">
@@ -2087,10 +2073,10 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                 onClick={handleExportZipBundle}
                 disabled={isExporting || isExportingZip}
                 className="px-3 py-2 rounded-lg bg-[#181818] hover:bg-amber-400 hover:text-black text-amber-300 border border-amber-500/30 text-xs font-mono font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all"
-                title="Turnkey Export: Pobierz kompletny ZIP z wideo, klatkami i plikiem tekstowym z opisem posta i hashtagami"
+                title="Pobierz ZIP: 2 klatki PNG (hook + puenta) i plik TXT z opisem posta i hashtagami. Bez pliku wideo — rolkę nagrywa osobny przycisk."
               >
                 <Package className="w-3.5 h-3.5" />
-                {isExportingZip ? "Pakowanie..." : "📦 Pakiet ZIP"}
+                {isExportingZip ? "Pakowanie..." : "📦 Klatki + TXT (ZIP)"}
               </button>
 
               <button
@@ -2109,12 +2095,12 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                 onClick={handleExportVideo}
                 disabled={isExporting}
                 className="flex-1 sm:flex-initial px-5 py-2.5 rounded-lg bg-white hover:bg-neutral-200 text-black text-xs font-mono font-black uppercase tracking-wider flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(255,255,255,0.2)] hover:shadow-[0_0_25px_rgba(255,255,255,0.35)] transition-all cursor-pointer disabled:opacity-50"
-                title={`Pobierz gotowe wideo w pętli 1080x1920 (MP4, ${duration}.00s, ${exportFps} FPS)`}
+                title={`Pobierz wideo w pętli 1080x1920 (30 FPS, ${duration}.00s, bez dźwięku — dodaj go w aplikacji social media)`}
               >
                 <Film className="w-4 h-4" />
                 {isExporting
                   ? `Eksportowanie (${exportProgress}%)...`
-                  : `🎬 Pobierz Rolkę (${duration}s • ${exportFps} FPS)`}
+                  : `🎬 Pobierz Rolkę (${duration}s • 30 FPS • bez dźwięku)`}
               </button>
             </div>
           </div>

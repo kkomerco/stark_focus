@@ -10,6 +10,7 @@ import {
   TestTubes,
   Rocket,
   Image as ImageIcon,
+  ListChecks,
 } from "lucide-react";
 import {
   DailyPack,
@@ -19,7 +20,7 @@ import {
   Post,
   PlannerTask,
 } from "./types";
-import { loadStoredData, saveStoredData } from "./utils/storage";
+import { loadStoredData, normalizePlannerTasks, saveStoredData } from "./utils/storage";
 import { useIdeaStream } from "./hooks/useIdeaStream";
 import type { AbDraft } from "./components/AbModal";
 import { Header } from "./components/Header";
@@ -46,6 +47,9 @@ const DeconstructViralModal = lazy(() =>
 const AbModal = lazy(() => import("./components/AbModal").then((m) => ({ default: m.AbModal })));
 const AutopilotModal = lazy(() =>
   import("./components/AutopilotModal").then((m) => ({ default: m.AutopilotModal })),
+);
+const PipelineTab = lazy(() =>
+  import("./components/PipelineTab").then((m) => ({ default: m.PipelineTab })),
 );
 const PromptLibraryModal = lazy(() =>
   import("./components/PromptLibraryModal").then((m) => ({ default: m.PromptLibraryModal })),
@@ -151,6 +155,7 @@ export default function StarkFocusApp() {
   // Generuje zadania publikacji w plannerze na podstawie paczki dnia
   const handleSchedulePack = (pack: DailyPack) => {
     const today = new Date().toISOString().split("T")[0];
+    const stamp = Date.now();
     const tasks: PlannerTask[] = [];
     // Paczka przyszła z modelu: zanim weźmiemy z niej tytuł do zadania, sprawdzamy pole.
     const labelOf = (value: unknown) => (typeof value === "string" ? value.slice(0, 40) : "");
@@ -160,7 +165,7 @@ export default function StarkFocusApp() {
     const reelTimes = ["12:00", "15:00", "18:00"];
     reels.forEach((reel, idx) => {
       tasks.push({
-        id: `task-${Date.now()}-reel-${idx}`,
+        id: `task-${stamp}-reel-${idx}`,
         time: reelTimes[idx] || "18:00",
         title: `Publikacja Rolki ${idx + 1}: ${labelOf(reel.hook)}...`,
         category: "post",
@@ -168,12 +173,24 @@ export default function StarkFocusApp() {
         completed: false,
         date: today,
         actionLabel: "Otwórz Studio Rolek",
+        format: "Rolka",
+        // Pełna treść zadania — bez payloadu "Otwórz w studio" byłoby pustą nawigacją
+        payload: {
+          reel: {
+            hook: typeof reel.hook === "string" ? reel.hook : "",
+            phrases: Array.isArray(reel.phrases) ? reel.phrases : [],
+            theme: reel.theme,
+            duration: reel.duration,
+            caption: reel.captionShort,
+            hashtags: reel.hashtags,
+          },
+        },
       });
     });
 
     // Karuzela — publikacja o 14:00
     tasks.push({
-      id: `task-${Date.now()}-carousel`,
+      id: `task-${stamp}-carousel`,
       time: "14:00",
       title: `Publikacja Karuzeli: ${labelOf(pack.carousel?.title)}...`,
       category: "post",
@@ -181,11 +198,18 @@ export default function StarkFocusApp() {
       completed: false,
       date: today,
       actionLabel: "Otwórz Studio Karuzeli",
+      format: "Karuzela",
+      payload: {
+        carousel: {
+          title: typeof pack.carousel?.title === "string" ? pack.carousel.title : "",
+          slides: Array.isArray(pack.carousel?.slides) ? pack.carousel.slides : [],
+        },
+      },
     });
 
-    // Post 1:1 — publikacja o 20:00
+    // Post 1:1 — publikacja o 20:00 (studio posta mieszka w zakładce 0)
     tasks.push({
-      id: `task-${Date.now()}-post`,
+      id: `task-${stamp}-post`,
       time: "20:00",
       title: `Publikacja Posta 1:1: ${labelOf(pack.post?.headline)}...`,
       category: "post",
@@ -193,12 +217,44 @@ export default function StarkFocusApp() {
       completed: false,
       date: today,
       actionLabel: "Otwórz Studio Posta",
+      format: "Post 1:1",
+      payload: {
+        post: {
+          text:
+            (typeof pack.post?.headline === "string" ? pack.post.headline : "") +
+            "\n\n" +
+            (typeof pack.post?.body === "string" ? pack.post.body : ""),
+        },
+      },
     });
 
     handleUpdateData((prev) => ({
       ...prev,
-      planner_tasks: [...(prev.planner_tasks || []), ...tasks],
+      // Ten sam normalizator co przy odczycie z localStorage — dane od modelu są niezaufane
+      planner_tasks: [...(prev.planner_tasks || []), ...normalizePlannerTasks(tasks)],
     }));
+  };
+
+  // Krok 3 flowu: zadanie z Pipeline'u otwiera studio z dokładnie tą treścią,
+  // którą zaplanowano. Bez payloadu (starsze zadania Autopilota) zostaje sam przekaz.
+  const handleOpenScheduledTask = (task: PlannerTask) => {
+    const payload = task.payload;
+    const reel = payload?.reel;
+    if (reel && (reel.hook || (Array.isArray(reel.phrases) && reel.phrases.length > 0))) {
+      handleSendToReel(reel);
+      return;
+    }
+    if (payload?.carousel) {
+      setPendingCarousel(payload.carousel);
+      // Studio karuzeli działa w zakładce Trendy i przejmuje paczkę raz przy starcie
+      setActiveTab(2);
+      return;
+    }
+    if (payload?.post?.text) {
+      handleSendToPost(payload.post.text, payload.post.caption || undefined);
+      return;
+    }
+    setActiveTab(typeof task.targetTab === "number" ? task.targetTab : 0);
   };
 
   const tabs = [
@@ -223,6 +279,13 @@ export default function StarkFocusApp() {
       subtitle: "Baza kątów i hooków",
       icon: Flame,
     },
+    {
+      id: "tab-pipeline",
+      label: "Pipeline",
+      tag: "HARMONOGRAM",
+      subtitle: "Zaplanowane publikacje",
+      icon: ListChecks,
+    },
   ];
 
   return (
@@ -231,7 +294,7 @@ export default function StarkFocusApp() {
         <Header data={data} onUpdateData={handleUpdateData} activeTab={activeTab} />
 
         {/* 3 Główne Zakładki - Wyrazisty Segmented Control */}
-        <nav className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pb-4 mb-5 border-b border-white/10 select-none">
+        <nav className="grid grid-cols-1 sm:grid-cols-4 gap-2.5 pb-4 mb-5 border-b border-white/10 select-none">
           {tabs.map((tab, idx) => {
             const Icon = tab.icon;
             const isActive = activeTab === idx;
@@ -329,10 +392,15 @@ export default function StarkFocusApp() {
               Biblioteka Promptów
             </button>
           </div>
-          <div className="text-[10px] font-mono text-neutral-500">
-            {data.planner_tasks?.filter((t) => !t.completed).length || 0} zadań •{" "}
+          <button
+            type="button"
+            onClick={() => setActiveTab(3)}
+            title="Otwórz Pipeline publikacji"
+            className="text-[10px] font-mono text-neutral-500 hover:text-white transition-colors cursor-pointer"
+          >
+            {(data.planner_tasks || []).filter((t) => t && !t.completed).length} zadań w pipeline •{" "}
             {data.used_idea_fingerprints?.length || 0} użytych pomysłów
-          </div>
+          </button>
         </div>
 
         <main>
@@ -368,6 +436,14 @@ export default function StarkFocusApp() {
                 onNavigateToTab={(tabIdx) => setActiveTab(tabIdx)}
                 onSendToPost={handleSendToPost}
                 onSendToReel={handleSendToReel}
+              />
+            )}
+            {activeTab === 3 && (
+              <PipelineTab
+                data={data}
+                onUpdateData={handleUpdateData}
+                onOpenInStudio={handleOpenScheduledTask}
+                onOpenDailyPack={() => setDailyPackOpen(true)}
               />
             )}
           </Suspense>

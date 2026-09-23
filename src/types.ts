@@ -49,31 +49,6 @@ export interface Post {
   notes?: string;
 }
 
-export interface DailyLog {
-  ig: boolean;
-  tt: boolean;
-  yt: boolean;
-  mission_done: boolean;
-  mission_text: string;
-  claimed: boolean;
-}
-
-export interface AccountStat {
-  id: string;
-  platform: Platform;
-  followers: number;
-  views: number;
-  date: string;
-  notes?: string;
-}
-
-export interface CarouselPackage {
-  id: string;
-  name: string;
-  slides: string[];
-  created_date: string;
-}
-
 export interface VaultAsset {
   id: string;
   filename: string;
@@ -130,20 +105,12 @@ export interface SocialHandles {
   metaBusiness?: string;
 }
 
-export interface MonetizationGoal {
-  monthlyTargetRevenue: number;
-  productName: string;
-  productPrice: number;
-  estimatedConversionRate: number;
-}
-
-export interface HookBattleItem {
-  id: string;
-  angle: string;
-  hook: string;
-  estimatedRetention: number;
-  psychologicalTrigger: string;
-  reason: string;
+// Zadanie w pipeline'ie publikacji. `payload` przenosi treść do studia, żeby
+// "Otwórz w studio" odtworzyło dokładnie to, co zaplanowano w paczce dnia.
+export interface PlannerTaskPayload {
+  reel?: ReelHandoff;
+  carousel?: { title: string; slides: Array<{ headline: string; bodyText: string }> };
+  post?: { text: string; caption?: string };
 }
 
 export interface PlannerTask {
@@ -155,6 +122,8 @@ export interface PlannerTask {
   completed: boolean;
   date: string;
   actionLabel?: string;
+  format?: string;
+  payload?: PlannerTaskPayload;
 }
 
 // =========================================================================
@@ -235,22 +204,14 @@ export interface PromptLibraryItem {
 
 export interface StarkFocusData {
   posts: Post[];
-  account_stats: AccountStat[];
-  daily_logs: Record<string, DailyLog>;
   xp: number;
   streak: number;
-  best_streak: number;
-  used_assets: string[];
   created_at: string | null;
-  carousel_packages: CarouselPackage[];
   vault_assets: VaultAsset[];
   dynamic_db: DynamicDb;
-  securityPin?: string;
   notificationsEnabled?: boolean;
   saved_trends?: TrendItem[];
   social_handles?: SocialHandles;
-  monetization_goal?: MonetizationGoal;
-  saved_hook_battles?: HookBattleItem[];
   planner_tasks?: PlannerTask[];
   used_idea_fingerprints?: string[];
   ab_experiments?: AbExperiment[];

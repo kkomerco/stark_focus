@@ -277,6 +277,45 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
     };
   }, [slotImages]);
 
+  // Tło generowane w środku aplikacji — wcześniej studio oddawało tylko tekst
+  // `bingPrompt` do wklejenia w obcym generatorze, więc materiał graficzny
+  // nie był samowystarczalny.
+  const [bgImage, setBgImage] = useState<HTMLImageElement | null>(null);
+  const [bgBusy, setBgBusy] = useState(false);
+  const [bgError, setBgError] = useState<string | null>(null);
+
+  const generateBackground = async () => {
+    const hook = (spec.textLayers[0]?.text || "").trim();
+    if (!hook) {
+      setBgError("Najpierw wpisz cytat — z niego robimy scenę.");
+      return;
+    }
+    setBgBusy(true);
+    setBgError(null);
+    try {
+      const res = await fetch("/api/ai/generate-background", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hook, aspect: "9:16" }),
+      });
+      const json = await res.json();
+      if (!res.ok || typeof json?.dataUrl !== "string") {
+        setBgError(
+          typeof json?.error === "string" ? json.error : "Generowanie tła nie powiodło się.",
+        );
+        return;
+      }
+      const img = new Image();
+      img.onload = () => setBgImage(img);
+      img.onerror = () => setBgError("Tło przyszło, ale przeglądarka nie dała rady go odkodować.");
+      img.src = json.dataUrl;
+    } catch {
+      setBgError("Brak odpowiedzi serwera przy generowaniu tła.");
+    } finally {
+      setBgBusy(false);
+    }
+  };
+
   useEffect(() => {
     if (!canvasRef.current) return;
     renderUniversalLayout(canvasRef.current, spec, loadedImages, {
@@ -286,6 +325,7 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
       textScale,
       handle: userHandle,
       fontColor: spec.fontColorMode || fontColor,
+      backgroundImage: bgImage,
     });
   }, [
     spec,
@@ -296,6 +336,7 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
     textScale,
     userHandle,
     fontColor,
+    bgImage,
   ]);
 
   // Zastosowanie wybranego powiedzonka na kadrze (1 uderzające zdanie LUB 2 ultra-krótkie wersy)
@@ -915,6 +956,39 @@ Zwróć WYŁĄCZNIE czysty JSON:
                     <span className="w-2.5 h-2.5 rounded-full bg-black border border-neutral-600"></span>
                     <span>Czarna</span>
                   </button>
+                </div>
+
+                <div className="h-4 w-px bg-white/10 hidden sm:block" />
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={generateBackground}
+                    disabled={bgBusy}
+                    title="Wygeneruj tło dopasowane do tego cytatu, bez wychodzenia z aplikacji"
+                    className={`px-2.5 py-1 rounded text-[11px] font-mono font-bold flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50 ${
+                      bgImage
+                        ? "bg-rose-600/20 text-rose-300 border border-rose-500/40"
+                        : "text-neutral-400 hover:text-white border border-neutral-700"
+                    }`}
+                  >
+                    <span>
+                      {bgBusy ? "Generuję tło…" : bgImage ? "Tło: generacja ✓" : "Tło z AI"}
+                    </span>
+                  </button>
+                  {bgImage && !bgBusy && (
+                    <button
+                      type="button"
+                      onClick={() => setBgImage(null)}
+                      className="text-[10px] font-mono text-neutral-500 hover:text-white underline underline-offset-2 cursor-pointer"
+                      title="Wróć do płaskiej czerni"
+                    >
+                      usuń tło
+                    </button>
+                  )}
+                  {bgError && (
+                    <span className="text-[10px] font-mono text-rose-400">{bgError}</span>
+                  )}
                 </div>
 
                 <div className="h-4 w-px bg-white/10 hidden sm:block" />

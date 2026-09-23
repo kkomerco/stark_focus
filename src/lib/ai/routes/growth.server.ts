@@ -5,10 +5,8 @@ import {
   getGeminiClient,
   callGeminiWithFallback,
 } from "../gemini.server";
-import { CINEMATIC_BROLL_LIBRARY } from "../../../data/brollLibrary";
-import { pickBroll, rankBroll } from "../../../utils/brollPicker";
 import { clampText } from "../../limits";
-import { asString, asStringArray } from "../normalize.server";
+import { asStringArray } from "../normalize.server";
 
 /**
  * GROWTH ENGINE — eksperymenty A/B i tygodniowy autopilot.
@@ -382,70 +380,6 @@ Zwróć WYŁĄCZNIE JSON: { "prompt": "..." }`;
         source: "offline" as const,
         prompt: `Abstract minimalist enigmatic void, variation ${seed % 997}, single beam of cold light through atmospheric fog, ${styleCore}, 8k ${format}`,
       });
-    }
-  });
-
-  // ============ AUTO-DOBOR B-ROLL PRZEZ AI (tagi + temat) ============
-  // AI potwierdza wybór spośród kandydatów z słów-kluczy + tagów.
-  app.post("/api/ai/pick-broll", async (req, res) => {
-    const text = clampText(req.body?.text, 500);
-    const theme = clampText(req.body?.theme, 60);
-    const ai = getGeminiClient();
-
-    // Krok 1 — dopasowanie słów-kluczy + tagów (działa offline, zawsze)
-    const kwMatch = pickBroll(text, theme || undefined);
-
-    if (!ai || !text) {
-      return res.json({ source: "keywords" as const, matched: kwMatch });
-    }
-
-    try {
-      // Krok 2 — AI: spośród kandydatów wybiera/scen id, potwierdzając nasz wybór
-      const prompt = `Jesteś kuraturą wizualnym dla marki @stark_focus (dark motivation, mroczny minimalizm).
-Treść/hook rolki: "${text}"
-Motyw: ${theme || "brak"}
-
-Twoja biblioteka ma sceny (id | nazwa): ${CINEMATIC_BROLL_LIBRARY.map((c) => c.id + " | " + c.name).join(", ")}.
-Najpierw dopasowano przez słowa kluczowe: ${kwMatch.scene.name} (score ${kwMatch.score}).
-
-Wybierz JEDNĄ scenę, która najlepiej oddaje nastrój tej treści. Zwróć WYLĄCZNIE JSON:
-{ "sceneId": "id_sceny", "confidenceReason": "krótki powód po polsku" }`;
-      const parsed = await generateJson<{ sceneId?: string; confidenceReason?: string }>({
-        contents: prompt,
-        temperature: 0.7,
-        model: GEMINI_MODEL,
-      });
-
-      const aiScene = parsed?.sceneId
-        ? CINEMATIC_BROLL_LIBRARY.find((c) => c.id === parsed.sceneId)
-        : null;
-
-      if (aiScene) {
-        // Score i trafienia muszą opisywać scenę wybraną przez AI, nie kandydata
-        // ze słowa-klucza — inaczej UI pokazuje uzasadnienie nie swojego wyboru.
-        const honest = rankBroll(text, theme || undefined, CINEMATIC_BROLL_LIBRARY.length).find(
-          (match) => match.scene.id === aiScene.id,
-        ) ?? {
-          scene: aiScene,
-          score: 0,
-          matchedKeywords: [] as string[],
-          matchedTags: [] as string[],
-          confidenceReason: "",
-        };
-
-        return res.json({
-          source: "ai" as const,
-          matched: {
-            ...honest,
-            confidenceReason: asString(parsed.confidenceReason) || honest.confidenceReason,
-          },
-        });
-      }
-      // AI nie zwróciło poprawnego sceneId — używamy wyniku z keywords
-      return res.json({ source: "keywords" as const, matched: kwMatch });
-    } catch (err) {
-      console.warn("pick-broll fallback:", err);
-      return res.json({ source: "keywords" as const, matched: kwMatch });
     }
   });
 }
