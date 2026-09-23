@@ -26,6 +26,9 @@
 - Identyfikacja wizualna materiału: czerń obsydianu + kościelna biel + **jeden** akcent karmazyn (`BRAND_ACCENT`). Cyjan/sky/neon są zakazane i w UI, i w promptach tłów — to one robiły „aplikację technologiczną", a nie markę dyscypliny. Motywy rolek schodzą do motywów marki przez `REEL_THEME_ALIASES`.
 - Tło kadru generujemy w aplikacji (`POST /api/ai/generate-background`), nie kazemy użytkownikowi wklejać promptu w obcy tool. Trasa jest poza cache'em i zwraca 503 bez klucza — obrazu nie da się udawać z banku treści.
 - Canvas używa wyłącznie fontów już pobranych — kroje markowe (Cinzel, Cormorant Garamond, Plus Jakarta Sans, Space Grotesk) muszą być załadowane przez `ensureBrandFonts()` z `src/utils/fonts.ts`, inaczej eksport wychodzi w Arialu. Nowy krój dodajemy w `BRAND_FONT_SPECS` i w `index.html`.
+- Treść kadru mieszka **wyłącznie** w `spec.textLayers` z rolą w id (`t1`, `sub1`, `stepN`, `costN`, `forfeitN`, `closing` — patrz `src/utils/canvas/layerRoles.ts`). `layoutData` to tylko dekoracja (nadtytuł, cyfra). Dopóki render czytał kopię z `layoutData`, edycja w studio nie była widoczna na kadrze.
+- Anty-powtórka jest jedna: każdy silnik treści (pomysły, paczka dnia, seria postów) dostaje `usedHookFingerprints(data)` z `src/lib/usedContent.ts` jako `excludeHooks`. Własny, jednosesyjny zestaw wykluczeń = powtórki po odświeżeniu karty.
+- Języki: aplikacja jest po polsku, materiał po angielsku. W renderowanym kadrze nie może być ani jednego polskiego napisu. Emoji nie ma ani w etykietach UI, ani w materiale — markę broni treść, nie ikonka.
 
 ## Uruchamianie
 
