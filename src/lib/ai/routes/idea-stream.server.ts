@@ -2,7 +2,7 @@ import type { MiniApp } from "../../mini-express.server";
 import { GEMINI_MODEL, generateJsonWithFallback, getGeminiClient } from "../gemini.server";
 import { hookFingerprint, maxSimilarity, SIMILARITY } from "../../similarity";
 import { pick, pickN } from "../../random";
-import { clampCount, clampInt, clampText, LIMITS } from "../../limits";
+import { clampCount, clampInt, clampText, clampTextList, LIMITS } from "../../limits";
 import { asArray, asString, asStringArray, oneOf } from "../normalize.server";
 import { formatStarkCaption, STARK_HASHTAGS } from "../../caption";
 
@@ -171,12 +171,7 @@ export function registerIdeaStreamRoutes(app: MiniApp): void {
   app.post("/api/ai/idea-stream", async (req, res) => {
     const safeCount = clampCount(req.body?.count, 5);
     const topic = clampText(req.body?.topic, 300, "dark motivation and brutal discipline");
-    const safeExclude: string[] = (
-      Array.isArray(req.body?.excludeHooks) ? req.body.excludeHooks : []
-    )
-      .map((hook: unknown) => asString(hook))
-      .filter(Boolean)
-      .slice(0, LIMITS.maxExcludeHooks);
+    const safeExclude = clampTextList(req.body?.excludeHooks);
     // usedCount indeksuje bank offline: ujemny lub ułamkowy dałby `undefined`,
     // a potem `hook.toLowerCase()` poza try/catchem = 500.
     const safeUsed = clampInt(req.body?.usedCount, 0, 1_000_000, 0);

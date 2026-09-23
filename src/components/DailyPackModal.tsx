@@ -26,6 +26,8 @@ interface DailyPackModalProps {
     slides: Array<{ headline: string; bodyText: string }>,
   ) => void;
   onSchedulePack?: (pack: DailyPack) => void;
+  /** Odciski tego, co już poszło — paczka dnia nie może tego powtórzyć. */
+  usedHooks?: string[];
 }
 
 const PANEL = "bg-[#0F121C] border border-[#2C354B] rounded-xl";
@@ -52,6 +54,7 @@ export const DailyPackModal: React.FC<DailyPackModalProps> = ({
   onOpenVideoStudio,
   onOpenCarouselStudio,
   onSchedulePack,
+  usedHooks,
 }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,7 +68,7 @@ export const DailyPackModal: React.FC<DailyPackModalProps> = ({
       const res = await fetch("/api/ai/daily-pack", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ excludeHooks: usedHooks ?? [] }),
       });
       if (!res.ok) throw new Error("HTTP " + res.status);
       onPackChange((await res.json()) as DailyPack);
@@ -74,7 +77,7 @@ export const DailyPackModal: React.FC<DailyPackModalProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [onPackChange]);
+  }, [onPackChange, usedHooks]);
 
   useEffect(() => {
     // Odświeżamy tylko gdy rodzic nie ma jeszcze paczki — inaczej każde

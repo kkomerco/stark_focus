@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Check, Download, Loader2, Rocket, X } from "lucide-react";
 import { StarkFocusData, PlannerTask } from "../types";
+import { usedHookFingerprints } from "../lib/usedContent";
 import { pickBroll } from "../utils/brollPicker";
 
 interface AutopilotModalProps {
@@ -180,7 +181,9 @@ export const AutopilotModal: React.FC<AutopilotModalProps> = ({
       setWeek(plan);
 
       const all: DayPack[] = [];
-      const takenHooks: string[] = [];
+      // Tydzień nie może powtórzyć tego, co poszło w poprzednich — startujemy
+      // od pełnej historii, a nie od pustej listy.
+      const takenHooks: string[] = [...usedHookFingerprints(data)];
       for (let i = 0; i < plan.length; i++) {
         setStage(`Generuję paczkę na ${DAY_PL[plan[i].dayIndex]} (${i + 1}/7)...`);
         const pack = await fetchPackForDay(plan[i], i, takenHooks, controller.signal);

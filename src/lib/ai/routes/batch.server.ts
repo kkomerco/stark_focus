@@ -1,8 +1,9 @@
 import type { MiniApp } from "../../mini-express.server";
 import { generateContentWithFallback, getGeminiClient, safeJsonParse } from "../gemini.server";
-import { clampCount, clampText } from "../../limits";
+import { clampCount, clampText, clampTextList } from "../../limits";
 import { asArray, asString, sendDegraded } from "../normalize.server";
 import { formatStarkCaption } from "../../caption";
+import { hookFingerprint } from "../../similarity";
 
 const PILLARS = [
   {
@@ -130,17 +131,36 @@ export function registerBatchRoutes(app: MiniApp): void {
       clampText(req.body?.topic, 200) ||
       "stoic discipline, silence, and standards";
     const count = clampCount(req.body?.count, 10);
+    const exclude = clampTextList(req.body?.excludeHooks);
+    const excluded = new Set(exclude.map(hookFingerprint));
     const ai = getGeminiClient();
-    const fallbackPosts = buildBatchFallback();
+    const allPillars = buildBatchFallback();
+    // Bank filarów też podlega anty-powtórce: bez tego ta sama dziesiątka
+    // hooków wracała przy każdym kliknięciu, dopóki model milczał.
+    const freshPillars = allPillars.filter(
+      (post) => !excluded.has(hookFingerprint(post.sayingMain)),
+    );
+    // Wolimy oddać mniej pozycji niż dołożyć powtórkę — dlatego brakujące
+    // mówimy wprost, zamiast cicho uzupełniać bankiem, który już był.
+    const fallbackPosts =
+      freshPillars.length >= count ? freshPillars.slice(0, count) : freshPillars;
+    const notice =
+      freshPillars.length < count
+        ? `Bank treści wyczerpany: nowe jest ${freshPillars.length} z ${count} pozycji — reszta już gdzieś poszła.`
+        : undefined;
 
     if (!ai) {
-      return sendDegraded(res, { posts: fallbackPosts.slice(0, count) });
+      return sendDegraded(res, { posts: fallbackPosts, notice });
     }
+
+    // Do promptu wchodzi tylko ogon historii: za każdy znak płaci się przy
+    // każdym wywołaniu, a realnie grożą powtórki z ostatnich partii.
+    const banList = exclude.slice(-25).join("\n- ");
 
     try {
       const prompt = `You are the lead viral copywriter for @stark_focus (dark psychology, realistic discipline, focus, high standards, black background format 9:16).
 Topic or niche focus: "${topic}".
-
+${exclude.length ? `\nALREADY PUBLISHED — never repeat these lines or their close variants:\n- ${banList}\n` : ""}
 Generate EXACTLY ${count} completely UNIQUE, high-variance posts in ENGLISH.
 
 CRITICAL ANTI-AI-SLOP & TONE RULES:
@@ -177,9 +197,12 @@ Return ONLY valid JSON:
       });
 
       const parsed = safeJsonParse(text || "");
+      // Wypełniacz tylko gdy jest z czego: przy wyczerpanym banku `idx % 0`
+      // dałoby NaN i `filler.sayingMain` wywaliłoby całą odpowiedź.
+      const fillers = fallbackPosts.length ? fallbackPosts : allPillars;
       const enriched = asArray(parsed.posts)
         .map((item: any, idx: number) => {
-          const filler = fallbackPosts[idx % fallbackPosts.length];
+          const filler = fillers[idx % fillers.length];
           const sayingMain =
             asString(item?.sayingMain) || asString(item?.hook) || filler.sayingMain;
           return {
@@ -192,17 +215,19 @@ Return ONLY valid JSON:
             fontColor: "white",
           };
         })
-        .filter((post) => post.sayingMain.length > 0)
+        .filter(
+          (post) => post.sayingMain.length > 0 && !excluded.has(hookFingerprint(post.sayingMain)),
+        )
         .slice(0, count);
 
       if (enriched.length > 0) {
-        return res.json({ posts: enriched });
+        return res.json({ posts: enriched, notice });
       }
 
-      return sendDegraded(res, { posts: fallbackPosts.slice(0, count) });
+      return sendDegraded(res, { posts: fallbackPosts, notice });
     } catch (err) {
       console.warn("Błąd batch-generator:", err);
-      return sendDegraded(res, { posts: fallbackPosts.slice(0, count) });
+      return sendDegraded(res, { posts: fallbackPosts, notice });
     }
   });
 }

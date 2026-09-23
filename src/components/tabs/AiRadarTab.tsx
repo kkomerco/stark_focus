@@ -23,6 +23,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { StarkFocusData, TrendItem, Post } from "../../types";
+import { usedHookFingerprints } from "../../lib/usedContent";
 import { CarouselStudioModal } from "../CarouselStudioModal";
 
 interface IncomingCarousel {
@@ -293,11 +294,15 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
       const res = await fetch("/api/ai/batch-generator", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ count: batchCount, niche }),
+        body: JSON.stringify({
+          count: batchCount,
+          niche,
+          excludeHooks: usedHookFingerprints(data),
+        }),
       });
-      const data = await res.json();
-      if (Array.isArray(data.posts) && data.posts.length > 0) {
-        setBatchPosts(data.posts);
+      const result = await res.json();
+      if (Array.isArray(result.posts) && result.posts.length > 0) {
+        setBatchPosts(result.posts);
       }
     } catch (err) {
       console.error("Batch gen error:", err);

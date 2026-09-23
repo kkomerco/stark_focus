@@ -1,5 +1,5 @@
 // StarkFocusApp.tsx - Visionary Media Lab / Stark Focus OS
-import React, { useState, useEffect, lazy, Suspense } from "react";
+import React, { useState, useEffect, useMemo, lazy, Suspense } from "react";
 import {
   Sparkles,
   Film,
@@ -23,6 +23,7 @@ import {
   UniversalLayoutSpec,
 } from "./types";
 import { specFromIdea } from "./utils/ideaLayout";
+import { usedHookFingerprints } from "./lib/usedContent";
 import { loadStoredData, normalizePlannerTasks, saveStoredData } from "./utils/storage";
 import { useIdeaStream } from "./hooks/useIdeaStream";
 import type { AbDraft } from "./components/AbModal";
@@ -127,6 +128,10 @@ export default function StarkFocusApp() {
   };
 
   const ideaStream = useIdeaStream(data, handleUpdateData);
+
+  // Jedna lista na wszystkie generatory: to, co już wyszło z aplikacji.
+  // Memoizowana, bo każdy generator trzyma ją w zależnościach efektu.
+  const usedHooks = useMemo(() => usedHookFingerprints(data), [data]);
 
   const handleSavePostFrom1to1 = (post: any) => {
     const newPost: Post = {
@@ -423,6 +428,7 @@ export default function StarkFocusApp() {
                 initialCaption={postPreset.caption}
                 initialSpec={postPreset.spec}
                 onSendToReel={handleSendToReel}
+                usedHooks={usedHooks}
               />
             )}
             {activeTab === 1 && (
@@ -484,6 +490,7 @@ export default function StarkFocusApp() {
               setActiveTab(2);
             }}
             onSchedulePack={handleSchedulePack}
+            usedHooks={usedHooks}
           />
         )}
         {ideaStreamOpen && (

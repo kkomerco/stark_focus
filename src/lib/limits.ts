@@ -40,3 +40,20 @@ export function clampText(value: unknown, max = 500, fallback = ""): string {
   if (typeof value !== "string") return fallback;
   return value.trim().slice(0, max);
 }
+
+/**
+ * Lista tekstów od klienta (np. wykluczone hooki): każdy przycięty, liczba
+ * ograniczona. Bez tego jedno `excludeHooks: ["a".repeat(1e6)]` wchodzi w
+ * prompt i płacimy za to przy każdym wywołaniu.
+ */
+export function clampTextList(
+  value: unknown,
+  max = LIMITS.maxExcludeHooks,
+  itemMax = 80,
+): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => clampText(item, itemMax))
+    .filter(Boolean)
+    .slice(0, max);
+}

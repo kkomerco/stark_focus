@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo } from "react";
 import { IdeaItem, IdeaStreamResponse, StarkFocusData } from "../types";
 import { hookFingerprint, hookSimilarity, SIMILARITY } from "../lib/similarity";
+import { usedHookFingerprints } from "../lib/usedContent";
 
 export interface ScoredIdea extends IdeaItem {
   /** 0..1 — maksymalne podobieństwo do hooków z historii. */
@@ -25,10 +26,9 @@ export function useIdeaStream(
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const usedFingerprints = useMemo(
-    () => data.used_idea_fingerprints || [],
-    [data.used_idea_fingerprints],
-  );
+  // Historia to nie tylko to, co wypadło z generatora, ale i to, co już
+  // poszło z aplikacji (zapisane posty, zadania w planerze).
+  const usedFingerprints = useMemo(() => usedHookFingerprints(data), [data]);
 
   const generateIdeas = useCallback(
     async (count: number = 5, topic?: string) => {

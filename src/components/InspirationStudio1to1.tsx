@@ -38,6 +38,8 @@ interface InspirationStudioProps {
   /** Gotowy kadr z pomysłem i układem — ma priorytet nad initialText. */
   initialSpec?: UniversalLayoutSpec;
   onSendToReel?: (text: string) => void;
+  /** Odciski treści, która już poszła — generatory mają jej nie powtarzać. */
+  usedHooks?: string[];
 }
 
 export interface StoicSaying {
@@ -236,6 +238,7 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
   initialCaption,
   initialSpec,
   onSendToReel,
+  usedHooks = [],
 }) => {
   const [videoUrl, setVideoUrl] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -296,6 +299,7 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
   const [batchTopic, setBatchTopic] = useState("Stoic discipline, silence, and standards");
   const [batchCount, setBatchCount] = useState<number>(10);
   const [batchPosts, setBatchPosts] = useState<BatchPostItem[]>([]);
+  const [batchNotice, setBatchNotice] = useState<string | null>(null);
   const [batchDownloading, setBatchDownloading] = useState(false);
   const [batchCopiedId, setBatchCopiedId] = useState<string | null>(null);
 
@@ -542,6 +546,14 @@ main: "Comfort is poison.", sub: "seek the friction."`;
         body: JSON.stringify({
           prompt: `Jesteś głównym kuratorem marki Stark Focus (brutalny stoicyzm, suwerenność psychologiczna, wysokie standardy, brak kompromisów).
 Temat przewodni: "${sayingTopic || "Prowokujące cytaty stoickie namawiające do myślenia skierowane do odbiorcy"}".
+${
+  usedHooks.length
+    ? `\nNIE powtarzaj żadnej z tych linii ani ich mutacji:\n${usedHooks
+        .slice(-15)
+        .map((hook) => `- ${hook}`)
+        .join("\n")}\n`
+    : ""
+}
 
 ${formatGuide}
 
@@ -720,9 +732,14 @@ Zwróć WYŁĄCZNIE czysty JSON:
       const res = await fetch("/api/ai/batch-generator", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic: batchTopic, count: batchCount }),
+        body: JSON.stringify({
+          topic: batchTopic,
+          count: batchCount,
+          excludeHooks: usedHooks,
+        }),
       });
       const data = await res.json();
+      setBatchNotice(typeof data.notice === "string" ? data.notice : null);
       if (Array.isArray(data.posts) && data.posts.length > 0) {
         setBatchPosts(data.posts);
       }
@@ -1654,7 +1671,8 @@ Zwróć WYŁĄCZNIE czysty JSON:
                 <div className="text-center py-16 space-y-2 font-mono text-neutral-500">
                   <Package className="w-10 h-10 mx-auto text-neutral-600" />
                   <p className="text-xs">
-                    Kliknij "Generuj Serię", aby wygenerować pakiet zróżnicowanych postów.
+                    {batchNotice ||
+                      'Kliknij "Generuj Serię", aby wygenerować pakiet zróżnicowanych postów.'}
                   </p>
                 </div>
               )}
@@ -1663,11 +1681,10 @@ Zwróć WYŁĄCZNIE czysty JSON:
                 <div className="text-center py-16 space-y-3 font-mono text-neutral-400">
                   <RefreshCw className="w-8 h-8 mx-auto animate-spin text-white" />
                   <p className="text-xs uppercase font-bold tracking-wider">
-                    Konstruowanie 10 odrębnych koncepcji stoickich...
+                    Konstruowanie serii postów...
                   </p>
                   <p className="text-[11px] text-neutral-500">
-                    Każdy post pochodzi z innego filaru psychologicznego (Silence, Friction,
-                    Citadel, Monkish, Standard...)
+                    Każdy post z innego filaru i żaden z tych, które już poszły.
                   </p>
                 </div>
               )}
