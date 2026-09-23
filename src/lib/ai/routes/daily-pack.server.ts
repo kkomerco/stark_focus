@@ -7,6 +7,7 @@ import { hookFingerprint } from "../../similarity";
 import { pick, pickForDay, shuffle } from "../../random";
 import { clampInt, clampText, LIMITS } from "../../limits";
 import { asArray, asString, asStringArray, oneOf } from "../normalize.server";
+import { STARK_CTA, STARK_HASHTAGS } from "../../caption";
 
 const REEL_THEMES = [
   "obsidian_void",
@@ -81,7 +82,7 @@ function buildOfflinePack(topic: string, reelsCount: number, excludeHooks: strin
 
   const post = {
     headline: rule.hook0to3s,
-    body: `${rule.corePrinciple}\n\n${rule.actionDirective}\n\nSave this reminder. Execute in silence. Follow @stark_focus.`,
+    body: `${rule.corePrinciple}\n\n${rule.actionDirective}\n\n${STARK_CTA}\n\n${STARK_HASHTAGS.join(" ")}`,
     bingPrompt: getRandomBackgroundScene(pick(REEL_THEMES)).bingPrompt,
   };
 

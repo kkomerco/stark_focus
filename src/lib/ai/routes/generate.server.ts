@@ -6,7 +6,7 @@ import {
   safeJsonParse,
   callGeminiWithFallback,
 } from "../gemini.server";
-import { formatStarkCaption } from "../../caption";
+import { formatStarkCaption, STARK_HASHTAGS } from "../../caption";
 import { sendDegraded } from "../normalize.server";
 
 export function registerGenerateRoutes(app: MiniApp): void {
@@ -103,14 +103,7 @@ export function registerGenerateRoutes(app: MiniApp): void {
             ],
             "Never negotiate with your weakness. Standards over emotions.",
           ),
-          hashtags: [
-            "#stoicism",
-            "#darkdiscipline",
-            "#discipline",
-            "#mindset",
-            "#focus",
-            "#starkfocus",
-          ],
+          hashtags: [...STARK_HASHTAGS],
         },
       });
     }
@@ -280,8 +273,11 @@ export function registerGenerateRoutes(app: MiniApp): void {
       hook: "STAY RUTHLESS WITH YOUR STANDARDS.",
       highlightWords: ["RUTHLESS", "STANDARDS"],
       punchline: "NEVER NEGOTIATE WITH WEAKNESS.",
-      caption:
-        "Stay ruthless with your standards.\n\nNever negotiate with your weakness.\n\n#stoicism #discipline #starkfocus",
+      caption: formatStarkCaption("Stay ruthless with your standards.", [
+        "Never negotiate with your weakness.",
+        "Hold the line when it stops being fun.",
+        "Silence is the only press release you need.",
+      ]),
     });
   });
 
@@ -419,11 +415,15 @@ export function registerGenerateRoutes(app: MiniApp): void {
             captionShort: parsed.captionShort || "Execute in total silence. Save this reminder.",
             captionDeep:
               parsed.captionDeep ||
-              `Most men lose self-respect in small private compromises.\n\n3 stoic protocols to conquer today:\n1. Move without hesitation.\n2. Do the hardest task first.\n3. Hold your standard in secret.\n\nSave this reel. Follow @stark_focus for daily stoic clarity.`,
+              formatStarkCaption("Most men lose self-respect in small private compromises.", [
+                "Move without hesitation.",
+                "Do the hardest task first.",
+                "Hold your standard in secret.",
+              ]),
             hashtags:
               Array.isArray(parsed.hashtags) && parsed.hashtags.length > 0
                 ? parsed.hashtags
-                : ["#stoicism", "#discipline", "#focus", "#starkfocus"],
+                : [...STARK_HASHTAGS],
             suggestedTheme: parsed.suggestedTheme || randomTheme,
             suggestedBackground: parsed.suggestedBackground || "Marmurowy Posąg Stoika w Cieniu",
             backgroundRationale:

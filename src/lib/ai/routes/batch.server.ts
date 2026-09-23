@@ -2,6 +2,7 @@ import type { MiniApp } from "../../mini-express.server";
 import { generateContentWithFallback, getGeminiClient, safeJsonParse } from "../gemini.server";
 import { clampCount, clampText } from "../../limits";
 import { asArray, asString, sendDegraded } from "../normalize.server";
+import { formatStarkCaption } from "../../caption";
 
 const PILLARS = [
   {
@@ -109,7 +110,11 @@ export function buildBatchFallback() {
     pillarId: p.id,
     sayingMain: p.hook,
     sayingSub: p.sub,
-    caption: `${p.hook.toUpperCase()}\n\n1. Hold your standards without debate.\n2. Execute especially in private.\n3. Reclaim your sovereignty.\n\nSave this reminder. Follow @stark_focus.\n\n#stoicism #discipline #mindset #focus #starkfocus`,
+    caption: formatStarkCaption(p.hook, [
+      "Hold your standards without debate.",
+      "Execute especially in private.",
+      "Reclaim your sovereignty.",
+    ]),
     template: "none_solid" as const,
     fontColor: "white" as const,
   }));

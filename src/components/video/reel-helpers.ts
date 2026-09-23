@@ -191,6 +191,49 @@ export function isOrphanWord(w: string): boolean {
   ].includes(t);
 }
 
+const MAX_LINES = 4;
+
+interface LaidLine {
+  tokens: Token[];
+  width: number;
+}
+
+// Łamanie po szerokości liczone z tokenów bez `*`, więc pomiar = to, co realnie malujemy.
+// Zwraca null, gdy pojedynczy wyraz nie mieści się sam albo gdy linii wyszłoby zbyt dużo.
+function breakToLines(
+  text: string,
+  ctx: CanvasRenderingContext2D,
+  maxW: number,
+  maxLines: number,
+): LaidLine[] | null {
+  const spaceW = ctx.measureText(" ").width;
+  const lines: LaidLine[] = [];
+
+  for (const manualLine of text.split("\n")) {
+    let curTokens: Token[] = [];
+    let curW = 0;
+
+    for (const tok of parseTokens(manualLine)) {
+      const wordW = ctx.measureText(tok.raw).width;
+      const testW = curTokens.length === 0 ? wordW : curW + spaceW + wordW;
+
+      if (testW <= maxW) {
+        curTokens.push(tok);
+        curW = testW;
+        continue;
+      }
+      if (curTokens.length === 0) return null;
+      lines.push({ tokens: curTokens, width: curW });
+      curTokens = [tok];
+      curW = wordW;
+    }
+
+    if (curTokens.length > 0) lines.push({ tokens: curTokens, width: curW });
+  }
+
+  return lines.length <= maxLines ? lines : null;
+}
+
 export function layoutLines(
   text: string,
   ctx: CanvasRenderingContext2D,
@@ -198,65 +241,49 @@ export function layoutLines(
   targetFontSize: number,
   fontFamily: string,
 ): { lines: Array<{ tokens: Token[]; width: number }>; fontSize: number; lineHeight: number } {
-  let fontSize = targetFontSize;
-  const minFontSize = 46;
+  // 46 px to tylko domyślne minimum: niższy target też musi wejść do pętli,
+  // inaczej tekst idzie jednym wierszem bez łamania.
+  const minFontSize = Math.min(46, targetFontSize);
 
-  while (fontSize >= minFontSize) {
+  for (let fontSize = targetFontSize; fontSize >= minFontSize; fontSize -= 2) {
     ctx.font = `900 ${fontSize}px ${fontFamily}`;
-    const manualLines = text
-      .split("\n")
-      .map((l) => l.trim())
-      .filter(Boolean);
-    const resultLines: Array<{ tokens: Token[]; width: number }> = [];
-    let fits = true;
-
-    for (const mLine of manualLines) {
-      const tokens = parseTokens(mLine);
-      let curTokens: Token[] = [];
-      let curW = 0;
-      const spaceW = ctx.measureText(" ").width;
-
-      for (let i = 0; i < tokens.length; i++) {
-        const tok = tokens[i];
-        const wordW = ctx.measureText(tok.raw).width;
-        const testW = curTokens.length === 0 ? wordW : curW + spaceW + wordW;
-
-        if (testW <= maxW) {
-          curTokens.push(tok);
-          curW = testW;
-        } else {
-          if (curTokens.length === 0) {
-            fits = false;
-            break;
-          }
-          resultLines.push({ tokens: curTokens, width: curW });
-          curTokens = [tok];
-          curW = wordW;
-        }
-      }
-
-      if (!fits) break;
-      if (curTokens.length > 0) {
-        resultLines.push({ tokens: curTokens, width: curW });
-      }
+    const lines = breakToLines(text, ctx, maxW, MAX_LINES);
+    if (lines) {
+      return { lines, fontSize, lineHeight: Math.round(fontSize * 1.25) };
     }
-
-    if (fits && resultLines.length <= 4) {
-      return {
-        lines: resultLines,
-        fontSize,
-        lineHeight: Math.round(fontSize * 1.25),
-      };
-    }
-
-    fontSize -= 2;
   }
 
-  // Fallback
+  // Fallback: tekst nie mieści się nawet w 4 liniach minimalnym pismem — twardo dzielimy go
+  // na równe bloki (75 znaków w jednej linii to ~2200 px, czyli ucieczka za kadr 1080 px).
   ctx.font = `900 ${minFontSize}px ${fontFamily}`;
+  const spaceW = ctx.measureText(" ").width;
   const tokens = parseTokens(text);
+  const lines: LaidLine[] = [];
+
+  if (tokens.length > 0) {
+    const widths = tokens.map((tok) => ctx.measureText(tok.raw).width);
+    const totalW = widths.reduce((acc, w) => acc + w, 0) + spaceW * (tokens.length - 1);
+    // Ostatni blok bierze całą resztę, dlatego linii nigdy nie wyjdzie więcej niż MAX_LINES.
+    const perLineW = Math.max(maxW, totalW / MAX_LINES);
+    let curTokens: Token[] = [];
+    let curW = 0;
+
+    tokens.forEach((tok, i) => {
+      const testW = curTokens.length === 0 ? widths[i] : curW + spaceW + widths[i];
+      if (curTokens.length > 0 && testW > perLineW && lines.length < MAX_LINES - 1) {
+        lines.push({ tokens: curTokens, width: curW });
+        curTokens = [tok];
+        curW = widths[i];
+      } else {
+        curTokens.push(tok);
+        curW = testW;
+      }
+    });
+    if (curTokens.length > 0) lines.push({ tokens: curTokens, width: curW });
+  }
+
   return {
-    lines: [{ tokens, width: ctx.measureText(text).width }],
+    lines,
     fontSize: minFontSize,
     lineHeight: Math.round(minFontSize * 1.25),
   };

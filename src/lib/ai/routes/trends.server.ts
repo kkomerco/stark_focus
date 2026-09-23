@@ -2,6 +2,7 @@ import type { MiniApp } from "../../mini-express.server";
 import { getGeminiClient, safeJsonParse, callGeminiWithFallback } from "../gemini.server";
 import { asArray, asString, asStringArray, sendDegraded } from "../normalize.server";
 import { clampText } from "../../limits";
+import { formatStarkCaption, STARK_CTA, STARK_HASHTAGS } from "../../caption";
 
 /**
  * UI woła `fmt.phrases.map()` i `ang.phrases.join()` bez sprawdzania pola, a
@@ -46,9 +47,12 @@ export function registerTrendsRoutes(app: MiniApp): void {
         copy_draft: {
           hook: "Comfort is a cage disguised as peace.",
           supportingText: "Stop negotiating with your weakness.",
-          caption:
-            "Comfort is a cage disguised as peace.\n\nEvery time you choose comfort, you trade your future sovereignty for cheap dopamine.\n\nSave this reminder. Execute in silence.\n\n#stoicism #discipline #mindset #focus #starkfocus",
-          hashtags: ["#stoicism", "#discipline", "#mindset", "#focus", "#starkfocus"],
+          caption: formatStarkCaption("Comfort is a cage disguised as peace.", [
+            "Every time you choose comfort, you trade your future for cheap dopamine.",
+            "Peace is earned in private, not purchased in public.",
+            "Hold the standard when nobody is watching.",
+          ]),
+          hashtags: [...STARK_HASHTAGS],
         },
       },
       {
@@ -69,9 +73,12 @@ export function registerTrendsRoutes(app: MiniApp): void {
         copy_draft: {
           hook: "Never announce your moves to spectators.",
           supportingText: "Results are the only language that matters.",
-          caption:
-            "Never announce your moves to spectators.\n\nPrivate victories build permanent foundations. Public applause is ephemeral.\n\n#stoicism #discipline #darkaesthetic #starkfocus",
-          hashtags: ["#stoicism", "#discipline", "#darkaesthetic", "#starkfocus"],
+          caption: formatStarkCaption("Never announce your moves to spectators.", [
+            "Private victories build permanent foundations.",
+            "Public applause is ephemeral.",
+            "Let the results do the talking.",
+          ]),
+          hashtags: [...STARK_HASHTAGS],
         },
       },
       {
@@ -93,9 +100,12 @@ export function registerTrendsRoutes(app: MiniApp): void {
         copy_draft: {
           hook: "Learn to sit alone in a room without checking your phone.",
           supportingText: "Master solitude before you seek mastery over anything else.",
-          caption:
-            "Learn to sit alone in a room without checking your phone.\n\nWhen you master your attention, you master your life.\n\n#stoicism #deepwork #solitude #starkfocus",
-          hashtags: ["#stoicism", "#deepwork", "#solitude", "#starkfocus"],
+          caption: formatStarkCaption("Learn to sit alone in a room without checking your phone.", [
+            "When you master your attention, you master your life.",
+            "Solitude is where standards are tested.",
+            "Noise is the anesthetic you keep reaching for.",
+          ]),
+          hashtags: [...STARK_HASHTAGS],
         },
       },
     ];
@@ -281,8 +291,7 @@ export function registerTrendsRoutes(app: MiniApp): void {
           "Waiting to 'feel ready' is comfortable self-sabotage.",
           "The professional moves before the brain can argue.",
         ],
-        caption:
-          "Stop waiting for inspiration. It never arrives for spectators. Execute in silence.\n\n#stoicism #discipline #starkfocus",
+        caption: `Stop waiting for inspiration. It never arrives for spectators.\n\n${STARK_CTA}\n\n${STARK_HASHTAGS.join(" ")}`,
         rationale: "Przełamuje powszechne przekonanie i natychmiast polaryzuje odbiorcę.",
       },
       {
@@ -294,8 +303,7 @@ export function registerTrendsRoutes(app: MiniApp): void {
           "Realize this, and you will find unbreakable strength.",
           "Return to the citadel within.",
         ],
-        caption:
-          "External chaos only rules you if you grant it permission. Master yourself first.\n\n#stoic #marcusaurelius #innercitadel",
+        caption: `External chaos only rules you if you grant it permission. Master yourself first.\n\n${STARK_CTA}\n\n${STARK_HASHTAGS.join(" ")}`,
         rationale:
           "Odwołuje się do 2000 lat imperialnej mądrości i głębokiej suwerenności emocjonalnej.",
       },
@@ -308,8 +316,7 @@ export function registerTrendsRoutes(app: MiniApp): void {
           "Every time you force execution, your brain physically changes.",
           "Lean into the friction.",
         ],
-        caption:
-          "Willpower is not an abstract concept. It is a biological circuit forged by voluntary friction.\n\n#neuroscience #dopamine #deepwork",
+        caption: `Willpower is not an abstract concept. It is a biological circuit forged by voluntary friction.\n\n${STARK_CTA}\n\n${STARK_HASHTAGS.join(" ")}`,
         rationale: "Uzasadnia ból dyscypliny twardą nauką, eliminując wątpliwości intelektualne.",
       },
       {
@@ -321,8 +328,7 @@ export function registerTrendsRoutes(app: MiniApp): void {
           "The world does not care about your good intentions.",
           "Deliver results or remain forgotten.",
         ],
-        caption:
-          "Excuses comfort you today and starve you tomorrow. Never negotiate with your standard.\n\n#hardtruth #standards #noexcuses",
+        caption: `Excuses comfort you today and starve you tomorrow. Never negotiate with your standard.\n\n${STARK_CTA}\n\n${STARK_HASHTAGS.join(" ")}`,
         rationale:
           "Bezwzględne uderzenie w strefę komfortu, natychmiast usuwające użalanie się nad sobą.",
       },
@@ -511,8 +517,7 @@ export function registerTrendsRoutes(app: MiniApp): void {
         ],
       },
       manifesto: "Never compromise in private if you expect to command respect in public.",
-      caption:
-        "Stop negotiating with your morning mood. Standards automate what emotion destroys.\n\nSave this reminder. Execute in silence. Follow @stark_focus.\n\n#stoicism #discipline #mindset #starkfocus",
+      caption: `Stop negotiating with your morning mood. Standards automate what emotion destroys.\n\n${STARK_CTA}\n\n${STARK_HASHTAGS.join(" ")}`,
     };
 
     if (!ai) {

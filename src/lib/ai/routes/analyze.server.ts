@@ -3,6 +3,7 @@ import { getGeminiClient, safeJsonParse, callGeminiWithFallback } from "../gemin
 import { formatStarkCaption } from "../../caption";
 import { isSafeUrl } from "../../safe-url";
 import { fetchSafeImage } from "../../fetch-image.server";
+import { hookFingerprint } from "../../similarity";
 import {
   asArray,
   asNumber,
@@ -403,7 +404,11 @@ export function registerAnalyzeRoutes(app: MiniApp): void {
       .filter(Boolean);
     const ai = getGeminiClient();
 
-    const generateIntelligentFallbackBattles = (rawTopic: string, batchIdx: number) => {
+    const generateIntelligentFallbackBattles = (
+      rawTopic: string,
+      batchIdx: number,
+      excludedHooks: string[],
+    ) => {
       const timestamp = Date.now();
       const modernThemes = [
         {
@@ -492,10 +497,17 @@ export function registerAnalyzeRoutes(app: MiniApp): void {
         },
       ];
 
-      const start = (batchIdx * count) % modernThemes.length;
+      // Rotacja po wykluczeniach, nie po surowym indeksie partii: wzór
+      // `(batchIdx * count) % length` i tak wracał do pozycji z partii 0, więc
+      // „następna partia" serwowała te same hooki.
+      const excluded = new Set(excludeHooks.map(hookFingerprint));
+      const usable = modernThemes.filter((t) => !excluded.has(hookFingerprint(t.hook)));
+      const source = usable.length > 0 ? usable : modernThemes;
+
+      const start = (batchIdx * count) % source.length;
       const picked = [];
       for (let i = 0; i < count; i++) {
-        const item = modernThemes[(start + i) % modernThemes.length];
+        const item = source[(start + i) % source.length];
         picked.push({
           id: `hb-${timestamp}-${batchIdx}-${i + 1}`,
           angle: item.angle,
@@ -510,7 +522,7 @@ export function registerAnalyzeRoutes(app: MiniApp): void {
 
     if (!ai) {
       return sendDegraded(res, {
-        battle: generateIntelligentFallbackBattles(cleanTopic, currentBatch),
+        battle: generateIntelligentFallbackBattles(cleanTopic, currentBatch, excludeHooks),
       });
     }
 
@@ -564,12 +576,12 @@ export function registerAnalyzeRoutes(app: MiniApp): void {
       }
 
       return sendDegraded(res, {
-        battle: generateIntelligentFallbackBattles(cleanTopic, currentBatch),
+        battle: generateIntelligentFallbackBattles(cleanTopic, currentBatch, excludeHooks),
       });
     } catch (err) {
       console.warn("Hook battle fallback triggered:", err);
       return sendDegraded(res, {
-        battle: generateIntelligentFallbackBattles(cleanTopic, currentBatch),
+        battle: generateIntelligentFallbackBattles(cleanTopic, currentBatch, excludeHooks),
       });
     }
   });

@@ -1,14 +1,13 @@
 import "dotenv/config";
 import express from "express";
 import type { NextFunction, Request, Response } from "express";
+import { createHash } from "node:crypto";
 import cors from "cors";
 import path from "path";
 import { handleStarkApi } from "./src/lib/ai/router.server";
 import { createTtlCache } from "./src/lib/cache";
-import { fetchSafeImage } from "./src/lib/fetch-image.server";
-import { clampCount, LIMITS } from "./src/lib/limits";
-import { isSafeUrl } from "./src/lib/safe-url";
-import { generateContentWithFallback } from "./src/lib/ai/gemini.server";
+import { clampText } from "./src/lib/limits";
+import { getGeminiClient, generateContentWithFallback } from "./src/lib/ai/gemini.server";
 
 const PORT = Number(process.env.PORT) || 3000;
 
@@ -47,44 +46,6 @@ const ALLOWED_ORIGINS = new Set(
 // === CACHE RAM (200 wpisów, TTL 10 min) ===
 const AI_CACHE = createTtlCache<any>({ ttlMs: 10 * 60 * 1000, maxEntries: 200 });
 
-// === VOID MATRIX ===
-const VOID_MATRIX = {
-  pains: [
-    "lenistwo",
-    "wymówki",
-    "komfort",
-    "prokrastynacja",
-    "porównywanie się",
-    "tania dopamina",
-    "brak planu",
-    "strach przed oceną",
-  ],
-  truths: [
-    "nikt nie przyjdzie",
-    "czas ucieka - klepsydra",
-    "jesteś sam",
-    "nikt nie patrzy",
-    "komfort cię zabija",
-    "jutro to kłamstwo",
-    "dyscyplina to kara za wczoraj",
-  ],
-  formats: [
-    { id: "4_photos", name: "4 zdjęcia" },
-    { id: "black_quote", name: "Cytat na czarnym" },
-    { id: "changing_bg", name: "Zmieniające się tło" },
-    { id: "carousel_dark", name: "Karuzele 3-7 mroczne" },
-  ],
-  hooks: [
-    "To cię zniszczy",
-    "Przestań kłamać",
-    "Masz 24h",
-    "Nikt ci tego nie powie",
-    "Klepsydra nie czeka",
-    "SF RULE #",
-  ],
-  actions: ["wstań", "odtnij ich", "zamknij mordę i rób", "zasada 1%", "protokół 04:30"],
-};
-
 async function startServer() {
   const app = express();
 
@@ -107,108 +68,20 @@ async function startServer() {
     res.json({ status: "ok", time: new Date().toISOString() });
   });
 
-  // 1. Bezpieczne proxy grafik (omijanie CORS z ochroną przed SSRF)
-  app.get("/api/proxy-image", async (req, res) => {
-    const imageUrl = req.query.url as string;
-    if (!imageUrl || !isSafeUrl(imageUrl)) {
-      return res.status(403).json({ error: "URL zablokowany (SSRF protection)" });
-    }
-
-    // fetchSafeImage(): redirect odrzucony, allowlist typów (bez SVG), limit 8 MB.
-    const image = await fetchSafeImage(imageUrl);
-    if (!image) return res.status(400).json({ error: "Nie udało się pobrać obrazu" });
-
-    res.setHeader("Content-Type", image.mimeType);
-    res.setHeader("Cache-Control", "public, max-age=86400");
-    return res.send(image.buffer);
-  });
-
-  // 2. Generator idei VOID
-  app.post("/api/void/infinite-ideas", (req, res) => {
-    // `count` i `seenHashes` czytamy wprost z żądania: nieklampowany count
-    // zamieniał pętlę poniżej w miliardy iteracji i wieszał cały proces.
-    const count = clampCount(req.body?.count);
-    const seenHashes: string[] = (Array.isArray(req.body?.seenHashes) ? req.body.seenHashes : [])
-      .filter((hash: unknown): hash is string => typeof hash === "string")
-      .slice(0, LIMITS.maxExcludeHooks);
-
-    const ideas = [];
-    const used = new Set(seenHashes);
-    let attempts = 0;
-
-    while (ideas.length < count && attempts < count * 10) {
-      attempts++;
-      const pain = VOID_MATRIX.pains[Math.floor(Math.random() * VOID_MATRIX.pains.length)];
-      const truth = VOID_MATRIX.truths[Math.floor(Math.random() * VOID_MATRIX.truths.length)];
-      const format = VOID_MATRIX.formats[Math.floor(Math.random() * VOID_MATRIX.formats.length)];
-      const hook = VOID_MATRIX.hooks[Math.floor(Math.random() * VOID_MATRIX.hooks.length)];
-      const action = VOID_MATRIX.actions[Math.floor(Math.random() * VOID_MATRIX.actions.length)];
-
-      const hash = `${pain}-${truth}-${format.id}-${hook}`.toLowerCase().replace(/\s+/g, "-");
-      if (used.has(hash)) continue;
-      used.add(hash);
-
-      ideas.push({
-        id: `void-${Date.now()}-${attempts}`,
-        title: `${hook}: ${pain} → ${truth}`,
-        hook: hook.toUpperCase(),
-        format: format.name,
-        structure: [pain, truth, action],
-        core_message: `${truth}. Rozwiązanie: ${action}. SF Protocol.`,
-        pain,
-        truth,
-        action,
-        viral_hooks: [hook, truth.toUpperCase()],
-        suggested_format: format.name.includes("Karuzele")
-          ? "🖼️ Karuzela 5-slajdowa"
-          : "🎬 Rolka 7-Sekundowa",
-        bingPrompt: `Minimalist dark void, ${pain}, pure black #000000, SF VOID, 9:16, no text`,
-        audience_pain: pain,
-        hash,
-      });
-    }
-
-    const result = {
-      ideas,
-      seenHashes: Array.from(used),
-      message: `Wygenerowano ${ideas.length} unikalnych pomysłów VOID`,
-    };
-    // Bez cache: wynik jest celowo losowy, a klucz z całego body rósłby
-    // nieograniczenie przy każdym kolejnym żądaniu.
-    res.json({ ...result, cached: false });
-  });
-
-  // 3. Replikator VOID
-  app.post("/api/void/replicate", async (req, res) => {
-    const { url } = req.body;
-    if (!url || !isSafeUrl(url))
-      return res.status(400).json({ error: "Nieprawidłowy lub zablokowany URL" });
-    res.json({
-      url,
-      detected: {
-        photos: 4,
-        hasQuoteOnBlack: true,
-        changingBg: false,
-        timing: "0.8s / 1.1s / 0.8s / 2.2s",
-      },
-      template: {
-        type: "VOID_4_PHASE",
-        slides: [
-          { placeholder: "EMPTY BED" },
-          { placeholder: "EMPTY WALLET" },
-          { placeholder: "MIRROR" },
-          { placeholder: "FUTURE SELF" },
-        ],
-      },
-    });
-  });
-
-  // 4. Prawdziwe generowanie AI (Google Gemini z cache)
+  // 1. Prawdziwe generowanie AI (Google Gemini z cache)
   app.post("/api/generate", async (req, res) => {
-    const { prompt, systemInstruction } = req.body;
+    const prompt = clampText(req.body?.prompt, 6000);
+    const systemInstruction = clampText(req.body?.systemInstruction, 2000);
     if (!prompt) return res.status(400).json({ error: "Brak wymaganego pola prompt" });
+    if (!getGeminiClient()) {
+      return res.status(503).json({ error: "Brak skonfigurowanego klucza GEMINI_API_KEY" });
+    }
 
-    const cacheKey = `gemini-${JSON.stringify(req.body)}`;
+    // Klucz to skrót klampowanych pól, nie całego body: do cache trafia
+    // maksymalnie tyle, ile realnie wpływa na odpowiedź.
+    const cacheKey = `gemini-${createHash("sha256")
+      .update(`${systemInstruction}\n${prompt}`)
+      .digest("hex")}`;
     const cached = AI_CACHE.get(cacheKey);
     if (cached) return res.json({ text: cached, cached: true });
 
@@ -260,7 +133,7 @@ async function startServer() {
   if (!PRODUCTION) {
     // Leniwy import: statyczne `import from "vite"` trafia do bundla
     // produkcyjnego (esbuild --packages=external) i wywala `npm start`,
-    // gdy vite nie jest zainstalowany jako zależności produkcyjna.
+    // gdy vite nie jest zainstalowane jako zależność produkcyjna.
     const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },

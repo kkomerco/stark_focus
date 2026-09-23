@@ -1,13 +1,41 @@
 import type { MiniApp } from "../../mini-express.server";
 import { getGeminiClient, safeJsonParse, callGeminiWithFallback } from "../gemini.server";
-import { sendDegraded } from "../normalize.server";
-import { clampText } from "../../limits";
+import { sendDegraded, asArray, asString, asStringArray } from "../normalize.server";
+import { clampInt, clampText } from "../../limits";
+
+/** Tyle slajdów daje bank zapasowy i tyle żąda prompt. */
+const MAX_SLIDES = 5;
+
+/** Slajd od modelu może nie mieć `headline` albo podać `highlightWords` jako string. */
+function normalizeSlides(slides: unknown, limit: number) {
+  return asArray(slides)
+    .map((slide, idx) => {
+      const item = (slide ?? {}) as Record<string, unknown>;
+      const headline = asString(item.headline);
+      const bodyText = asString(item.bodyText);
+      return {
+        slideNumber: clampInt(item.slideNumber, 1, 99, idx + 1),
+        headline,
+        bodyText,
+        highlightWords: asStringArray(
+          typeof item.highlightWords === "string"
+            ? item.highlightWords.split(",")
+            : item.highlightWords,
+          6,
+        ).join(", "),
+      };
+    })
+    .filter((slide) => slide.headline || slide.bodyText)
+    .slice(0, limit);
+}
 
 export function registerCarouselRoutes(app: MiniApp): void {
   app.post("/api/ai/generate-carousel-template", async (req, res) => {
-    const { slideCount = 5 } = req.body || {};
+    // 3..5: tyle daje bank treści zapasowych i tyle żąda prompt ("dokładnie 4-5").
+    // Wcześniejszy sufit 10 sprawia, że prośba o 10 slajdów dostawała 5 —
+    // cicho, bez komunikatu o niedoborze.
+    const targetCount = clampInt(req.body?.slideCount, 3, MAX_SLIDES, 5);
     const cleanTopic = clampText(req.body?.topic, 200) || "Stoicka Dyscyplina";
-    const targetCount = Math.min(10, Math.max(3, Number(slideCount) || 5));
     const ai = getGeminiClient();
 
     const buildDynamicCarouselFallback = (t: string, count: number) => {
@@ -94,12 +122,14 @@ export function registerCarouselRoutes(app: MiniApp): void {
       });
 
       const parsed = safeJsonParse(response.text || "");
-      if (
-        parsed?.template?.slides &&
-        Array.isArray(parsed.template.slides) &&
-        parsed.template.slides.length > 0
-      ) {
-        return res.json({ template: parsed.template });
+      const slides = normalizeSlides(parsed?.template?.slides, targetCount);
+      if (slides.length > 0) {
+        return res.json({
+          template: {
+            name: asString(parsed.template?.name, `STARK // ${cleanTopic.toUpperCase()}`),
+            slides,
+          },
+        });
       }
 
       return sendDegraded(res, { template: buildDynamicCarouselFallback(cleanTopic, targetCount) });

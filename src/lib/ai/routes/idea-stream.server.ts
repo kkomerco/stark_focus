@@ -4,6 +4,7 @@ import { hookFingerprint, maxSimilarity, SIMILARITY } from "../../similarity";
 import { pick, pickN } from "../../random";
 import { clampCount, clampInt, clampText, LIMITS } from "../../limits";
 import { asArray, asString, asStringArray, oneOf } from "../normalize.server";
+import { formatStarkCaption, STARK_HASHTAGS } from "../../caption";
 
 /**
  * IDEA STREAM — nieskończony generator pomysłów z silną anty-powtórką.
@@ -122,8 +123,12 @@ function buildOfflineIdeas(count: number, usedCount: number, excludeHooks: strin
         `The truth about ${cat.split(" ")[0]} nobody wants to hear.`,
         "Execute in silence. Prove them wrong.",
       ],
-      caption: `${hook}\n\nStop negotiating with your weakness.\n\nSave this. Follow @stark_focus.\n\n#darkmotivation #discipline #hardwork #mindset #starkfocus`,
-      hashtags: ["#darkmotivation", "#discipline", "#hardwork", "#mindset", "#starkfocus"],
+      caption: formatStarkCaption(hook, [
+        "Stop negotiating with your weakness.",
+        `The truth about ${cat.split(" ")[0]} nobody wants to hear.`,
+        "Execute in silence. Prove them wrong.",
+      ]),
+      hashtags: [...STARK_HASHTAGS],
       theme: pick([...THEMES]),
       viralityScore: 90 + Math.floor(Math.random() * 10),
     });

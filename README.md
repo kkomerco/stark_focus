@@ -13,8 +13,12 @@ Platforma kreatywna do generowania treści social media (posty 1:1, karuzele 4:5
 ## 📁 Struktura projektu
 
 ```
-server.ts                        # serwer Express: /api/health, /api/proxy-image + montaz tras AI
-src/lib/ai/gemini.server.ts      # JEDYNE miejsce z klientem Gemini, modelami i parsowaniem JSON
+server.ts                        # serwer Express: /api/health, /api/generate + montaz tras AI
+src/lib/ai/gemini.server.ts      # JEDYNE miejsce z klientem Gemini, modelami, retry i parsowaniem JSON
+src/lib/ai/normalize.server.ts   # normalizacja odpowiedzi modelu + znakowanie treści zapasowych
+src/lib/limits.ts                # clamp każdego parametru liczbowego i tekstowego z req.body
+src/lib/fetch-image.server.ts    # pobieranie zewnętrznych obrazków z ochroną SSRF (jedyna droga)
+src/lib/random.ts                # Fisher-Yates, pick, pickN, pickForDay
 src/lib/ai/router.server.ts      # spina moduly tras + cache odpowiedzi AI
 src/lib/ai/routes/               # trasy AI podzielone domenowo:
   analyze.server.ts              #   analiza linkow/hookow, hook battle

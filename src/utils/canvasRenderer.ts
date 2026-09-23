@@ -875,8 +875,10 @@ export function drawMinimalBlackQuoteSlide(
   const maxLineWidth = width - paddingX * 2;
   const fontSpec = getFontFamilySpec(fontFamily);
 
-  const cleanMain = mainText.trim();
-  const cleanSub = (subText || "").trim();
+  // Model zwraca markdown (`**słowo**`), a ten tryb nie ma własnego wyróżniania, więc
+  // markery usuwamy raz tutaj — pomiar i `fillText` muszą widzieć ten sam tekst.
+  const cleanMain = stripHighlightSyntax(mainText).trim();
+  const cleanSub = stripHighlightSyntax(subText || "").trim();
   const hasSub = cleanSub.length > 0;
 
   const textColor = isBlackFont ? "#0A0B0D" : "#FFFFFF";
@@ -908,13 +910,19 @@ export function drawMinimalBlackQuoteSlide(
       curY += lineHeight;
     });
   } else {
-    // TRYB 2: DWA WERSY (Nagłówek + dopisek – ściśle po 1 linijce każdy)
+    // TRYB 2: DWA WERSY (Nagłówek + dopisek). Najpierw schodzimy z rozmiarem pisma, a dopiero
+    // na twardym minimum łamiemy tekst na wiersze — inaczej długie zdanie od modelu wyleca
+    // za prawą krawędź kadru.
     let mainFontSize = Math.round((height >= 1800 ? 72 : 60) * textScale);
     ctx.font = `700 ${mainFontSize}px ${fontSpec}`;
     while (ctx.measureText(cleanMain).width > maxLineWidth && mainFontSize > 34) {
       mainFontSize -= 2;
       ctx.font = `700 ${mainFontSize}px ${fontSpec}`;
     }
+    const mainLines =
+      ctx.measureText(cleanMain).width > maxLineWidth
+        ? wrapTextLines(ctx, cleanMain, maxLineWidth)
+        : [cleanMain];
 
     let subFontSize = Math.round((height >= 1800 ? 44 : 36) * textScale);
     ctx.font = `400 ${subFontSize}px ${fontSpec}`;
@@ -922,20 +930,32 @@ export function drawMinimalBlackQuoteSlide(
       subFontSize -= 2;
       ctx.font = `400 ${subFontSize}px ${fontSpec}`;
     }
+    const subLines =
+      ctx.measureText(cleanSub).width > maxLineWidth
+        ? wrapTextLines(ctx, cleanSub, maxLineWidth)
+        : [cleanSub];
 
+    const mainLineHeight = Math.round(mainFontSize * 1.34);
+    const subLineHeight = Math.round(subFontSize * 1.34);
     const gap = Math.round(28 * textScale);
-    const totalH = mainFontSize + gap + subFontSize;
+    const totalH =
+      (mainLines.length - 1) * mainLineHeight +
+      mainFontSize +
+      gap +
+      (subLines.length - 1) * subLineHeight +
+      subFontSize;
+
+    // Idealne optyczne wyśrodkowanie w pionie dla 9:16
     const startY = Math.round((height - totalH) * 0.46) + mainFontSize;
 
-    // Linijka 1: Nagłówek (ściśle 1 linijka)
     ctx.font = `700 ${mainFontSize}px ${fontSpec}`;
     ctx.fillStyle = textColor;
-    ctx.fillText(cleanMain, drawX, startY);
+    mainLines.forEach((line, i) => ctx.fillText(line, drawX, startY + i * mainLineHeight));
 
-    // Linijka 2: Dopisek (ściśle 1 linijka)
     ctx.font = `400 ${subFontSize}px ${fontSpec}`;
     ctx.fillStyle = textMutedColor;
-    ctx.fillText(cleanSub, drawX, startY + gap + subFontSize);
+    const subStartY = startY + (mainLines.length - 1) * mainLineHeight + gap + subFontSize;
+    subLines.forEach((line, i) => ctx.fillText(line, drawX, subStartY + i * subLineHeight));
   }
 
   // Dyskretna sygnatura na dole kadru 9:16
