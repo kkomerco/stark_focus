@@ -12,7 +12,7 @@
 
 ## Architektura
 
-- Model Gemini konfigurujemy **wyłącznie** w `src/lib/ai/gemini.server.ts` (`GEMINI_MODEL` / `GEMINI_LITE_MODEL`).
+- Model Gemini konfigurujemy **wyłącznie** w `src/lib/ai/gemini.server.ts` (`GEMINI_MODEL` / `GEMINI_LITE_MODEL` / `GEMINI_IMAGE_MODEL`).
 - Klucz API (`GEMINI_API_KEY`) tylko server-side — nigdy w kodzie frontendu ani w repo.
 - Nowe trasy AI dodajemy jako moduł w `src/lib/ai/routes/` i rejestrujemy w `src/lib/ai/router.server.ts`.
 - Do generowania treści używamy `generateContent()` / `generateJson()` z `gemini.server.ts` — nie tworzymy własnych klientów ani własnych pętli retry (fallback modeli + backoff 503/429 + limit czasu są już w `gemini.server.ts`).
@@ -23,6 +23,8 @@
 - Losowość: `shuffle/pick/pickN/pickForDay` z `src/lib/random.ts` — `sort(() => Math.random() - 0.5)` jest stronnicze i nie tasuje.
 - Odcisk hooka liczymy przez `hookFingerprint()` z `src/lib/similarity.ts` po obu stronach; klient i serwer muszą używać tej samej funkcji.
 - Opisy marki: `formatStarkCaption()` z `src/lib/caption.ts`; CTA i hashtagi tylko z `STARK_CTA` / `STARK_HASHTAGS` — każdy własny ogon w trasie rozjeżdża estetykę feedu.
+- Identyfikacja wizualna materiału: czerń obsydianu + kościelna biel + **jeden** akcent karmazyn (`BRAND_ACCENT`). Cyjan/sky/neon są zakazane i w UI, i w promptach tłów — to one robiły „aplikację technologiczną", a nie markę dyscypliny. Motywy rolek schodzą do motywów marki przez `REEL_THEME_ALIASES`.
+- Tło kadru generujemy w aplikacji (`POST /api/ai/generate-background`), nie kazemy użytkownikowi wklejać promptu w obcy tool. Trasa jest poza cache'em i zwraca 503 bez klucza — obrazu nie da się udawać z banku treści.
 - Canvas używa wyłącznie fontów już pobranych — kroje markowe (Cinzel, Cormorant Garamond, Plus Jakarta Sans, Space Grotesk) muszą być załadowane przez `ensureBrandFonts()` z `src/utils/fonts.ts`, inaczej eksport wychodzi w Arialu. Nowy krój dodajemy w `BRAND_FONT_SPECS` i w `index.html`.
 
 ## Uruchamianie
