@@ -24,6 +24,7 @@ import {
 } from "./types";
 import { specFromIdea } from "./utils/ideaLayout";
 import { usedHookFingerprints } from "./lib/usedContent";
+import { QueuePanel } from "./components/QueuePanel";
 import { loadStoredData, normalizePlannerTasks, saveStoredData } from "./utils/storage";
 import { useIdeaStream } from "./hooks/useIdeaStream";
 import type { AbDraft } from "./components/AbModal";
@@ -271,199 +272,156 @@ export default function StarkFocusApp() {
     setActiveTab(typeof task.targetTab === "number" ? task.targetTab : 0);
   };
 
-  const tabs = [
-    {
-      id: "tab-post",
-      label: "Post",
-      tag: "JPG / PNG",
-      subtitle: "Generator grafik 1:1",
-      icon: Sparkles,
-    },
-    {
-      id: "tab-reel",
-      label: "Rolka",
-      tag: "WIDEO 9s",
-      subtitle: "Automontażysta rolek",
-      icon: Film,
-    },
-    {
-      id: "tab-trends",
-      label: "Trendy i Pomysły",
-      tag: "VIRAL AI",
-      subtitle: "Baza kątów i hooków",
-      icon: Flame,
-    },
-    {
-      id: "tab-pipeline",
-      label: "Pipeline",
-      tag: "HARMONOGRAM",
-      subtitle: "Zaplanowane publikacje",
-      icon: ListChecks,
-    },
+  const handleCompleteTask = (taskId: string) => {
+    handleUpdateData((prev) => ({
+      ...prev,
+      planner_tasks: (prev.planner_tasks || []).map((task) =>
+        task.id === taskId ? { ...task, completed: true } : task,
+      ),
+    }));
+  };
+
+  // Klik w zapisany post otwiera go z powrotem w kadrze — bez przepisywania od nowa.
+  const handleOpenSavedPost = (post: Post) => {
+    handleSendToPost(post.title, post.caption || undefined);
+  };
+
+  // Cztery powierzchnie robocze po prawej stronie — kolejka zostaje po lewej.
+  const panes = [
+    { id: "post", label: "Kadr", icon: Sparkles },
+    { id: "reel", label: "Rolka", icon: Film },
+    { id: "radar", label: "Radar", icon: Flame },
+    { id: "pipeline", label: "Harmonogram", icon: ListChecks },
+  ];
+
+  // Narzędzia to generatory i analizy wywoływane na żądanie — nie zakładki,
+  // więc nie udają równorzędnych ekranów.
+  const tools = [
+    { label: "Paczka dnia", icon: Calendar, open: () => setDailyPackOpen(true) },
+    { label: "Pomysły", icon: Lightbulb, open: () => setIdeaStreamOpen(true) },
+    { label: "Analiza linku", icon: Link2, open: () => setDeconstructOpen(true) },
+    { label: "Test A/B", icon: TestTubes, open: () => setAbOpen(true) },
+    { label: "Autopilot", icon: Rocket, open: () => setAutopilotOpen(true) },
+    { label: "Prompty tła", icon: ImageIcon, open: () => setPromptLibOpen(true) },
   ];
 
   return (
     <div className="min-h-screen bg-[#050505] text-[#EDEDED] font-sans antialiased selection:bg-white/20 selection:text-white">
-      <div className="max-w-7xl mx-auto px-3 sm:px-5 py-4">
-        <Header data={data} onUpdateData={handleUpdateData} activeTab={activeTab} />
+      <div className="max-w-[1500px] mx-auto px-3 sm:px-5 py-4">
+        <Header />
 
-        {/* 3 Główne Zakładki - Wyrazisty Segmented Control */}
-        <nav className="grid grid-cols-1 sm:grid-cols-4 gap-2.5 pb-4 mb-5 border-b border-white/10 select-none">
-          {tabs.map((tab, idx) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === idx;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(idx)}
-                className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between ${
-                  isActive
-                    ? "bg-white text-black border-white shadow-[0_4px_20px_rgba(255,255,255,0.12)] scale-[1.01]"
-                    : "bg-[#0C0C0C] border-white/10 text-neutral-400 hover:text-white hover:border-white/30 hover:bg-[#121212]"
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                      isActive ? "bg-black text-white" : "bg-white/10 text-neutral-300"
+        {/* Jedna powierzchnia robocza: kolejka po lewej, kadr po prawej.
+            Od 1280 px — poniżej tego studio potrzebuje pełnej szerokości. */}
+        <div className="grid grid-cols-1 xl:grid-cols-[290px_minmax(0,1fr)] gap-5 items-start">
+          <aside className="space-y-5 xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:overflow-y-auto xl:pr-1">
+            <section>
+              <p className="text-[10px] font-mono uppercase tracking-wider text-neutral-500 mb-2">
+                Narzędzia
+              </p>
+              <div className="grid grid-cols-3 gap-1.5">
+                {tools.map((tool) => {
+                  const Icon = tool.icon;
+                  return (
+                    <button
+                      key={tool.label}
+                      type="button"
+                      onClick={tool.open}
+                      title={tool.label}
+                      className="flex flex-col items-center gap-1.5 px-1 py-2.5 rounded-lg border border-white/10 bg-[#0C0C0C] text-neutral-400 hover:text-white hover:border-white/30 transition-colors cursor-pointer"
+                    >
+                      <Icon className="w-4 h-4" />
+                      <span className="text-[9px] font-mono leading-tight text-center">
+                        {tool.label}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+
+            <section>
+              <p className="text-[10px] font-mono uppercase tracking-wider text-neutral-500 mb-2">
+                Kolejka
+              </p>
+              <QueuePanel
+                tasks={data.planner_tasks || []}
+                posts={data.posts || []}
+                onOpenTask={handleOpenScheduledTask}
+                onCompleteTask={handleCompleteTask}
+                onOpenPost={handleOpenSavedPost}
+              />
+            </section>
+          </aside>
+
+          <main className="min-w-0">
+            <div className="flex items-center gap-1 mb-4 pb-2 border-b border-white/10 select-none">
+              {panes.map((pane, idx) => {
+                const Icon = pane.icon;
+                const isActive = activeTab === idx;
+                return (
+                  <button
+                    key={pane.id}
+                    onClick={() => setActiveTab(idx)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-mono uppercase tracking-wider transition-colors cursor-pointer ${
+                      isActive
+                        ? "bg-white text-black"
+                        : "text-neutral-500 hover:text-white hover:bg-white/5"
                     }`}
                   >
-                    <Icon className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-mono font-black uppercase tracking-wider">
-                        {tab.label}
-                      </span>
-                    </div>
-                    <p
-                      className={`text-[10px] font-mono ${
-                        isActive ? "text-neutral-700" : "text-neutral-500"
-                      }`}
-                    >
-                      {tab.subtitle}
-                    </p>
-                  </div>
-                </div>
+                    <Icon className="w-3.5 h-3.5" />
+                    {pane.label}
+                  </button>
+                );
+              })}
+            </div>
 
-                <span
-                  className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded ${
-                    isActive
-                      ? "bg-black/10 text-black"
-                      : "bg-white/5 text-neutral-400 border border-white/5"
-                  }`}
-                >
-                  {tab.tag}
-                </span>
-              </button>
-            );
-          })}
-        </nav>
-
-        {/* Pasek akcji: Paczka Dnia + Nieskończone Pomysły + Analiza Virala */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pb-4 mb-5 border-b border-white/10">
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => setDailyPackOpen(true)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-orange-500/20 hover:from-amber-500/30 hover:to-orange-500/30 border border-amber-500/30 text-amber-300 text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer"
-            >
-              <Calendar className="w-4 h-4" />
-              Paczka Dnia
-            </button>
-            <button
-              onClick={() => setIdeaStreamOpen(true)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-violet-500/20 to-fuchsia-500/20 hover:from-violet-500/30 hover:to-fuchsia-500/30 border border-violet-500/30 text-violet-300 text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer"
-            >
-              <Lightbulb className="w-4 h-4" />
-              Nieskończone Pomysły
-            </button>
-            <button
-              onClick={() => setDeconstructOpen(true)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-zinc-500/20 to-zinc-400/20 hover:from-zinc-500/30 hover:to-zinc-400/30 border border-zinc-500/30 text-zinc-200 text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer"
-            >
-              <Link2 className="w-4 h-4" />
-              Analiza Virala (Link)
-            </button>
-            <button
-              onClick={() => setAbOpen(true)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-yellow-500/20 hover:from-amber-500/30 hover:to-yellow-500/30 border border-amber-500/30 text-amber-300 text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer"
-            >
-              <TestTubes className="w-4 h-4" />
-              Test A/B
-            </button>
-            <button
-              onClick={() => setAutopilotOpen(true)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-rose-500/20 to-orange-500/20 hover:from-rose-500/30 hover:to-orange-500/30 border border-rose-500/30 text-rose-300 text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer"
-            >
-              <Rocket className="w-4 h-4" />
-              Autopilot Tygień
-            </button>
-            <button
-              onClick={() => setPromptLibOpen(true)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-lime-500/15 to-emerald-500/15 hover:from-lime-500/25 hover:to-emerald-500/25 border border-lime-500/30 text-lime-300 text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer"
-            >
-              <ImageIcon className="w-4 h-4" />
-              Biblioteka Promptów
-            </button>
-          </div>
-          <button
-            type="button"
-            onClick={() => setActiveTab(3)}
-            title="Otwórz Pipeline publikacji"
-            className="text-[10px] font-mono text-neutral-500 hover:text-white transition-colors cursor-pointer"
-          >
-            {(data.planner_tasks || []).filter((t) => t && !t.completed).length} zadań w pipeline •{" "}
-            {data.used_idea_fingerprints?.length || 0} użytych pomysłów
-          </button>
+            <Suspense fallback={<TabFallback />}>
+              {activeTab === 0 && (
+                <InspirationStudio1to1
+                  key={`${postPreset.spec?.layoutName ?? ""}-${postPreset.text ?? ""}`}
+                  onSaveToPipeline={handleSavePostFrom1to1}
+                  userHandle={data.social_handles?.instagram || "stark_focus"}
+                  initialText={postPreset.text}
+                  initialCaption={postPreset.caption}
+                  initialSpec={postPreset.spec}
+                  onSendToReel={handleSendToReel}
+                  usedHooks={usedHooks}
+                />
+              )}
+              {activeTab === 1 && (
+                <VideoStudioModal
+                  key={reelPreset?.reel.hook || "default-reel"}
+                  embedded={true}
+                  initialReel={reelPreset?.reel}
+                  initialBgUrl={reelPreset?.bgUrl}
+                  availablePosts={data.posts}
+                  vaultAssets={data.vault_assets}
+                  onSendToPost={handleSendToPost}
+                />
+              )}
+              {activeTab === 2 && (
+                <AiRadarTab
+                  data={data}
+                  onUpdateData={handleUpdateData}
+                  incomingCarousel={pendingCarousel}
+                  onIncomingCarouselUsed={() => setPendingCarousel(null)}
+                  onOpenQR={(title, payload) => setQrModal({ isOpen: true, title, data: payload })}
+                  onNavigateToTab={(tabIdx) => setActiveTab(tabIdx)}
+                  onSendToPost={handleSendToPost}
+                  onSendToReel={handleSendToReel}
+                />
+              )}
+              {activeTab === 3 && (
+                <PipelineTab
+                  data={data}
+                  onUpdateData={handleUpdateData}
+                  onOpenInStudio={handleOpenScheduledTask}
+                  onOpenDailyPack={() => setDailyPackOpen(true)}
+                />
+              )}
+            </Suspense>
+          </main>
         </div>
-
-        <main>
-          <Suspense fallback={<TabFallback />}>
-            {activeTab === 0 && (
-              <InspirationStudio1to1
-                key={`${postPreset.spec?.layoutName ?? ""}-${postPreset.text ?? ""}`}
-                onSaveToPipeline={handleSavePostFrom1to1}
-                userHandle={data.social_handles?.instagram || "stark_focus"}
-                initialText={postPreset.text}
-                initialCaption={postPreset.caption}
-                initialSpec={postPreset.spec}
-                onSendToReel={handleSendToReel}
-                usedHooks={usedHooks}
-              />
-            )}
-            {activeTab === 1 && (
-              <VideoStudioModal
-                key={reelPreset?.reel.hook || "default-reel"}
-                embedded={true}
-                initialReel={reelPreset?.reel}
-                initialBgUrl={reelPreset?.bgUrl}
-                availablePosts={data.posts}
-                vaultAssets={data.vault_assets}
-                onSendToPost={handleSendToPost}
-              />
-            )}
-            {activeTab === 2 && (
-              <AiRadarTab
-                data={data}
-                onUpdateData={handleUpdateData}
-                incomingCarousel={pendingCarousel}
-                onIncomingCarouselUsed={() => setPendingCarousel(null)}
-                onOpenQR={(title, payload) => setQrModal({ isOpen: true, title, data: payload })}
-                onNavigateToTab={(tabIdx) => setActiveTab(tabIdx)}
-                onSendToPost={handleSendToPost}
-                onSendToReel={handleSendToReel}
-              />
-            )}
-            {activeTab === 3 && (
-              <PipelineTab
-                data={data}
-                onUpdateData={handleUpdateData}
-                onOpenInStudio={handleOpenScheduledTask}
-                onOpenDailyPack={() => setDailyPackOpen(true)}
-              />
-            )}
-          </Suspense>
-        </main>
       </div>
 
       <Suspense fallback={null}>
