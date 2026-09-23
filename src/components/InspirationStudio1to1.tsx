@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import JSZip from "jszip";
+import { formatStarkCaption } from "../lib/caption";
 import {
   Link2,
   Sparkles,
@@ -118,10 +119,121 @@ const SPEC_COLLAGE_4: UniversalLayoutSpec = {
       posY: 0.5,
     },
   ],
-  caption:
-    "This winter, disappear into obsession.\n\nSave this reminder. Follow @stark_focus.\n\n#winterarc #discipline #starkfocus",
+  caption: formatStarkCaption("This winter, disappear into obsession.", [
+    "Nobody is coming to save your potential.",
+    "Private victories build permanent foundations.",
+    "Let the results make the noise.",
+  ]),
   detectedAudio: "Oryginalny dźwięk",
 };
+
+/**
+ * UKŁADY ZE STRUKTURĄ.
+ *
+ * Dołożone dlatego, że materiał wychodzący z aplikacji był w ~80% cytatem na
+ * czarnym tle — ten sam kształt po trzydziestu postach przestaje zatrzymywać
+ * kciuk. Protokół, tabela kosztu i księga niosą treść, którą czytelnik musi
+ * dokończyć, więc działają niezależnie od tego, jak mocny jest sam hook.
+ */
+function structuredSpec(
+  layoutName: string,
+  gridType: UniversalLayoutSpec["gridType"],
+  headline: string,
+  layoutData: UniversalLayoutSpec["layoutData"],
+): UniversalLayoutSpec {
+  return {
+    layoutName,
+    gridType,
+    backgroundColor: "#050505",
+    dividerWidth: 0,
+    dividerColor: "#000000",
+    slotCount: 0,
+    slotLabels: [],
+    textEffect: "flat",
+    fontFamilyCustom: "cinzel",
+    fontColorMode: "white",
+    textLayers: [
+      {
+        id: "t1",
+        text: headline,
+        fontFamily: "cinzel",
+        fontSize: 74,
+        fontWeight: "bold",
+        fontStyle: "normal",
+        casing: "preserve",
+        color: "#F3F0EA",
+        align: "left",
+        posY: 0.18,
+        posX: 0.09,
+      },
+    ],
+    layoutData,
+    caption: formatStarkCaption(headline, [
+      "Comfort is paid for in regret, later and with interest.",
+      "The standard you hold alone is the only one that counts.",
+      "Silence protects the work; results announce it.",
+    ]),
+    detectedAudio: "bez dźwięku — dodaj w aplikacji social media",
+  };
+}
+
+const SPEC_PROTOCOL = structuredSpec("Protokół", "protocol_list", "PROTOCOL 04:30", {
+  eyebrow: "PROTOCOL 04:30",
+  statement: "You don't lack discipline. You lack a sequence.",
+  steps: [
+    "Phone in another room before you decide anything.",
+    "First block of the day belongs to the hardest task.",
+    "No negotiations before noon. The deal is already signed.",
+  ],
+  figure: "04:30",
+});
+
+const SPEC_COST_REWARD = structuredSpec("Koszt i utrata", "cost_vs_reward", "", {
+  question: "What does it cost to stay who you are?",
+  cost: [
+    "One hour you will never get back",
+    "The promise you broke in private",
+    "The rep of being someone who starts",
+  ],
+  forfeit: [
+    "The body you had two years ago",
+    "The work only you could have made",
+    "The respect you stopped earning",
+  ],
+  closing: "You already paid. Decide what it bought.",
+});
+
+const SPEC_LEDGER = structuredSpec("Księga standardu", "monolith_ledger", "STARK // LEDGER", {
+  eyebrow: "LEDGER",
+  statement: "Keep score in private.",
+  steps: [
+    "Days executed without an audience",
+    "Times you chose the harder option",
+    "Promises kept to yourself alone",
+  ],
+  figure: "365",
+});
+
+const SPEC_WALL_3D = structuredSpec("Litery na ścianie", "studio_wall_3d", "", {
+  statement: "Silence cannot be misquoted.",
+});
+
+/**
+ * Lista formatów w jednym miejscu — dawniej każdy układ był dokladanym
+ * przyciskiem w JSX, przez co pasek rósł szybciej niż możliwości.
+ */
+const LAYOUT_PICKER: Array<{
+  gridType: UniversalLayoutSpec["gridType"];
+  label: string;
+  spec: UniversalLayoutSpec;
+}> = [
+  { gridType: "none_solid", label: "Cytat", spec: SPEC_BLACK_QUOTE },
+  { gridType: "protocol_list", label: "Protokół", spec: SPEC_PROTOCOL },
+  { gridType: "cost_vs_reward", label: "Koszt", spec: SPEC_COST_REWARD },
+  { gridType: "monolith_ledger", label: "Księga", spec: SPEC_LEDGER },
+  { gridType: "studio_wall_3d", label: "Ściana 3D", spec: SPEC_WALL_3D },
+  { gridType: "grid_2x2", label: "Kolaż", spec: SPEC_COLLAGE_4 },
+];
 
 export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
   onSaveToPipeline,
@@ -788,35 +900,23 @@ Zwróć WYŁĄCZNIE czysty JSON:
           <span className="text-[10px] font-mono text-neutral-400 uppercase mr-1 shrink-0">
             Format:
           </span>
-          <button
-            type="button"
-            onClick={() => {
-              setSpec(SPEC_BLACK_QUOTE);
-              setSlotImages([]);
-            }}
-            className={`px-3 py-1.5 rounded text-xs font-mono font-bold cursor-pointer transition-colors shrink-0 ${
-              spec.gridType === "none_solid"
-                ? "bg-white text-black"
-                : "bg-[#141414] text-neutral-400 border border-white/10 hover:text-white"
-            }`}
-          >
-            ⬛ Cytat na Czerni (9:16)
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setSpec(SPEC_COLLAGE_4);
-              setSlotImages([null, null, null, null]);
-            }}
-            className={`px-3 py-1.5 rounded text-xs font-mono font-bold cursor-pointer transition-colors shrink-0 ${
-              spec.gridType === "grid_2x2"
-                ? "bg-white text-black"
-                : "bg-[#141414] text-neutral-400 border border-white/10 hover:text-white"
-            }`}
-          >
-            🖼️ Kolaż 4 Kadrów (9:16)
-          </button>
+          {LAYOUT_PICKER.map((option) => (
+            <button
+              key={option.gridType}
+              type="button"
+              onClick={() => {
+                setSpec(option.spec);
+                setSlotImages(option.gridType === "grid_2x2" ? [null, null, null, null] : []);
+              }}
+              className={`px-3 py-1.5 rounded text-xs font-mono font-bold cursor-pointer transition-colors shrink-0 ${
+                spec.gridType === option.gridType
+                  ? "bg-white text-black"
+                  : "bg-[#141414] text-neutral-400 border border-white/10 hover:text-white"
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
         </div>
 
         {/* Wymiar kadru - ZABLOKOWANY NA 9:16 zgodnie z wytycznymi */}

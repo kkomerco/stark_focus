@@ -150,7 +150,28 @@ export interface UniversalLayoutSpec {
   // "studio_wall_3d" to układ zwracany przez analizę linku — bez niego
   // odtworzony kadr ze ścianą 3D nie dawał się przedstawić w typie i zapadał
   // się do płaskiego cytatu na czerni.
-  gridType: "none_solid" | "single" | "split_horizontal" | "grid_2x2" | "studio_wall_3d";
+  // "protocol_list" i "cost_vs_reward" dołożone, żeby materiał przestał być
+  // w 80% cytatem na czerni — te dwa niosą STRUCTURĘ, nie samo zdanie.
+  gridType:
+    | "none_solid"
+    | "single"
+    | "split_horizontal"
+    | "grid_2x2"
+    | "studio_wall_3d"
+    | "monolith_ledger"
+    | "protocol_list"
+    | "cost_vs_reward";
+  /** Dane układu: kroki protokołu, słupki koszt/utrata. Nie każdy układ ich potrzebuje. */
+  layoutData?: {
+    eyebrow?: string;
+    statement?: string;
+    steps?: string[];
+    figure?: string;
+    question?: string;
+    cost?: string[];
+    forfeit?: string[];
+    closing?: string;
+  };
   backgroundColor: string;
   dividerWidth: number;
   dividerColor: string;

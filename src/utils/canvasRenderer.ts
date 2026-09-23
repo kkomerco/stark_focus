@@ -17,6 +17,7 @@ import {
   resolveTopHeaderText,
   drawBrandLogoOnContext,
 } from "./starkBrandTheme";
+import { drawCostVsRewardSlide, drawProtocolListSlide } from "./canvas/layouts-v2";
 
 export type { SlideData };
 
@@ -46,135 +47,24 @@ export interface RenderSlideOptions {
   bgStyle?: "flat_fog" | "procedural" | "image"; // Styl tła: płaskie/zamglone bez stałych obiektów
 }
 
-function stripHighlightSyntax(t: string): string {
-  return t.replace(/\*\*/g, "").replace(/\*/g, "");
-}
-
-interface TextToken {
-  text: string;
-  isHighlight: boolean;
-}
-
-function parseLineTokens(line: string, highlightTerms: string[]): TextToken[] {
-  // Normalize highlight terms and expand multi-word phrases into individual word components
-  const normalizedTerms = new Set<string>();
-  for (const term of highlightTerms) {
-    const cleanTerm = term.trim().toLowerCase();
-    if (!cleanTerm) continue;
-    normalizedTerms.add(cleanTerm);
-    const subWords = cleanTerm.split(/\s+/).filter((w) => w.length >= 2);
-    for (const sw of subWords) {
-      normalizedTerms.add(sw);
-    }
-  }
-
-  const rawWords = line.split(" ");
-  const tokens: TextToken[] = [];
-  let inMarkdownHighlight = false;
-
-  for (const rawWord of rawWords) {
-    if (!rawWord) continue;
-
-    let isMarked = false;
-    let wordText = rawWord;
-
-    // Check if word starts or ends markdown highlight (** or *)
-    const startsBold = wordText.startsWith("**") || wordText.startsWith("*");
-    if (startsBold) {
-      inMarkdownHighlight = true;
-      wordText = wordText.replace(/^(\*\*|\*)/, "");
-    }
-
-    if (inMarkdownHighlight) {
-      isMarked = true;
-    }
-
-    const endsBold = wordText.includes("**") || wordText.includes("*");
-    if (endsBold) {
-      wordText = wordText.replace(/(\*\*|\*)/g, "");
-      inMarkdownHighlight = false;
-    }
-
-    // Check against highlight terms list
-    const stripped = wordText.replace(/[^a-zA-Z0-9ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/g, "").toLowerCase();
-
-    if (
-      stripped &&
-      (normalizedTerms.has(stripped) ||
-        Array.from(normalizedTerms).some(
-          (t) => stripped === t || stripped.includes(t) || (t.length >= 3 && t.includes(stripped)),
-        ))
-    ) {
-      isMarked = true;
-    }
-
-    tokens.push({
-      text: wordText,
-      isHighlight: isMarked,
-    });
-  }
-
-  return tokens;
-}
-
-function wrapTextLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
-  // Respect manual Enter line breaks first
-  const paragraphs = text.split(/\r?\n/);
-  const resultLines: string[] = [];
-
-  for (const paragraph of paragraphs) {
-    if (paragraph.trim() === "") {
-      resultLines.push(""); // Empty line spacing
-      continue;
-    }
-    const words = paragraph.split(/\s+/);
-    let currentLine = "";
-
-    for (let i = 0; i < words.length; i++) {
-      const testLine = currentLine ? `${currentLine} ${words[i]}` : words[i];
-      if (ctx.measureText(stripHighlightSyntax(testLine)).width > maxWidth && currentLine) {
-        resultLines.push(currentLine);
-        currentLine = words[i];
-      } else {
-        currentLine = testLine;
-      }
-    }
-    if (currentLine) resultLines.push(currentLine);
-  }
-  return resultLines;
-}
-
-function drawImageCover(
-  ctx: CanvasRenderingContext2D,
-  img: CanvasImageSource,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-) {
-  const naturalWidth =
-    (img as any).naturalWidth || (img as any).videoWidth || (img as any).width || 800;
-  const naturalHeight =
-    (img as any).naturalHeight || (img as any).videoHeight || (img as any).height || 600;
-
-  const targetRatio = w / h;
-  const imageRatio = naturalWidth / naturalHeight;
-
-  let sx = 0;
-  let sy = 0;
-  let sWidth = naturalWidth;
-  let sHeight = naturalHeight;
-
-  if (imageRatio > targetRatio) {
-    sWidth = naturalHeight * targetRatio;
-    sx = (naturalWidth - sWidth) / 2;
-  } else {
-    sHeight = naturalWidth / targetRatio;
-    sy = (naturalHeight - sHeight) / 2;
-  }
-
-  ctx.drawImage(img, sx, sy, sWidth, sHeight, x, y, w, h);
-}
+// Prymitywy tekstu/obrazu mieszkaja w src/utils/canvas/primitives.ts —
+// stąd tylko re-eksport, żeby dawni odbiorcy `canvasRenderer` nie musieli
+// zmieniać importów.
+export {
+  drawImageCover,
+  getFontFamilySpec,
+  parseLineTokens,
+  stripHighlightSyntax,
+  wrapTextLines,
+  type TextToken,
+} from "./canvas/primitives";
+import {
+  drawImageCover,
+  getFontFamilySpec,
+  parseLineTokens,
+  stripHighlightSyntax,
+  wrapTextLines,
+} from "./canvas/primitives";
 
 // =========================================================================
 // POMOCNIK PROCEDURALNEGO TWORZENIA TEKSTUR ŚCIANY STARK FOCUS
@@ -438,16 +328,6 @@ function drawProceduralWall(
     ctx.stroke();
     ctx.restore();
   }
-}
-
-// Mapowanie nazw fontów na specyfikacje Canvas (Plus Jakarta, Cinzel Roman, Inter, Cormorant)
-function getFontFamilySpec(fontFamily: string = "sans"): string {
-  const f = fontFamily.toLowerCase();
-  if (f === "cinzel" || f === "serif" || f === "cinzel roman") return `"Cinzel", serif`;
-  if (f === "cormorant" || f === "cormorant garamond")
-    return `"Cormorant Garamond", Georgia, serif`;
-  if (f === "inter") return `"Inter", sans-serif`;
-  return `"Plus Jakarta Sans", sans-serif`;
 }
 
 // =========================================================================
@@ -1204,6 +1084,11 @@ function drawLayeredTextSlide(
   );
 }
 
+/** Pierwsza warstwa tekstu z zachowaniem sensownej wartości, gdy jej brak. */
+function l1Fallback(spec: UniversalLayoutSpec): string {
+  return spec.textLayers[0]?.text?.trim() || "Silence cannot be misquoted.";
+}
+
 export function renderUniversalLayout(
   canvas: HTMLCanvasElement,
   spec: UniversalLayoutSpec,
@@ -1247,7 +1132,58 @@ export function renderUniversalLayout(
     return;
   }
 
-  // Format 2: Litery 3D na ścianie — renderer istniał i był kompletny, ale
+  // Format 2: Protokół — numerowane kroki pod tezą.
+  if (spec.gridType === "protocol_list") {
+    drawProtocolListSlide(canvas, {
+      width,
+      height,
+      handle,
+      eyebrow: spec.layoutData?.eyebrow || "PROTOCOL",
+      statement: spec.layoutData?.statement || l1Fallback(spec),
+      steps: spec.layoutData?.steps?.length
+        ? spec.layoutData.steps
+        : spec.textLayers.slice(1).map((layer) => layer.text),
+      figure: spec.layoutData?.figure,
+      bgImage: options.backgroundImage ?? images[0] ?? null,
+      headlineFont: spec.fontFamilyCustom || fontFamily,
+    });
+    return;
+  }
+
+  // Format 3: Koszt vs utrata — dwa słupki i pytanie bez odpowiedzi.
+  if (spec.gridType === "cost_vs_reward") {
+    drawCostVsRewardSlide(canvas, {
+      width,
+      height,
+      handle,
+      question: spec.layoutData?.question || l1Fallback(spec),
+      cost: spec.layoutData?.cost || [],
+      forfeit: spec.layoutData?.forfeit || [],
+      closing: spec.layoutData?.closing,
+      bgImage: options.backgroundImage ?? images[0] ?? null,
+    });
+    return;
+  }
+
+  // Format 4: Księga monolitu (istniała jako martwy eksport — wystawiona do UI).
+  if (spec.gridType === "monolith_ledger") {
+    drawMonolithLedgerSlide(canvas, {
+      width,
+      height,
+      headline: l1Fallback(spec),
+      subtext: spec.textLayers[1]?.text || "",
+      points: spec.layoutData?.steps?.length
+        ? spec.layoutData.steps
+        : spec.textLayers.slice(2).map((layer) => layer.text),
+      handle,
+      bgImage: options.backgroundImage ?? images[0] ?? null,
+      accentColor: BRAND_ACCENT,
+      textScale,
+    });
+    return;
+  }
+
+  // Format 5: Litery 3D na ścianie — renderer istniał i był kompletny, ale
   // żaden układ z analizy linku do niego nie trafiał, więc „Odwzoruj układ"
   // dawało płaski cytat zamiast kadru ze ściany.
   if (spec.gridType === "studio_wall_3d") {
