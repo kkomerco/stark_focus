@@ -23,6 +23,7 @@ export function useIdeaStream(
   const [ideas, setIdeas] = useState<ScoredIdea[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const usedFingerprints = useMemo(
     () => data.used_idea_fingerprints || [],
@@ -49,6 +50,7 @@ export function useIdeaStream(
 
         const response = (await res.json()) as IdeaStreamResponse;
         const newIdeas = response.ideas || [];
+        setNotice(typeof response.notice === "string" ? response.notice : null);
 
         // Oceniamy KAŻDY pomysł: identyczność (fingerprint) i podobieństwo (tokeny).
         const exactSet = new Set(usedFingerprints);
@@ -120,6 +122,7 @@ export function useIdeaStream(
     ideas,
     loading,
     error,
+    notice,
     generateIdeas,
     clearHistory,
     usedCount: usedFingerprints.length,

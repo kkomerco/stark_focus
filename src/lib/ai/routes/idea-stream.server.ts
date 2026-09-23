@@ -69,8 +69,10 @@ function buildOfflineIdeas(count: number, usedCount: number, excludeHooks: strin
   // Klient przesyła ODCISKI hooków (patrz hookFingerprint), więc obie strony
   // muszą porównywać odciski — surowy hook nigdy nie wypadłby równo.
   const excluded = new Set(excludeHooks.map(hookFingerprint));
-  // Tylko najnowsze 50: pełna historia × cały bank to tysiące porównań tokenów.
-  const recentHooks = excludeHooks.slice(-50);
+  // Pełna historia potrafi mieć 500 wpisów; porównywanie tokenami 20 bankowych
+  // hooków × 500 to 10 tys. setów na żądanie. Bierzemy najnowsze 150 — dokładne
+  // duplikaty i tak wyłapuje `excluded`, okno służy tylko podobieństwom.
+  const recentHooks = excludeHooks.slice(-150);
   const ideas = [];
   const timestamp = Date.now();
   const cats = pickN([...CATEGORIES], Math.min(count, CATEGORIES.length));
@@ -137,6 +139,25 @@ function buildOfflineIdeas(count: number, usedCount: number, excludeHooks: strin
   return ideas;
 }
 
+/**
+ * Bank offline ma 20 hooków, więc po kilku partiach bez klucza zostaje
+ * pustelnia. Wolimy to powiedzieć w odpowiedzi, niż cicho wysłać mniej
+ * pomysłów niż o nie proszono — „nieskończona liczba" bez tego jest kłamstwem.
+ */
+function offlineIdeasResponse(count: number, used: number, exclude: string[]) {
+  const ideas = buildOfflineIdeas(count, used, exclude);
+  const exhausted = ideas.length < count;
+  return {
+    generatedAt: new Date().toISOString(),
+    source: "offline" as const,
+    ideas,
+    exhausted,
+    notice: exhausted
+      ? `Bank treści offline wyczerpany: zostało ${ideas.length} z ${count} pomysłów. Wyczyść historię albo ustaw GEMINI_API_KEY.`
+      : undefined,
+  };
+}
+
 export function registerIdeaStreamRoutes(app: MiniApp): void {
   app.post("/api/ai/idea-stream", async (req, res) => {
     const safeCount = clampCount(req.body?.count, 5);
@@ -152,11 +173,7 @@ export function registerIdeaStreamRoutes(app: MiniApp): void {
     const safeUsed = clampInt(req.body?.usedCount, 0, 1_000_000, 0);
 
     if (!getGeminiClient()) {
-      return res.json({
-        generatedAt: new Date().toISOString(),
-        source: "offline" as const,
-        ideas: buildOfflineIdeas(safeCount, safeUsed, safeExclude),
-      });
+      return res.json(offlineIdeasResponse(safeCount, safeUsed, safeExclude));
     }
 
     try {
@@ -250,25 +267,24 @@ Zwróć WYŁĄCZNIE JSON:
         .slice(0, safeCount);
 
       if (ideas.length === 0) {
-        return res.json({
-          generatedAt: new Date().toISOString(),
-          source: "offline" as const,
-          ideas: buildOfflineIdeas(safeCount, safeUsed, safeExclude),
-        });
+        return res.json(offlineIdeasResponse(safeCount, safeUsed, safeExclude));
       }
 
       return res.json({
         generatedAt: new Date().toISOString(),
         source: "ai" as const,
         ideas,
+        // Model rzadko oddaje dokładnie N po przefiltrowaniu powtórek —
+        // bez tego UI pokazuje skróconą partię jak pełną.
+        exhausted: ideas.length < safeCount,
+        notice:
+          ideas.length < safeCount
+            ? `Model oddał ${ideas.length} z ${safeCount} pomysłów bez powtórek — spróbuj ponownie albo wyczyść historię.`
+            : undefined,
       });
     } catch (err) {
       console.warn("Idea stream error:", err);
-      return res.json({
-        generatedAt: new Date().toISOString(),
-        source: "offline" as const,
-        ideas: buildOfflineIdeas(safeCount, safeUsed, safeExclude),
-      });
+      return res.json(offlineIdeasResponse(safeCount, safeUsed, safeExclude));
     }
   });
 }

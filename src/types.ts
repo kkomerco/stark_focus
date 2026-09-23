@@ -276,6 +276,9 @@ export interface IdeaStreamResponse {
   generatedAt: string;
   source: "ai" | "offline";
   ideas: IdeaItem[];
+  /** True, gdy przyszło mniej pomysłów niż o nie proszono (bank wyczerpany lub filtr powtórek). */
+  exhausted?: boolean;
+  notice?: string;
 }
 
 // ===== Deconstruct Viral (analiza rynku z linków) =====

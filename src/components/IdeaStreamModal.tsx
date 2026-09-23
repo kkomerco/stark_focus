@@ -47,7 +47,7 @@ export const IdeaStreamModal: React.FC<IdeaStreamModalProps> = ({
   onSendToReel,
   onSendToPost,
 }) => {
-  const { ideas, loading, error, generateIdeas, clearHistory, usedCount } = stream;
+  const { ideas, loading, error, notice, generateIdeas, clearHistory, usedCount } = stream;
   const [copiedId, setCopiedId] = React.useState<string | null>(null);
 
   React.useEffect(() => {
@@ -121,6 +121,13 @@ export const IdeaStreamModal: React.FC<IdeaStreamModalProps> = ({
           {!loading && error && (
             <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-xs font-mono text-red-300">
               {error}
+            </div>
+          )}
+
+          {/* Bank potrafi się wyczerpać — pokazujemy to zamiast udawać pełną partię. */}
+          {!loading && !error && notice && (
+            <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg text-xs font-mono text-amber-300">
+              {notice}
             </div>
           )}
 
