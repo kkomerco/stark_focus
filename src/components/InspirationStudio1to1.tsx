@@ -883,8 +883,8 @@ Zwróć WYŁĄCZNIE czysty JSON:
       <div className="space-y-2">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <label className="text-xs font-mono font-bold uppercase text-white flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-white" /> GENERATOR POSTA ({dimensions.width}×
-            {dimensions.height} PX)
+            <Sparkles className="w-4 h-4 text-white" />
+            GENERATOR POSTA ({dimensions.width}×{dimensions.height} PX)
           </label>
           <div className="flex items-center gap-2">
             <span className="text-[10px] font-mono text-neutral-400">
@@ -951,16 +951,8 @@ Zwróć WYŁĄCZNIE czysty JSON:
           ))}
         </div>
 
-        {/* Wymiar kadru - ZABLOKOWANY NA 9:16 zgodnie z wytycznymi */}
+        {/* Wymiar kadru jest stały — mówi go podpis nad podglądem. */}
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 bg-[#121212] px-3 py-1.5 rounded-lg border border-white/15">
-            <span className="text-[9px] font-mono text-neutral-400 uppercase">Wymiary:</span>
-            <span className="text-[11px] font-mono font-black text-amber-300">
-              9:16 (1080×1920 PX)
-            </span>
-          </div>
-
-          {/* Przycisk Generatora Masowego w pasku */}
           <button
             type="button"
             onClick={() => {
@@ -969,11 +961,11 @@ Zwróć WYŁĄCZNIE czysty JSON:
                 handleGenerateBatch();
               }
             }}
-            className="px-3 py-1.5 rounded-lg text-xs font-mono font-bold uppercase transition-all bg-[#141414] hover:bg-white text-amber-400 hover:text-black border border-amber-400/30 hover:border-white flex items-center gap-1.5 cursor-pointer shrink-0 shadow-sm"
-            title="Generuj serię postów z różnorodnymi ideami (Wysoka wariancja)"
+            className="px-3 py-1.5 rounded-lg text-xs font-mono font-bold uppercase transition-all bg-[#141414] hover:bg-white text-neutral-300 hover:text-black border border-white/10 hover:border-white flex items-center gap-1.5 cursor-pointer shrink-0"
+            title="Generuj serię postów z różnorodnymi ideami (wysoka wariancja)"
           >
             <Sparkles className="w-3.5 h-3.5" />
-            <span>⚡ Seria Postów (Batch)</span>
+            <span>Seria postów</span>
           </button>
         </div>
       </div>
@@ -1017,32 +1009,16 @@ Zwróć WYŁĄCZNIE czysty JSON:
             </button>
           </div>
 
-          {/* Przycisk Generatora Masowego Postów */}
-          <button
-            type="button"
-            onClick={() => {
-              setIsBatchModalOpen(true);
-              if (batchPosts.length === 0) {
-                handleGenerateBatch();
-              }
-            }}
-            className="w-full max-w-[320px] py-2.5 px-3 rounded-lg bg-[#141414] hover:bg-white hover:text-black text-amber-400 border border-amber-400/30 hover:border-white text-xs font-mono font-bold uppercase flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md group"
-            title="Wygeneruj od razu serię unikalnych postów z wysoką wariancją idei"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-amber-400 group-hover:text-black transition-colors" />
-            <span>⚡ Generator Masowy (Seria Postów)</span>
-          </button>
-
           {/* Przekaż treść do Rolki */}
           {onSendToReel && (
             <button
               type="button"
               onClick={handleSendCurrentToReel}
               className="w-full max-w-[320px] py-2 px-3 rounded-lg bg-[#141414] hover:bg-white hover:text-black text-neutral-300 border border-white/10 hover:border-white text-[11px] font-mono font-bold flex items-center justify-center gap-2 transition-all cursor-pointer"
-              title="Przekaż ten cytat do Automontażysty 9-sekundowych rolek"
+              title="Przekaż ten tekst do Automontażysty 9-sekundowych rolek"
             >
               <Film className="w-3.5 h-3.5" />
-              <span>🎬 Przekaż treść do Rolki (9s)</span>
+              <span>Przekaż do rolki (9s)</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
           )}
@@ -1303,7 +1279,7 @@ Zwróć WYŁĄCZNIE czysty JSON:
                 <div className="pt-2 space-y-1.5 border-t border-white/5">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-mono font-bold text-neutral-300 uppercase flex items-center gap-1.5">
-                      <span>👑</span> Hit Wirale: Prowokujące do myślenia (1-kliknięcie):
+                      <span></span>Hit Wirale: Prowokujące do myślenia (1-kliknięcie):
                     </span>
                     <span className="text-[9px] font-mono text-neutral-500">
                       Format dopasowany ({quoteStyleMode === "single" ? "1 zdanie" : "2 wersy"})
@@ -1469,7 +1445,8 @@ Zwróć WYŁĄCZNIE czysty JSON:
                         {label}
                       </span>
                       <span className="text-[9px] font-mono text-neutral-400 group-hover:text-white flex items-center gap-1 mt-0.5">
-                        <Upload className="w-2.5 h-2.5" /> Wgraj plik
+                        <Upload className="w-2.5 h-2.5" />
+                        Wgraj plik
                       </span>
                     </button>
                   ))}
@@ -1492,7 +1469,8 @@ Zwróć WYŁĄCZNIE czysty JSON:
                   onClick={handleAddTextLayer}
                   className="px-2 py-0.5 rounded bg-[#1A1A1A] hover:bg-white hover:text-black text-neutral-300 text-[10px] font-mono font-bold border border-white/10 transition-all flex items-center gap-1 cursor-pointer"
                 >
-                  <Plus className="w-3 h-3" /> Dodaj wers
+                  <Plus className="w-3 h-3" />
+                  Dodaj wers
                 </button>
               </div>
 
@@ -1556,7 +1534,8 @@ Zwróć WYŁĄCZNIE czysty JSON:
           <div className="flex items-center justify-between pt-1">
             {savedSuccess ? (
               <span className="text-xs font-mono text-emerald-400 font-bold flex items-center gap-1">
-                <CheckCircle2 className="w-4 h-4" /> Skopiowano opis do schowka!
+                <CheckCircle2 className="w-4 h-4" />
+                Skopiowano opis do schowka!
               </span>
             ) : (
               <div />
@@ -1566,7 +1545,8 @@ Zwróć WYŁĄCZNIE czysty JSON:
               onClick={handleSaveToPipeline}
               className="px-5 py-2.5 bg-white hover:bg-neutral-200 text-black font-mono font-black text-xs uppercase tracking-wider rounded-lg transition-all flex items-center gap-2 cursor-pointer shadow-lg"
             >
-              <Copy className="w-4 h-4" /> Kopiuj Opis i Zapisz Post
+              <Copy className="w-4 h-4" />
+              Kopiuj Opis i Zapisz Post
             </button>
           </div>
         </div>
@@ -1579,7 +1559,7 @@ Zwróć WYŁĄCZNIE czysty JSON:
             {/* Modal Header */}
             <div className="p-4 sm:p-5 border-b border-white/10 flex items-center justify-between bg-[#111111]">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-amber-400/10 border border-amber-400/30 text-amber-400">
+                <div className="p-2 rounded-lg bg-rose-400/10 border border-rose-400/30 text-rose-400">
                   <Sparkles className="w-5 h-5" />
                 </div>
                 <div>
@@ -1646,7 +1626,7 @@ Zwróć WYŁĄCZNIE czysty JSON:
                     type="button"
                     onClick={handleDownloadBatchZip}
                     disabled={batchDownloading}
-                    className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-mono font-black text-xs uppercase rounded-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 shadow-md"
+                    className="px-4 py-2 bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-400 hover:to-rose-500 text-black font-mono font-black text-xs uppercase rounded-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 shadow-md"
                     title="Pobierz wszystkie wygenerowane posty jako archiwum ZIP"
                   >
                     {batchDownloading ? (
@@ -1698,7 +1678,7 @@ Zwróć WYŁĄCZNIE czysty JSON:
                     >
                       <div className="space-y-2.5">
                         <div className="flex items-center justify-between gap-2">
-                          <span className="px-2 py-0.5 rounded bg-white/10 text-amber-300 border border-white/15 text-[10px] font-mono font-bold uppercase tracking-wider">
+                          <span className="px-2 py-0.5 rounded bg-white/10 text-rose-300 border border-white/15 text-[10px] font-mono font-bold uppercase tracking-wider">
                             {item.pillar}
                           </span>
                           <span className="text-[10px] font-mono text-neutral-500">#{idx + 1}</span>

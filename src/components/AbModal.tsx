@@ -195,7 +195,7 @@ export const AbModal: React.FC<AbModalProps> = ({
       <div className={`w-full max-w-2xl max-h-[88vh] flex flex-col ${PANEL} p-5 space-y-4`}>
         <div className="flex items-center justify-between pb-3 border-b border-[#2C354B]">
           <div className="flex items-center gap-2">
-            <Repeat className="w-4 h-4 text-amber-400" />
+            <Repeat className="w-4 h-4 text-rose-400" />
             <h3 className="text-sm font-mono font-black uppercase tracking-wider text-white">
               Eksperyment A/B
             </h3>
@@ -222,7 +222,7 @@ export const AbModal: React.FC<AbModalProps> = ({
           type="button"
           onClick={startExperiment}
           disabled={loading}
-          className="w-full py-2 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-xs font-mono font-bold text-amber-300 uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+          className="w-full py-2 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-xs font-mono font-bold text-rose-300 uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
         >
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Repeat className="w-4 h-4" />}
           Generuj warianty A i B
@@ -250,7 +250,7 @@ export const AbModal: React.FC<AbModalProps> = ({
                   <span className="text-[9px] font-mono text-slate-500">{textOf(v.theme)}</span>
                 </div>
                 <p className="text-sm font-mono font-bold text-white">{hook}</p>
-                <p className="text-[10px] font-mono text-zinc-200">⚡ {textOf(v.angle)}</p>
+                <p className="text-[10px] font-mono text-zinc-200">{textOf(v.angle)}</p>
                 <div className="space-y-0.5 pl-2 border-l border-[#2C354B]">
                   {phrases.map((p, i) => (
                     <p key={i} className="text-[10px] font-mono text-slate-400">
@@ -264,7 +264,8 @@ export const AbModal: React.FC<AbModalProps> = ({
                     onClick={() => onSendToReel?.(reelFromVariant(v))}
                     className="py-1 px-2 rounded bg-white/10 hover:bg-white/20 text-[10px] font-mono font-bold text-white flex items-center gap-1 cursor-pointer"
                   >
-                    <Film className="w-3 h-3" /> Do studia rolek
+                    <Film className="w-3 h-3" />
+                    Do studia rolek
                   </button>
                 </div>
               </div>
@@ -275,7 +276,7 @@ export const AbModal: React.FC<AbModalProps> = ({
         {variants.length >= 2 && (
           <div className="p-3 bg-[#141824] border border-[#2C354B] rounded-lg space-y-2">
             <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500">
-              📊 Wyniki (wpisz po publikacji obu wariantów)
+              Wyniki (wpisz po publikacji obu wariantów)
             </h4>
             <div className="space-y-1.5 text-[10px] font-mono">
               {results.map((r, idx) => (
@@ -341,14 +342,15 @@ export const AbModal: React.FC<AbModalProps> = ({
         )}
 
         {conclusion && (
-          <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg space-y-2">
-            <p className="text-[10px] font-mono text-amber-300 flex items-center gap-2">
-              <TrendingUp className="w-3 h-3" /> Wygrał wariant <strong>{conclusion.winner}</strong>
+          <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-lg space-y-2">
+            <p className="text-[10px] font-mono text-rose-300 flex items-center gap-2">
+              <TrendingUp className="w-3 h-3" />
+              Wygrał wariant <strong>{conclusion.winner}</strong>
             </p>
             <p className="text-[11px] font-mono text-slate-300">{conclusion.lesson}</p>
             <p className="text-[9px] font-mono text-slate-500">
               W kolejnych generacjach stosuj więcej tego typu hooków.
-              {saved && " ✅ Wzorzec zapisany do pętli uczenia."}
+              {saved && "Wzorzec zapisany do pętli uczenia."}
             </p>
             {onSendToReel && winnerVariant && (
               <button

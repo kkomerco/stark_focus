@@ -703,7 +703,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
       const totalDuration = duration;
       const zoomProgress = Math.min(1, Math.max(0, timeSec / totalDuration));
       const isDynamicCut = reelFormat === "dynamic_broll_cut" && timeSec >= totalDuration * 0.48;
-      // Subtle cinematic Ken Burns zoom (1.00x -> 1.05x, or cut to 1.09x on second shot)
+      // Subtle cinematic Ken Burns zoom (1.00x ->1.05x, or cut to 1.09x on second shot)
       const zoomScale = isDynamicCut
         ? 1.09 + 0.03 * ((timeSec - totalDuration * 0.48) / (totalDuration * 0.52))
         : 1.0 + 0.04 * zoomProgress;
@@ -1035,7 +1035,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
         ctx.fillStyle = "#F87171";
         ctx.font = "bold 16px monospace";
         ctx.textAlign = "center";
-        ctx.fillText("⚠️ GÓRNY PASEK TIKTOK (STATUS / TABS)", width / 2, 110);
+        ctx.fillText("GÓRNY PASEK TIKTOK (STATUS / TABS)", width / 2, 110);
 
         // Right Action Icons
         ctx.fillStyle = "rgba(239, 68, 68, 0.10)";
@@ -1049,7 +1049,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
         ctx.moveTo(0, 1560);
         ctx.lineTo(width, 1560);
         ctx.stroke();
-        ctx.fillText("⚠️ DOLNA STREFA TIKTOK (OPIS, DŹWIĘK, PROFIL)", width / 2, 1710);
+        ctx.fillText("DOLNA STREFA TIKTOK (OPIS, DŹWIĘK, PROFIL)", width / 2, 1710);
         ctx.restore();
       }
     },
@@ -1309,14 +1309,14 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                 <span
                   className={`ml-0.5 pl-1.5 border-l border-white/20 text-[9px] ${
                     activeTimeline[currentPhraseIndex]?.isClimax && pacingMode === "climax_hold"
-                      ? "text-amber-300 font-black"
+                      ? "text-rose-300 font-black"
                       : "text-neutral-300"
                   }`}
                 >
                   F{currentPhraseIndex + 1}/{phrases.length}
                   {activeTimeline[currentPhraseIndex]?.isClimax &&
                     pacingMode === "climax_hold" &&
-                    " ⭐"}
+                    " "}
                 </span>
               )}
             </div>
@@ -1337,11 +1337,13 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
               >
                 {isPlaying ? (
                   <>
-                    <Pause className="w-3.5 h-3.5 fill-current" /> Pauza
+                    <Pause className="w-3.5 h-3.5 fill-current" />
+                    Pauza
                   </>
                 ) : (
                   <>
-                    <Play className="w-3.5 h-3.5 fill-current" /> Odtwórz
+                    <Play className="w-3.5 h-3.5 fill-current" />
+                    Odtwórz
                   </>
                 )}
               </button>
@@ -1393,7 +1395,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                           isCurrentSeg
                             ? "bg-white shadow-[0_0_8px_rgba(255,255,255,0.8)]"
                             : seg.isClimax && pacingMode === "climax_hold"
-                              ? "bg-amber-400/40"
+                              ? "bg-rose-400/40"
                               : "bg-white/20"
                         }`}
                       />
@@ -1418,12 +1420,12 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                   <span className="px-2 py-0.5 rounded bg-white text-black text-[9px] font-mono font-black uppercase tracking-wider">
                     {duration}.0s •{" "}
                     {reelFormat === "viral_loop_6s"
-                      ? "👑 Pętla 200% Retencji"
+                      ? "Pętla 200% Retencji"
                       : reelFormat === "hook_payoff_5s"
-                        ? "⚡ Wstrząs & Puenta"
+                        ? "Wstrząs & Puenta"
                         : reelFormat === "dynamic_broll_cut"
-                          ? "🎬 Cięcie B-Roll"
-                          : "🏛️ 3 Fazy"}
+                          ? "Cięcie B-Roll"
+                          : "3 Fazy"}
                   </span>
                 </div>
                 <h3 className="text-sm font-black text-white font-mono uppercase tracking-wider flex items-center gap-1.5 mt-0.5">
@@ -1445,7 +1447,8 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                   </>
                 ) : (
                   <>
-                    <Sparkles className="w-3.5 h-3.5" />⚡ Generuj rolkę AI
+                    <Sparkles className="w-3.5 h-3.5" />
+                    Generuj rolkę AI
                   </>
                 )}
               </button>
@@ -1457,28 +1460,28 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                 {
                   id: "viral_loop_6s" as ViralReelFormat,
                   dur: 6 as ReelDuration,
-                  name: "👑 Pętla 6s",
+                  name: "Pętla 6s",
                   badge: "200%+ Retencji",
                   desc: "1 Zdanie w pętli",
                 },
                 {
                   id: "hook_payoff_5s" as ViralReelFormat,
                   dur: 5 as ReelDuration,
-                  name: "⚡ Wstrząs 5s",
+                  name: "Wstrząs 5s",
                   badge: "2 Szybkie Takty",
                   desc: "Hook (0-2s) ➔ Puenta (2-5s)",
                 },
                 {
                   id: "dynamic_broll_cut" as ViralReelFormat,
                   dur: 6 as ReelDuration,
-                  name: "🎬 B-Roll Cut",
+                  name: "B-Roll Cut",
                   badge: "Cięcie Kamery",
                   desc: "Zmiana kąta przy puencie",
                 },
                 {
                   id: "three_phases" as ViralReelFormat,
                   dur: 9 as ReelDuration,
-                  name: "🏛️ 3 Fazy 9s",
+                  name: "3 Fazy 9s",
                   badge: "Klasyczny",
                   desc: "Hook ➔ Prawda ➔ Puenta",
                 },
@@ -1535,16 +1538,16 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
               })}
             </div>
 
-            {/* ⚡ Szybka Baza Wirali 1-Kliknięcie (Viral Vault) */}
+            {/*  Szybka Baza Wirali 1-Kliknięcie (Viral Vault) */}
             <div className="pt-2 border-t border-white/5 space-y-1.5">
               <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-neutral-400 flex items-center gap-1.5">
-                <Flame className="w-3 h-3 text-amber-400" />
+                <Flame className="w-3 h-3 text-rose-400" />
                 Baza Wirali 1-Kliknięcie (Przetestowane cytaty do odbiorcy):
               </span>
               <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
                 {[
                   {
-                    label: "👑 Walk like a king",
+                    label: "Walk like a king",
                     text: "Walk like a king, or walk like you don't care who the king is.",
                     caption:
                       "WALK LIKE A KING.\n\nOr walk like you don't care who the king is.\n\n3 rules of sovereign posture:\n1. Never seek validation from spectators.\n2. Hold your standards in absolute silence.\n3. Reclaim your inner territory.\n\nSave this reminder. Follow @stark_focus.",
@@ -1552,7 +1555,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                     duration: 6 as ReelDuration,
                   },
                   {
-                    label: "👑 No longer need them",
+                    label: "No longer need them",
                     text: "Notice how people treat you when you no longer need them.",
                     caption:
                       "THE LITMUS TEST.\n\nNotice how people treat you when you no longer need them.\n\nTheir mask drops the moment leverage vanishes.\nObserve everything. Say nothing.\n\nSave this reminder. Follow @stark_focus.",
@@ -1560,7 +1563,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                     duration: 6 as ReelDuration,
                   },
                   {
-                    label: "👑 Uninspired life",
+                    label: "Uninspired life",
                     text: "You are not tired. You are uninspired by a life you didn't choose.",
                     caption:
                       "WAKE UP.\n\nYou are not tired. You are uninspired by a life you didn't choose.\n\nExhaustion comes from living someone else's script. Energy returns when you cut the noise.\n\nSave this. Follow @stark_focus.",
@@ -1568,7 +1571,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                     duration: 6 as ReelDuration,
                   },
                   {
-                    label: "👑 The version of you",
+                    label: "The version of you",
                     text: "The version of you they remember no longer exists.",
                     caption:
                       "TOTAL EVOLUTION.\n\nThe version of you they remember no longer exists.\n\nNever apologize for outgrowing rooms you used to fit in.\n\nSave this reel. Follow @stark_focus.",
@@ -1576,7 +1579,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                     duration: 6 as ReelDuration,
                   },
                   {
-                    label: "👑 Chaos vs Peace",
+                    label: "Chaos vs Peace",
                     text: "If you don't build your peace, someone will sell you their chaos.",
                     caption:
                       "PROTECT YOUR CITADEL.\n\nIf you don't build your peace, someone will sell you their chaos.\n\nYour attention is sacred. Guard it ruthlessly.\n\nSave this. Follow @stark_focus.",
@@ -1584,7 +1587,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                     duration: 6 as ReelDuration,
                   },
                   {
-                    label: "👑 Misunderstood",
+                    label: "Misunderstood",
                     text: "Stop explaining yourself to people committed to misunderstand you.",
                     caption:
                       "SOVEREIGN SILENCE.\n\nStop explaining yourself to people committed to misunderstand you.\n\nSilence cannot be misquoted.\n\nSave this reminder. Follow @stark_focus.",
@@ -1592,7 +1595,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                     duration: 6 as ReelDuration,
                   },
                   {
-                    label: "⚡ Disappeared (2 takty)",
+                    label: "Disappeared (2 takty)",
                     phrases: [
                       "They think you disappeared.",
                       "You just stopped feeding their noise.",
@@ -1603,7 +1606,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                     duration: 5 as ReelDuration,
                   },
                   {
-                    label: "⚡ Quiet Plotting (2 takty)",
+                    label: "Quiet Plotting (2 takty)",
                     phrases: [
                       "They think you're quiet.",
                       "You're just plotting in a room they have no access to.",
@@ -1720,15 +1723,13 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                 `Ultra-minimalist dark stoic composition, ${bgInfo.sceneName}, cinematic moody lighting, raw texture, 8k vertical 9:16 format, no text, no watermark`;
 
               return (
-                <div className="p-3 rounded-xl bg-gradient-to-br from-[#181818] via-[#141414] to-[#0E0E0E] border border-amber-500/30 space-y-2 shadow-lg">
+                <div className="p-3 rounded-xl bg-gradient-to-br from-[#181818] via-[#141414] to-[#0E0E0E] border border-rose-500/30 space-y-2 shadow-lg">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
-                      <span className="p-1 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 text-xs">
-                        🎯
-                      </span>
+                      <span className="p-1 rounded bg-rose-500/10 text-rose-300 border border-rose-500/20 text-xs"></span>
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-mono font-bold uppercase text-amber-400 tracking-wider">
+                          <span className="text-[10px] font-mono font-bold uppercase text-rose-400 tracking-wider">
                             Sugerowane ujęcie w tle:
                           </span>
                           <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-white/5 border border-white/10 text-neutral-400">
@@ -1753,14 +1754,14 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                             suggestedTheme: randScene.theme,
                           }));
                           setSelectedTheme(randScene.theme);
-                          setToastMessage(`🎲 Wylosowano nowe ujęcie: ${randScene.name}`);
+                          setToastMessage(` Wylosowano nowe ujęcie: ${randScene.name}`);
                           setTimeout(() => setToastMessage(null), 2500);
                         }}
                         className="px-2 py-1 rounded bg-[#202020] hover:bg-white hover:text-black text-neutral-300 text-[10px] font-mono font-bold border border-white/10 transition-all flex items-center gap-1 cursor-pointer"
                         title="Wylosuj inne z ponad 100 unikalnych ujęć"
                       >
-                        <Sparkles className="w-3 h-3 text-amber-400" />
-                        <span>🎲 Losuj inne (100+)</span>
+                        <Sparkles className="w-3 h-3 text-rose-400" />
+                        <span>Losuj inne (100+)</span>
                       </button>
 
                       <button
@@ -1770,7 +1771,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                           setToastMessage("✓ Skopiowano prompt 9:16 do Bing/Midjourney!");
                           setTimeout(() => setToastMessage(null), 2500);
                         }}
-                        className="px-2.5 py-1 rounded bg-[#202020] hover:bg-amber-400 hover:text-black text-amber-200 text-[10px] font-mono font-bold border border-amber-500/30 hover:border-amber-400 transition-all flex items-center gap-1.5 cursor-pointer"
+                        className="px-2.5 py-1 rounded bg-[#202020] hover:bg-rose-400 hover:text-black text-rose-200 text-[10px] font-mono font-bold border border-rose-500/30 hover:border-rose-400 transition-all flex items-center gap-1.5 cursor-pointer"
                         title="Skopiuj gotowy prompt do wygenerowania tego tła w Bing Image Creator / Midjourney"
                       >
                         <Copy className="w-3 h-3" />
@@ -1780,7 +1781,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                   </div>
 
                   <p className="text-[11px] text-neutral-300 font-sans leading-relaxed">
-                    💡 <strong>Dlaczego to pasuje:</strong> {bgInfo.rationale}
+                    <strong>Dlaczego to pasuje:</strong> {bgInfo.rationale}
                   </p>
                 </div>
               );
@@ -1821,7 +1822,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                 <div className="flex items-center gap-1.5">
                   {[
                     { val: 5 as ReelDuration, label: "5s (Wstrząs)" },
-                    { val: 6 as ReelDuration, label: "6s (⭐ Pętla 200%)" },
+                    { val: 6 as ReelDuration, label: "6s ( Pętla 200%)" },
                     { val: 7 as ReelDuration, label: "7s" },
                     { val: 9 as ReelDuration, label: "9s (3 Fazy)" },
                   ].map((d) => (
@@ -1857,10 +1858,10 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                 </label>
                 <span className="text-[9px] font-mono text-emerald-400 block mt-0.5">
                   {phrases.length === 1
-                    ? "👑 1 zdanie w pętli 6s — widz czyta 2 razy, co daje 200% watch-time"
+                    ? "1 zdanie w pętli 6s — widz czyta 2 razy, co daje 200% watch-time"
                     : phrases.length === 2
-                      ? "⚡ 2 szybkie takty: Hook (0-2s) ➔ Puenta (2-5s)"
-                      : "🏛️ Klasyczna narracja: Hook ➔ Zasada ➔ Puenta"}
+                      ? "2 szybkie takty: Hook (0-2s) ➔ Puenta (2-5s)"
+                      : "Klasyczna narracja: Hook ➔ Zasada ➔ Puenta"}
                 </span>
               </div>
 
@@ -1919,7 +1920,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                             currentPhraseIndex === idx
                               ? "bg-white text-black font-bold shadow-sm"
                               : activeTimeline[idx].isClimax && pacingMode === "climax_hold"
-                                ? "bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold"
+                                ? "bg-rose-500/20 text-rose-300 border border-rose-500/30 font-bold"
                                 : "bg-[#181818] text-neutral-400 border border-white/5"
                           }`}
                         >
@@ -1929,7 +1930,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                             {activeTimeline[idx].duration.toFixed(1)}s)
                           </span>
                           {activeTimeline[idx].isClimax && pacingMode === "climax_hold" && (
-                            <span className="text-amber-300 font-bold">⭐ Zatrzymanie</span>
+                            <span className="text-rose-300 font-bold">Zatrzymanie</span>
                           )}
                         </span>
                       )}
@@ -1940,7 +1941,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                       className="text-neutral-400 hover:text-white transition-colors cursor-pointer text-[10px] font-mono font-bold"
                       title="Rozdziel na 2 równe linie bez wiszących spójników"
                     >
-                      ⚖️ Zbalansuj linie
+                      Zbalansuj linie
                     </button>
                   </div>
                   <textarea
@@ -2042,10 +2043,10 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
 
               {/* captureStream(30) daje sam obraz — plik nie ma ścieżki dźwiękowej. */}
               <span
-                className="text-[10px] text-amber-300"
+                className="text-[10px] text-rose-300"
                 title="Nagrywarka dostaje wyłącznie strumień z canvasu, więc w pliku nie ma audio."
               >
-                🔇 bez dźwięku — dodaj go w aplikacji social media
+                bez dźwięku — dodaj go w aplikacji social media
               </span>
 
               {isExporting && (
@@ -2064,7 +2065,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                   title="Przekaż treść i hook do Generatora Posta (JPG/PNG)"
                 >
                   <Sparkles className="w-3.5 h-3.5" />
-                  <span>📸 Do Posta</span>
+                  <span>Do Posta</span>
                 </button>
               )}
 
@@ -2072,11 +2073,11 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                 type="button"
                 onClick={handleExportZipBundle}
                 disabled={isExporting || isExportingZip}
-                className="px-3 py-2 rounded-lg bg-[#181818] hover:bg-amber-400 hover:text-black text-amber-300 border border-amber-500/30 text-xs font-mono font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all"
+                className="px-3 py-2 rounded-lg bg-[#181818] hover:bg-rose-400 hover:text-black text-rose-300 border border-rose-500/30 text-xs font-mono font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all"
                 title="Pobierz ZIP: 2 klatki PNG (hook + puenta) i plik TXT z opisem posta i hashtagami. Bez pliku wideo — rolkę nagrywa osobny przycisk."
               >
                 <Package className="w-3.5 h-3.5" />
-                {isExportingZip ? "Pakowanie..." : "📦 Klatki + TXT (ZIP)"}
+                {isExportingZip ? "Pakowanie..." : "Klatki + TXT (ZIP)"}
               </button>
 
               <button
@@ -2100,7 +2101,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                 <Film className="w-4 h-4" />
                 {isExporting
                   ? `Eksportowanie (${exportProgress}%)...`
-                  : `🎬 Pobierz Rolkę (${duration}s • 30 FPS • bez dźwięku)`}
+                  : ` Pobierz Rolkę (${duration}s • 30 FPS • bez dźwięku)`}
               </button>
             </div>
           </div>

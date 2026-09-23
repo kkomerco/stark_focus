@@ -83,7 +83,7 @@ export const DeconstructViralModal: React.FC<DeconstructViralModalProps> = ({
               Analiza Virala
             </h3>
             <span className="text-[9px] font-mono px-2 py-0.5 rounded font-bold bg-zinc-500/15 text-zinc-300 border border-zinc-500/30">
-              📊 Dekonstrukcja + warianty
+              Dekonstrukcja + warianty
             </span>
           </div>
           <button
@@ -139,7 +139,7 @@ export const DeconstructViralModal: React.FC<DeconstructViralModalProps> = ({
             <>
               <section className="p-3 bg-[#141824] border border-[#2C354B] rounded-lg space-y-2">
                 <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500">
-                  🔍 Oryginał ({textOf(result.platform)})
+                  Oryginał ({textOf(result.platform)})
                 </h4>
                 <p className="text-xs font-mono text-slate-300 break-all">
                   {textOf(original?.url)}
@@ -150,29 +150,29 @@ export const DeconstructViralModal: React.FC<DeconstructViralModalProps> = ({
                   </p>
                 )}
                 <div className="flex flex-wrap gap-2 text-[10px] font-mono text-slate-500">
-                  {textOf(original?.author) && <span>👤 {textOf(original?.author)}</span>}
-                  {textOf(original?.audioTrack) && <span>🎵 {textOf(original?.audioTrack)}</span>}
+                  {textOf(original?.author) && <span>{textOf(original?.author)}</span>}
+                  {textOf(original?.audioTrack) && <span>{textOf(original?.audioTrack)}</span>}
                   <span
                     className={
                       result.source === "ai"
                         ? "text-emerald-400"
                         : result.source === "error"
                           ? "text-red-400"
-                          : "text-amber-400"
+                          : "text-rose-400"
                     }
                   >
                     {result.source === "ai"
-                      ? "🤖 GEMINI"
+                      ? "GEMINI"
                       : result.source === "error"
-                        ? "⚠ BŁĄD ANALIZY"
-                        : "📴 OFFLINE"}
+                        ? "BŁĄD ANALIZY"
+                        : "OFFLINE"}
                   </span>
                 </div>
               </section>
 
               <section className="p-3 bg-[#141824] border border-[#2C354B] rounded-lg space-y-2">
                 <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500">
-                  🧩 Dekonstrukcja wzorca
+                  Dekonstrukcja wzorca
                 </h4>
                 <div className="space-y-1.5 text-[11px] font-mono">
                   <p>
@@ -181,7 +181,7 @@ export const DeconstructViralModal: React.FC<DeconstructViralModalProps> = ({
                   </p>
                   <p>
                     <span className="text-slate-500">Hook:</span>{" "}
-                    <span className="text-amber-300">{textOf(deconstruction?.hookText)}</span>
+                    <span className="text-rose-300">{textOf(deconstruction?.hookText)}</span>
                   </p>
                   <p>
                     <span className="text-slate-500">Struktura:</span>{" "}
@@ -195,23 +195,23 @@ export const DeconstructViralModal: React.FC<DeconstructViralModalProps> = ({
                         key={i}
                         className="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-300 border border-purple-500/25"
                       >
-                        💥 {t}
+                        {t}
                       </span>
                     ))}
                   </div>
                   <p className="text-slate-300 pt-1">{textOf(deconstruction?.whyItWorks)}</p>
                   {textOf(deconstruction?.visualStyle) && (
-                    <p className="text-slate-500">🎨 {textOf(deconstruction?.visualStyle)}</p>
+                    <p className="text-slate-500">{textOf(deconstruction?.visualStyle)}</p>
                   )}
                   {textOf(deconstruction?.audioStrategy) && (
-                    <p className="text-slate-500">🎵 {textOf(deconstruction?.audioStrategy)}</p>
+                    <p className="text-slate-500">{textOf(deconstruction?.audioStrategy)}</p>
                   )}
                 </div>
               </section>
 
               <section className="space-y-2">
                 <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500">
-                  ⚔️ Twoje warianty @stark_focus
+                  Twoje warianty @stark_focus
                 </h4>
                 {variants.map((v) => {
                   const hook = textOf(v.hook);
@@ -228,7 +228,7 @@ export const DeconstructViralModal: React.FC<DeconstructViralModalProps> = ({
                           {v.viralityScore}%
                         </span>
                       </div>
-                      <p className="text-[10px] font-mono text-zinc-200">⚡ {textOf(v.angle)}</p>
+                      <p className="text-[10px] font-mono text-zinc-200">{textOf(v.angle)}</p>
                       <div className="space-y-0.5 pl-2 border-l border-[#2C354B]">
                         {phrases.map((p, i) => (
                           <p key={i} className="text-[10px] font-mono text-slate-400">

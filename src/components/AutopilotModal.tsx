@@ -112,7 +112,7 @@ export const AutopilotModal: React.FC<AutopilotModalProps> = ({
           `${p.day} (${DAY_PL[p.dayIndex]}) — ${p.category}\n  ${p.plan || ""}\n  Hook dnia: ${p.hookOfDay || p.reels[0]?.hook || ""}`,
       ),
       "",
-      "STRUKTURA: <DZIEN>/<GODZINA_TRESC>/  ->  12-00_ROLKA-1 | 14-00_KARUZELA | 15-00_ROLKA-2 | 18-00_POST-1-1",
+      "STRUKTURA: <DZIEN>/<GODZINA_TRESC>/  ->12-00_ROLKA-1 | 14-00_KARUZELA | 15-00_ROLKA-2 | 18-00_POST-1-1",
       "Każdy folder: HOOK.txt, FRAZY.txt, OPIS.txt, HASHTAGI.txt, TLO-PROMPT.txt, B-ROLL.txt",
       "Wgraj do odpowiedniego studia (Post / Rolka / Karuzela).",
     ].join("\n");
@@ -329,7 +329,8 @@ export const AutopilotModal: React.FC<AutopilotModalProps> = ({
         {done && (
           <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg space-y-2">
             <p className="text-xs font-mono text-emerald-300 flex items-center gap-2">
-              <Check className="w-4 h-4" /> ZIP pobrany
+              <Check className="w-4 h-4" />
+              ZIP pobrany
               {addToPlanner && " + zadania w plannerze"}!
             </p>
             <div className="grid grid-cols-7 gap-1">

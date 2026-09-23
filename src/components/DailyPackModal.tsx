@@ -106,7 +106,7 @@ export const DailyPackModal: React.FC<DailyPackModalProps> = ({
         {/* Nagłówek */}
         <div className="flex items-center justify-between pb-3 border-b border-[#2C354B]">
           <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-amber-400" />
+            <Sparkles className="w-4 h-4 text-rose-400" />
             <h3 className="text-sm font-mono font-black uppercase tracking-wider text-white">
               Paczka dnia
             </h3>
@@ -115,15 +115,15 @@ export const DailyPackModal: React.FC<DailyPackModalProps> = ({
                 className={`text-[9px] font-mono px-2 py-0.5 rounded font-bold ${
                   pack.source === "ai"
                     ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
-                    : "bg-amber-500/15 text-amber-400 border border-amber-500/30"
+                    : "bg-rose-500/15 text-rose-400 border border-rose-500/30"
                 }`}
               >
-                {pack.source === "ai" ? "🤖 GEMINI" : "📴 OFFLINE (bank lokalny)"}
+                {pack.source === "ai" ? "GEMINI" : "OFFLINE (bank lokalny)"}
               </span>
             )}
             {pack?.category && (
               <span className="text-[9px] font-mono px-2 py-0.5 rounded font-bold bg-purple-500/15 text-purple-400 border border-purple-500/30">
-                🎯 {pack.category}
+                {pack.category}
               </span>
             )}
           </div>
@@ -140,16 +140,18 @@ export const DailyPackModal: React.FC<DailyPackModalProps> = ({
                 className={`py-1.5 px-3 rounded text-[11px] font-mono font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer transition-all ${
                   scheduled
                     ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
-                    : "bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40"
+                    : "bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40"
                 }`}
               >
                 {scheduled ? (
                   <>
-                    <Check className="w-3 h-3" /> Zaplanowano
+                    <Check className="w-3 h-3" />
+                    Zaplanowano
                   </>
                 ) : (
                   <>
-                    <Calendar className="w-3 h-3" /> Zaplanuj publikację
+                    <Calendar className="w-3 h-3" />
+                    Zaplanuj publikację
                   </>
                 )}
               </button>
@@ -178,7 +180,7 @@ export const DailyPackModal: React.FC<DailyPackModalProps> = ({
           {loading && (
             <div className="flex items-center justify-center py-16">
               <div className="flex flex-col items-center gap-3">
-                <div className="w-6 h-6 border-2 border-[#2C354B] border-t-amber-400 rounded-full animate-spin" />
+                <div className="w-6 h-6 border-2 border-[#2C354B] border-t-rose-400 rounded-full animate-spin" />
                 <div className="text-[11px] font-mono text-slate-400 animate-pulse">
                   Składam paczkę dnia (rolki + karuzela + post)...
                 </div>
@@ -197,7 +199,7 @@ export const DailyPackModal: React.FC<DailyPackModalProps> = ({
               {/* Rolki */}
               <section className="space-y-2">
                 <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500">
-                  🎬 Rolki 9:16 ({reels.length})
+                  Rolki 9:16 ({reels.length})
                 </h4>
                 {reels.map((reel, idx) => {
                   const hook = textOf(reel.hook);
@@ -211,7 +213,7 @@ export const DailyPackModal: React.FC<DailyPackModalProps> = ({
                       className="p-3 bg-[#141824] border border-[#2C354B] rounded-lg space-y-2"
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <p className="text-xs font-mono font-black text-amber-300">"{hook}"</p>
+                        <p className="text-xs font-mono font-black text-rose-300">"{hook}"</p>
                         <div className="flex items-center gap-1.5 shrink-0">
                           <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-white/5 border border-[#2C354B] text-slate-400">
                             {textOf(reel.theme)}
@@ -273,7 +275,7 @@ export const DailyPackModal: React.FC<DailyPackModalProps> = ({
               {/* Karuzela */}
               <section className="space-y-2">
                 <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500">
-                  🖼️ Karuzela 4:5
+                  Karuzela 4:5
                 </h4>
                 <div className="p-3 bg-[#141824] border border-[#2C354B] rounded-lg space-y-2">
                   <p className="text-xs font-mono font-black text-purple-300">{carouselTitle}</p>
@@ -298,7 +300,7 @@ export const DailyPackModal: React.FC<DailyPackModalProps> = ({
               {/* Post 1:1 */}
               <section className="space-y-2">
                 <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500">
-                  🏛️ Post 1:1 + prompt tła
+                  Post 1:1 + prompt tła
                 </h4>
                 <div className="p-3 bg-[#141824] border border-[#2C354B] rounded-lg space-y-2">
                   <p className="text-xs font-mono font-black text-emerald-300">{postHeadline}</p>
@@ -338,24 +340,24 @@ export const DailyPackModal: React.FC<DailyPackModalProps> = ({
               {/* Podsumowanie paczki */}
               <section className="space-y-2 pt-2 border-t border-[#2C354B]">
                 <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500">
-                  📋 Harmonogram publikacji
+                  Harmonogram publikacji
                 </h4>
                 <div className="p-3 bg-[#141824] border border-[#2C354B] rounded-lg space-y-2">
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px] font-mono">
                     <div className="text-center p-2 bg-[#0F121C] rounded border border-[#2C354B]">
-                      <div className="text-amber-400 font-bold">12:00</div>
+                      <div className="text-rose-400 font-bold">12:00</div>
                       <div className="text-slate-400">Rolka 1</div>
                     </div>
                     <div className="text-center p-2 bg-[#0F121C] rounded border border-[#2C354B]">
-                      <div className="text-amber-400 font-bold">14:00</div>
+                      <div className="text-rose-400 font-bold">14:00</div>
                       <div className="text-slate-400">Karuzela</div>
                     </div>
                     <div className="text-center p-2 bg-[#0F121C] rounded border border-[#2C354B]">
-                      <div className="text-amber-400 font-bold">15:00</div>
+                      <div className="text-rose-400 font-bold">15:00</div>
                       <div className="text-slate-400">Rolka 2</div>
                     </div>
                     <div className="text-center p-2 bg-[#0F121C] rounded border border-[#2C354B]">
-                      <div className="text-amber-400 font-bold">18:00</div>
+                      <div className="text-rose-400 font-bold">18:00</div>
                       <div className="text-slate-400">Post 1:1</div>
                     </div>
                   </div>

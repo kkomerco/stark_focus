@@ -68,12 +68,12 @@ export const IdeaStreamModal: React.FC<IdeaStreamModalProps> = ({
       <div className={`w-full max-w-4xl max-h-[88vh] flex flex-col ${PANEL} p-5 space-y-4`}>
         <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-[#2C354B]">
           <div className="flex items-center gap-2">
-            <Lightbulb className="w-4 h-4 text-violet-400" />
+            <Lightbulb className="w-4 h-4 text-rose-400" />
             <h3 className="text-sm font-mono font-black uppercase tracking-wider text-white">
               Nieskończone Pomysły
             </h3>
-            <span className="text-[9px] font-mono px-2 py-0.5 rounded font-bold bg-violet-500/15 text-violet-400 border border-violet-500/30">
-              🧠 {usedCount} użytych
+            <span className="text-[9px] font-mono px-2 py-0.5 rounded font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30">
+              {usedCount} użytych
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -81,7 +81,7 @@ export const IdeaStreamModal: React.FC<IdeaStreamModalProps> = ({
               type="button"
               onClick={() => generateIdeas(5)}
               disabled={loading}
-              className="py-1.5 px-3 rounded bg-violet-500/20 hover:bg-violet-500/30 border border-violet-500/40 text-[11px] font-mono font-bold text-violet-300 uppercase tracking-wider flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              className="py-1.5 px-3 rounded bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-[11px] font-mono font-bold text-rose-300 uppercase tracking-wider flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
             >
               {loading ? (
                 <Loader2 className="w-3 h-3 animate-spin" />
@@ -111,7 +111,7 @@ export const IdeaStreamModal: React.FC<IdeaStreamModalProps> = ({
         <div className="flex-1 overflow-y-auto space-y-3 pr-1">
           {loading && (
             <div className="flex flex-col items-center gap-3 py-16">
-              <Loader2 className="w-7 h-7 animate-spin text-violet-400" />
+              <Loader2 className="w-7 h-7 animate-spin text-rose-400" />
               <p className="text-xs font-mono text-slate-400">
                 Generuję unikalne pomysły (unikam {usedCount} poprzednich)...
               </p>
@@ -126,7 +126,7 @@ export const IdeaStreamModal: React.FC<IdeaStreamModalProps> = ({
 
           {/* Bank potrafi się wyczerpać — pokazujemy to zamiast udawać pełną partię. */}
           {!loading && !error && notice && (
-            <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg text-xs font-mono text-amber-300">
+            <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-lg text-xs font-mono text-rose-300">
               {notice}
             </div>
           )}
@@ -153,20 +153,20 @@ export const IdeaStreamModal: React.FC<IdeaStreamModalProps> = ({
 
                   <div className="flex flex-wrap gap-1.5">
                     <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-300 border border-purple-500/25">
-                      🎯 {idea.category}
+                      {idea.category}
                     </span>
                     <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-zinc-500/10 text-zinc-300 border border-zinc-500/25">
-                      ⚡ {idea.archetype}
+                      {idea.archetype}
                     </span>
-                    <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/25">
-                      💥 {idea.emotionalTarget}
+                    <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-300 border border-rose-500/25">
+                      {idea.emotionalTarget}
                     </span>
                     {idea.similarity >= 0.45 ? (
                       <span
                         title={idea.similarTo ? `Najbliższy w historii: "${idea.similarTo}"` : ""}
                         className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-orange-500/15 text-orange-300 border border-orange-500/30"
                       >
-                        ⚠️ podobny {Math.round(idea.similarity * 100)}%
+                        podobny {Math.round(idea.similarity * 100)}%
                       </span>
                     ) : (
                       <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/25">

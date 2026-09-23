@@ -26,7 +26,7 @@ const PANEL = "bg-[#0F121C] border border-[#2C354B] rounded-xl";
 const ACTION_BTN =
   "py-1.5 px-3 rounded bg-[#141824] hover:bg-[#1E2638] border border-[#2C354B] text-[11px] font-mono font-bold text-slate-200 hover:text-white transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50";
 const REROLL_BTN =
-  "py-1.5 px-3 rounded bg-lime-500/15 hover:bg-lime-500/25 border border-lime-500/40 text-[11px] font-mono font-bold text-lime-300 uppercase tracking-wider flex items-center gap-1.5 cursor-pointer disabled:opacity-50";
+  "py-1.5 px-3 rounded bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/40 text-[11px] font-mono font-bold text-rose-300 uppercase tracking-wider flex items-center gap-1.5 cursor-pointer disabled:opacity-50";
 
 export const PromptLibraryModal: React.FC<PromptLibraryModalProps> = ({
   isOpen,
@@ -117,12 +117,12 @@ export const PromptLibraryModal: React.FC<PromptLibraryModalProps> = ({
       <div className={`w-full max-w-3xl max-h-[88vh] flex flex-col ${PANEL} p-5 space-y-4`}>
         <div className="flex items-center justify-between pb-3 border-b border-[#2C354B]">
           <div className="flex items-center gap-2">
-            <ImageIcon className="w-4 h-4 text-lime-400" />
+            <ImageIcon className="w-4 h-4 text-rose-400" />
             <h3 className="text-sm font-mono font-black uppercase tracking-wider text-white">
               Biblioteka Promptów
             </h3>
-            <span className="text-[9px] font-mono px-2 py-0.5 rounded font-bold bg-lime-500/15 text-lime-400 border border-lime-500/30">
-              🖼️ {library.length} zapisanych
+            <span className="text-[9px] font-mono px-2 py-0.5 rounded font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30">
+              {library.length} zapisanych
             </span>
           </div>
           <button
@@ -211,7 +211,7 @@ export const PromptLibraryModal: React.FC<PromptLibraryModalProps> = ({
                 <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-zinc-500/15 text-zinc-200 border border-zinc-500/40">
                   {item.source}
                 </span>
-                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/25">
+                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-300 border border-rose-500/25">
                   użyć: {item.uses}
                 </span>
                 <div className="flex-1" />

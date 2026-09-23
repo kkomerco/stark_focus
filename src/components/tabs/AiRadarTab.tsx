@@ -316,7 +316,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
       id: "post-" + Date.now() + "-" + Math.random().toString(36).substring(2, 6),
       title: post.sayingMain,
       platform: "Instagram",
-      format: "🎬 Rolka 7-Sekundowa (Short Reel)",
+      format: "Rolka 7-Sekundowa (Short Reel)",
       asset: "AI_BATCH_" + post.id,
       caption: post.caption,
       created_date: new Date().toISOString().split("T")[0],
@@ -340,7 +340,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
       id: "post-" + (Date.now() + idx),
       title: post.sayingMain,
       platform: "Instagram",
-      format: "🎬 Rolka 7-Sekundowa (Short Reel)",
+      format: "Rolka 7-Sekundowa (Short Reel)",
       asset: "AI_BATCH_" + post.id,
       caption: post.caption,
       created_date: new Date().toISOString().split("T")[0],
@@ -369,7 +369,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
       id: "post-" + Date.now(),
       title: trend.title,
       platform: "Instagram",
-      format: trend.suggested_format || "🎬 Rolka 7-Sekundowa (Short Reel)",
+      format: trend.suggested_format || "Rolka 7-Sekundowa (Short Reel)",
       asset: "AI_RADAR_" + trend.id,
       caption: `${primaryHook}\n\n${trend.core_message || ""}\n\nSave this reminder. Execute in silence.\n\n#stoicism #discipline #mindset #starkfocus`,
       created_date: new Date().toISOString().split("T")[0],
@@ -399,11 +399,13 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
               </h2>
               {aiStatus?.configured ? (
                 <span className="px-2 py-0.5 rounded-xs bg-[#10B981]/20 border border-[#10B981]/40 text-[#10B981] font-mono text-[10px] uppercase font-bold flex items-center gap-1">
-                  <ShieldCheck className="w-3 h-3" /> Silnik AI Aktywny
+                  <ShieldCheck className="w-3 h-3" />
+                  Silnik AI Aktywny
                 </span>
               ) : (
                 <span className="px-2 py-0.5 rounded-xs bg-[#F59E0B]/20 border border-[#F59E0B]/40 text-[#F59E0B] font-mono text-[10px] uppercase font-bold flex items-center gap-1">
-                  <AlertCircle className="w-3 h-3" /> Tryb Autonomiczny
+                  <AlertCircle className="w-3 h-3" />
+                  Tryb Autonomiczny
                 </span>
               )}
             </div>
@@ -566,7 +568,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-bold text-white uppercase font-mono tracking-wider flex items-center gap-2">
-                <Flame className="w-4 h-4 text-amber-400" />
+                <Flame className="w-4 h-4 text-rose-400" />
                 Matryca Sprawdzonych Formatów Wirali (Reels / TikTok Hooks)
               </h3>
               <span className="text-[10px] font-mono text-neutral-500">
@@ -582,7 +584,8 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                 >
                   <div className="flex items-center justify-between border-b border-[rgba(255,255,255,0.1)] pb-2">
                     <span className="text-xs font-mono font-bold text-white uppercase flex items-center gap-1.5">
-                      <span className="text-amber-400">⚡</span> {fmt.formatName}
+                      <span className="text-amber-400"></span>
+                      {fmt.formatName}
                     </span>
                     <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white/10 text-neutral-300">
                       Format STARK
@@ -608,7 +611,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                   </div>
 
                   <div className="text-[11px] font-mono text-neutral-400 italic">
-                    💡 {fmt.rationale}
+                    {fmt.rationale}
                   </div>
 
                   <div className="flex items-center gap-2 pt-1">
@@ -620,7 +623,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                       className="flex-1 py-1.5 px-2.5 rounded bg-white hover:bg-neutral-200 text-black text-xs font-mono font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                     >
                       <Sparkles className="w-3.5 h-3.5" />
-                      <span>📸 Do Posta</span>
+                      <span>Do Posta</span>
                     </button>
                     <button
                       onClick={() => {
@@ -630,7 +633,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                       className="flex-1 py-1.5 px-2.5 rounded bg-[#161616] hover:bg-white hover:text-black border border-[rgba(255,255,255,0.1)] text-white text-xs font-mono font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                     >
                       <Film className="w-3.5 h-3.5" />
-                      <span>🎬 Do Rolki</span>
+                      <span>Do Rolki</span>
                     </button>
                     <button
                       onClick={() => handleCopy(`vf-${fIdx}`, fmt.hook)}
@@ -684,7 +687,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                       className="flex items-center gap-1.5 py-1.5 px-3 rounded bg-white hover:bg-neutral-200 text-black text-xs font-mono font-bold transition-all cursor-pointer"
                     >
                       <Sparkles className="w-3.5 h-3.5" />
-                      <span>📸 Wyrzuć do Posta</span>
+                      <span>Wyrzuć do Posta</span>
                     </button>
 
                     <button
@@ -696,7 +699,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                       className="flex items-center gap-1.5 py-1.5 px-3 rounded bg-[#161616] hover:bg-white hover:text-black border border-[rgba(255,255,255,0.1)] text-white text-xs font-mono font-bold transition-all cursor-pointer"
                     >
                       <Film className="w-3.5 h-3.5" />
-                      <span>🎬 Wyrzuć do Rolki</span>
+                      <span>Wyrzuć do Rolki</span>
                     </button>
 
                     <button
@@ -793,7 +796,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                   </div>
                 </div>
 
-                <p className="text-[11px] font-mono text-neutral-400 italic">🧠 {ang.rationale}</p>
+                <p className="text-[11px] font-mono text-neutral-400 italic">{ang.rationale}</p>
 
                 <div className="flex items-center gap-2 pt-2 border-t border-[rgba(255,255,255,0.1)]">
                   <button
@@ -804,7 +807,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                     className="flex-1 py-1.5 px-2.5 rounded bg-white hover:bg-neutral-200 text-black text-xs font-mono font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                   >
                     <Sparkles className="w-3.5 h-3.5" />
-                    <span>📸 Do Posta</span>
+                    <span>Do Posta</span>
                   </button>
                   <button
                     onClick={() => {
@@ -814,7 +817,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                     className="flex-1 py-1.5 px-2.5 rounded bg-[#161616] hover:bg-white hover:text-black border border-[rgba(255,255,255,0.1)] text-white text-xs font-mono font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                   >
                     <Film className="w-3.5 h-3.5" />
-                    <span>🎬 Do Rolki</span>
+                    <span>Do Rolki</span>
                   </button>
                   <button
                     onClick={() =>
@@ -879,9 +882,9 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
               >
                 <div className="flex items-center justify-between border-b border-[rgba(255,255,255,0.1)] pb-2">
                   <span className="text-xs font-mono font-bold text-white uppercase">
-                    ⚡ {pdx.title}
+                    {pdx.title}
                   </span>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-rose-500/10 text-rose-300 border border-rose-500/20">
                     Pattern Interrupt
                   </span>
                 </div>
@@ -908,7 +911,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                     className="flex-1 py-1.5 px-2.5 rounded bg-white hover:bg-neutral-200 text-black text-xs font-mono font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                   >
                     <Sparkles className="w-3.5 h-3.5" />
-                    <span>📸 Do Posta</span>
+                    <span>Do Posta</span>
                   </button>
                   <button
                     onClick={() => {
@@ -918,7 +921,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                     className="flex-1 py-1.5 px-2.5 rounded bg-[#161616] hover:bg-white hover:text-black border border-[rgba(255,255,255,0.1)] text-white text-xs font-mono font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                   >
                     <Film className="w-3.5 h-3.5" />
-                    <span>🎬 Do Rolki</span>
+                    <span>Do Rolki</span>
                   </button>
                   <button
                     onClick={() => handleCopy(`pdx-${idx}`, pdx.hook)}
@@ -949,7 +952,8 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
               </label>
               {/^(https?:\/\/|[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\/)/i.test(sourceText.trim()) && (
                 <span className="px-2 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 font-mono text-[10px] uppercase font-bold flex items-center gap-1">
-                  <Check className="w-3 h-3" /> Wykryto Bezpośredni Link Social Media
+                  <Check className="w-3 h-3" />
+                  Wykryto Bezpośredni Link Social Media
                 </span>
               )}
             </div>
@@ -991,7 +995,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
               <div className="p-4 bg-[#0E0E0E] border border-[rgba(255,255,255,0.1)] rounded-lg space-y-3">
                 <div className="flex items-center justify-between border-b border-[rgba(255,255,255,0.1)] pb-2">
                   <span className="text-xs font-mono font-bold text-white uppercase flex items-center gap-1.5">
-                    <Film className="w-4 h-4 text-amber-400" />
+                    <Film className="w-4 h-4 text-rose-400" />
                     1. Rolka 7-Sekundowa (Wideo)
                   </span>
                   <span className="text-[10px] font-mono text-neutral-400">
@@ -1022,7 +1026,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                   className="w-full py-1.5 px-3 rounded bg-white hover:bg-neutral-200 text-black text-xs font-mono font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <Film className="w-3.5 h-3.5" />
-                  <span>🎬 Wyrzuć do Rolki</span>
+                  <span>Wyrzuć do Rolki</span>
                 </button>
               </div>
 
@@ -1070,7 +1074,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                   className="w-full py-1.5 px-3 rounded bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-300 font-bold uppercase text-xs font-mono transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <Layers className="w-3.5 h-3.5" />
-                  <span>🎠 Studio Karuzeli — podgląd i eksport 4:5</span>
+                  <span>Studio Karuzeli — podgląd i eksport 4:5</span>
                 </button>
 
                 <div className="flex gap-2">
@@ -1090,7 +1094,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                     className="flex-1 py-1.5 px-3 rounded bg-white hover:bg-neutral-200 text-black font-bold uppercase text-xs font-mono transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                   >
                     <Sparkles className="w-3.5 h-3.5" />
-                    <span>📸 Wyrzuć do Posta</span>
+                    <span>Wyrzuć do Posta</span>
                   </button>
                   <button
                     onClick={() => {
@@ -1131,7 +1135,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                     className="flex-1 py-1.5 px-3 rounded bg-white hover:bg-neutral-200 text-black font-bold uppercase text-xs font-mono transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                   >
                     <Sparkles className="w-3.5 h-3.5" />
-                    <span>📸 Wyrzuć do Posta</span>
+                    <span>Wyrzuć do Posta</span>
                   </button>
                   <button
                     onClick={() => handleCopy("rec-man", recycledData.manifesto)}
