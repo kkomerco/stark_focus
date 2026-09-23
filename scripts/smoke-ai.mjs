@@ -53,6 +53,16 @@ function cleanup(code) {
     cleanup(1);
   }
 
+  // Smoke ma łapać regresję, a nie tylko coś wypisywać. Najgroźniejsza awaria,
+  // jaką tu znaleźliśmy: trasa zwracała 200 i source:"offline" przy sprawnym
+  // kluczu (503 na jednym modelu bez łańcucha fallbacku). Oko widziało „200 OK"
+  // i uznawało generację za działającą, a leciał bank treści.
+  const requireAi = !!process.env.GEMINI_API_KEY;
+  const problems = [];
+  const check = (ok, msg) => {
+    if (!ok) problems.push(msg);
+  };
+
   // 1) idea-stream: sprawdzamy anty-powtórkę
   const exclude = [
     "your comfort zone is a coffin with wifi",
@@ -82,6 +92,24 @@ function cleanup(code) {
     console.log(`  [${i.category}] ${i.hook}  ${excluded ? "<-- POWTORKA!" : ""}`);
   });
 
+  check(ideas.status === 200, `idea-stream: HTTP ${ideas.status}`);
+  if (requireAi)
+    check(
+      ideas.json.source === "ai",
+      `idea-stream: source="${ideas.json.source}" zamiast "ai" przy skonfigurowanym kluczu`,
+    );
+  check(
+    (ideas.json.ideas || []).length > 0,
+    "idea-stream: pusta lista (sprawdź pole `exhausted` / `notice` w odpowiedzi)",
+  );
+  (ideas.json.ideas || []).forEach((i) => {
+    check(
+      Array.isArray(i.phrases) && i.phrases.length > 0,
+      `idea-stream: brak frazy w „${i.hook}"`,
+    );
+    check(typeof i.category === "string" && i.category.length > 0, `idea-stream: brak kategorii`);
+  });
+
   // 2) idea-stream bez wykluczeń — inny zestaw (rotacja)
   const ideas2 = await post("/api/ai/idea-stream", { count: 3, excludeHooks: [], usedCount: 0 });
   console.log("\n=== IDEA-STREAM (bez historii) ===");
@@ -100,6 +128,17 @@ function cleanup(code) {
   (dec.json.starkVariants || []).forEach((v) =>
     console.log(`    - ${v.hook} (${v.viralityScore}%)`),
   );
+
+  check(dec.status === 200, `deconstruct-viral: HTTP ${dec.status}`);
+  check(
+    (dec.json.starkVariants || []).length > 0,
+    "deconstruct-viral: brak wariantów @stark_focus",
+  );
+  if (requireAi)
+    check(
+      dec.json.source !== "error",
+      `deconstruct-viral: awaria modelu zgłoszona jako source="error" (${dec.json.deconstruction?.hookType})`,
+    );
 
   // 4) daily-pack (Faza 1) — musi być podłączony do runtime
   const pack = await post("/api/ai/daily-pack", { reelsCount: 3 });
@@ -122,5 +161,45 @@ function cleanup(code) {
   );
   console.log("  post:", pack.json.post?.headline);
 
+  check(pack.status === 200, `daily-pack: HTTP ${pack.status}`);
+  if (requireAi)
+    check(
+      pack.json.source === "ai",
+      `daily-pack: source="${pack.json.source}" zamiast "ai" przy skonfigurowanym kluczu — upadł fallback modeli`,
+    );
+  // To są dokładnie pola, które UI mapuje bez sprawdzania — pusta `phrases`
+  // albo `hashtags` bez tablicy wywracają cały aplikacyjny ekran.
+  (pack.json.reels || []).forEach((r) => {
+    check(typeof r.hook === "string" && r.hook.length > 0, "daily-pack: rolka bez hooka");
+    check(
+      Array.isArray(r.phrases) && r.phrases.length > 0,
+      `daily-pack: rolka bez fraz: ${r.hook}`,
+    );
+    check(Array.isArray(r.hashtags), `daily-pack: hashtags nie są tablicą: ${r.hook}`);
+    check(
+      typeof r.duration === "number" && r.duration > 0,
+      `daily-pack: zły czas rolki: ${r.hook}`,
+    );
+  });
+  check((pack.json.reels || []).length > 0, "daily-pack: zero rolek");
+  check(
+    (pack.json.carousel?.slides || []).length > 0,
+    "daily-pack: karuzela bez slajdów (studio nie ma czego renderować)",
+  );
+  (pack.json.carousel?.slides || []).forEach((s) =>
+    check(
+      typeof s.headline === "string" && typeof s.bodyText === "string",
+      "daily-pack: slajd bez treści",
+    ),
+  );
+  check(typeof pack.json.post?.headline === "string", "daily-pack: post 1:1 bez nagłówka");
+
+  if (problems.length > 0) {
+    console.log("\n=== SMOKE: BŁĘDY ===");
+    problems.forEach((p) => console.log("  ✗", p));
+    cleanup(1);
+    return;
+  }
+  console.log("\n=== SMOKE: wszystkie asercje przeszły ===");
   cleanup(0);
 })();
