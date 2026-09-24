@@ -96,7 +96,23 @@ async function startServer() {
       // Szczegóły błędu idą tylko do loga: `error.message` z SDK potrafi
       // zawierać fragmenty zapytania, ścieżki i układ środowiska.
       console.error("Błąd Gemini API:", error);
-      return res.status(502).json({ error: "Generowanie AI nie udało się" });
+      const msg = String(error?.message || error);
+      // Darmowy tier ma dzienny limit zapytań na model. Gdy go wyczerpiemy,
+      // każda kolejna próba wygląda identycznie jak awaria — użytkownik
+      // musi usłyszeć, że to limit i że ma poczekać, a nie klikać dalej.
+      if (msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED")) {
+        return res.status(429).json({
+          error: "Dzienny limit darmowego klucza Gemini jest wyczerpany. Spróbuj później.",
+          reason: "quota",
+        });
+      }
+      if (msg.includes("503") || msg.includes("UNAVAILABLE")) {
+        return res.status(503).json({
+          error: "Model jest teraz przeciążony. Spróbuj za chwilę.",
+          reason: "overloaded",
+        });
+      }
+      return res.status(502).json({ error: "Generowanie AI nie udało się", reason: "failed" });
     }
   });
 

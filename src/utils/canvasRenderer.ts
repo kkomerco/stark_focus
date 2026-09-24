@@ -798,25 +798,35 @@ export function drawMinimalBlackQuoteSlide(
   ctx.textAlign = align === "center" ? "center" : "left";
 
   if (!hasSub) {
-    // TRYB 1: POJEDYNCZA MOCNA TEZA (np. 3-6 słów na ekranie i koniec)
+    // TRYB 1: teza — jedna linia albo cały cytat rozbity na wiersze.
     let baseFontSize = height >= 1800 ? 84 : 70;
     if (cleanMain.length > 25) baseFontSize = height >= 1800 ? 74 : 62;
     if (cleanMain.length > 45) baseFontSize = height >= 1800 ? 64 : 52;
     if (cleanMain.length > 70) baseFontSize = height >= 1800 ? 54 : 44;
 
-    const mainFontSize = Math.max(36, Math.round(baseFontSize * textScale));
-    ctx.font = `700 ${mainFontSize}px ${fontSpec}`;
-    const mainLines = wrapTextLines(ctx, cleanMain, maxLineWidth);
+    // Rozmiar dobierany pod realną liczbę wierszy: dawniej długi cytat rósł
+    // ponad kadr i łamał się o własne linie.
+    const fitted = fitLines(
+      ctx,
+      cleanMain,
+      maxLineWidth,
+      8,
+      (size) => `700 ${size}px ${fontSpec}`,
+      Math.round(baseFontSize * textScale),
+      30,
+    );
+    const mainFontSize = fitted.size;
+    const mainLines = fitted.lines;
 
     const lineHeight = Math.round(mainFontSize * 1.34);
     const totalH = mainLines.length * lineHeight;
 
-    // Idealne optyczne wyśrodkowanie w pionie dla 9:16
-    let curY = Math.round((height - totalH) * 0.46) + mainFontSize;
+    // Środek bezpiecznego pasa — góra i dół kadru to teren interfejsu.
+    let curY = centeredTop(totalH, height) + mainFontSize;
 
+    ctx.font = `700 ${mainFontSize}px ${fontSpec}`;
+    ctx.fillStyle = textColor;
     mainLines.forEach((line) => {
-      ctx.font = `700 ${mainFontSize}px ${fontSpec}`;
-      ctx.fillStyle = textColor;
       ctx.fillText(line, drawX, curY);
       curY += lineHeight;
     });
@@ -1168,8 +1178,11 @@ export function renderUniversalLayout(
     return;
   }
 
-  // Format 3: wiele warstw tekstu — każda z własną geometrią z analizy.
-  if (spec.textLayers.length > 2) {
+  // Wiele warstw z własną geometrią — tylko w układach z analizy linku.
+  // Cytat na czerni ma warstwy będące LINIJAMI TEJ SAMEJ myśli: puszczenie ich
+  // przez `posY` każdej warstwy sprawiałoby, że przy trzeciej linii słowa
+  // zaczynały na siebie nachodzić.
+  if (spec.gridType !== "none_solid" && spec.textLayers.length > 2) {
     drawLayeredTextSlide(canvas, spec, {
       width,
       height,
@@ -1185,12 +1198,19 @@ export function renderUniversalLayout(
   const l1 = spec.textLayers[0]?.text?.trim() || "Silence cannot be misquoted.";
   // Subtext jest uwzględniany TYLKO jeśli użytkownik celowo dodał 2. warstwę z tekstem
   const l2 = spec.textLayers.length > 1 ? spec.textLayers[1]?.text?.trim() || "" : "";
+  const mainText =
+    spec.textLayers.length > 2
+      ? spec.textLayers
+          .map((layer) => layer.text?.trim() ?? "")
+          .filter(Boolean)
+          .join("\n")
+      : l1;
 
   drawMinimalBlackQuoteSlide(canvas, {
     width,
     height,
-    mainText: l1,
-    subText: l2,
+    mainText,
+    subText: spec.textLayers.length > 2 ? "" : l2,
     align: "left",
     fontFamily: spec.fontFamilyCustom || fontFamily,
     textScale,

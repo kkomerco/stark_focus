@@ -257,39 +257,15 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
   onSendToReel,
   usedHooks = [],
 }) => {
-  const [videoUrl, setVideoUrl] = useState("");
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-
   // Format proporcji: wyłącznie wertykalny 9:16 (1080x1920 PX)
   const aspectRatio = "9:16" as const;
   const dimensions = { width: 1080, height: 1920 };
   const [fontFamily, setFontFamily] = useState<string>("sans");
   const [textScale, setTextScale] = useState<number>(1.0);
-  const [fontColor, setFontColor] = useState<"white" | "black">("white");
-
-  // Zmiana koloru czcionki (biała vs czarna)
-  const handleToggleFontColor = (color: "white" | "black") => {
-    setFontColor(color);
-    setSpec((prev) => {
-      const nextHex = color === "white" ? "#FFFFFF" : "#161920";
-      return {
-        ...prev,
-        fontColorMode: color,
-        textLayers: prev.textLayers.map((layer, idx) => ({
-          ...layer,
-          color:
-            prev.gridType === "none_solid" && idx === 1
-              ? color === "white"
-                ? "rgba(255, 255, 255, 0.72)"
-                : "rgba(10, 11, 13, 0.65)"
-              : nextHex,
-        })),
-      };
-    });
-  };
 
   // Stan generatora powiedzonek
   const [isGeneratingSayings, setIsGeneratingSayings] = useState(false);
+  const [sayingError, setSayingError] = useState<string | null>(null);
   const [sayingTopic, setSayingTopic] = useState(
     "Dyscyplina stoicka, milczenie, wysokie standardy",
   );
@@ -305,7 +281,6 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
 
   const [copiedCaption, setCopiedCaption] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
-  const [analysisError, setAnalysisError] = useState<string | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -473,7 +448,7 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
       fontFamily: spec.fontFamilyCustom || fontFamily,
       textScale,
       handle: userHandle,
-      fontColor: spec.fontColorMode || fontColor,
+      fontColor: "white",
       backgroundImage: bgImage,
     });
   }, [
@@ -484,7 +459,6 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
     fontFamily,
     textScale,
     userHandle,
-    fontColor,
     bgImage,
   ]);
 
@@ -597,19 +571,38 @@ Zwróć WYŁĄCZNIE czysty JSON:
         }),
       });
       const data = await res.json();
-      let raw = data.text || "";
-      raw = raw
+      // Trasa oddaje { text } albo { error }. Dotąd błąd znikał w console.error,
+      // a przycisk tylko na chwilę zmieniał etykietę — „nic się nie dzieje".
+      if (!res.ok || typeof data?.text !== "string") {
+        setSayingError(
+          typeof data?.error === "string"
+            ? data.error
+            : `Serwer nie zwrócił treści (HTTP ${res.status}).`,
+        );
+        return;
+      }
+      const raw = data.text
         .replace(/```json/gi, "")
         .replace(/```/g, "")
         .trim();
-      const parsed = JSON.parse(raw);
+      let parsed: StoicSaying;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        setSayingError("Model odesłał tekst, którego nie da się odczytać. Spróbuj ponownie.");
+        return;
+      }
+      setSayingError(null);
       if (parsed && parsed.main) {
         if (quoteStyleMode === "single") {
           parsed.sub = "";
         }
         handleApplySaying(parsed);
+      } else {
+        setSayingError("Model odesłał pustą tezę. Naciśnij generuj jeszcze raz.");
       }
     } catch (err) {
+      setSayingError("Nie udało się połączyć z generatorem. Sprawdź, czy serwer działa.");
       console.error("Błąd AI Sayings:", err);
     } finally {
       setIsGeneratingSayings(false);
@@ -633,34 +626,6 @@ Zwróć WYŁĄCZNIE czysty JSON:
     };
     reader.readAsDataURL(file);
     e.target.value = "";
-  };
-
-  // Analiza DOWOLNEGO linku
-  const handleAnalyzeLink = async () => {
-    if (!videoUrl.trim()) return;
-    setIsAnalyzing(true);
-    setAnalysisError(null);
-
-    try {
-      const res = await fetch("/api/ai/analyze-link", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: videoUrl.trim() }),
-      });
-      const data = await res.json();
-
-      if (data.layoutSpec) {
-        setSpec(data.layoutSpec);
-        setSlotImages(Array(data.layoutSpec.slotCount || 1).fill(null));
-      } else if (data.error) {
-        setAnalysisError(data.error);
-      }
-    } catch (e) {
-      console.error(e);
-      setAnalysisError("Błąd analizy linku. Upewnij się, że URL jest publicznie dostępny.");
-    } finally {
-      setIsAnalyzing(false);
-    }
   };
 
   const handleUpdateTextLayer = (id: string, newText: string) => {
@@ -782,7 +747,6 @@ Zwróć WYŁĄCZNIE czysty JSON:
 
   // Załadowanie wybranego posta z serii do edytora
   const handleApplyBatchPost = (item: BatchPostItem) => {
-    setFontColor("white");
     const cleanMain = item.sayingMain.trim();
     const cleanSub = (item.sayingSub || "").trim();
     const hasSub = cleanSub.length > 0;
@@ -946,37 +910,6 @@ Zwróć WYŁĄCZNIE czysty JSON:
             </span>
           </div>
         </div>
-
-        <div className="flex gap-2">
-          <div className="relative flex-1">
-            <Link2 className="w-4 h-4 text-neutral-500 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={videoUrl}
-              onChange={(e) => setVideoUrl(e.target.value)}
-              placeholder="Wklej link do posta (Instagram, TikTok, Shorts), aby skopiować układ 1:1..."
-              className="w-full bg-[#121212] border border-white/10 focus:border-white rounded-lg py-2.5 pl-9 pr-3 text-xs font-mono text-white placeholder:text-neutral-500 focus:outline-none transition-colors"
-            />
-          </div>
-          <button
-            onClick={handleAnalyzeLink}
-            disabled={isAnalyzing || !videoUrl.trim()}
-            className="px-5 py-2.5 bg-white hover:bg-neutral-200 text-black font-mono font-black text-xs uppercase rounded-lg transition-all flex items-center gap-2 cursor-pointer disabled:opacity-40 whitespace-nowrap shadow-md"
-          >
-            {isAnalyzing ? (
-              <RefreshCw className="w-4 h-4 animate-spin" />
-            ) : (
-              <Film className="w-4 h-4" />
-            )}
-            <span>Odwzoruj Układ</span>
-          </button>
-        </div>
-
-        {analysisError && (
-          <div className="p-2.5 bg-rose-500/15 border border-rose-500/40 rounded-lg text-xs font-mono text-rose-300">
-            {analysisError}
-          </div>
-        )}
       </div>
 
       {/* Pasek wyboru Proporcji Kadru (1:1 / 4:5 / 9:16) oraz Szablonów */}
@@ -1117,75 +1050,48 @@ Zwróć WYŁĄCZNIE czysty JSON:
                 Krój Pisma & Skala
               </span>
 
-              {/* Wybór koloru czcionki: Biała vs Czarna */}
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[10px] font-mono text-neutral-400 uppercase">Kolor:</span>
-                <div className="flex items-center gap-1 bg-[#181818] p-0.5 rounded-lg border border-white/10">
-                  <button
-                    type="button"
-                    onClick={() => handleToggleFontColor("white")}
-                    className={`px-2.5 py-1 rounded text-[11px] font-mono font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                      (spec.fontColorMode || fontColor) === "white"
-                        ? "bg-white text-black shadow-sm"
-                        : "text-neutral-400 hover:text-white"
-                    }`}
-                    title="Ustaw białą czcionkę (#FFFFFF)"
-                  >
-                    <span className="w-2.5 h-2.5 rounded-full bg-white border border-neutral-300"></span>
-                    <span>Biała</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleToggleFontColor("black")}
-                    className={`px-2.5 py-1 rounded text-[11px] font-mono font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                      (spec.fontColorMode || fontColor) === "black"
-                        ? "bg-white text-black shadow-sm"
-                        : "text-neutral-400 hover:text-white"
-                    }`}
-                    title="Ustaw czarną czcionkę (#000000)"
-                  >
-                    <span className="w-2.5 h-2.5 rounded-full bg-black border border-neutral-600"></span>
-                    <span>Czarna</span>
-                  </button>
-                </div>
-
-                <div className="h-4 w-px bg-white/10 hidden sm:block" />
-
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={generateBackground}
-                    disabled={bgBusy}
-                    title="Wygeneruj tło dopasowane do tego cytatu, bez wychodzenia z aplikacji"
-                    className={`px-2.5 py-1 rounded text-[11px] font-mono font-bold flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50 ${
-                      bgImage
-                        ? "bg-rose-600/20 text-rose-300 border border-rose-500/40"
-                        : "text-neutral-400 hover:text-white border border-neutral-700"
-                    }`}
-                  >
-                    <span>
-                      {bgBusy ? "Generuję tło…" : bgImage ? "Tło: generacja ✓" : "Tło z AI"}
-                    </span>
-                  </button>
-                  {bgImage && !bgBusy && (
+                {/* Tło ma sens tylko tam, gdzie kadr jest zdjęciem: cytat na
+                    czerni ma być czernią. */}
+                {spec.gridType !== "none_solid" && (
+                  <div className="flex items-center gap-1.5">
                     <button
                       type="button"
-                      onClick={() => setBgImage(null)}
-                      className="text-[10px] font-mono text-neutral-500 hover:text-white underline underline-offset-2 cursor-pointer"
-                      title="Wróć do płaskiej czerni"
+                      onClick={generateBackground}
+                      disabled={bgBusy}
+                      title="Wygeneruj tło dopasowane do tego cytatu, bez wychodzenia z aplikacji"
+                      className={`px-2.5 py-1 rounded text-[11px] font-mono font-bold flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50 ${
+                        bgImage
+                          ? "bg-rose-600/20 text-rose-300 border border-rose-500/40"
+                          : "text-neutral-400 hover:text-white border border-neutral-700"
+                      }`}
                     >
-                      usuń tło
+                      <span>
+                        {bgBusy ? "Generuję tło…" : bgImage ? "Tło: generacja ✓" : "Tło z AI"}
+                      </span>
                     </button>
-                  )}
-                  {bgError && (
-                    <span className="text-[10px] font-mono text-rose-400">{bgError}</span>
-                  )}
-                  {bgNote && !bgError && (
-                    <span className="text-[10px] font-mono text-neutral-500">{bgNote}</span>
-                  )}
-                </div>
+                    {bgImage && !bgBusy && (
+                      <button
+                        type="button"
+                        onClick={() => setBgImage(null)}
+                        className="text-[10px] font-mono text-neutral-500 hover:text-white underline underline-offset-2 cursor-pointer"
+                        title="Wróć do płaskiej czerni"
+                      >
+                        usuń tło
+                      </button>
+                    )}
+                    {bgError && (
+                      <span className="text-[10px] font-mono text-rose-400">{bgError}</span>
+                    )}
+                    {bgNote && !bgError && (
+                      <span className="text-[10px] font-mono text-neutral-500">{bgNote}</span>
+                    )}
+                  </div>
+                )}
 
-                <div className="h-4 w-px bg-white/10 hidden sm:block" />
+                {spec.gridType !== "none_solid" && (
+                  <div className="h-4 w-px bg-white/10 hidden sm:block" />
+                )}
 
                 <div className="flex items-center gap-1.5">
                   <span className="text-[10px] font-mono text-neutral-400">
@@ -1360,6 +1266,9 @@ Zwróć WYŁĄCZNIE czysty JSON:
                     <span>{isGeneratingSayings ? "Generuję..." : "Generuj z AI"}</span>
                   </button>
                 </div>
+                {sayingError && (
+                  <p className="text-[10px] font-mono text-rose-400">{sayingError}</p>
+                )}
               </div>
             </div>
           )}
