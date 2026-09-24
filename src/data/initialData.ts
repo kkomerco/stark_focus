@@ -35,11 +35,11 @@ export const INITIAL_DATA: StarkFocusData = {
   vault_assets: [], // Puste – zero sztucznych teł
   dynamic_db: {
     formats: [
-      "🎬 Rolka 7-Sekundowa (Short Reel)",
-      "🎠 Karuzela 5-Slajdowa (IG / TikTok Slides)",
-      "🏛️ Monolith Ledger (Split 50/50)",
-      "❓ Prowokacja / Debate Bait",
-      "📜 Minimalistyczny Cytat (One-Liner)",
+      "Rolka 7-Sekundowa (Short Reel)",
+      "Karuzela 5-Slajdowa (IG / TikTok Slides)",
+      "Monolith Ledger (Split 50/50)",
+      "Prowokacja / Debate Bait",
+      "Minimalistyczny Cytat (One-Liner)",
     ],
     cta_presets: DEFAULT_PRESETS_EN,
   },

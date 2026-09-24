@@ -176,7 +176,7 @@ export const STARK_TOP_HEADER_PRESETS: TopHeaderPreset[] = [
   },
   {
     id: "custom",
-    label: "✍️ Własny Tekst (Wpisz sam)",
+    label: "Własny Tekst (Wpisz sam)",
     displayText: "",
     desc: "Twój własny tekst belki",
   },

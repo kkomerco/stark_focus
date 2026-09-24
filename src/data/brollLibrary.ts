@@ -23,7 +23,7 @@ export interface BrollScene {
 export const CINEMATIC_BROLL_LIBRARY: BrollScene[] = [
   {
     id: "antyczny_marmur_posag",
-    name: "🏛️ Antyczny Rzymski Marmur & Cienie",
+    name: "Antyczny Rzymski Marmur & Cienie",
     category: "stoic_marble",
     description:
       "Ciemne, surowe ujęcie marmurowego popiersia cesarza w głębokim chiaroscuro z zimnym oświetleniem krawędziowym.",
@@ -62,7 +62,7 @@ export const CINEMATIC_BROLL_LIBRARY: BrollScene[] = [
   },
   {
     id: "nocna_metropolia_stal",
-    name: "🏙️ Nocna Metropolia & Stalowy Zmierzch",
+    name: "Nocna Metropolia & Stalowy Zmierzch",
     category: "nocturnal_city",
     description:
       "Ciemna panorama wieżowców o 3:00 w nocy, pojedyncze zimne światła w oknach, deszcz odbijający się w asfalcie.",
@@ -100,7 +100,7 @@ export const CINEMATIC_BROLL_LIBRARY: BrollScene[] = [
   },
   {
     id: "brutalizm_monolit",
-    name: "⬛ Brutalistyczny Monolit & Pustka",
+    name: "Brutalistyczny Monolit & Pustka",
     category: "brutalist_void",
     description:
       "Ogromna geometryczna bryła z czarnego granitu przecinająca gęstą mgłę. Czysty minimalizm i surowy ciężar.",
@@ -138,7 +138,7 @@ export const CINEMATIC_BROLL_LIBRARY: BrollScene[] = [
   },
   {
     id: "deszcz_asfalt_430am",
-    name: "🌧️ Deszcz & Asfalt o 4:30 AM",
+    name: "Deszcz & Asfalt o 4:30 AM",
     category: "dawn_rain",
     description:
       "Mokry asfalt przed świtem, zimny deszcz, puste ulice, surowy chłód porannej dyscypliny.",
@@ -178,7 +178,7 @@ export const CINEMATIC_BROLL_LIBRARY: BrollScene[] = [
   },
   {
     id: "ciemna_sala_asceza",
-    name: "⚔️ Ciemna Sala & Żelazna Asceza",
+    name: "Ciemna Sala & Żelazna Asceza",
     category: "dark_training",
     description:
       "Cień sylwetki pośród surowego żelastwa, kreda na dłoniach, krople potu, absolutne skupienie w mroku.",
@@ -218,7 +218,7 @@ export const CINEMATIC_BROLL_LIBRARY: BrollScene[] = [
   },
   {
     id: "mgla_horyzont_pustka",
-    name: "🌫️ Horyzont w Mglistej Otchłani",
+    name: "Horyzont w Mglistej Otchłani",
     category: "infinite_horizon",
     description:
       "Nieskończona linia horyzontu we mgle, pojedyncza cienka smuga światła rozcinająca mroczną próżnię.",

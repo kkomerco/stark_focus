@@ -16,9 +16,19 @@ export const STARK_HASHTAGS = [
   "#starkfocus",
 ] as const;
 
+/**
+ * Domyślny trójwers. Kiedy trasa nie zna treść na tyle dobrze, by napisać
+ * własne punkty, nie układamy ich na kolanie w komponencie — bierzemy te.
+ */
+export const STARK_PRINCIPLES: [string, string, string] = [
+  "Comfort is paid for in regret, later and with interest.",
+  "The standard you hold alone is the only one that counts.",
+  "Silence protects the work; results announce it.",
+];
+
 export function formatStarkCaption(
   hook: string,
-  principles: [string, string, string],
+  principles: [string, string, string] = STARK_PRINCIPLES,
   directive: string = "Never negotiate with your standards. Execute in silence.",
 ): string {
   const cleanHook = hook.replace(/["#*]/g, "").trim().toUpperCase();

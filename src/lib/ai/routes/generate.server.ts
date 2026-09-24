@@ -150,7 +150,7 @@ export function registerGenerateRoutes(app: MiniApp): void {
       1. Provocative opening hook question or psychological reality (do NOT repeat the video phrases).
       2. A 2-sentence psychological diagnosis of the mental trap.
       3. "3 non-negotiable protocols to apply today:" followed by 3 numbered action steps.
-      4. Strong call to action ("Save this protocol for tomorrow morning. Drop a ⚔️ if you commit to this standard. Follow @stark_focus").
+      4. Strong call to action ("Save this protocol for tomorrow morning. Comment if you commit to this standard. Follow @stark_focus").
 
   CRITICAL RULES FOR BACKGROUND & THEME RECOMMENDATION:
   - "suggestedTheme": Choose one of: "obsidian_void" (black void, discipline), "crimson_eclipse" (crimson fire/eclipse, memento mori/urgency), "emerald_abyss" (dark jade mist, monk mode/solitude), "carbon_aura" (charcoal steel, iron standards), "silver_mist" (silver night ocean, emotional sovereignty).

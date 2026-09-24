@@ -80,6 +80,8 @@ export interface TrendItem {
   core_message: string;
   estimated_virality: string;
   bingPrompt?: string;
+  /** Gotowy zestaw po angielsku. `title` i `core_message` są notatką po polsku. */
+  copy_draft?: { hook?: string; supportingText?: string; caption?: string; hashtags?: string[] };
 }
 
 export interface AIGeneratedPost {

@@ -13,49 +13,49 @@ export const STOIC_CATEGORIES: StoicTopicCategory[] = [
   {
     id: "all",
     name: "Wszystkie / Losowe",
-    icon: "🎲",
+    icon: "",
     description: "Nieskończona mieszanka stoickich paradoksów i dyscypliny",
   },
   {
     id: "discipline_vs_motivation",
     name: "Złudzenie Motywacji",
-    icon: "⚔️",
+    icon: "",
     description: "Dyscyplina, wczesne wstawanie, koniec negocjacji z samym sobą",
   },
   {
     id: "solitude_monk_mode",
     name: "Samotność & Mnisi Tryb",
-    icon: "🌑",
+    icon: "",
     description: "Głęboka praca w ciszy, brak poklasku, budowanie bez rozgłosu",
   },
   {
     id: "dopamine_trap",
     name: "Pułapka Taniej Dopaminy",
-    icon: "📱",
+    icon: "",
     description: "Odzyskiwanie uwagi, scrollowanie, nowoczesne zniewolenie umysłu",
   },
   {
     id: "memento_mori_urgency",
     name: "Czas & Memento Mori",
-    icon: "⏳",
+    icon: "",
     description: "Kruchość życia, koniec prokrastynacji, pilność każdego dnia",
   },
   {
     id: "emotional_sovereignty",
     name: "Umysł & Niewzruszoność",
-    icon: "🧠",
+    icon: "",
     description: "Dichotomia kontroli, panowanie nad gniewem i opiniami innych",
   },
   {
     id: "sovereign_mindset",
     name: "Prowokujące & Suwerenność",
-    icon: "👑",
+    icon: "",
     description: "Cytaty namawiające do myślenia skierowane bezpośrednio do odbiorcy",
   },
   {
     id: "iron_standards",
     name: "Żelazne Standardy",
-    icon: "🛡️",
+    icon: "",
     description: "Zero wymówek, wysokie wymagania od siebie, szacunek do własnego słowa",
   },
 ];
@@ -961,7 +961,7 @@ When you step into the arena, the world will test whether your standard is real 
 3. Hold the standard in secret — execute especially when nobody is watching.
 
 Save this reminder for tomorrow morning.
-Drop a ⚔️ if you commit to this standard today.
+Comment if you commit to this standard today.
 Follow @stark_focus for daily stoic clarity.`;
 
   return {

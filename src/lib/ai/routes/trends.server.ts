@@ -31,7 +31,7 @@ export function registerTrendsRoutes(app: MiniApp): void {
       {
         id: "trend-" + Date.now() + "-1",
         title: "The Cost of Comfort",
-        suggested_format: "🎬 Rolka 7-Sekundowa (Short Reel)",
+        suggested_format: "Rolka 7-Sekundowa (Short Reel)",
         estimated_virality: "97%",
         source_context: "TikTok Viral Sound FYP",
         audience_pain: "Poczucie marnowania potencjału i ucieczka w scrollowanie",
@@ -84,7 +84,7 @@ export function registerTrendsRoutes(app: MiniApp): void {
       {
         id: "trend-" + Date.now() + "-3",
         title: "The Solitude Protocol",
-        suggested_format: "🎠 Karuzela 5-Slajdowa (IG Slides)",
+        suggested_format: "Karuzela 5-Slajdowa (IG Slides)",
         estimated_virality: "95%",
         source_context: "Twitter/X Viral Thread & IG Carousel",
         audience_pain: "Lęk przed samotnością i uleganie presji otoczenia",
@@ -127,7 +127,7 @@ export function registerTrendsRoutes(app: MiniApp): void {
       {
         "id": "trend-1",
         "title": "Tytuł trendu po angielsku",
-        "suggested_format": "🎬 Rolka 7-Sekundowa" | "3D Wall Letters" | "🎠 Karuzela 5-Slajdowa",
+        "suggested_format": "Rolka 7-Sekundowa" | "3D Wall Letters" | "Karuzela 5-Slajdowa",
         "estimated_virality": "96%",
         "source_context": "TikTok FYP Viral",
         "audience_pain": "Dokładna frustracja widza po polsku",
@@ -284,7 +284,7 @@ export function registerTrendsRoutes(app: MiniApp): void {
     const fallbackAngles = [
       {
         angleId: "controversial",
-        angleName: "⚡ Prowokacja & Kontrowersja",
+        angleName: "Prowokacja & Kontrowersja",
         hook: "Motivation is an excuse invented by the weak.",
         phrases: [
           "Motivation is an excuse invented by the weak.",
@@ -296,7 +296,7 @@ export function registerTrendsRoutes(app: MiniApp): void {
       },
       {
         angleId: "roman_stoic",
-        angleName: "🏛️ Rzymski Stoicyzm (Marcus Aurelius)",
+        angleName: "Rzymski Stoicyzm (Marcus Aurelius)",
         hook: "You have power over your mind, not outside events.",
         phrases: [
           "You have power over your mind, not outside events.",
@@ -309,7 +309,7 @@ export function registerTrendsRoutes(app: MiniApp): void {
       },
       {
         angleId: "neurobiology",
-        angleName: "🧠 Neurobiologia & Układ Dopaminy",
+        angleName: "Neurobiologia & Układ Dopaminy",
         hook: "Resistance is your anterior mid-cingulate cortex growing.",
         phrases: [
           "Resistance is your anterior mid-cingulate cortex growing.",
@@ -321,7 +321,7 @@ export function registerTrendsRoutes(app: MiniApp): void {
       },
       {
         angleId: "reality_check",
-        angleName: "🎯 Zero-Empathy Reality Check",
+        angleName: "Zero-Empathy Reality Check",
         hook: "Nobody is coming to save your potential.",
         phrases: [
           "Nobody is coming to save your potential.",

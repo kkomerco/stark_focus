@@ -14,13 +14,13 @@ export const ENGLISH_BING_MOTIFS = [
 export const DEFAULT_PRESETS_EN: CTAPreset[] = [
   {
     id: "preset_1",
-    name: "🔥 Zapisz Przypomnienie (Wysoki Zapis / Algorytm IG)",
+    name: "Zapisz Przypomnienie (Wysoki Zapis / Algorytm IG)",
     cta: "Save this post. Re-read it when your thumb hesitates before executing.",
     tags: "#stoicism #discipline #darkdiscipline #mentaltoughness #focus #stark_focus",
   },
   {
     id: "preset_2",
-    name: "⚡ Viral Share (TikTok / Reels)",
+    name: "Viral Share (TikTok / Reels)",
     cta: "Send this to someone who feeds on excuses instead of putting in the work. Time is non-refundable.",
     tags: "#darkmotivation #truth #stoic #selfgrowth #discipline #grind #relentless #stark_focus",
   },
@@ -32,7 +32,7 @@ export const DEFAULT_PRESETS_EN: CTAPreset[] = [
   },
   {
     id: "preset_4",
-    name: "💬 Magnes Komentarzy & Debata",
+    name: "Magnes Komentarzy & Debata",
     cta: "Most people are addicted to comfort and call it self-care. Disagree in the comments or execute in silence.",
     tags: "#accountability #honesty #discipline #truthbomb #growth #stark_focus",
   },

@@ -23,13 +23,13 @@ export interface CodexRule {
 }
 
 export const CODEX_CATEGORIES = [
-  { id: "all", name: "Wszystkie Zasady", icon: "⚔️" },
-  { id: "discipline", name: "Dyscyplina & Asceza", icon: "🛡️" },
-  { id: "silence_power", name: "Milczenie & Władza", icon: "🌑" },
-  { id: "roman_stoic", name: "Cesarski Stoicyzm", icon: "🏛️" },
-  { id: "neurobiology", name: "Neurobiologia & Dopamina", icon: "🧠" },
-  { id: "unforgiving_standard", name: "Żelazne Standardy", icon: "👑" },
-  { id: "paradoxes", name: "Paradoksy Sukcesu", icon: "⚡" },
+  { id: "all", name: "Wszystkie Zasady", icon: "" },
+  { id: "discipline", name: "Dyscyplina & Asceza", icon: "" },
+  { id: "silence_power", name: "Milczenie & Władza", icon: "" },
+  { id: "roman_stoic", name: "Cesarski Stoicyzm", icon: "" },
+  { id: "neurobiology", name: "Neurobiologia & Dopamina", icon: "" },
+  { id: "unforgiving_standard", name: "Żelazne Standardy", icon: "" },
+  { id: "paradoxes", name: "Paradoksy Sukcesu", icon: "" },
 ] as const;
 
 export const STARK_CODEX_RULES: CodexRule[] = [

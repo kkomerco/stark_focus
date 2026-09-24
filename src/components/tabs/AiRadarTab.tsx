@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { StarkFocusData, TrendItem, Post } from "../../types";
 import { usedHookFingerprints } from "../../lib/usedContent";
+import { formatStarkCaption } from "../../lib/caption";
 import { CarouselStudioModal } from "../CarouselStudioModal";
 
 interface IncomingCarousel {
@@ -617,7 +618,9 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                   <div className="flex items-center gap-2 pt-1">
                     <button
                       onClick={() => {
-                        if (onSendToPost) onSendToPost(fmt.hook, fmt.rationale);
+                        if (onSendToPost)
+                          // `rationale` to notatka „dlaczego to działa" po polsku — nigdy opis posta.
+                          onSendToPost(fmt.hook, formatStarkCaption(fmt.hook));
                         else onNavigateToTab(0);
                       }}
                       className="flex-1 py-1.5 px-2.5 rounded bg-white hover:bg-neutral-200 text-black text-xs font-mono font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer"
@@ -680,7 +683,9 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                     <button
                       onClick={() => {
                         const text = trend.viral_hooks?.[0] || trend.title;
-                        const cap = `${trend.title}\n\n${trend.core_message}\n\n#stoicism #discipline #mindset`;
+                        // `title` i `core_message` są po polsku — to notatka dla
+                        // autora, nie opis pod post.
+                        const cap = trend.copy_draft?.caption || formatStarkCaption(text);
                         if (onSendToPost) onSendToPost(text, cap);
                         else onNavigateToTab(0);
                       }}
@@ -905,7 +910,9 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                 <div className="flex items-center gap-2 pt-2 border-t border-[rgba(255,255,255,0.1)]">
                   <button
                     onClick={() => {
-                      if (onSendToPost) onSendToPost(pdx.hook, pdx.explanation);
+                      if (onSendToPost)
+                        // `explanation` to psychologia po polsku, nie opis posta.
+                        onSendToPost(pdx.hook, formatStarkCaption(pdx.hook));
                       else onNavigateToTab(0);
                     }}
                     className="flex-1 py-1.5 px-2.5 rounded bg-white hover:bg-neutral-200 text-black text-xs font-mono font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer"
