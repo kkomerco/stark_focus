@@ -113,6 +113,11 @@ export const AbModal: React.FC<AbModalProps> = ({
     patch({ results: results.map((r, i) => (i === idx ? { ...r, [field]: n } : r)) });
   };
 
+  // Co realnie poszło w każdym wariancie. Bez tego różnicę przypisujemy hookowi,
+  // choć równie dobrze mogła ją zrobić muzyka.
+  const setProduction = (idx: number, field: "music" | "background", value: string) =>
+    patch({ variants: variants.map((v, i) => (i === idx ? { ...v, [field]: value } : v)) });
+
   const conclude = async () => {
     if (results.length < 2) return;
     setConcluding(true);
@@ -122,13 +127,16 @@ export const AbModal: React.FC<AbModalProps> = ({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           experimentId,
-          results: results.map((r) => ({
+          results: results.map((r, i) => ({
             label: r.label,
             views: r.views,
             likes: r.likes,
             comments: r.comments,
             shares: r.shares,
             saves: r.saves,
+            hook: variants[i]?.hook || "",
+            music: variants[i]?.music || "",
+            background: variants[i]?.background || "",
           })),
         }),
       });
@@ -235,7 +243,7 @@ export const AbModal: React.FC<AbModalProps> = ({
         )}
 
         <div className="flex-1 overflow-y-auto space-y-3 pr-1">
-          {variants.map((v) => {
+          {variants.map((v, vIdx) => {
             const hook = textOf(v.hook);
             const phrases = textList(v.phrases);
             return (
@@ -251,6 +259,22 @@ export const AbModal: React.FC<AbModalProps> = ({
                 </div>
                 <p className="text-sm font-mono font-bold text-white">{hook}</p>
                 <p className="text-[10px] font-mono text-zinc-200">{textOf(v.angle)}</p>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <input
+                    type="text"
+                    value={v.music || ""}
+                    onChange={(e) => setProduction(vIdx, "music", e.target.value)}
+                    placeholder="Muzyka (tytuł)"
+                    className="bg-[#0F121C] border border-[#2C354B] px-2 py-1 font-mono text-[10px] text-white placeholder:text-slate-600 focus:outline-none focus:border-slate-500"
+                  />
+                  <input
+                    type="text"
+                    value={v.background || ""}
+                    onChange={(e) => setProduction(vIdx, "background", e.target.value)}
+                    placeholder="Tło (scena)"
+                    className="bg-[#0F121C] border border-[#2C354B] px-2 py-1 font-mono text-[10px] text-white placeholder:text-slate-600 focus:outline-none focus:border-slate-500"
+                  />
+                </div>
                 <div className="space-y-0.5 pl-2 border-l border-[#2C354B]">
                   {phrases.map((p, i) => (
                     <p key={i} className="text-[10px] font-mono text-slate-400">

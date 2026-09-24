@@ -191,6 +191,9 @@ export interface AbVariant {
   phrases: string[];
   theme: string;
   cta: string;
+  /** Dźwięk i tło, których realnie użyłeś. Bez tego nie da się powiedzieć, co wygrało. */
+  music?: string;
+  background?: string;
   publishedAt?: string | null;
   metrics?: {
     views: number;

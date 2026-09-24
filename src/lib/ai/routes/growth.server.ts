@@ -214,6 +214,9 @@ Zwróć WYŁĄCZNIE JSON:
       comments: Number(r.comments) || 0,
       shares: Number(r.shares) || 0,
       saves: Number(r.saves) || 0,
+      hook: clampText(r.hook, 160),
+      music: clampText(r.music, 80),
+      background: clampText(r.background, 80),
     }));
 
     if (norm.length < 2) {
@@ -240,18 +243,31 @@ Zwróć WYŁĄCZNIE JSON:
     }
 
     const winner = [...scored].sort((a, b) => b.engagement - a.engagement)[0];
+    const loser = scored.find((r) => r.label !== winner.label) ?? scored[0];
+    const gap =
+      loser.engagement > 0
+        ? `${(((winner.engagement - loser.engagement) / loser.engagement) * 100).toFixed(0)}%`
+        : "brak bazy do porównania";
+
+    // Wniosek nie może udowodnić więcej, niż zmierzono. Jeśli warianty różniły
+    // się też muzyką albo tłem, różnica wyniku nie jest zasługą hooka.
+    const otherChanges = [
+      winner.music && loser.music && winner.music !== loser.music ? "muzyka" : "",
+      winner.background && loser.background && winner.background !== loser.background ? "tło" : "",
+    ].filter(Boolean);
 
     let lesson =
-      winner.label === "A"
-        ? "Zwyciężył hook konfrontacyjny — następne generacje powinny częściej używać bezpośredniego 'You...' i konfrontacji z wymówką widza."
-        : "Zwyciężył hook z konkretem/liczbą — następne generacje powinny częściej otwierać się konkretem (godzina, procent, deadline).";
+      otherChanges.length > 0
+        ? `Wariant ${winner.label} miał engagement o ${gap} wyższy od ${loser.label}. Nie da się tego przypisać samemu hookowi — różniły się także: ${otherChanges.join(", ")}. Powtórz eksperyment z jednym zmienionym elementem, jeśli chcesz znać cenę hooka.`
+        : `Wariant ${winner.label} miał engagement o ${gap} wyższy od ${loser.label} przy tym samym tle i muzyce, więc różnicę robi hook: "${winner.hook}".`;
 
     if (ai) {
       try {
         const prompt = `Eksperyment A/B hooków dla marki @stark_focus (dark motivation).
-Wyniki: ${JSON.stringify(scored)}.
+Wyniki (hook, muzyka i tło każdego wariantu): ${JSON.stringify(scored)}.
 Zwycięzca: wariant ${winner.label} (engagement ${(winner.engagement * 100).toFixed(1)}%).
-W 2-3 zdaniach po polsku wyciągnij LEKCJĘ: jaki wzorzec hooka wygrał i jak go stosować w kolejnych generacjach. Bez lania wody.`;
+${otherChanges.length > 0 ? `UWAGA: warianty różniły się także (${otherChanges.join(", ")}), więc NIE przypisuj wyniku samemu hookowi — nazwij, czego eksperyment nie rozstrzyga.` : "Hook był jedyną różnicą, więc możesz wskazać go jako przyczynę."}
+W 2-3 zdaniach po polsku wyciągnij LEKCJĘ: co faktycznie zmierzono i jak to stosować w kolejnych generacjach. Bez lania wody i bez wniosków, których te dane nie niosą.`;
         const response = await callGeminiWithFallback(ai, {
           contents: prompt,
           config: { temperature: 0.7 },
