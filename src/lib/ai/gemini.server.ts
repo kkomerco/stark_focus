@@ -3,11 +3,23 @@ import { GoogleGenAI } from "@google/genai";
 /**
  * Jedyne źródło prawdy dla modeli Gemini w całym projekcie.
  * Zmiana modelu = zmiana w tym miejscu.
+ *
+ * Nazwy nie są wybrane „na oko" — każda z nich przeszła test `generateContent`
+ * na kluczu z tego repo. Darmowy tier Google ma dwa osobne sufity na model:
+ * dzienny limit zapytań (~20) oraz „high demand" (503), które potrafi zdjąć
+ * pojedynczy model na godziny. Dlatego poniżej jest łańcuch, a nie jeden model.
  */
-export const GEMINI_MODEL = "gemini-3.8-flash";
+export const GEMINI_MODEL = "gemini-3.6-flash";
 
 /** Model zapasowy dla zadań, które nie wymagają pełnej mocy (tanio i szybko). */
-export const GEMINI_LITE_MODEL = "gemini-3.1-flash-lite";
+export const GEMINI_LITE_MODEL = "gemini-3.5-flash-lite";
+
+/**
+ * Kolejne modele do próby, gdy tamte dwa są w tej chwili przeciążone.
+ * Każdy ma własny worek limitu, więc cztery modele to realnie cztery razy
+ * więcej generacji dziennie niż jeden.
+ */
+const GEMINI_SPARE_MODELS = ["gemini-3-flash-preview", "gemini-3.8-flash"];
 
 /**
  * Model obrazowy — też tylko tutaj, bo reguła projektu mówi: żaden plik
@@ -252,27 +264,27 @@ export interface GeminiRawConfig {
 }
 
 function modelChain(preferredModel?: string): string[] {
-  return preferredModel
-    ? [preferredModel, GEMINI_LITE_MODEL, GEMINI_MODEL].filter((v, i, a) => a.indexOf(v) === i)
-    : [GEMINI_LITE_MODEL, GEMINI_MODEL];
-}
-
-/** Przeciążenie modelu (503) albo limit zapytań (429) — warto spróbować ponownie. */
-function isTransientGeminiError(err: unknown): boolean {
-  const msg = String((err as any)?.message || err);
-  return (
-    msg.includes("503") ||
-    msg.includes("UNAVAILABLE") ||
-    msg.includes("high demand") ||
-    msg.includes("429") ||
-    msg.includes("RESOURCE_EXHAUSTED") ||
-    msg.includes("quota")
+  return [preferredModel, GEMINI_LITE_MODEL, GEMINI_MODEL, ...GEMINI_SPARE_MODELS].filter(
+    (model, index, all): model is string => !!model && all.indexOf(model) === index,
   );
 }
 
 /**
- * Centralna pętla fallbacku: preferredModel → GEMINI_LITE_MODEL → GEMINI_MODEL,
- * po dwie próby na model z ~1.2 s backoffem przy błędach przejściowych.
+ * Przeciążenie modelu (503) — warto spróbować ponownie za chwilę.
+ * Limitu zapytań (429) NIE próbujemy drugi raz na tym samym modelu: na
+ * darmowym tierze to sufit dzienny, więc każda kolejna próba tylko dokłada
+ * kilkanaście sekund do odpowiedzi i nic nie może zmienić. Pętła idzie
+ * wtedy od razu do następnego modelu.
+ */
+function isTransientGeminiError(err: unknown): boolean {
+  const msg = String((err as any)?.message || err);
+  return msg.includes("503") || msg.includes("UNAVAILABLE") || msg.includes("high demand");
+}
+
+/**
+ * Centralna pętla fallbacku: każdy model z `modelChain()`, po dwie próby na
+ * model z ~1.2 s backoffem przy przeciążeniu (503). Limit dzienny (429) nie
+ * jest ponawiany — przechodzimy do następnego modelu.
  * To jedyne miejsce implementujące retry — nie reimplementuj jej w trasach.
  *
  * Każda próba dostaje WŁASNY sygnał przerwania. Współdzielony AbortSignal
