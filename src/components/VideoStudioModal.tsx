@@ -963,14 +963,15 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
           layout: layoutLines(entry.text, ctx, maxTextWidth, 64, selectedFont),
         }));
 
-      const blockGap = 30;
+      // Odstęp między BLOKAMI musi być liczony od pełnej linii, nie od jej
+      // środka do środka następnej — 30 px przy ~80 px linii sprawiało, że
+      // zdania wchodziły na siebie i robiły się nieczytelne.
+      const blockGap = 28;
+      const blockHeights = blocks.map(
+        (block) => block.layout.lines.length * block.layout.lineHeight,
+      );
       const totalH =
-        blocks.reduce(
-          (sum, block) =>
-            sum + Math.max(0, block.layout.lines.length - 1) * block.layout.lineHeight,
-          0,
-        ) +
-        blockGap * Math.max(0, blocks.length - 1);
+        blockHeights.reduce((sum, h) => sum + h, 0) + blockGap * Math.max(0, blocks.length - 1);
 
       ctx.save();
       ctx.textBaseline = "middle";
@@ -978,10 +979,10 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
       ctx.shadowColor = "rgba(0, 0, 0, 0.95)";
       ctx.shadowBlur = 16;
 
-      // Stała kinowa pozycja pionowa na 42% wysokości ekranu
+      // Cała kolumna trzyma się środka kadru, ale układa od góry do dołu.
       let cursorY = height * 0.42 - totalH / 2;
 
-      for (const block of blocks) {
+      blocks.forEach((block, blockIdx) => {
         const { lines, fontSize, lineHeight } = block.layout;
         ctx.globalAlpha = block.opacity;
         // Pomiar i rysowanie na tym samym kroju — inaczej słowa wchodzą na siebie.
@@ -990,7 +991,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
         ctx.fillStyle = "#F8FAFC";
 
         lines.forEach((line, lIdx) => {
-          const lineY = cursorY + lIdx * lineHeight;
+          const lineY = cursorY + lineHeight / 2 + lIdx * lineHeight;
           let curX = leftMargin;
           line.tokens.forEach((tok) => {
             ctx.fillText(tok.raw, curX, lineY);
@@ -998,8 +999,8 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
           });
         });
 
-        cursorY += Math.max(0, lines.length - 1) * lineHeight + blockGap;
-      }
+        cursorY += blockHeights[blockIdx] + blockGap;
+      });
 
       ctx.restore();
 
