@@ -58,13 +58,11 @@ function hairline(ctx: CanvasRenderingContext2D, x: number, y: number, w: number
   ctx.fillRect(x, y, w, 2);
 }
 
-function footer(
-  ctx: CanvasRenderingContext2D,
-  width: number,
-  height: number,
-  handle: string,
-  note?: string,
-) {
+/**
+ * Stopka: tylko nick. Nazwa marki w rogu była dopiskiem, który zasłaniał
+ * dolną strefę kadru i powtarzał to, co i tak widać na każdym poście.
+ */
+function footer(ctx: CanvasRenderingContext2D, width: number, height: number, handle: string) {
   const size = Math.round(width * 0.021);
   ctx.textAlign = "left";
   ctx.font = `700 ${size}px ${getFontFamilySpec("sans")}`;
@@ -74,11 +72,20 @@ function footer(
     Math.round(width * 0.09),
     height - size * 1.6,
   );
-  if (note) {
-    ctx.textAlign = "right";
-    ctx.fillText(note.toUpperCase(), width - Math.round(width * 0.09), height - size * 1.6);
-    ctx.textAlign = "left";
-  }
+}
+
+/**
+ * Bezpieczny pas kadru. Interfejs TikToka, Rolka i Shorts zasłaniają górę
+ * (nazwa konta, audio) i dół (opis, komentarze), więc treść musi stać środkiem
+ * — inaczej najciekawsza linia wpada pod pasek z przyciskami.
+ */
+const SAFE_TOP = 0.17;
+const SAFE_BOTTOM = 0.83;
+
+/** Górna krawędź bloku o danej wysokości, wyśrodkowana w bezpiecznym pasie. */
+export function centeredTop(blockHeight: number, height: number): number {
+  const band = height * (SAFE_BOTTOM - SAFE_TOP);
+  return Math.round(height * SAFE_TOP + Math.max(0, band - blockHeight) / 2);
 }
 
 export interface ProtocolSlideOptions extends LayoutTheme {
@@ -110,22 +117,44 @@ export function drawProtocolListSlide(
   // Teza: Cinzel, duży ale z powietrzem — agresywnie, bez przesady.
   const statementSize = Math.round(width * 0.072);
   ctx.font = `700 ${statementSize}px ${getFontFamilySpec("cinzel")}`;
-  const statementLines = wrapTextLines(ctx, stripHighlightSyntax(options.statement), usable);
-  let y = Math.round(height * 0.12);
-  ctx.fillStyle = INK;
-  for (const line of statementLines.slice(0, 4)) {
-    ctx.fillText(line, margin, y);
-    y += statementSize * 1.2;
-  }
-
-  y += Math.round(height * 0.03);
-  hairline(ctx, margin, y, usable, "rgba(243,240,234,0.14)");
-  y += Math.round(height * 0.055);
+  const statementLines = wrapTextLines(ctx, stripHighlightSyntax(options.statement), usable).slice(
+    0,
+    4,
+  );
 
   // Kroki z crimson numerem. Liczba jest tu kotwicą wzrokową.
   const stepSize = Math.round(width * 0.036);
   const numberSize = Math.round(width * 0.03);
   const steps = options.steps.slice(0, 4);
+  ctx.font = `500 ${stepSize}px ${getFontFamilySpec("sans")}`;
+  const stepLineCounts = steps.map((step) =>
+    Math.min(
+      3,
+      Math.max(1, wrapTextLines(ctx, stripHighlightSyntax(step), usable - stepSize * 2.4).length),
+    ),
+  );
+
+  const gapAboveRule = Math.round(height * 0.03);
+  const gapBelowRule = Math.round(height * 0.055);
+  const stepGap = height * 0.036;
+  const blockHeight =
+    statementLines.length * statementSize * 1.2 +
+    gapAboveRule +
+    gapBelowRule +
+    stepLineCounts.reduce((total, lines) => total + lines * stepSize * 1.35 + stepGap, 0) -
+    stepGap;
+
+  let y = centeredTop(blockHeight, height);
+
+  ctx.fillStyle = INK;
+  for (const line of statementLines) {
+    ctx.fillText(line, margin, y);
+    y += statementSize * 1.2;
+  }
+
+  y += gapAboveRule;
+  hairline(ctx, margin, y, usable, "rgba(243,240,234,0.14)");
+  y += gapBelowRule;
 
   steps.forEach((step, index) => {
     // `wrapTextLines` mierzy bieżącym ctx.font — kroki muszą być łamane krojem
@@ -144,21 +173,16 @@ export function drawProtocolListSlide(
       ctx.fillText(line, margin + stepSize * 2.4, lineTop + stepSize + lineIndex * stepSize * 1.35);
     });
 
-    y += Math.max(stepLines.length, 1) * stepSize * 1.35 + height * 0.036;
+    y += Math.min(stepLines.length, 3) * stepSize * 1.35 + stepGap;
   });
 
-  // Pieczęć z liczbą w prawym dolnym rogu — to, co zostaje w pamięci.
-  // Zsuwa się tylko do granicy kroków, nigdy pod stopkę.
+  // Pieczęć z liczbą — przy tezie, nie w rogu: róg to strefa interfejsu.
   if (options.figure) {
     const figureSize = Math.round(width * 0.13);
     ctx.textAlign = "right";
     ctx.font = `700 ${figureSize}px ${getFontFamilySpec("cinzel")}`;
     ctx.fillStyle = "rgba(243,240,234,0.13)";
-    ctx.fillText(
-      options.figure,
-      width - margin,
-      Math.min(y + figureSize, height - Math.round(height * 0.09)),
-    );
+    ctx.fillText(options.figure, width - margin, y - stepGap + figureSize * 0.2);
     ctx.textAlign = "left";
   }
 
@@ -201,13 +225,6 @@ export function drawCostVsRewardSlide(
     (size) => `700 ${size}px ${getFontFamilySpec("cinzel")}`,
     questionSize,
   );
-  ctx.font = `700 ${question.size}px ${getFontFamilySpec("cinzel")}`;
-  ctx.fillStyle = INK;
-  let y = Math.round(height * 0.1);
-  for (const line of question.lines) {
-    ctx.fillText(line, margin, y);
-    y += question.size * 1.22;
-  }
 
   const closingSize = Math.round(width * 0.045);
   const closing = options.closing
@@ -220,21 +237,47 @@ export function drawCostVsRewardSlide(
         closingSize,
       )
     : null;
-  const closingTop =
-    height - Math.round(height * 0.1) - (closing ? closing.lines.length * closing.size * 1.25 : 0);
-
-  y += Math.round(height * 0.022);
-  hairline(ctx, margin, y, contentWidth, "rgba(243,240,234,0.16)");
 
   const headerSize = Math.round(width * 0.026);
   const bodySize = Math.round(width * 0.034);
-  const rowsTop = y + Math.round(height * 0.075);
-  // Tabela rozciąga się między nagłówkiem a domknięciem. Wcześniej wiersze
-  // szły jeden pod drugim od góry, więc połowa kadru pod nimi świeciła pustką.
-  const rowSpan = Math.max(
-    (closingTop - rowsTop) / Math.max(1, Math.max(options.cost.length, options.forfeit.length)),
-    bodySize * 3,
-  );
+  ctx.font = `500 ${bodySize}px ${getFontFamilySpec("sans")}`;
+  // Wysokość wiersza liczona z realnie złamanego tekstu, nie z liczby pozycji.
+  const rowLines = (items: string[]) =>
+    items.slice(0, 5).map((item) => {
+      const lines = wrapTextLines(ctx, stripHighlightSyntax(item), columnWidth);
+      return Math.min(3, Math.max(1, lines.length));
+    });
+  const costRows = rowLines(options.cost);
+  const forfeitRows = rowLines(options.forfeit);
+  const rowCount = Math.max(costRows.length, forfeitRows.length, 1);
+  const tallestRow = Math.max(1, ...costRows, ...forfeitRows);
+  const rowSpan = tallestRow * bodySize * 1.3 + bodySize * 1.2;
+
+  const questionGap = Math.round(height * 0.022);
+  const tableTopGap = Math.round(height * 0.075);
+  const closingGap = Math.round(height * 0.05);
+  const headerBlock = headerSize * 2.2;
+  const closingBlock = closing ? closing.lines.length * closing.size * 1.25 : 0;
+  const blockHeight =
+    question.lines.length * question.size * 1.22 +
+    questionGap +
+    tableTopGap +
+    headerBlock +
+    rowCount * rowSpan +
+    (closing ? closingGap + closingBlock : 0);
+
+  let y = centeredTop(blockHeight, height);
+  ctx.font = `700 ${question.size}px ${getFontFamilySpec("cinzel")}`;
+  ctx.fillStyle = INK;
+  for (const line of question.lines) {
+    ctx.fillText(line, margin, y);
+    y += question.size * 1.22;
+  }
+
+  y += questionGap;
+  hairline(ctx, margin, y, contentWidth, "rgba(243,240,234,0.16)");
+
+  const rowsTop = y + tableTopGap;
 
   const column = (title: string, items: string[], x: number, highlight: boolean) => {
     ctx.font = `800 ${headerSize}px ${getFontFamilySpec("sans")}`;
@@ -251,14 +294,14 @@ export function drawCostVsRewardSlide(
     ctx.font = `500 ${bodySize}px ${getFontFamilySpec("sans")}`;
     items.slice(0, 5).forEach((item, index) => {
       const lines = wrapTextLines(ctx, stripHighlightSyntax(item), columnWidth).slice(0, 3);
-      const blockHeight = lines.length * bodySize * 1.3;
+      const cellHeight = lines.length * bodySize * 1.3;
       const rowTop = rowsTop + index * rowSpan;
       ctx.fillStyle = INK;
       lines.forEach((line, lineIndex) => {
         ctx.fillText(
           line,
           x,
-          rowTop + (rowSpan - blockHeight) / 2 + bodySize + lineIndex * bodySize * 1.3,
+          rowTop + (rowSpan - cellHeight) / 2 + bodySize + lineIndex * bodySize * 1.3,
         );
       });
     });
@@ -271,12 +314,13 @@ export function drawCostVsRewardSlide(
   if (closing) {
     ctx.font = `700 ${closing.size}px ${getFontFamilySpec("cinzel")}`;
     ctx.fillStyle = accent;
+    const closingTop = rowsTop + rowCount * rowSpan + closingGap;
     closing.lines.forEach((line, index) => {
       ctx.fillText(line, margin, closingTop + closing.size + index * closing.size * 1.25);
     });
   }
 
-  footer(ctx, width, height, options.handle, "STARK STANDARD");
+  footer(ctx, width, height, options.handle);
 }
 
 export interface SignSlideOptions extends LayoutTheme {
@@ -456,17 +500,36 @@ export function drawConceptDiagramSlide(
     lineSize,
     Math.round(lineSize * 0.7),
   );
+  const captionSize = Math.round(width * 0.026);
+  const caption = options.caption
+    ? fitLines(
+        ctx,
+        stripHighlightSyntax(options.caption),
+        width - margin * 2,
+        2,
+        (s) => `500 ${s}px ${getFontFamilySpec("sans")}`,
+        captionSize,
+      )
+    : null;
+
+  // Wiersz, szkic i podpis to jeden blok — cały stoi środkiem bezpiecznego
+  // pasa, bo góra i dół kadru to pod TikTokiem teren interfejsu.
+  const size = Math.round(Math.min(width, height) * 0.4);
+  const gap = Math.round(height * 0.05);
+  const lineBlock = fitted.lines.length * fitted.size * 1.4;
+  const captionBlock = caption ? caption.lines.length * caption.size * 1.4 : 0;
+  const blockHeight = lineBlock + gap + size + (caption ? gap * 0.6 + captionBlock : 0);
+
+  let y = centeredTop(blockHeight, height) + fitted.size;
   ctx.font = `800 ${fitted.size}px ${getFontFamilySpec("sans")}`;
   ctx.fillStyle = INK;
   ctx.textAlign = "center";
-  let y = Math.round(height * 0.12);
   for (const row of fitted.lines) {
     ctx.fillText(row, width / 2, y);
     y += fitted.size * 1.4;
   }
 
-  const size = Math.round(Math.min(width, height) * 0.42);
-  const cy = Math.round(height * 0.5);
+  const cy = centeredTop(blockHeight, height) + lineBlock + gap + size / 2;
   ctx.strokeStyle = STROKE;
   ctx.lineWidth = Math.max(2, Math.round(width * 0.0022));
   ctx.lineJoin = "round";
@@ -477,19 +540,10 @@ export function drawConceptDiagramSlide(
   else if (options.diagram === "split") drawSplit(ctx, width / 2, cy, size, options.line);
   else drawChart(ctx, width / 2, cy, size, options.line);
 
-  if (options.caption) {
-    const captionSize = Math.round(width * 0.026);
-    const caption = fitLines(
-      ctx,
-      stripHighlightSyntax(options.caption),
-      width - margin * 2,
-      2,
-      (s) => `500 ${s}px ${getFontFamilySpec("sans")}`,
-      captionSize,
-    );
+  if (caption) {
     ctx.font = `500 ${caption.size}px ${getFontFamilySpec("sans")}`;
     ctx.fillStyle = accent;
-    let captionY = cy + size * 0.62;
+    let captionY = cy + size / 2 + gap * 0.6 + caption.size;
     for (const row of caption.lines) {
       ctx.fillText(row, width / 2, captionY);
       captionY += caption.size * 1.4;
@@ -497,7 +551,7 @@ export function drawConceptDiagramSlide(
   }
 
   ctx.textAlign = "left";
-  footer(ctx, width, height, options.handle, "STARK STANDARD");
+  footer(ctx, width, height, options.handle);
 }
 
 /** Ten sam tekst ma lądować w różnym miejscu kadru — inaczej każdy post to ta sama kompozycja. */
@@ -551,7 +605,7 @@ export function drawNeonSignSlide(canvas: HTMLCanvasElement, options: SignSlideO
   );
   const lineHeight = fitted.size * 1.32;
   const blockHeight = fitted.lines.length * lineHeight;
-  let y = Math.round(height * [0.16, 0.3, 0.44][seed % 3]) + fitted.size;
+  let y = centeredTop(blockHeight, height) + fitted.size;
 
   ctx.textAlign = "left";
   ctx.font = `700 ${fitted.size}px ${getFontFamilySpec("cinzel")}`;
@@ -586,7 +640,7 @@ export function drawNeonSignSlide(canvas: HTMLCanvasElement, options: SignSlideO
   }
   ctx.restore();
 
-  footer(ctx, width, height, options.handle, "STARK STANDARD");
+  footer(ctx, width, height, options.handle);
 }
 
 /**
@@ -616,10 +670,25 @@ export function drawBillboardSignSlide(canvas: HTMLCanvasElement, options: SignS
 
   const panelLeft = Math.round(width * (seed % 2 ? 0.08 : 0.14));
   const panelRight = Math.round(width - panelLeft);
-  const panelTop = Math.round(height * 0.2);
-  const panelBottom = Math.round(height * (0.5 + (seed % 3) * 0.06));
   const panelWidth = panelRight - panelLeft;
-  const panelHeight = panelBottom - panelTop;
+  const inset = Math.round(panelWidth * 0.09);
+
+  // Tablica dopasowuje się do napisu, a potem cały blok siada środkiem —
+  // panel przy krawędzi znika pod paskiem opisu w Rolce i pod audio na TikToku.
+  const textSize = Math.round(panelWidth * 0.085);
+  const fitted = fitLines(
+    ctx,
+    options.textLines.join("\n"),
+    panelWidth - inset * 2,
+    4,
+    (s) => `700 ${s}px ${getFontFamilySpec("cinzel")}`,
+    textSize,
+    Math.round(textSize * 0.55),
+  );
+  const lineHeight = fitted.size * 1.28;
+  const panelHeight = Math.round(fitted.lines.length * lineHeight + inset * 1.4);
+  const panelTop = centeredTop(panelHeight, height);
+  const panelBottom = panelTop + panelHeight;
 
   ctx.fillStyle = "#101115";
   ctx.fillRect(panelLeft + panelWidth * 0.18, panelBottom, width * 0.02, height - panelBottom);
@@ -637,18 +706,6 @@ export function drawBillboardSignSlide(canvas: HTMLCanvasElement, options: SignS
   ctx.lineWidth = Math.round(width * 0.012);
   ctx.strokeRect(panelLeft, panelTop, panelWidth, panelHeight);
 
-  const inset = Math.round(panelWidth * 0.09);
-  const textSize = Math.round(panelWidth * 0.085);
-  const fitted = fitLines(
-    ctx,
-    options.textLines.join("\n"),
-    panelWidth - inset * 2,
-    4,
-    (s) => `700 ${s}px ${getFontFamilySpec("cinzel")}`,
-    textSize,
-    Math.round(textSize * 0.55),
-  );
-  const lineHeight = fitted.size * 1.28;
   let y = panelTop + panelHeight / 2 - (fitted.lines.length * lineHeight) / 2 + fitted.size * 0.85;
 
   ctx.textAlign = "center";
@@ -660,5 +717,5 @@ export function drawBillboardSignSlide(canvas: HTMLCanvasElement, options: SignS
   }
   ctx.textAlign = "left";
 
-  footer(ctx, width, height, options.handle, "STARK STANDARD");
+  footer(ctx, width, height, options.handle);
 }

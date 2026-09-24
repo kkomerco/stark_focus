@@ -18,6 +18,7 @@ import {
   drawBrandLogoOnContext,
 } from "./starkBrandTheme";
 import {
+  centeredTop,
   drawBillboardSignSlide,
   drawConceptDiagramSlide,
   drawCostVsRewardSlide,
@@ -470,12 +471,9 @@ export function draw3DWallQuoteSlide(
   const lineHeight = fontSize * 1.34;
   const totalTextH = (lines.length - 1) * lineHeight;
 
-  let curY =
-    height <= 1080
-      ? Math.max(160, (height - totalTextH) * 0.42)
-      : height <= 1350
-        ? Math.max(220, (height - totalTextH) * 0.38)
-        : height * 0.26;
+  // Litera w tym samym rogu przy każdym poście to ta sama kompozycja w kółko;
+  // blok stoi środkiem bezpiecznego pasa, bo górę i dół zjada interfejs.
+  let curY = centeredTop(totalTextH + fontSize, height) + fontSize;
 
   // Dobór barwy liter 3D wg tła i wyboru koloru czcionki (biała vs czarna)
   const isWhiteFont = fontColor === "white";
