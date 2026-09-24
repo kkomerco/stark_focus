@@ -26,7 +26,11 @@ import {
   Package,
 } from "lucide-react";
 import { UniversalLayoutSpec, UniversalTextLayer } from "../types";
-import { renderUniversalLayout, drawMinimalBlackQuoteSlide } from "../utils/canvasRenderer";
+import {
+  renderUniversalLayout,
+  drawMinimalBlackQuoteSlide,
+  drawSceneBackdrop,
+} from "../utils/canvasRenderer";
 import { structuredSpec } from "../utils/ideaLayout";
 import { groupText, nextLayerId, PRIMARY_LAYER_ID } from "../utils/canvas/layerRoles";
 
@@ -144,19 +148,18 @@ const SPEC_COLLAGE_4: UniversalLayoutSpec = {
  * Presety buduje ten sam `structuredSpec`, z którego powstaje kadr z pomysłu:
  * wybrany format i wygenerowana treść nie mogą się od siebie różnić geometrycznie.
  */
-const SPEC_PROTOCOL = structuredSpec(
-  "Protokół",
-  "protocol_list",
-  {
-    primary: "You don't lack discipline. You lack a sequence.",
-    steps: [
-      "Phone in another room before you decide anything.",
-      "First block of the day belongs to the hardest task.",
-      "No negotiations before noon. The deal is already signed.",
-    ],
-  },
-  { eyebrow: "PROTOCOL 04:30", figure: "04:30" },
-);
+const SPEC_PROTOCOL = structuredSpec("Protokół", "protocol_list", {
+  primary: "You don't lack discipline. You lack a sequence.",
+  steps: [
+    "Phone in another room before you decide anything.",
+    "First block of the day belongs to the hardest task.",
+    "No negotiations before noon. The deal is already signed.",
+  ],
+  // Nadtytuł i cyfra są warstwami, więc zmienia się je w edytorze tak samo
+  // jak resztę kadru — wcześniej „04:30" wisiało w tle na stałe.
+  eyebrow: "PROTOCOL",
+  figure: "",
+});
 
 const SPEC_COST_REWARD = structuredSpec("Koszt i utrata", "cost_vs_reward", {
   primary: "What does it cost to stay who you are?",
@@ -173,22 +176,7 @@ const SPEC_COST_REWARD = structuredSpec("Koszt i utrata", "cost_vs_reward", {
   closing: "You already paid. Decide what it bought.",
 });
 
-const SPEC_LEDGER = structuredSpec(
-  "Księga standardu",
-  "monolith_ledger",
-  {
-    primary: "Keep score in private.",
-    subtext: "Audience optional. Entries permanent.",
-    steps: [
-      "Days executed without an audience",
-      "Times you chose the harder option",
-      "Promises kept to yourself alone",
-    ],
-  },
-  { eyebrow: "LEDGER", figure: "365" },
-);
-
-const SPEC_WALL_3D = structuredSpec("Litery na ścianie", "studio_wall_3d", {
+const SPEC_WALL_3D = structuredSpec("Napis w scenie", "studio_wall_3d", {
   primary: "Silence cannot be misquoted.",
 });
 
@@ -204,9 +192,18 @@ const LAYOUT_PICKER: Array<{
   { gridType: "none_solid", label: "Cytat", spec: SPEC_BLACK_QUOTE },
   { gridType: "protocol_list", label: "Protokół", spec: SPEC_PROTOCOL },
   { gridType: "cost_vs_reward", label: "Koszt", spec: SPEC_COST_REWARD },
-  { gridType: "monolith_ledger", label: "Księga", spec: SPEC_LEDGER },
-  { gridType: "studio_wall_3d", label: "Ściana 3D", spec: SPEC_WALL_3D },
+  { gridType: "studio_wall_3d", label: "Napis w scenie", spec: SPEC_WALL_3D },
   { gridType: "grid_2x2", label: "Kolaż", spec: SPEC_COLLAGE_4 },
+];
+
+/** Gdzie napis stoi w kadrze — ten sam tekst, trzy różne sceny. */
+const SIGN_SCENES: Array<{
+  scene: NonNullable<UniversalLayoutSpec["layoutData"]>["scene"];
+  label: string;
+}> = [
+  { scene: "wall", label: "Ściana 3D" },
+  { scene: "neon", label: "Neon" },
+  { scene: "billboard", label: "Baner" },
 ];
 
 /**
@@ -217,17 +214,22 @@ const ROLE_LABELS: Record<string, string> = {
   step: "Krok",
   cost: "Cena",
   forfeit: "Utrata",
-  sub: "Podtytuł",
+};
+
+const EXACT_LAYER_LABELS: Record<string, string> = {
+  closing: "Puenta:",
+  eyebrow: "Nadtytuł:",
+  figure: "Cyfra:",
+  [PRIMARY_LAYER_ID]: "Teza:",
 };
 
 function layerLabel(spec: UniversalLayoutSpec, layer: UniversalTextLayer, index: number): string {
   if (spec.gridType === "none_solid") {
     return spec.textLayers.length === 1 ? "Zdanie:" : `Linia ${index + 1}:`;
   }
+  if (EXACT_LAYER_LABELS[layer.id]) return EXACT_LAYER_LABELS[layer.id];
   const role = /^([a-z]+)(\d+)$/.exec(layer.id);
   if (role && ROLE_LABELS[role[1]]) return `${ROLE_LABELS[role[1]]} ${role[2]}:`;
-  if (layer.id === "closing") return "Puenta:";
-  if (layer.id === PRIMARY_LAYER_ID) return "Teza:";
   return `Wers ${index + 1}:`;
 }
 
@@ -399,9 +401,10 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
   // Tło generowane w środku aplikacji — wcześniej studio oddawało tylko tekst
   // `bingPrompt` do wklejenia w obcym generatorze, więc materiał graficzny
   // nie był samowystarczalny.
-  const [bgImage, setBgImage] = useState<HTMLImageElement | null>(null);
+  const [bgImage, setBgImage] = useState<CanvasImageSource | null>(null);
   const [bgBusy, setBgBusy] = useState(false);
   const [bgError, setBgError] = useState<string | null>(null);
+  const [bgNote, setBgNote] = useState<string | null>(null);
 
   const generateBackground = async () => {
     const hook = (spec.textLayers[0]?.text || "").trim();
@@ -411,6 +414,7 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
     }
     setBgBusy(true);
     setBgError(null);
+    setBgNote(null);
     try {
       const res = await fetch("/api/ai/generate-background", {
         method: "POST",
@@ -419,20 +423,31 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
       });
       const json = await res.json();
       if (!res.ok || typeof json?.dataUrl !== "string") {
-        setBgError(
-          typeof json?.error === "string" ? json.error : "Generowanie tła nie powiodło się.",
-        );
+        applyFallbackBackdrop(hook);
         return;
       }
       const img = new Image();
       img.onload = () => setBgImage(img);
-      img.onerror = () => setBgError("Tło przyszło, ale przeglądarka nie dała rady go odkodować.");
+      img.onerror = () => applyFallbackBackdrop(hook);
       img.src = json.dataUrl;
     } catch {
-      setBgError("Brak odpowiedzi serwera przy generowaniu tła.");
+      applyFallbackBackdrop(hook);
     } finally {
       setBgBusy(false);
     }
+  };
+
+  /**
+   * Bez modelu obrazów kadr i tak ma mieć scenę. Wcześniejszą odpowiedzią był
+   * wykład o rozliczeniach w AI Studio, a użytkownik zostawał z czarnym polem.
+   */
+  const applyFallbackBackdrop = (text: string) => {
+    let seed = 7;
+    for (let i = 0; i < text.length; i++) seed = (seed * 31 + text.charCodeAt(i)) >>> 0;
+    const canvas = document.createElement("canvas");
+    drawSceneBackdrop(canvas, dimensions.width, dimensions.height, seed);
+    setBgImage(canvas);
+    setBgNote("Model obrazów niedostępny — tło z banku scen marki.");
   };
 
   useEffect(() => {
@@ -646,7 +661,7 @@ Zwróć WYŁĄCZNIE czysty JSON:
     const costs = groupText(spec, "cost").length;
     const forfeits = groupText(spec, "forfeit").length;
     const prefix =
-      spec.gridType === "protocol_list" || spec.gridType === "monolith_ledger"
+      spec.gridType === "protocol_list"
         ? "step"
         : spec.gridType === "cost_vs_reward"
           ? costs <= forfeits
@@ -951,6 +966,33 @@ Zwróć WYŁĄCZNIE czysty JSON:
           ))}
         </div>
 
+        {spec.gridType === "studio_wall_3d" && (
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] font-mono text-neutral-500 uppercase shrink-0">
+              Scena:
+            </span>
+            {SIGN_SCENES.map((option) => (
+              <button
+                key={option.scene}
+                type="button"
+                onClick={() =>
+                  setSpec((prev) => ({
+                    ...prev,
+                    layoutData: { ...prev.layoutData, scene: option.scene },
+                  }))
+                }
+                className={`px-2.5 py-1 rounded text-[10px] font-mono uppercase tracking-wider cursor-pointer transition-colors shrink-0 ${
+                  (spec.layoutData?.scene ?? "wall") === option.scene
+                    ? "bg-[#E11D48] text-white"
+                    : "bg-[#141414] text-neutral-500 border border-white/10 hover:text-white"
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Wymiar kadru jest stały — mówi go podpis nad podglądem. */}
         <div className="flex items-center gap-2">
           <button
@@ -1096,6 +1138,9 @@ Zwróć WYŁĄCZNIE czysty JSON:
                   )}
                   {bgError && (
                     <span className="text-[10px] font-mono text-rose-400">{bgError}</span>
+                  )}
+                  {bgNote && !bgError && (
+                    <span className="text-[10px] font-mono text-neutral-500">{bgNote}</span>
                   )}
                 </div>
 

@@ -18,19 +18,22 @@ import { layerGroup, PRIMARY_LAYER_ID, textLayer } from "./canvas/layerRoles";
 export interface StructuredContent {
   /** Teza, pytanie albo nagłówek — zawsze pierwsza warstwa (`t1`). */
   primary: string;
-  subtext?: string;
   steps?: string[];
   cost?: string[];
   forfeit?: string[];
   closing?: string;
+  /** Nadtytuł układu — warstwa jak każda inna, więc edytowalna w studio. */
+  eyebrow?: string;
+  /** Duża blada cyfra w tle. Pusta = bez cyfry. */
+  figure?: string;
 }
 
 const LAYOUT_NAMES: Record<string, string> = {
   quote: "Cytat",
   protocol_list: "Protokół",
   cost_vs_reward: "Koszt i utrata",
-  monolith_ledger: "Księga",
-  studio_wall_3d: "Litery na ścianie",
+  studio_wall_3d: "Napis w scenie",
+  grid_2x2: "Kolaż",
 };
 
 const BODY_FONT_SIZE = 38;
@@ -43,11 +46,6 @@ export function structuredSpec(
 ): UniversalLayoutSpec {
   const layers: UniversalTextLayer[] = [textLayer(PRIMARY_LAYER_ID, content.primary)];
 
-  if (content.subtext) {
-    layers.push(
-      textLayer("sub1", content.subtext, { fontFamily: "sans", fontSize: 34, posY: 0.3 }),
-    );
-  }
   if (content.steps?.length) {
     layers.push(
       ...layerGroup("step", content.steps, {
@@ -75,6 +73,14 @@ export function structuredSpec(
   if (content.closing) {
     layers.push(textLayer("closing", content.closing, { fontSize: 46, posY: 0.84 }));
   }
+  if (content.eyebrow) {
+    layers.push(
+      textLayer("eyebrow", content.eyebrow, { fontFamily: "sans", fontSize: 30, posY: 0.11 }),
+    );
+  }
+  if (content.figure) {
+    layers.push(textLayer("figure", content.figure, { fontSize: 140, posY: 0.86 }));
+  }
 
   return {
     layoutName,
@@ -89,11 +95,7 @@ export function structuredSpec(
     fontColorMode: "white",
     textLayers: layers,
     layoutData: meta,
-    caption: formatStarkCaption(content.primary, [
-      "Comfort is paid for in regret, later and with interest.",
-      "The standard you hold alone is the only one that counts.",
-      "Silence protects the work; results announce it.",
-    ]),
+    caption: formatStarkCaption(content.primary),
     detectedAudio: "bez dźwięku — dodaj w aplikacji social media",
   };
 }
@@ -105,19 +107,15 @@ export function specFromIdea(idea: IdeaItem): UniversalLayoutSpec {
     ? "none_solid"
     : (idea.layout as UniversalLayoutSpec["gridType"]);
 
-  const spec = structuredSpec(
-    LAYOUT_NAMES[idea.layout ?? "quote"] || "Cytat",
-    gridType,
-    {
-      primary: structure.statement || structure.question || idea.hook,
-      subtext: structure.subtext,
-      steps: structure.steps,
-      cost: structure.cost,
-      forfeit: structure.forfeit,
-      closing: structure.closing,
-    },
-    { eyebrow: structure.eyebrow, figure: structure.figure },
-  );
+  const spec = structuredSpec(LAYOUT_NAMES[idea.layout ?? "quote"] || "Cytat", gridType, {
+    primary: structure.statement || structure.question || idea.hook,
+    steps: structure.steps,
+    cost: structure.cost,
+    forfeit: structure.forfeit,
+    closing: structure.closing,
+    eyebrow: structure.eyebrow,
+    figure: structure.figure,
+  });
 
   return { ...spec, caption: idea.caption?.trim() || spec.caption };
 }

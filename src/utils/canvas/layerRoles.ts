@@ -9,14 +9,17 @@ import { UniversalLayoutSpec, UniversalTextLayer } from "../../types";
  * wersję sprzed poprawki. Teraz jedynym źródłem treści są warstwy, a ich rola
  * wynika z id:
  *
- *   `t1`       — teza / pytanie / nagłówek kadru
- *   `sub1`     — podtytuł (księga)
- *   `step1..N` — kroki protokołu i pozycje księgi
- *   `cost1..N` — lewy słupek „co płacisz dziś"
+ *   `t1`        — teza / pytanie / nagłówek kadru
+ *   `step1..N`  — kroki protokołu
+ *   `cost1..N`  — lewy słupek „co płacisz dziś"
  *   `forfeit1..N` — prawy słupek „co to zabiera potem"
- *   `closing`  — zdanie domykające kadr
+ *   `closing`   — zdanie domykające kadr
+ *   `eyebrow`   — nadtytuł układu (np. PROTOCOL 04:30)
+ *   `figure`    — duża blada cyfra w tle kadru
  *
  * Id, a nie pozycja w tablicy, bo edytor potrafi warstwę usunąć albo dopisać.
+ * Wszystko, co jest słowem, jest tu — dlatego każdą linijkę kadru da się
+ * poprawić w edytorze. `layoutData` zostaje tylko na tryb sceny napisu.
  */
 
 export const PRIMARY_LAYER_ID = "t1";

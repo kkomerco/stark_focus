@@ -145,7 +145,7 @@ ${
    - duration: liczba sekund 7-10
    - captionShort: krótki opis po angielsku (max 2 linie, z CTA "Save this")
    - hashtags: 5 hashtagów z miksu: #darkmotivation #discipline #hardwork #mindset + 1 niszowy
-2. Karuzela 4:5: title + dokładnie 5 slajdów {headline, bodyText} (każdy slajd po angielsku, max 12 słów na slajd)
+2. Karuzela 4:5: title + dokładnie 5 slajdów {headline, bodyText}. bodyText to 2-3 zdania po angielsku (25-40 słów): najpierw bolesna obserwacja, potem konkret, na koniec cena za jej brak. Jedno zdanie na slajd nie zatrzymuje czytelnika.
 3. Grafika 1:1: {headline, body, bingPrompt} — bingPrompt po angielsku do generatora obrazów (ciemne, brutalistyczne, minimalistyczne tło, 1:1, bez tekstu, moody lighting)
 
 Zwróć WYŁĄCZNIE poprawny JSON wg schematu:

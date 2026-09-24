@@ -1,6 +1,7 @@
 import { BRAND_ACCENT } from "../starkBrandTheme";
 import {
   drawImageCover,
+  fitLines,
   getFontFamilySpec,
   parseLineTokens,
   stripHighlightSyntax,
@@ -8,11 +9,10 @@ import {
 } from "./primitives";
 
 /**
- * DWA UKŁADY DOŁĄCZONE PO TO, ŻE 80% MATERIAŁU TO BYŁ CYTAT NA CZERNI.
+ * UKŁADY DOŁĄCZONE PO TO, ŻE 80% MATERIAŁU TO BYŁ CYTAT NA CZERNI.
  *
- * Oba mają jedną rolę: zatrzymać kciuk nie krzykiem, tylko STRUCTURĄ —
- * człowiek ma przerwać scroll i dokończyć myśl sam. Dlatego liczba, rubryka
- * i niedomknięte zdanie, a nie kolejna sentencja.
+ * Mają jedną rolę: zatrzymać kciuk nie krzykiem, tylko STRUCTURĄ albo
+ * SCENĄ — człowiek ma przerwać scroll i dokończyć myśl sam.
  */
 
 export interface LayoutTheme {
@@ -190,7 +190,7 @@ export interface CostRewardSlideOptions extends LayoutTheme {
 }
 
 /**
- * KOSZT vs UTRATA — dwa słupce tabeli, na końcu pytanie bez odpowiedzi.
+ * KOSZT vs UTRATA — dwa słupki tabeli, na końcu pytanie bez odpowiedzi.
  * Konfrontacja działa, bo czytelnik sam musi dokończyć zdanie.
  */
 export function drawCostVsRewardSlide(
@@ -204,83 +204,258 @@ export function drawCostVsRewardSlide(
   const margin = Math.round(width * 0.09);
   const gutter = Math.round(width * 0.06);
   const columnWidth = (width - margin * 2 - gutter) / 2;
+  const contentWidth = width - margin * 2;
 
   const questionSize = Math.round(width * 0.062);
-  ctx.font = `700 ${questionSize}px ${getFontFamilySpec("cinzel")}`;
-  ctx.fillStyle = INK;
-  const questionLines = wrapTextLines(
+  const question = fitLines(
     ctx,
     stripHighlightSyntax(options.question),
-    width - margin * 2,
+    contentWidth,
+    3,
+    (size) => `700 ${size}px ${getFontFamilySpec("cinzel")}`,
+    questionSize,
   );
-  let y = Math.round(height * 0.115);
-  questionLines.slice(0, 3).forEach((line) => {
+  ctx.font = `700 ${question.size}px ${getFontFamilySpec("cinzel")}`;
+  ctx.fillStyle = INK;
+  let y = Math.round(height * 0.1);
+  for (const line of question.lines) {
     ctx.fillText(line, margin, y);
-    y += questionSize * 1.22;
-  });
+    y += question.size * 1.22;
+  }
 
-  y += Math.round(height * 0.025);
-  hairline(ctx, margin, y, width - margin * 2, "rgba(243,240,234,0.16)");
-  y += Math.round(height * 0.05);
+  const closingSize = Math.round(width * 0.045);
+  const closing = options.closing
+    ? fitLines(
+        ctx,
+        stripHighlightSyntax(options.closing),
+        contentWidth,
+        2,
+        (size) => `700 ${size}px ${getFontFamilySpec("cinzel")}`,
+        closingSize,
+      )
+    : null;
+  const closingTop =
+    height - Math.round(height * 0.1) - (closing ? closing.lines.length * closing.size * 1.25 : 0);
+
+  y += Math.round(height * 0.022);
+  hairline(ctx, margin, y, contentWidth, "rgba(243,240,234,0.16)");
 
   const headerSize = Math.round(width * 0.026);
   const bodySize = Math.round(width * 0.034);
+  const rowsTop = y + Math.round(height * 0.075);
+  // Tabela rozciąga się między nagłówkiem a domknięciem. Wcześniej wiersze
+  // szły jeden pod drugim od góry, więc połowa kadru pod nimi świeciła pustką.
+  const rowSpan = Math.max(
+    (closingTop - rowsTop) / Math.max(1, Math.max(options.cost.length, options.forfeit.length)),
+    bodySize * 3,
+  );
 
   const column = (title: string, items: string[], x: number, highlight: boolean) => {
     ctx.font = `800 ${headerSize}px ${getFontFamilySpec("sans")}`;
     ctx.fillStyle = highlight ? accent : DIM;
-    ctx.fillText(title.toUpperCase(), x, y + headerSize);
+    ctx.fillText(title.toUpperCase(), x, rowsTop - headerSize * 1.5);
     hairline(
       ctx,
       x,
-      y + headerSize * 1.7,
+      rowsTop - headerSize * 0.7,
       columnWidth,
       highlight ? accent : "rgba(243,240,234,0.2)",
     );
 
-    let rowY = y + headerSize * 2.9;
     ctx.font = `500 ${bodySize}px ${getFontFamilySpec("sans")}`;
-    items.slice(0, 4).forEach((item) => {
-      const lines = wrapTextLines(ctx, stripHighlightSyntax(item), columnWidth);
+    items.slice(0, 5).forEach((item, index) => {
+      const lines = wrapTextLines(ctx, stripHighlightSyntax(item), columnWidth).slice(0, 3);
+      const blockHeight = lines.length * bodySize * 1.3;
+      const rowTop = rowsTop + index * rowSpan;
       ctx.fillStyle = INK;
-      lines.slice(0, 3).forEach((line, index) => {
-        ctx.fillText(line, x, rowY + index * bodySize * 1.3);
+      lines.forEach((line, lineIndex) => {
+        ctx.fillText(
+          line,
+          x,
+          rowTop + (rowSpan - blockHeight) / 2 + bodySize + lineIndex * bodySize * 1.3,
+        );
       });
-      rowY += Math.max(lines.length, 1) * bodySize * 1.3 + bodySize * 0.5;
     });
-    return rowY;
   };
 
   // Treść kadru po angielsku — aplikacja jest polska, materiał nie.
-  const costEnd = column("Cost today", options.cost, margin, false);
-  const forfeitEnd = column(
-    "What it forfeits",
-    options.forfeit,
-    margin + columnWidth + gutter,
-    true,
-  );
+  column("Cost today", options.cost, margin, false);
+  column("What it forfeits", options.forfeit, margin + columnWidth + gutter, true);
 
-  if (options.closing) {
-    const closingSize = Math.round(width * 0.045);
-    ctx.font = `700 ${closingSize}px ${getFontFamilySpec("cinzel")}`;
-    const closingLines = wrapTextLines(
-      ctx,
-      stripHighlightSyntax(options.closing),
-      width - margin * 2,
-    ).slice(0, 2);
-
-    // Domknięcie siada POD niższym słupkiem. Wcześniej liczba wierszy była
-    // wnioskowana z długości tablicy, nie z realnie narysowanego tekstu, więc
-    // przy długich hasłach wchodziła w treść słupków.
-    const blockHeight = closingLines.length * closingSize * 1.25;
-    const floor = height - Math.round(height * 0.1) - blockHeight;
-    const closingTop = Math.min(Math.max(costEnd, forfeitEnd) + height * 0.045, floor);
-
+  if (closing) {
+    ctx.font = `700 ${closing.size}px ${getFontFamilySpec("cinzel")}`;
     ctx.fillStyle = accent;
-    closingLines.forEach((line, index) => {
-      ctx.fillText(line, margin, closingTop + index * closingSize * 1.25);
+    closing.lines.forEach((line, index) => {
+      ctx.fillText(line, margin, closingTop + closing.size + index * closing.size * 1.25);
     });
   }
+
+  footer(ctx, width, height, options.handle, "STARK STANDARD");
+}
+
+export interface SignSlideOptions extends LayoutTheme {
+  textLines: string[];
+}
+
+/** Ten sam tekst ma lądować w różnym miejscu kadru — inaczej każdy post to ta sama kompozycja. */
+function seedFrom(lines: string[]): number {
+  let seed = 11;
+  for (const line of lines) {
+    for (let i = 0; i < line.length; i++) seed = (seed * 33 + line.charCodeAt(i)) >>> 0;
+  }
+  return seed;
+}
+
+function darkWall(ctx: CanvasRenderingContext2D, width: number, height: number, seed: number) {
+  const base = ctx.createLinearGradient(0, 0, 0, height);
+  base.addColorStop(0, "#15161A");
+  base.addColorStop(0.5, "#0B0C0E");
+  base.addColorStop(1, "#050506");
+  ctx.fillStyle = base;
+  ctx.fillRect(0, 0, width, height);
+
+  // Placki zaprawy — bez tego ściana jest wektorem, a napis wygląda na naklejkę.
+  for (let i = 0; i < 90; i++) {
+    const x = ((seed + i * 7919) % width) | 0;
+    const y = ((seed + i * 104729) % height) | 0;
+    const size = 40 + ((seed + i * 31) % 120);
+    ctx.fillStyle = i % 2 ? "rgba(255,255,255,0.012)" : "rgba(0,0,0,0.05)";
+    ctx.fillRect(x, y, size, size * 0.5);
+  }
+}
+
+/**
+ * NEON — rurka w karmazynie na ciemnej ścianie. Rdzeń jest prawie biały,
+ * bo prawdziwy neon nie świeci jednym kolorem.
+ */
+export function drawNeonSignSlide(canvas: HTMLCanvasElement, options: SignSlideOptions): void {
+  const base = prepare(canvas, { ...options, bgImage: null });
+  if (!base) return;
+  const { ctx, width, height, accent } = base;
+  const seed = seedFrom(options.textLines);
+  darkWall(ctx, width, height, seed);
+
+  const margin = Math.round(width * 0.09);
+  const size = Math.round(width * 0.088);
+  const fitted = fitLines(
+    ctx,
+    options.textLines.join("\n"),
+    width - margin * 2,
+    5,
+    (s) => `700 ${s}px ${getFontFamilySpec("cinzel")}`,
+    size,
+    Math.round(size * 0.6),
+  );
+  const lineHeight = fitted.size * 1.32;
+  const blockHeight = fitted.lines.length * lineHeight;
+  let y = Math.round(height * [0.16, 0.3, 0.44][seed % 3]) + fitted.size;
+
+  ctx.textAlign = "left";
+  ctx.font = `700 ${fitted.size}px ${getFontFamilySpec("cinzel")}`;
+
+  const spill = ctx.createRadialGradient(
+    width * 0.5,
+    y + blockHeight / 2,
+    40,
+    width * 0.5,
+    y + blockHeight / 2,
+    height * 0.6,
+  );
+  spill.addColorStop(0, "rgba(225,29,72,0.16)");
+  spill.addColorStop(1, "rgba(225,29,72,0)");
+  ctx.fillStyle = spill;
+  ctx.fillRect(0, 0, width, height);
+
+  ctx.save();
+  ctx.shadowColor = accent;
+  for (const line of fitted.lines) {
+    ctx.shadowBlur = fitted.size * 0.9;
+    ctx.fillStyle = accent;
+    ctx.fillText(line, margin, y);
+    ctx.fillText(line, margin, y);
+    ctx.shadowBlur = fitted.size * 0.35;
+    ctx.fillStyle = "#FFD9DE";
+    ctx.fillText(line, margin, y);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = "#FFF3F4";
+    ctx.fillText(line, margin, y);
+    y += lineHeight;
+  }
+  ctx.restore();
+
+  footer(ctx, width, height, options.handle, "STARK STANDARD");
+}
+
+/**
+ * BANER — kościana tablica z ciemnym napisem w miejskim tle o zmierzchu.
+ * Kontrast odwrócony, więc kadr nie ginie w feedzie pełnym czerni.
+ */
+export function drawBillboardSignSlide(canvas: HTMLCanvasElement, options: SignSlideOptions): void {
+  const base = prepare(canvas, { ...options, bgImage: null });
+  if (!base) return;
+  const { ctx, width, height } = base;
+  const seed = seedFrom(options.textLines);
+
+  const sky = ctx.createLinearGradient(0, 0, 0, height);
+  sky.addColorStop(0, "#1A1C21");
+  sky.addColorStop(0.55, "#2A2C33");
+  sky.addColorStop(1, "#0A0A0C");
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, width, height);
+
+  // Sylweta miasta u dołu — kilka brył zamiast zdjęcia.
+  ctx.fillStyle = "#07070A";
+  for (let i = 0; i < 9; i++) {
+    const blockWidth = width * (0.08 + ((seed + i * 37) % 9) / 100);
+    const blockHeight = height * (0.06 + ((seed + i * 53) % 12) / 100);
+    ctx.fillRect(i * (width / 9), height - blockHeight, blockWidth, blockHeight);
+  }
+
+  const panelLeft = Math.round(width * (seed % 2 ? 0.08 : 0.14));
+  const panelRight = Math.round(width - panelLeft);
+  const panelTop = Math.round(height * 0.2);
+  const panelBottom = Math.round(height * (0.5 + (seed % 3) * 0.06));
+  const panelWidth = panelRight - panelLeft;
+  const panelHeight = panelBottom - panelTop;
+
+  ctx.fillStyle = "#101115";
+  ctx.fillRect(panelLeft + panelWidth * 0.18, panelBottom, width * 0.02, height - panelBottom);
+  ctx.fillRect(panelRight - panelWidth * 0.2, panelBottom, width * 0.02, height - panelBottom);
+
+  ctx.save();
+  ctx.shadowColor = "rgba(0,0,0,0.55)";
+  ctx.shadowBlur = 40;
+  ctx.shadowOffsetY = 18;
+  ctx.fillStyle = INK;
+  ctx.fillRect(panelLeft, panelTop, panelWidth, panelHeight);
+  ctx.restore();
+
+  ctx.strokeStyle = "rgba(10,10,12,0.85)";
+  ctx.lineWidth = Math.round(width * 0.012);
+  ctx.strokeRect(panelLeft, panelTop, panelWidth, panelHeight);
+
+  const inset = Math.round(panelWidth * 0.09);
+  const textSize = Math.round(panelWidth * 0.085);
+  const fitted = fitLines(
+    ctx,
+    options.textLines.join("\n"),
+    panelWidth - inset * 2,
+    4,
+    (s) => `700 ${s}px ${getFontFamilySpec("cinzel")}`,
+    textSize,
+    Math.round(textSize * 0.55),
+  );
+  const lineHeight = fitted.size * 1.28;
+  let y = panelTop + panelHeight / 2 - (fitted.lines.length * lineHeight) / 2 + fitted.size * 0.85;
+
+  ctx.textAlign = "center";
+  ctx.font = `700 ${fitted.size}px ${getFontFamilySpec("cinzel")}`;
+  ctx.fillStyle = "#0B0C0E";
+  for (const line of fitted.lines) {
+    ctx.fillText(line, panelLeft + panelWidth / 2, y);
+    y += lineHeight;
+  }
+  ctx.textAlign = "left";
 
   footer(ctx, width, height, options.handle, "STARK STANDARD");
 }

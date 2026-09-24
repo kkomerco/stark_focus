@@ -491,28 +491,33 @@ export function registerTrendsRoutes(app: MiniApp): void {
         slides: [
           {
             headline: "THE SILENT CONTRACT",
-            bodyText: "You become what you tolerate in private when nobody is watching.",
+            bodyText:
+              "You become what you tolerate in private when nobody is watching. Every standard you waive quietly rewrites the terms of the agreement you hold with yourself.",
             highlightWords: "tolerate, private, watching",
           },
           {
             headline: "MOTIVATION IS CHEAP",
-            bodyText: "Amateurs depend on enthusiasm. Professionals obey cold protocol.",
-            highlightWords: "enthusiasm, protocol",
+            bodyText:
+              "Amateurs depend on enthusiasm and wait to feel ready. Professionals obey cold protocol, because enthusiasm has already left the room twice this week.",
+            highlightWords: "enthusiasm, protocol, ready",
           },
           {
             headline: "THE COMPOUND EFFECT",
-            bodyText: "One broken promise to yourself destroys subconscious trust for weeks.",
+            bodyText:
+              "One broken promise to yourself destroys subconscious trust for weeks. You stop believing your own word, and the plans you make after that arrive without weight behind them.",
             highlightWords: "promise, subconscious, trust",
           },
           {
             headline: "THE MONK SHIFT",
-            bodyText: "Silence your complaints. Let the accumulated volume of work speak.",
+            bodyText:
+              "Silence your complaints and let the accumulated volume of work speak instead. Nobody who is busy building has the time to explain why it is hard.",
             highlightWords: "complaints, accumulated, work",
           },
           {
             headline: "THE UNFORGIVING STANDARD",
-            bodyText: "Save this reminder. Never negotiate with your standards.",
-            highlightWords: "reminder, negotiate, standards",
+            bodyText:
+              "Never negotiate with your standards in the moment you are tired; that is the only moment the negotiation costs anything. Save this reminder for the next one.",
+            highlightWords: "negotiate, standards, tired",
           },
         ],
       },
@@ -531,7 +536,7 @@ export function registerTrendsRoutes(app: MiniApp): void {
 
   I natychmiast zremiksuj ją na 4 gotowe formaty STARK:
   1. reel: rolka wideo [hook 0-3s, 3 precyzyjne fazy po angielsku, suggestedTheme: "obsidian_void"|"carbon_aura"|"crimson_eclipse"]
-  2. carousel: 5-slajdowa karuzela (headline: 2-4 słowa ALL CAPS, bodyText: 1-2 zwięzłe zdania, highlightWords)
+  2. carousel: 5-slajdowa karuzela (headline: 2-4 słowa ALL CAPS, bodyText: 2-3 zdania (25-40 słów), highlightWords)
   3. manifesto: 1 bezkompromisowe zdanie podsumowujące sedno
   4. caption: gotowy opis posta z mocnym CTA i hashtagami
 

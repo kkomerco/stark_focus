@@ -160,17 +160,15 @@ export interface UniversalLayoutSpec {
     | "split_horizontal"
     | "grid_2x2"
     | "studio_wall_3d"
-    | "monolith_ledger"
     | "protocol_list"
     | "cost_vs_reward";
   /**
-   * Dekoracja kadru, której edytor tekstu nie dotyka: nadtytuł i duża cyfra.
-   * Cała treść językowa mieszka w `textLayers` (patrz `canvas/layerRoles.ts`) —
-   * dzięki temu poprawka w edytorze jest widoczna na kadrze.
+   * Tryb sceny kadru z napisem. Cała treść językowa mieszka w `textLayers`
+   * (patrz `canvas/layerRoles.ts`) — nie ma tu miejsca na zdania, bo dopóki
+   * były, poprawka w edytorze nie była widoczna na kadrze.
    */
   layoutData?: {
-    eyebrow?: string;
-    figure?: string;
+    scene?: "wall" | "neon" | "billboard";
   };
   backgroundColor: string;
   dividerWidth: number;
@@ -243,7 +241,6 @@ export interface StarkFocusData {
 export interface IdeaStructure {
   eyebrow?: string;
   statement?: string;
-  subtext?: string;
   steps?: string[];
   figure?: string;
   question?: string;
@@ -265,7 +262,7 @@ export interface IdeaItem {
   theme: string;
   viralityScore: number;
   /** Układ wizualny wybrany przez model — bez niego każdy pomysł lądowałby jako cytat. */
-  layout?: "quote" | "protocol_list" | "cost_vs_reward" | "monolith_ledger" | "studio_wall_3d";
+  layout?: "quote" | "protocol_list" | "cost_vs_reward" | "studio_wall_3d" | "grid_2x2";
   structure?: IdeaStructure;
 }
 

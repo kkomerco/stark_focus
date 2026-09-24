@@ -17,7 +17,12 @@ import {
   resolveTopHeaderText,
   drawBrandLogoOnContext,
 } from "./starkBrandTheme";
-import { drawCostVsRewardSlide, drawProtocolListSlide } from "./canvas/layouts-v2";
+import {
+  drawBillboardSignSlide,
+  drawCostVsRewardSlide,
+  drawNeonSignSlide,
+  drawProtocolListSlide,
+} from "./canvas/layouts-v2";
 import { groupText, layerById, PRIMARY_LAYER_ID } from "./canvas/layerRoles";
 
 export type { SlideData };
@@ -873,163 +878,72 @@ export function drawMinimalBlackQuoteSlide(
   ctx.fillText(`@${cleanHandle}`, drawX, height - 120);
 }
 
-// =========================================================================
-// DZIELONY KADR MONOLITH LEDGER (50/50)
-// =========================================================================
-export function drawMonolithLedgerSlide(
+/**
+ * Tło awaryjne, gdy model obrazów milczy (limit, brak klucza, awaria).
+ * Wcześniejszą odpowiedzią był komunikat o rozliczeniach — użytkownik zostawał
+ * z pustym kadrem i wykładem. Tu dostaje scenę marki: obsydian, światło z góry
+ * i ziarno, bez cudzego zdjęcia.
+ */
+export function drawSceneBackdrop(
   canvas: HTMLCanvasElement,
-  options: {
-    width?: number;
-    height?: number;
-    headline: string;
-    subtext?: string;
-    points?: string[];
-    /** Krótka rubryka nad nagłówkiem, np. "LEDGER". */
-    eyebrow?: string;
-    /** Cyfra wypełniająca górną połowę, gdy nie ma zdjęcia. */
-    figure?: string;
-    handle?: string;
-    bgImage?: CanvasImageSource | null;
-    accentColor?: string;
-    fontFamily?: string;
-    textScale?: number;
-  },
+  width = 1080,
+  height = 1920,
+  seed = 1,
 ) {
-  const {
-    width = 1080,
-    height = 1920,
-    headline = "",
-    subtext = "",
-    points = [],
-    eyebrow = "",
-    figure = "",
-    handle = "stark_focus",
-    bgImage,
-    accentColor = "#E2E8F0",
-    textScale = 1.0,
-  } = options;
-
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
 
-  const splitY = height <= 1080 ? height * 0.42 : height * 0.46;
+  const base = ctx.createLinearGradient(0, 0, 0, height);
+  base.addColorStop(0, "#101114");
+  base.addColorStop(0.55, "#08090B");
+  base.addColorStop(1, "#030304");
+  ctx.fillStyle = base;
+  ctx.fillRect(0, 0, width, height);
 
-  if (bgImage) {
-    try {
-      drawImageCover(ctx, bgImage, 0, 0, width, splitY);
-    } catch {
-      ctx.fillStyle = "#121212";
-      ctx.fillRect(0, 0, width, splitY);
-    }
-  } else {
-    const topGrad = ctx.createLinearGradient(0, 0, 0, splitY);
-    topGrad.addColorStop(0, "#141414");
-    topGrad.addColorStop(1, "#050505");
-    ctx.fillStyle = topGrad;
-    ctx.fillRect(0, 0, width, splitY);
-  }
-
-  const seamGrad = ctx.createLinearGradient(0, splitY - 140, 0, splitY);
-  seamGrad.addColorStop(0, "rgba(5, 5, 5, 0)");
-  seamGrad.addColorStop(1, "#050505");
-  ctx.fillStyle = seamGrad;
-  ctx.fillRect(0, splitY - 140, width, 140);
-
-  ctx.fillStyle = "#050505";
-  ctx.fillRect(0, splitY, width, height - splitY);
-
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.12)";
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(60, splitY);
-  ctx.lineTo(width - 60, splitY);
-  ctx.stroke();
-
-  ctx.fillStyle = accentColor;
-  ctx.fillRect(width / 2 - 45, splitY - 2, 90, 4);
-
-  // Górna połowa to normalnie zdjęcie. Bez niego kadr miał dziurę, więc
-  // goszczą ją cyfry z układu — ten sam motyw co w protokole.
-  if (!bgImage && figure) {
-    const figureSize = Math.round(width * 0.3);
-    ctx.font = `700 ${figureSize}px ${getFontFamilySpec("cinzel")}`;
-    ctx.textAlign = "center";
-    ctx.fillStyle = "rgba(243,240,234,0.1)";
-    ctx.fillText(figure, width / 2, splitY * 0.72);
-    ctx.textAlign = "left";
-  }
-
-  const sans = getFontFamilySpec("sans");
-  const rubryka = `[ ${(eyebrow || "LEDGER").toUpperCase()} // ${handle.replace("@", "").toUpperCase()} ]`;
-  ctx.font = `700 16px ${sans}`;
-  ctx.fillStyle = accentColor;
-  ctx.textAlign = "left";
-  ctx.fillText(rubryka, 70, splitY + 50);
-
-  const headlineSize = Math.round((height <= 1080 ? 38 : 48) * textScale);
-  const headlineFit = fitLines(
-    ctx,
-    headline.toUpperCase(),
-    width - 140,
-    2,
-    (size) => `900 ${size}px ${sans}`,
-    headlineSize,
+  // Światło padające z góry — przesuwane seedem, żeby kolejne kadry nie
+  // wyglądały jak ten sam plik.
+  const lightX = width * (0.3 + ((seed * 37) % 40) / 100);
+  const glow = ctx.createRadialGradient(
+    lightX,
+    height * 0.12,
+    40,
+    lightX,
+    height * 0.12,
+    height * 0.7,
   );
-  ctx.fillStyle = "#FFFFFF";
-  let textY = splitY + (height <= 1080 ? 95 : 115);
-  headlineFit.lines.forEach((line) => {
-    ctx.fillText(line, 70, textY);
-    textY += headlineFit.size * 1.25;
-  });
+  glow.addColorStop(0, "rgba(243,240,234,0.10)");
+  glow.addColorStop(0.5, "rgba(243,240,234,0.03)");
+  glow.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, width, height);
 
-  if (subtext) {
-    ctx.font = `500 20px ${sans}`;
-    ctx.fillStyle = "rgba(226, 232, 240, 0.75)";
-    ctx.fillText(subtext, 70, textY + 8);
-    textY += 45;
+  // Ziarno. Prosty LCG, żeby nie ciągnąć generatora liczb losowych dla tekstury.
+  let state = (seed * 2654435761) >>> 0;
+  const grain = ctx.createImageData(width, height);
+  for (let i = 0; i < width * height; i++) {
+    state = (state * 1664525 + 1013904223) >>> 0;
+    const v = 118 + (state % 22);
+    grain.data[i * 4] = v;
+    grain.data[i * 4 + 1] = v;
+    grain.data[i * 4 + 2] = v;
+    grain.data[i * 4 + 3] = 14;
   }
+  ctx.putImageData(grain, 0, 0);
 
-  const cardH = height <= 1080 ? 58 : 74;
-  let curY = Math.max(splitY + (height <= 1080 ? 170 : 230), textY + 12);
-  const maxPts = height <= 1080 ? 2 : 3;
-  points.slice(0, maxPts).forEach((pt, idx) => {
-    ctx.fillStyle = "#121212";
-    ctx.fillRect(70, curY, width - 140, cardH);
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.1)";
-    ctx.lineWidth = 1;
-    ctx.strokeRect(70, curY, width - 140, cardH);
-
-    ctx.font = "900 18px monospace";
-    ctx.fillStyle = accentColor;
-    ctx.fillText(`0${idx + 1}`, 95, curY + cardH * 0.6);
-
-    // Pozycja rejestru musi zmieścić się w karcie — dawniej brany był tylko
-    // pierwszy wiersz, więc dłuższa pozycja urywała się w połowie zdania.
-    const pointFit = fitLines(ctx, pt, width - 240, 2, (size) => `600 ${size}px ${sans}`, 19, 14);
-    ctx.fillStyle = "#FFFFFF";
-    const blockH = pointFit.lines.length * pointFit.size * 1.25;
-    pointFit.lines.forEach((line, lineIndex) => {
-      ctx.fillText(
-        line,
-        150,
-        curY + (cardH - blockH) / 2 + pointFit.size * 0.85 + lineIndex * pointFit.size * 1.25,
-      );
-    });
-    curY += cardH + 14;
-  });
-
-  ctx.font = "700 18px monospace";
-  ctx.fillStyle = "rgba(160, 160, 160, 0.7)";
-  ctx.fillText(
-    `@${handle.replace("@", "").toUpperCase()}`,
-    70,
-    height - (height <= 1080 ? 30 : 60),
+  const vignette = ctx.createRadialGradient(
+    width / 2,
+    height / 2,
+    Math.min(width, height) * 0.25,
+    width / 2,
+    height / 2,
+    Math.max(width, height) * 0.75,
   );
-  ctx.textAlign = "right";
-  ctx.fillText("STARK STANDARD", width - 70, height - (height <= 1080 ? 30 : 60));
-  ctx.textAlign = "left";
+  vignette.addColorStop(0, "rgba(0,0,0,0)");
+  vignette.addColorStop(1, "rgba(0,0,0,0.55)");
+  ctx.fillStyle = vignette;
+  ctx.fillRect(0, 0, width, height);
 }
 
 // =========================================================================
@@ -1184,10 +1098,10 @@ export function renderUniversalLayout(
       width,
       height,
       handle,
-      eyebrow: spec.layoutData?.eyebrow || "PROTOCOL",
+      eyebrow: layerById(spec, "eyebrow") || "PROTOCOL",
       statement: layerById(spec, PRIMARY_LAYER_ID) || l1Fallback(spec),
       steps: groupText(spec, "step"),
-      figure: spec.layoutData?.figure,
+      figure: layerById(spec, "figure"),
       bgImage: options.backgroundImage ?? images[0] ?? null,
       headlineFont: spec.fontFamilyCustom || fontFamily,
     });
@@ -1209,36 +1123,29 @@ export function renderUniversalLayout(
     return;
   }
 
-  // Format 4: Księga monolitu (istniała jako martwy eksport — wystawiona do UI).
-  if (spec.gridType === "monolith_ledger") {
-    drawMonolithLedgerSlide(canvas, {
-      width,
-      height,
-      headline: l1Fallback(spec),
-      subtext: layerById(spec, "sub1"),
-      points: groupText(spec, "step"),
-      eyebrow: spec.layoutData?.eyebrow,
-      figure: spec.layoutData?.figure,
-      handle,
-      bgImage: options.backgroundImage ?? images[0] ?? null,
-      accentColor: BRAND_ACCENT,
-      textScale,
-    });
-    return;
-  }
-
-  // Format 5: Litery 3D na ścianie — renderer istniał i był kompletny, ale
-  // żaden układ z analizy linku do niego nie trafiał, więc „Odwzoruj układ"
-  // dawało płaski cytat zamiast kadru ze ściany.
+  // Format 4: napis w otoczeniu — ściana 3D, neon albo baner. Ten sam tekst,
+  // trzy różne kadry; bez tego materiał miał zawsze literę w tym samym rogu.
   if (spec.gridType === "studio_wall_3d") {
     const lines = spec.textLayers
       .flatMap((layer) => String(layer.text || "").split(/\r?\n/))
       .map((line) => line.trim())
       .filter(Boolean);
+    const textLines = lines.length > 0 ? lines : ["Silence cannot be misquoted."];
+    const scene = spec.layoutData?.scene || "wall";
+
+    if (scene === "neon") {
+      drawNeonSignSlide(canvas, { width, height, textLines, handle });
+      return;
+    }
+    if (scene === "billboard") {
+      drawBillboardSignSlide(canvas, { width, height, textLines, handle });
+      return;
+    }
+
     draw3DWallQuoteSlide(canvas, {
       width,
       height,
-      textLines: lines.length > 0 ? lines : ["Silence cannot be misquoted."],
+      textLines,
       wallImage: images[0] ?? options.backgroundImage ?? null,
       handle,
       fontSize: spec.textLayers[0]?.fontSize,
@@ -1438,8 +1345,9 @@ function computeFittedSlideLayout(
     }
   }
 
-  // Calculate centered startY with safe clamping positioned in optical upper-center
-  const naturalStartY = Math.round(topLimit + (availableH - totalContentH) * 0.38) + textOffsetY;
+  // Blok treści licowany środkiem pola między liniami górną i dolną. Wcześniejszy
+  // mnożnik 0.38 wciskał krótkie slajdy pod nagłówek, a połowa kadru świeciła pustką.
+  const naturalStartY = Math.round(topLimit + (availableH - totalContentH) * 0.5) + textOffsetY;
   const minStartY = topLimit + 16;
   const maxStartY = Math.max(minStartY, bottomLimit - totalContentH - 16);
   const startY = Math.max(minStartY, Math.min(maxStartY, naturalStartY));
@@ -1785,24 +1693,10 @@ export function drawSlideToCanvas(canvas: HTMLCanvasElement, options: RenderSlid
     let currentX = contentLeftX;
 
     tokens.forEach((token) => {
-      const isHighlighted = token.isHighlight;
       ctx.font = `900 ${layout.headlineFontSize}px ${fontFam.headlineFont}`;
-      ctx.fillStyle = isHighlighted ? highlightColor : "#FFFFFF";
+      ctx.fillStyle = token.isHighlight ? highlightColor : "#FFFFFF";
       ctx.fillText(token.text, currentX, curY);
-
-      const tokenW = ctx.measureText(token.text).width;
-      const spaceW = ctx.measureText(" ").width;
-
-      if (isHighlighted) {
-        ctx.strokeStyle = highlightColor;
-        ctx.lineWidth = 3.5;
-        ctx.beginPath();
-        ctx.moveTo(currentX, curY + 6);
-        ctx.lineTo(currentX + tokenW, curY + 6);
-        ctx.stroke();
-      }
-
-      currentX += tokenW + spaceW;
+      currentX += ctx.measureText(`${token.text} `).width;
     });
 
     curY += layout.headlineLineHeight;
@@ -1833,59 +1727,13 @@ export function drawSlideToCanvas(canvas: HTMLCanvasElement, options: RenderSlid
     let currentX = contentLeftX;
 
     tokens.forEach((token) => {
-      const isHighlighted = token.isHighlight;
-      const fontToUse = isHighlighted
-        ? `800 ${layout.bodyFontSize}px ${fontFam.bodyFont}`
-        : `500 ${layout.bodyFontSize}px ${fontFam.bodyFont}`;
-
-      ctx.font = fontToUse;
+      // Wyróżnienie to wyłącznie kolor. Tło w kapsułce i linia pod spodem
+      // robiły z akapitu choinkę i utrudniały czytanie dłuższego tekstu.
+      ctx.font = `500 ${layout.bodyFontSize}px ${fontFam.bodyFont}`;
+      ctx.fillStyle = token.isHighlight ? highlightColor : "#CBD5E1";
       const tokenW = ctx.measureText(token.text).width;
-      const spaceW = ctx.measureText(" ").width;
-
-      if (isHighlighted) {
-        // Nowoczesne tło kapsułki wyróżniającej w stylu editorial
-        const pillPadX = 5;
-        const pillH = Math.round(layout.bodyFontSize * 1.2);
-        const pillY = curY - Math.round(layout.bodyFontSize * 0.92);
-        const pillBg = isCrimson
-          ? "rgba(225, 29, 72, 0.18)"
-          : isGold
-            ? "rgba(245, 158, 11, 0.18)"
-            : "rgba(255, 255, 255, 0.14)";
-        const pillBorder = isCrimson
-          ? "rgba(225, 29, 72, 0.4)"
-          : isGold
-            ? "rgba(245, 158, 11, 0.35)"
-            : "rgba(255, 255, 255, 0.35)";
-        drawPill(
-          ctx,
-          currentX - pillPadX,
-          pillY,
-          tokenW + pillPadX * 2,
-          pillH,
-          4,
-          pillBg,
-          pillBorder,
-          1,
-        );
-
-        // Wyraz w wyrazistym, czytelnym kolorze akcentu
-        ctx.fillStyle = highlightColor;
-        ctx.fillText(token.text, currentX, curY);
-
-        // Akcentowa linia podkreślająca
-        ctx.strokeStyle = highlightColor;
-        ctx.lineWidth = 2.5;
-        ctx.beginPath();
-        ctx.moveTo(currentX - 2, curY + 5);
-        ctx.lineTo(currentX + tokenW + 2, curY + 5);
-        ctx.stroke();
-      } else {
-        ctx.fillStyle = "#CBD5E1";
-        ctx.fillText(token.text, currentX, curY);
-      }
-
-      currentX += tokenW + spaceW;
+      ctx.fillText(token.text, currentX, curY);
+      currentX += tokenW + ctx.measureText(" ").width;
     });
 
     curY += layout.bodyLineHeight;

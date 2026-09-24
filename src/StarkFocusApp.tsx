@@ -376,6 +376,10 @@ export default function StarkFocusApp() {
               // Studio karuzeli działa w zakładce Trendy i przejmuje paczkę raz przy starcie
               setActiveTab(2);
             }}
+            onOpenPostStudio={(text, caption) => {
+              setDailyPackOpen(false);
+              handleSendToPost(text, caption);
+            }}
             onSchedulePack={handleSchedulePack}
             usedHooks={usedHooks}
           />

@@ -51,6 +51,7 @@ import {
   parseTokens,
   VISUAL_THEMES,
 } from "./video/reel-helpers";
+import { pickBroll } from "../utils/brollPicker";
 
 interface VideoStudioModalProps {
   onClose?: () => void;
@@ -306,6 +307,12 @@ export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
     if (nextDuration) setDuration(nextDuration);
     const nextTheme = asReelTheme(reel.theme);
     if (nextTheme) setSelectedTheme(nextTheme);
+    else {
+      // Rolka przyszła gołym tekstem (radar, post, batch) bez motywu. Bez
+      // tego trzymała tło poprzedniej — dobór musi wynikać z jej treści.
+      const scene = pickBroll(nextPhrases.join(" ")).scene;
+      setSelectedTheme((prev) => asReelTheme(scene.suggestedTheme) ?? prev);
+    }
     setCaption(nextTemplate.captionShort);
     setHashtags(nextTemplate.hashtags);
     timeRef.current = 0;

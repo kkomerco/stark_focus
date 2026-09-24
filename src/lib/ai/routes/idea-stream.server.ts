@@ -69,8 +69,8 @@ const IDEA_LAYOUTS = [
   "quote",
   "protocol_list",
   "cost_vs_reward",
-  "monolith_ledger",
   "studio_wall_3d",
+  "grid_2x2",
 ] as const;
 
 /** Offline fallback — rotuje bank po liczbie użytych pomysłów, filtruje excludeHooks. */
@@ -197,10 +197,10 @@ LICZBA WCZEŚNIEJSZYCH POMYSŁÓW UŻYTKOWNIKA: ${safeUsed} (nie powtarzaj ich!)
 
 UKŁADY (dobieraj świadomie; w jednej paczce użyj MINIMUM 3 różnych, nigdy nie dawaj wszystkiego jako "quote"):
 - "quote" — jedno zdanie, dużo czerni wokół. Tylko na naprawdę mocne zdanie.
-- "protocol_list" — teza + 3 numerowane kroki do wykonania dziś. Struktura "zrób to".
+- "protocol_list" — teza + 3 numerowane kroki do wykonania dziś. Struktura "zrób to". Nazwa protokołu w "eyebrow" i jedna liczba w "figure" mają wynikać z treści (nie z godziny 4:30 — to nie jest stały motyw marki).
 - "cost_vs_reward" — pytanie + 3 rzeczy, które kosztują dziś + 3 rzeczy, które to zabiera później + zdanie domykające BEZ odpowiedzi.
-- "monolith_ledger" — nagłówek + 3 pozycje rejestru (co policzone, co odnotowane). Chłodna księgowość własnych obietnic.
-- "studio_wall_3d" — jedno zdanie jako fizyczny napis na ścianie; musi działać jako obraz.
+- "studio_wall_3d" — jedno zdanie jako fizyczny napis w scenie (ściana, neon, baner). Musi działać jako obraz, nie jako plakat z tekstem.
+- "grid_2x2" — cztery kadry z jednym zdaniem pośrodku. "statement" to to zdanie; ma trzymać cztery luźne ujęcia w jedną myśl.
 
 GŁĘBIA (to warunek jakości, nie opcja):
 - Żadnych sloganów motywacyjnych. Zamiast "bądź zdyscyplinowany" — konkretna, niewygodna obserwacja, którą czytelnik musi dokończyć sam.
@@ -229,13 +229,12 @@ Zwróć WYŁĄCZNIE JSON:
 {
   "ideas": [
     {
-      "layout": "quote|protocol_list|cost_vs_reward|monolith_ledger|studio_wall_3d",
+      "layout": "quote|protocol_list|cost_vs_reward|studio_wall_3d|grid_2x2",
       "structure": {
-        "eyebrow": "tylko protocol/ledger: krótka etykieta, np. PROTOCOL 04:30",
+        "eyebrow": "tylko protocol: krótka nazwa protokołu wynikająca z tematu, np. PROTOCOL / DEBT LEDGER",
         "statement": "teza albo pytanie otwierające",
-        "subtext": "tylko ledger: jeden krótki podtytuł pod nagłówkiem",
-        "steps": ["tylko protocol/ledger: 3 kroki/pozycje"],
-        "figure": "tylko protocol: liczba-pieczęć, np. 72h",
+        "steps": ["tylko protocol: 3 kroki do wykonania"],
+        "figure": "tylko protocol: jedna liczba-pieczęć związana z treścią, np. 72h albo 3:1",
         "question": "tylko cost_vs_reward: pytanie",
         "cost": ["3 rzeczy, które kosztują dziś"],
         "forfeit": ["3 rzeczy, które to zabiera później"],
@@ -282,7 +281,6 @@ Zwróć WYŁĄCZNIE JSON:
             structure: {
               eyebrow: asString(rawStructure.eyebrow).slice(0, 40),
               statement: asString(rawStructure.statement).slice(0, 160),
-              subtext: asString(rawStructure.subtext).slice(0, 90),
               steps: asStringArray(rawStructure.steps, 4).map((s) => s.slice(0, 90)),
               figure: asString(rawStructure.figure).slice(0, 12),
               question: asString(rawStructure.question).slice(0, 160),

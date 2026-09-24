@@ -2,6 +2,7 @@
 // Każdy element paczki przekazujemy jednym kliknięciem do istniejących studiów.
 import React, { useCallback, useEffect, useState } from "react";
 import {
+  ArrowRight,
   Calendar,
   Check,
   Copy,
@@ -25,6 +26,8 @@ interface DailyPackModalProps {
     title: string,
     slides: Array<{ headline: string; bodyText: string }>,
   ) => void;
+  /** Bez tego post z paczki trzeba przepisywać ręcznie. */
+  onOpenPostStudio?: (text: string, caption?: string) => void;
   onSchedulePack?: (pack: DailyPack) => void;
   /** Odciski tego, co już poszło — paczka dnia nie może tego powtórzyć. */
   usedHooks?: string[];
@@ -33,6 +36,8 @@ interface DailyPackModalProps {
 const PANEL = "bg-[#0F121C] border border-[#2C354B] rounded-xl";
 const ACTION_BTN =
   "py-1.5 px-3 rounded bg-[#141824] hover:bg-[#1E2638] border border-[#2C354B] text-[11px] font-mono font-bold text-slate-200 hover:text-white transition-colors flex items-center gap-1.5 cursor-pointer";
+const PRIMARY_BTN =
+  "py-1.5 px-3 rounded bg-white hover:bg-neutral-200 border border-white text-[11px] font-mono font-bold text-black transition-colors flex items-center gap-1.5 cursor-pointer";
 
 /** Kształt odpowiedzi modelu jest niezaufany — zanim coś trafi do studia, sprawdzamy pole. */
 const textList = (value: unknown): string[] =>
@@ -53,6 +58,7 @@ export const DailyPackModal: React.FC<DailyPackModalProps> = ({
   onPackChange,
   onOpenVideoStudio,
   onOpenCarouselStudio,
+  onOpenPostStudio,
   onSchedulePack,
   usedHooks,
 }) => {
@@ -309,6 +315,18 @@ export const DailyPackModal: React.FC<DailyPackModalProps> = ({
                   </p>
                   <p className="text-[10px] font-mono text-slate-500 italic">{postPrompt}</p>
                   <div className="flex flex-wrap items-center gap-2 pt-1">
+                    {onOpenPostStudio && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onOpenPostStudio(`${postHeadline}\n\n${postBody}`.trim(), undefined)
+                        }
+                        className={PRIMARY_BTN}
+                      >
+                        <ArrowRight className="w-3 h-3" />
+                        Otwórz w studiu posta
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => handleCopy("post-body", `${postHeadline}\n\n${postBody}`)}
