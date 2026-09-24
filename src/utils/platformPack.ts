@@ -1,6 +1,6 @@
 import { drawMinimalBlackQuoteSlide } from "./canvasRenderer";
 import { PlannerTask } from "../types";
-import { STARK_CTA, STARK_HASHTAGS } from "../lib/caption";
+import { STARK_CTA, starkHashtags } from "../lib/caption";
 
 /**
  * PAKIET NA PLATFORMY.
@@ -48,7 +48,7 @@ function captionFor(task: PlannerTask, limit: number, platformLabel: string): st
     task.payload?.post?.caption || task.payload?.reel?.caption || task.payload?.reel?.hook || "";
   const hashtags = task.payload?.reel?.hashtags?.length
     ? task.payload.reel.hashtags.join(" ")
-    : STARK_HASHTAGS.join(" ");
+    : starkHashtags(raw).join(" ");
   const body = raw.trim() || STARK_CTA;
   const text = `${body}\n\n${hashtags}`;
 

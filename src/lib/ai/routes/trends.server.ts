@@ -2,7 +2,13 @@ import type { MiniApp } from "../../mini-express.server";
 import { getGeminiClient, safeJsonParse, callGeminiWithFallback } from "../gemini.server";
 import { asArray, asString, asStringArray, sendDegraded } from "../normalize.server";
 import { clampText } from "../../limits";
-import { formatStarkCaption, STARK_CTA, STARK_HASHTAGS, starkCaption } from "../../caption";
+import { formatStarkCaption, STARK_CTA, starkCaption, starkHashtags } from "../../caption";
+
+/**
+ * Bank treści zapasowych: zdanie + markowe CTA + hashtagi dobrane do tego
+ * zdania. Bez tego każda karta z banku miała inny ogon niż karta z modelu.
+ */
+const starkTail = (line: string) => `${line}\n\n${STARK_CTA}\n\n${starkHashtags(line).join(" ")}`;
 
 /**
  * UI woła `fmt.phrases.map()` i `ang.phrases.join()` bez sprawdzania pola, a
@@ -18,7 +24,7 @@ function normalizeCard(card: unknown) {
     ...item,
     phrases: phrases.length > 0 ? phrases : hook ? [hook] : [],
     caption: starkCaption(hook, asString(item.caption)),
-    hashtags: [...STARK_HASHTAGS],
+    hashtags: starkHashtags(hook),
   };
 }
 
@@ -53,7 +59,7 @@ export function registerTrendsRoutes(app: MiniApp): void {
             "Peace is earned in private, not purchased in public.",
             "Hold the standard when nobody is watching.",
           ]),
-          hashtags: [...STARK_HASHTAGS],
+          hashtags: starkHashtags("Comfort is a cage disguised as peace."),
         },
       },
       {
@@ -79,7 +85,7 @@ export function registerTrendsRoutes(app: MiniApp): void {
             "Public applause is ephemeral.",
             "Let the results do the talking.",
           ]),
-          hashtags: [...STARK_HASHTAGS],
+          hashtags: starkHashtags("Never announce your moves to spectators."),
         },
       },
       {
@@ -106,7 +112,7 @@ export function registerTrendsRoutes(app: MiniApp): void {
             "Solitude is where standards are tested.",
             "Noise is the anesthetic you keep reaching for.",
           ]),
-          hashtags: [...STARK_HASHTAGS],
+          hashtags: starkHashtags("Learn to sit alone in a room without checking your phone."),
         },
       },
     ];
@@ -292,7 +298,7 @@ export function registerTrendsRoutes(app: MiniApp): void {
           "Waiting to 'feel ready' is comfortable self-sabotage.",
           "The professional moves before the brain can argue.",
         ],
-        caption: `Stop waiting for inspiration. It never arrives for spectators.\n\n${STARK_CTA}\n\n${STARK_HASHTAGS.join(" ")}`,
+        caption: starkTail("Stop waiting for inspiration. It never arrives for spectators."),
         rationale: "Przełamuje powszechne przekonanie i natychmiast polaryzuje odbiorcę.",
       },
       {
@@ -304,7 +310,9 @@ export function registerTrendsRoutes(app: MiniApp): void {
           "Realize this, and you will find unbreakable strength.",
           "Return to the citadel within.",
         ],
-        caption: `External chaos only rules you if you grant it permission. Master yourself first.\n\n${STARK_CTA}\n\n${STARK_HASHTAGS.join(" ")}`,
+        caption: starkTail(
+          "External chaos only rules you if you grant it permission. Master yourself first.",
+        ),
         rationale:
           "Odwołuje się do 2000 lat imperialnej mądrości i głębokiej suwerenności emocjonalnej.",
       },
@@ -317,7 +325,9 @@ export function registerTrendsRoutes(app: MiniApp): void {
           "Every time you force execution, your brain physically changes.",
           "Lean into the friction.",
         ],
-        caption: `Willpower is not an abstract concept. It is a biological circuit forged by voluntary friction.\n\n${STARK_CTA}\n\n${STARK_HASHTAGS.join(" ")}`,
+        caption: starkTail(
+          "Willpower is not an abstract concept. It is a biological circuit forged by voluntary friction.",
+        ),
         rationale: "Uzasadnia ból dyscypliny twardą nauką, eliminując wątpliwości intelektualne.",
       },
       {
@@ -329,7 +339,9 @@ export function registerTrendsRoutes(app: MiniApp): void {
           "The world does not care about your good intentions.",
           "Deliver results or remain forgotten.",
         ],
-        caption: `Excuses comfort you today and starve you tomorrow. Never negotiate with your standard.\n\n${STARK_CTA}\n\n${STARK_HASHTAGS.join(" ")}`,
+        caption: starkTail(
+          "Excuses comfort you today and starve you tomorrow. Never negotiate with your standard.",
+        ),
         rationale:
           "Bezwzględne uderzenie w strefę komfortu, natychmiast usuwające użalanie się nad sobą.",
       },
@@ -523,7 +535,9 @@ export function registerTrendsRoutes(app: MiniApp): void {
         ],
       },
       manifesto: "Never compromise in private if you expect to command respect in public.",
-      caption: `Stop negotiating with your morning mood. Standards automate what emotion destroys.\n\n${STARK_CTA}\n\n${STARK_HASHTAGS.join(" ")}`,
+      caption: starkTail(
+        "Stop negotiating with your morning mood. Standards automate what emotion destroys.",
+      ),
     };
 
     if (!ai) {

@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { formatStarkCaption, isPolishCopy, starkCaption } from "./caption";
+import { formatStarkCaption, isPolishCopy, starkCaption, starkHashtags } from "./caption";
 
 describe("caption.ts - Stark Focus Caption Formatter", () => {
   it("formats hook in uppercase and removes quotes and markdown", () => {
@@ -42,13 +42,41 @@ describe("caption.ts - Stark Focus Caption Formatter", () => {
     assert.ok(caption.includes(customDirective));
   });
 
-  it("always appends the signature call to action and Stark hashtags", () => {
+  it("always appends the signature call to action and a short hashtag tail", () => {
     const caption = formatStarkCaption("Execution", ["A", "B", "C"]);
 
     assert.ok(caption.includes("Save this reminder. Execute in silence. Follow @stark_focus."));
-    assert.ok(
-      caption.includes("#stoicism #darkdiscipline #discipline #mindset #focus #starkfocus"),
+    const tags = caption.trim().split("\n").pop()!.split(" ");
+    assert.ok(tags.length <= 5, `Meta ucina powyzszej piatki: ${tags.join(" ")}`);
+    assert.ok(tags.includes("#starkfocus"));
+  });
+});
+
+describe("starkHashtags", () => {
+  it("zbiera tagi z tematu posta, a nie ze stalej listy", () => {
+    const silence = starkHashtags("Silence cannot be misquoted.");
+    const time = starkHashtags("Maybe forty more summers. That is the whole budget.");
+
+    assert.ok(silence.includes("#silence") || silence.includes("#quietconfidence"));
+    assert.ok(time.includes("#mementomori") || time.includes("#perspective"));
+    assert.notDeepEqual(silence, time);
+  });
+
+  it("trzymany w ryzach: piec to sufit, markowy jest zawsze", () => {
+    const tags = starkHashtags(
+      "discipline silence stoic alone time pain focus motivation standards",
     );
+    assert.ok(tags.length <= 5);
+    assert.ok(tags.includes("#starkfocus"));
+  });
+
+  it("ten sam tekst daje ten sam zestaw, wiec opis nie zmienia sie przy odswiezeniu", () => {
+    const text = "You rehearse the excuses, not the work.";
+    assert.deepEqual(starkHashtags(text), starkHashtags(text));
+  });
+
+  it("bez trafienia w temat idzie w pewniakow marki", () => {
+    assert.deepEqual(starkHashtags("xyz abc"), ["#stoicism", "#discipline", "#starkfocus"]);
   });
 });
 
@@ -74,9 +102,8 @@ describe("starkCaption", () => {
 
     assert.ok(caption.startsWith("COMFORT IS EXPENSIVE.\n\n"));
     assert.ok(caption.includes("pay for comfort every day"));
-    assert.ok(
-      caption.endsWith("#stoicism #darkdiscipline #discipline #mindset #focus #starkfocus"),
-    );
+    const tail = caption.trim().split("\n").pop()!.split(" ");
+    assert.ok(tail.length <= 5 && tail.includes("#starkfocus"));
   });
 
   it("wyrzuca hashtagi i wezwanie do działania modelu, żeby feed miał jeden ogon", () => {

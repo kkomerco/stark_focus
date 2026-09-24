@@ -4,7 +4,7 @@ import { hookFingerprint, maxSimilarity, SIMILARITY } from "../../similarity";
 import { pick, pickN } from "../../random";
 import { clampCount, clampInt, clampText, clampTextList, LIMITS } from "../../limits";
 import { asArray, asString, asStringArray, oneOf } from "../normalize.server";
-import { formatStarkCaption, STARK_HASHTAGS, starkCaption } from "../../caption";
+import { formatStarkCaption, starkCaption, starkHashtags } from "../../caption";
 
 /**
  * IDEA STREAM — nieskończony generator pomysłów z silną anty-powtórką.
@@ -139,7 +139,7 @@ function buildOfflineIdeas(count: number, usedCount: number, excludeHooks: strin
         `The truth about ${cat.split(" ")[0]} nobody wants to hear.`,
         "Execute in silence. Prove them wrong.",
       ]),
-      hashtags: [...STARK_HASHTAGS],
+      hashtags: starkHashtags(hook),
       theme: pick([...THEMES]),
       viralityScore: 90 + Math.floor(Math.random() * 10),
     });
@@ -292,7 +292,7 @@ Zwróć WYŁĄCZNIE JSON:
             format: asString(idea.format, chosenFormats[idx % chosenFormats.length]),
             phrases: phrases.length > 0 ? phrases : [hook],
             caption: starkCaption(hook, asString(idea.caption)),
-            hashtags: [...STARK_HASHTAGS],
+            hashtags: starkHashtags(hook),
             theme: oneOf(idea.theme, THEMES, "obsidian_void"),
             viralityScore: clampInt(idea.viralityScore, 0, 100, 92),
           };

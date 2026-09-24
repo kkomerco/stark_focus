@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import JSZip from "jszip";
 import { Post, ReelHandoff, VaultAsset } from "../types";
-import { STARK_CTA } from "../lib/caption";
+import { STARK_CTA, starkHashtags } from "../lib/caption";
 import { VIRAL_REEL_TEMPLATES, type ReelTemplate } from "../data/reelTemplates";
 import {
   STOIC_CATEGORIES,
@@ -76,14 +76,9 @@ const DEFAULT_PHRASES = ["Walk like a king, or walk like you don't care who the 
 const DEFAULT_CAPTION =
   "WALK LIKE A KING.\n\nOr walk like you don't care who the king is.\n\n3 rules of sovereign posture:\n1. Never seek validation from spectators.\n2. Hold your standards in absolute silence.\n3. Reclaim your inner territory.\n\nSave this reminder. Follow @stark_focus.";
 
-const DEFAULT_HASHTAGS = [
-  "#stoicism",
-  "#discipline",
-  "#sovereign",
-  "#mindset",
-  "#focus",
-  "#starkfocus",
-];
+// Hashtagi liczą się z treści rolki, nie ze stałej listy: Meta ucina ich
+// pięć, a sztywny ogon sprawiał, że każdy post miał identyczną stopkę.
+const DEFAULT_HASHTAGS = starkHashtags(DEFAULT_PHRASES[0]);
 
 /** Studio ogarnia maksymalnie 4 kadry — dłuższe listy z modelu tniemy, nie renderujemy. */
 const MAX_PHRASES = 4;
@@ -106,16 +101,6 @@ function asPhraseList(value: unknown): string[] {
     .map((item) => asText(item)?.trim())
     .filter((item): item is string => Boolean(item))
     .slice(0, MAX_PHRASES);
-}
-
-function asHashtagList(value: unknown): string[] | null {
-  if (!Array.isArray(value)) return null;
-  const tags = value
-    .map((item) => asText(item)?.trim())
-    .filter((item): item is string => Boolean(item))
-    .map((tag) => (tag.startsWith("#") ? tag : `#${tag}`))
-    .slice(0, 12);
-  return tags.length > 0 ? tags : null;
 }
 
 function asReelTheme(value: unknown): VisualTheme | null {
@@ -190,7 +175,7 @@ function pickTemplate(reel?: ReelHandoff): ReelTemplate {
     phrases: resolvePhrases(reel),
     captionShort: caption,
     captionDeep: caption,
-    hashtags: asHashtagList(reel.hashtags) || base.hashtags,
+    hashtags: starkHashtags(reel.hook || reel.caption || ""),
     suggestedTheme: asReelTheme(reel.theme) || base.suggestedTheme,
     suggestedDuration: asReelDuration(reel.duration) || base.suggestedDuration,
   };
@@ -314,7 +299,7 @@ export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
       setSelectedTheme((prev) => asReelTheme(scene.suggestedTheme) ?? prev);
     }
     setCaption(nextTemplate.captionShort);
-    setHashtags(nextTemplate.hashtags);
+    setHashtags(starkHashtags(nextPhrases.join(" ")));
     timeRef.current = 0;
     setCurrentTime(0);
   }, [initialReel]);
@@ -610,10 +595,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
             phrases: finalPhrases,
             captionShort: shortC,
             captionDeep: deepC,
-            hashtags:
-              parsedData.hashtags && Array.isArray(parsedData.hashtags)
-                ? parsedData.hashtags
-                : ["#stoicism", "#discipline", "#sovereignty", "#focus", "#starkfocus"],
+            hashtags: starkHashtags(finalPhrases.join(" ")),
             suggestedTheme: nextTheme,
             suggestedDuration: duration,
             suggestedBackground: parsedData.suggestedBackground || randBg.name,
@@ -622,7 +604,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
 
           setActiveTemplate(dynamicTpl);
           setCaption(captionStyle === "deep" ? deepC : shortC);
-          setHashtags(dynamicTpl.hashtags);
+          setHashtags(starkHashtags(dynamicTpl.phrases.join(" ")));
           setSelectedTheme(nextTheme);
           timeRef.current = 0;
           setCurrentTime(0);
@@ -658,7 +640,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
     setActiveTemplate(formula);
     setPhrases(fallbackPhrases);
     setCaption(captionStyle === "deep" ? formula.captionDeep : formula.captionShort);
-    setHashtags(formula.hashtags);
+    setHashtags(starkHashtags(fallbackPhrases.join(" ")));
     setSelectedTheme(formula.suggestedTheme);
     timeRef.current = 0;
     setCurrentTime(0);

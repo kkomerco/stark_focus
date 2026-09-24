@@ -1,6 +1,6 @@
 import type { MiniApp } from "../../mini-express.server";
 import { getGeminiClient, safeJsonParse, callGeminiWithFallback } from "../gemini.server";
-import { formatStarkCaption, STARK_HASHTAGS } from "../../caption";
+import { formatStarkCaption, starkHashtags } from "../../caption";
 
 export function registerGenerateRoutes(app: MiniApp): void {
   app.post("/api/ai/generate-background-prompt", async (req, res) => {
@@ -217,7 +217,7 @@ export function registerGenerateRoutes(app: MiniApp): void {
             hashtags:
               Array.isArray(parsed.hashtags) && parsed.hashtags.length > 0
                 ? parsed.hashtags
-                : [...STARK_HASHTAGS],
+                : starkHashtags(Array.isArray(parsed.phrases) ? parsed.phrases.join(" ") : ""),
             suggestedTheme: parsed.suggestedTheme || randomTheme,
             suggestedBackground: parsed.suggestedBackground || "Marmurowy Posąg Stoika w Cieniu",
             backgroundRationale:
