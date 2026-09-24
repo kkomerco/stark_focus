@@ -297,6 +297,223 @@ export interface SignSlideOptions extends LayoutTheme {
   textLines: string[];
 }
 
+/**
+ * Rysunek jest tylko szkicem linii — bez zdjęcia, bez cudzej grafiki, bez
+ * generowania obrazów. Dzięki temu kadr da się zrobić dziś, na darmowym tierze,
+ * i nikt nie może zarzucić kopiowania.
+ */
+export type DiagramKind = "chart" | "scales" | "path" | "split";
+
+export interface ConceptDiagramOptions extends LayoutTheme {
+  /** Wers nad rysunkiem — krótki, wielkimi literami. */
+  line: string;
+  diagram: DiagramKind;
+  /** Jedno zdanie pod rysunkiem; puste = czysty szkic. */
+  caption?: string;
+}
+
+const STROKE = "rgba(243,240,234,0.82)";
+
+/** Złota liczba jako krok losowości — wykres ma być nierówny, ale powtarzalny dla tego samego tekstu. */
+function seededPoints(
+  seedText: string,
+  count: number,
+  box: { x: number; y: number; w: number; h: number },
+) {
+  let state = 2166136261;
+  for (let i = 0; i < seedText.length; i++) {
+    state ^= seedText.charCodeAt(i);
+    state = Math.imul(state, 16777619) >>> 0;
+  }
+  const next = () => {
+    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+    return state / 4294967296;
+  };
+  return Array.from({ length: count }, (_, i) => ({
+    x: box.x + (box.w * (i + 0.5)) / count + (next() - 0.5) * (box.w / count) * 0.5,
+    y: box.y + next() * box.h,
+  }));
+}
+
+function polyline(ctx: CanvasRenderingContext2D, points: { x: number; y: number }[]) {
+  ctx.beginPath();
+  points.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)));
+  ctx.stroke();
+}
+
+function drawChart(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  size: number,
+  seed: string,
+) {
+  const box = { x: cx - size * 0.34, y: cy - size * 0.34, w: size * 0.68, h: size * 0.68 };
+  ctx.strokeRect(box.x, box.y, box.w, box.h);
+  const fall = seededPoints(seed, 7, {
+    x: box.x + 10,
+    y: box.y + 10,
+    w: box.w - 20,
+    h: box.h - 20,
+  });
+  polyline(ctx, fall);
+  // Odbicie po dnie — cała pointa diagramu jest w tym, że linia wraca do góry.
+  const last = fall[fall.length - 1];
+  ctx.beginPath();
+  ctx.moveTo(last.x, last.y);
+  ctx.lineTo(cx + size * 0.48, cy - size * 0.46);
+  ctx.stroke();
+}
+
+function drawScales(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number) {
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - size * 0.4);
+  ctx.lineTo(cx, cy + size * 0.36);
+  ctx.stroke();
+  // Ramiona nie są poziome: jedna szala zawsze wygrywa, i o tym jest kadr.
+  ctx.beginPath();
+  ctx.moveTo(cx - size * 0.36, cy - size * 0.2);
+  ctx.lineTo(cx + size * 0.36, cy - size * 0.3);
+  ctx.stroke();
+  [-0.36, 0.36].forEach((offset, i) => {
+    const x = cx + size * offset;
+    const y = cy - (i === 0 ? -0.2 : -0.3) * size;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x - size * 0.13, y + size * 0.16);
+    ctx.lineTo(x + size * 0.13, y + size * 0.16);
+    ctx.closePath();
+    ctx.stroke();
+  });
+}
+
+function drawPath(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number) {
+  ctx.beginPath();
+  ctx.moveTo(cx - size * 0.44, cy - size * 0.3);
+  ctx.bezierCurveTo(
+    cx - size * 0.1,
+    cy - size * 0.3,
+    cx - size * 0.36,
+    cy + size * 0.36,
+    cx + size * 0.04,
+    cy + size * 0.16,
+  );
+  ctx.bezierCurveTo(
+    cx + size * 0.3,
+    cy,
+    cx + size * 0.1,
+    cy - size * 0.34,
+    cx + size * 0.44,
+    cy - size * 0.42,
+  );
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx + size * 0.44, cy - size * 0.42);
+  ctx.lineTo(cx + size * 0.3, cy - size * 0.4);
+  ctx.moveTo(cx + size * 0.44, cy - size * 0.42);
+  ctx.lineTo(cx + size * 0.4, cy - size * 0.28);
+  ctx.stroke();
+}
+
+function drawSplit(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  size: number,
+  seed: string,
+) {
+  const panelW = size * 0.4;
+  const panelH = size * 0.52;
+  const left = cx - panelW - size * 0.04;
+  const right = cx + size * 0.04;
+  const top = cy - panelH / 2;
+  ctx.strokeRect(left, top, panelW, panelH);
+  ctx.strokeRect(right, top, panelW, panelH);
+  // Lewa strona jest pusta, prawa zapisana — to cały żart „I'm gonna" vs „I did".
+  ctx.beginPath();
+  ctx.moveTo(left + panelW * 0.72, top + panelH * 0.3);
+  ctx.lineTo(left + panelW * 0.72, top + panelH * 0.78);
+  ctx.stroke();
+  seededPoints(seed, 16, { x: right + 10, y: top + 12, w: panelW - 20, h: panelH - 24 }).forEach(
+    (p, i) => {
+      ctx.beginPath();
+      ctx.moveTo(p.x - 6, p.y - (i % 2 ? 6 : -6));
+      ctx.lineTo(p.x + 6, p.y + (i % 2 ? 6 : -6));
+      ctx.moveTo(p.x + 6, p.y - (i % 2 ? 6 : -6));
+      ctx.lineTo(p.x - 6, p.y + (i % 2 ? 6 : -6));
+      ctx.stroke();
+    },
+  );
+}
+
+/**
+ * DIAGRAM + WIERSZ — kadr, w którym rysunek niesie myśl, a nie ją ilustruje.
+ * Wers stoi u góry małą kursywą markową, pod nim szkic na kość.
+ */
+export function drawConceptDiagramSlide(
+  canvas: HTMLCanvasElement,
+  options: ConceptDiagramOptions,
+): void {
+  const base = prepare(canvas, options);
+  if (!base) return;
+  const { ctx, width, height, accent } = base;
+
+  const margin = Math.round(width * 0.09);
+  const line = options.line.toUpperCase();
+  const lineSize = Math.round(width * 0.036);
+  const fitted = fitLines(
+    ctx,
+    stripHighlightSyntax(line),
+    width - margin * 2,
+    2,
+    (size) => `800 ${size}px ${getFontFamilySpec("sans")}`,
+    lineSize,
+    Math.round(lineSize * 0.7),
+  );
+  ctx.font = `800 ${fitted.size}px ${getFontFamilySpec("sans")}`;
+  ctx.fillStyle = INK;
+  ctx.textAlign = "center";
+  let y = Math.round(height * 0.12);
+  for (const row of fitted.lines) {
+    ctx.fillText(row, width / 2, y);
+    y += fitted.size * 1.4;
+  }
+
+  const size = Math.round(Math.min(width, height) * 0.42);
+  const cy = Math.round(height * 0.5);
+  ctx.strokeStyle = STROKE;
+  ctx.lineWidth = Math.max(2, Math.round(width * 0.0022));
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+
+  if (options.diagram === "scales") drawScales(ctx, width / 2, cy, size);
+  else if (options.diagram === "path") drawPath(ctx, width / 2, cy, size);
+  else if (options.diagram === "split") drawSplit(ctx, width / 2, cy, size, options.line);
+  else drawChart(ctx, width / 2, cy, size, options.line);
+
+  if (options.caption) {
+    const captionSize = Math.round(width * 0.026);
+    const caption = fitLines(
+      ctx,
+      stripHighlightSyntax(options.caption),
+      width - margin * 2,
+      2,
+      (s) => `500 ${s}px ${getFontFamilySpec("sans")}`,
+      captionSize,
+    );
+    ctx.font = `500 ${caption.size}px ${getFontFamilySpec("sans")}`;
+    ctx.fillStyle = accent;
+    let captionY = cy + size * 0.62;
+    for (const row of caption.lines) {
+      ctx.fillText(row, width / 2, captionY);
+      captionY += caption.size * 1.4;
+    }
+  }
+
+  ctx.textAlign = "left";
+  footer(ctx, width, height, options.handle, "STARK STANDARD");
+}
+
 /** Ten sam tekst ma lądować w różnym miejscu kadru — inaczej każdy post to ta sama kompozycja. */
 function seedFrom(lines: string[]): number {
   let seed = 11;

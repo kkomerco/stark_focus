@@ -181,6 +181,28 @@ const SPEC_WALL_3D = structuredSpec("Napis w scenie", "studio_wall_3d", {
 });
 
 /**
+ * Diagram z wierszem — najtańszy w produkcji format z referencji: czarny kadr,
+ * jeden szkic linią i jedno zdanie, które ten szkic znosi. Zero zdjęcia, zero
+ * generowania obrazów, zero praw autorskich w grze.
+ */
+const SPEC_DIAGRAM = structuredSpec(
+  "Diagram",
+  "concept_diagram",
+  {
+    primary: "Just a bad day. Not a bad life.",
+    closing: "The line comes back — if you stay on the chart.",
+  },
+  { diagram: "chart" },
+);
+
+const DIAGRAM_KINDS: Array<{ kind: "chart" | "scales" | "path" | "split"; label: string }> = [
+  { kind: "chart", label: "Wykres" },
+  { kind: "scales", label: "Waga" },
+  { kind: "path", label: "Ścieżka" },
+  { kind: "split", label: "Split" },
+];
+
+/**
  * Lista formatów w jednym miejscu — dawniej każdy układ był dodawanym
  * przyciskiem w JSX, przez co pasek rósł szybciej niż możliwości.
  */
@@ -193,14 +215,12 @@ const LAYOUT_PICKER: Array<{
   { gridType: "protocol_list", label: "Protokół", spec: SPEC_PROTOCOL },
   { gridType: "cost_vs_reward", label: "Koszt", spec: SPEC_COST_REWARD },
   { gridType: "studio_wall_3d", label: "Napis w scenie", spec: SPEC_WALL_3D },
+  { gridType: "concept_diagram", label: "Diagram", spec: SPEC_DIAGRAM },
   { gridType: "grid_2x2", label: "Kolaż", spec: SPEC_COLLAGE_4 },
 ];
 
 /** Gdzie napis stoi w kadrze — ten sam tekst, trzy różne sceny. */
-const SIGN_SCENES: Array<{
-  scene: NonNullable<UniversalLayoutSpec["layoutData"]>["scene"];
-  label: string;
-}> = [
+const SIGN_SCENES: Array<{ scene: "wall" | "neon" | "billboard"; label: string }> = [
   { scene: "wall", label: "Ściana 3D" },
   { scene: "neon", label: "Neon" },
   { scene: "billboard", label: "Baner" },
@@ -892,6 +912,30 @@ Zwróć WYŁĄCZNIE czysty JSON:
     }
   };
 
+  // Przełącznik wariantu kadru: napis ma scenę, diagram ma szkic. Ten sam
+  // szkic przy każdym poście wyglądałby po chwili jak szablon.
+  const variantChoices: {
+    label: string;
+    field: "scene" | "diagram";
+    fallback: string;
+    options: Array<{ value: string; label: string }>;
+  } =
+    spec.gridType === "studio_wall_3d"
+      ? {
+          label: "Scena",
+          field: "scene",
+          fallback: "wall",
+          options: SIGN_SCENES.map((s) => ({ value: s.scene, label: s.label })),
+        }
+      : spec.gridType === "concept_diagram"
+        ? {
+            label: "Szkic",
+            field: "diagram",
+            fallback: "chart",
+            options: DIAGRAM_KINDS.map((d) => ({ value: d.kind, label: d.label })),
+          }
+        : { label: "", field: "scene", fallback: "", options: [] };
+
   return (
     <div className="bg-[#0A0A0A] border border-white/10 rounded-2xl p-4 sm:p-6 shadow-2xl space-y-6 text-neutral-200">
       {/* Pasek linku */}
@@ -966,23 +1010,25 @@ Zwróć WYŁĄCZNIE czysty JSON:
           ))}
         </div>
 
-        {spec.gridType === "studio_wall_3d" && (
+        {/* Wariant kadru: scena dla napisu, szkic dla diagramu. */}
+        {variantChoices.options.length > 0 && (
           <div className="flex items-center gap-1.5">
             <span className="text-[10px] font-mono text-neutral-500 uppercase shrink-0">
-              Scena:
+              {variantChoices.label}:
             </span>
-            {SIGN_SCENES.map((option) => (
+            {variantChoices.options.map((option) => (
               <button
-                key={option.scene}
+                key={option.value}
                 type="button"
                 onClick={() =>
                   setSpec((prev) => ({
                     ...prev,
-                    layoutData: { ...prev.layoutData, scene: option.scene },
+                    layoutData: { ...prev.layoutData, [variantChoices.field]: option.value },
                   }))
                 }
                 className={`px-2.5 py-1 rounded text-[10px] font-mono uppercase tracking-wider cursor-pointer transition-colors shrink-0 ${
-                  (spec.layoutData?.scene ?? "wall") === option.scene
+                  (spec.layoutData?.[variantChoices.field] ?? variantChoices.fallback) ===
+                  option.value
                     ? "bg-[#E11D48] text-white"
                     : "bg-[#141414] text-neutral-500 border border-white/10 hover:text-white"
                 }`}

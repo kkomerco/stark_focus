@@ -19,6 +19,7 @@ import {
 } from "./starkBrandTheme";
 import {
   drawBillboardSignSlide,
+  drawConceptDiagramSlide,
   drawCostVsRewardSlide,
   drawNeonSignSlide,
   drawProtocolListSlide,
@@ -1119,6 +1120,20 @@ export function renderUniversalLayout(
       forfeit: groupText(spec, "forfeit"),
       closing: layerById(spec, "closing"),
       bgImage: options.backgroundImage ?? images[0] ?? null,
+    });
+    return;
+  }
+
+  // Format 5: Diagram + wiersz — rysunek niesie myśl, nie ją ilustruje.
+  if (spec.gridType === "concept_diagram") {
+    drawConceptDiagramSlide(canvas, {
+      width,
+      height,
+      handle,
+      line: layerById(spec, PRIMARY_LAYER_ID) || l1Fallback(spec),
+      caption: layerById(spec, "closing"),
+      diagram: spec.layoutData?.diagram ?? "chart",
+      bgImage: options.backgroundImage ?? null,
     });
     return;
   }

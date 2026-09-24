@@ -1,8 +1,25 @@
-// DeconstructViralModal.tsx — Analiza rynku: wklej link do viralowego posta,
-// AI rozbiera go na czynniki i generuje własne warianty @stark_focus.
-import React, { useState } from "react";
-import { Check, Copy, Film, Link2, Loader2, Sparkles, TrendingUp, X } from "lucide-react";
-import { DeconstructViralResponse, ReelHandoff, StarkVariant } from "../types";
+// DeconstructViralModal.tsx — Analiza wzorca: wklej link LUB zrzut ekranu posta,
+// AI rozbiera go na czynniki i oddaje przepis, który da się otworzyć w studio.
+import React, { useRef, useState } from "react";
+import {
+  Check,
+  Copy,
+  Film,
+  Image as ImageIcon,
+  Link2,
+  Loader2,
+  Sparkles,
+  TrendingUp,
+  X,
+} from "lucide-react";
+import {
+  DeconstructViralResponse,
+  ReelHandoff,
+  StarkVariant,
+  UniversalLayoutSpec,
+  ViralBlueprint,
+} from "../types";
+import { structuredSpec } from "../utils/ideaLayout";
 
 interface DeconstructViralModalProps {
   isOpen: boolean;
@@ -13,6 +30,8 @@ interface DeconstructViralModalProps {
   result: DeconstructViralResponse | null;
   onResultChange: (result: DeconstructViralResponse | null) => void;
   onSendToReel?: (reel: ReelHandoff) => void;
+  /** Przepis wprost w kadrze — bez przepisywania go ręcznie. */
+  onOpenBlueprint?: (spec: UniversalLayoutSpec) => void;
 }
 
 const PANEL = "bg-[#0F121C] border border-[#2C354B] rounded-xl";
@@ -25,6 +44,34 @@ const textList = (value: unknown): string[] =>
 const textOf = (value: unknown): string => (typeof value === "string" ? value : "");
 const listOf = <T,>(value: unknown): T[] => (Array.isArray(value) ? (value as T[]) : []);
 
+/** Które układy z przepisu da się złożyć z samych warstw tekstu. */
+function specFromBlueprint(bp: ViralBlueprint): UniversalLayoutSpec {
+  const name =
+    bp.gridType === "concept_diagram"
+      ? "Diagram"
+      : bp.gridType === "protocol_list"
+        ? "Protokół"
+        : bp.gridType === "cost_vs_reward"
+          ? "Koszt i utrata"
+          : bp.gridType === "studio_wall_3d"
+            ? "Napis w scenie"
+            : "Cytat na Czerni";
+  return structuredSpec(
+    name,
+    bp.gridType,
+    {
+      primary: bp.line,
+      closing: bp.subline,
+      steps: bp.steps,
+    },
+    bp.gridType === "concept_diagram"
+      ? { diagram: bp.diagram ?? "chart" }
+      : bp.gridType === "studio_wall_3d"
+        ? { scene: bp.scene ?? "wall" }
+        : {},
+  );
+}
+
 export const DeconstructViralModal: React.FC<DeconstructViralModalProps> = ({
   isOpen,
   onClose,
@@ -33,14 +80,24 @@ export const DeconstructViralModal: React.FC<DeconstructViralModalProps> = ({
   result,
   onResultChange,
   onSendToReel,
+  onOpenBlueprint,
 }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [shot, setShot] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+
+  const readFile = (file: File | undefined | null) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setShot(typeof reader.result === "string" ? reader.result : null);
+    reader.readAsDataURL(file);
+  };
 
   const analyze = async () => {
-    if (!url.trim()) {
-      setError("Wklej link do posta (TikTok / IG / YouTube Shorts).");
+    if (!url.trim() && !shot) {
+      setError("Wklej link albo zrzut ekranu posta — bez tego nie mam czego analizować.");
       return;
     }
     setLoading(true);
@@ -50,12 +107,12 @@ export const DeconstructViralModal: React.FC<DeconstructViralModalProps> = ({
       const res = await fetch("/api/ai/deconstruct-viral", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: url.trim() }),
+        body: JSON.stringify({ url: url.trim(), imageDataUrl: shot }),
       });
       if (!res.ok) throw new Error("HTTP " + res.status);
       onResultChange((await res.json()) as DeconstructViralResponse);
     } catch {
-      setError("Nie udało się przeanalizować linku. Spróbuj ponownie.");
+      setError("Nie udało się przeanalizować posta. Spróbuj zrzutem ekranu.");
     } finally {
       setLoading(false);
     }
@@ -72,6 +129,7 @@ export const DeconstructViralModal: React.FC<DeconstructViralModalProps> = ({
   const original = result?.original;
   const deconstruction = result?.deconstruction;
   const variants = result ? listOf<StarkVariant>(result.starkVariants) : [];
+  const blueprints = result ? listOf<ViralBlueprint>(result.blueprints) : [];
 
   return (
     <div className="fixed inset-0 z-60 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
@@ -106,6 +164,29 @@ export const DeconstructViralModal: React.FC<DeconstructViralModalProps> = ({
           />
           <button
             type="button"
+            onClick={() => fileRef.current?.click()}
+            className={`py-2 px-3 rounded-lg border text-xs font-mono font-bold flex items-center gap-1.5 cursor-pointer transition-colors ${
+              shot
+                ? "bg-rose-500/25 border-rose-500/50 text-rose-200"
+                : "bg-[#141824] border-[#2C354B] text-slate-300 hover:text-white"
+            }`}
+            title="Zrzut ekranu całego posta — dla Instagramu to jedyne źródło, które widać"
+          >
+            <ImageIcon className="w-3.5 h-3.5" />
+            {shot ? "Zrzut wzięty" : "Zrzut ekranu"}
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            className="hidden"
+            onChange={(e) => {
+              readFile(e.target.files?.[0]);
+              e.target.value = "";
+            }}
+          />
+          <button
+            type="button"
             onClick={analyze}
             disabled={loading}
             className="py-2 px-4 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-xs font-mono font-bold text-rose-300 uppercase tracking-wider flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
@@ -137,6 +218,68 @@ export const DeconstructViralModal: React.FC<DeconstructViralModalProps> = ({
 
           {result && !loading && (
             <>
+              {textOf(result.message) && (
+                <div className="p-3 bg-[#141824] border border-[#2C354B] rounded-lg text-xs font-mono text-slate-300">
+                  {textOf(result.message)}
+                </div>
+              )}
+
+              {blueprints.length > 0 && (
+                <section className="space-y-2">
+                  <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500">
+                    Przepisy na nasz kadr
+                  </h4>
+                  {blueprints.map((bp) => (
+                    <div
+                      key={bp.id}
+                      className="p-3 bg-[#141824] border border-[#2C354B] rounded-lg space-y-2"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] font-mono text-rose-300 uppercase">
+                          {bp.gridType}
+                          {bp.gridType === "concept_diagram" ? ` / ${bp.diagram}` : ""}
+                        </span>
+                        {bp.needsImage && (
+                          <span className="text-[9px] font-mono text-slate-500 border border-[#2C354B] px-1.5 py-0.5 rounded">
+                            wymaga obrazu
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm font-mono font-bold text-white">{textOf(bp.line)}</p>
+                      {textOf(bp.subline) && (
+                        <p className="text-[11px] font-mono text-slate-400">{textOf(bp.subline)}</p>
+                      )}
+                      {textList(bp.steps).map((s, i) => (
+                        <p key={i} className="text-[11px] font-mono text-slate-400">
+                          {i + 1}. {s}
+                        </p>
+                      ))}
+                      {textOf(bp.why) && (
+                        <p className="text-[10px] font-mono text-slate-500">{textOf(bp.why)}</p>
+                      )}
+                      {textOf(bp.imagePrompt) && (
+                        <p className="text-[10px] font-mono text-slate-500 italic break-words">
+                          {textOf(bp.imagePrompt)}
+                        </p>
+                      )}
+                      {onOpenBlueprint && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onOpenBlueprint(specFromBlueprint(bp));
+                            onClose();
+                          }}
+                          className={ACTION_BTN}
+                        >
+                          <Sparkles className="w-3 h-3" />
+                          Otwórz w studio
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </section>
+              )}
+
               <section className="p-3 bg-[#141824] border border-[#2C354B] rounded-lg space-y-2">
                 <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500">
                   Oryginał ({textOf(result.platform)})

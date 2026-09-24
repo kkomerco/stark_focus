@@ -161,14 +161,17 @@ export interface UniversalLayoutSpec {
     | "grid_2x2"
     | "studio_wall_3d"
     | "protocol_list"
-    | "cost_vs_reward";
+    | "cost_vs_reward"
+    | "concept_diagram";
   /**
-   * Tryb sceny kadru z napisem. Cała treść językowa mieszka w `textLayers`
+   * Tryb sceny kadru. Cała treść językowa mieszka w `textLayers`
    * (patrz `canvas/layerRoles.ts`) — nie ma tu miejsca na zdania, bo dopóki
    * były, poprawka w edytorze nie była widoczna na kadrze.
    */
   layoutData?: {
     scene?: "wall" | "neon" | "billboard";
+    /** Jaki szkic rysuje układ „diagram + wiersz". */
+    diagram?: "chart" | "scales" | "path" | "split";
   };
   backgroundColor: string;
   dividerWidth: number;
@@ -300,7 +303,10 @@ export interface StarkVariant {
 export interface DeconstructViralResponse {
   // "error" oddzielnie od "offline": inaczej awaria modelu udawała analizę
   // z banku treści, a UI pokazywał „Błąd analizy" z odznaką OFFLINE.
-  source: "ai" | "offline" | "error";
+  // "no_input" to stan, w którym nie ma czego analizować (link IG bez zrzutu)
+  // — uczciwszy niż wymyślona dekonstrukcja.
+  source: "ai" | "offline" | "error" | "no_input";
+  message?: string;
   platform: string;
   original: {
     url: string;
@@ -310,6 +316,22 @@ export interface DeconstructViralResponse {
   };
   deconstruction: ViralDeconstruction;
   starkVariants: StarkVariant[];
+  /** Przepis na kadr u nas: układ, tekst i — jeśli trzeba — prompt obrazu. */
+  blueprints?: ViralBlueprint[];
+}
+
+export interface ViralBlueprint {
+  id: string;
+  gridType: UniversalLayoutSpec["gridType"];
+  diagram?: "chart" | "scales" | "path" | "split";
+  scene?: "wall" | "neon" | "billboard";
+  line: string;
+  subline?: string;
+  steps?: string[];
+  /** Prawda = kadr wymaga zdjęcia/illustracji, czyli generowania obrazów. */
+  needsImage: boolean;
+  imagePrompt?: string;
+  why?: string;
 }
 
 // ===== Przekazanie treści do studia rolek =====

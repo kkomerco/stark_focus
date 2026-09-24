@@ -155,6 +155,16 @@ export default function StarkFocusApp() {
    * Studio rolek przyjmuje cały pakiet. Starsze ścieżki (Studio 1:1, Radar trendów)
    * oddają goły tekst — tu zamieniamy go na pakiet z samym hookiem.
    */
+  /**
+   * Przepis z analizy wchodzi do studia jako gotowy kadr — inaczej człowiek
+   * przepisywałby wiersz i wybierał układ ręcznie, czyli dokładnie to, przed
+   * czym miała go obronić analiza.
+   */
+  const handleOpenBlueprint = (spec: UniversalLayoutSpec) => {
+    setPostPreset({ spec });
+    setActiveTab(0);
+  };
+
   const handleSendToReel = (incoming?: ReelHandoff | string, bgUrl?: string) => {
     const reel = typeof incoming === "string" ? { hook: incoming } : incoming;
     if (reel && (reel.hook || (Array.isArray(reel.phrases) && reel.phrases.length > 0))) {
@@ -411,6 +421,7 @@ export default function StarkFocusApp() {
               setDeconstructOpen(false);
               handleSendToReel(reel);
             }}
+            onOpenBlueprint={handleOpenBlueprint}
           />
         )}
         {abOpen && (
