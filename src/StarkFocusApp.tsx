@@ -10,7 +10,6 @@ import {
   TestTubes,
   Rocket,
   Image as ImageIcon,
-  ListChecks,
 } from "lucide-react";
 import {
   DailyPack,
@@ -24,7 +23,7 @@ import {
 } from "./types";
 import { specFromIdea } from "./utils/ideaLayout";
 import { usedHookFingerprints } from "./lib/usedContent";
-import { QueuePanel } from "./components/QueuePanel";
+import { DataBar } from "./components/DataBar";
 import { loadStoredData, normalizePlannerTasks, saveStoredData } from "./utils/storage";
 import { useIdeaStream } from "./hooks/useIdeaStream";
 import type { AbDraft } from "./components/AbModal";
@@ -52,9 +51,6 @@ const DeconstructViralModal = lazy(() =>
 const AbModal = lazy(() => import("./components/AbModal").then((m) => ({ default: m.AbModal })));
 const AutopilotModal = lazy(() =>
   import("./components/AutopilotModal").then((m) => ({ default: m.AutopilotModal })),
-);
-const PipelineTab = lazy(() =>
-  import("./components/PipelineTab").then((m) => ({ default: m.PipelineTab })),
 );
 const PromptLibraryModal = lazy(() =>
   import("./components/PromptLibraryModal").then((m) => ({ default: m.PromptLibraryModal })),
@@ -250,48 +246,11 @@ export default function StarkFocusApp() {
     }));
   };
 
-  // Krok 3 flowu: zadanie z Pipeline'u otwiera studio z dokładnie tą treścią,
-  // którą zaplanowano. Bez payloadu (starsze zadania Autopilota) zostaje sam przekaz.
-  const handleOpenScheduledTask = (task: PlannerTask) => {
-    const payload = task.payload;
-    const reel = payload?.reel;
-    if (reel && (reel.hook || (Array.isArray(reel.phrases) && reel.phrases.length > 0))) {
-      handleSendToReel(reel);
-      return;
-    }
-    if (payload?.carousel) {
-      setPendingCarousel(payload.carousel);
-      // Studio karuzeli działa w zakładce Trendy i przejmuje paczkę raz przy starcie
-      setActiveTab(2);
-      return;
-    }
-    if (payload?.post?.text) {
-      handleSendToPost(payload.post.text, payload.post.caption || undefined);
-      return;
-    }
-    setActiveTab(typeof task.targetTab === "number" ? task.targetTab : 0);
-  };
-
-  const handleCompleteTask = (taskId: string) => {
-    handleUpdateData((prev) => ({
-      ...prev,
-      planner_tasks: (prev.planner_tasks || []).map((task) =>
-        task.id === taskId ? { ...task, completed: true } : task,
-      ),
-    }));
-  };
-
-  // Klik w zapisany post otwiera go z powrotem w kadrze — bez przepisywania od nowa.
-  const handleOpenSavedPost = (post: Post) => {
-    handleSendToPost(post.title, post.caption || undefined);
-  };
-
-  // Cztery powierzchnie robocze po prawej stronie — kolejka zostaje po lewej.
+  // Powierzchnie robocze: to, w czym się robi materiał.
   const panes = [
     { id: "post", label: "Kadr", icon: Sparkles },
     { id: "reel", label: "Rolka", icon: Film },
     { id: "radar", label: "Radar", icon: Flame },
-    { id: "pipeline", label: "Harmonogram", icon: ListChecks },
   ];
 
   // Narzędzia to generatory i analizy wywoływane na żądanie — nie zakładki,
@@ -310,51 +269,9 @@ export default function StarkFocusApp() {
       <div className="max-w-[1500px] mx-auto px-3 sm:px-5 py-4">
         <Header />
 
-        {/* Jedna powierzchnia robocza: kolejka po lewej, kadr po prawej.
-            Od 1280 px — poniżej tego studio potrzebuje pełnej szerokości. */}
-        <div className="grid grid-cols-1 xl:grid-cols-[290px_minmax(0,1fr)] gap-5 items-start">
-          <aside className="space-y-5 xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:overflow-y-auto xl:pr-1">
-            <section>
-              <p className="text-[10px] font-mono uppercase tracking-wider text-neutral-500 mb-2">
-                Narzędzia
-              </p>
-              <div className="grid grid-cols-3 gap-1.5">
-                {tools.map((tool) => {
-                  const Icon = tool.icon;
-                  return (
-                    <button
-                      key={tool.label}
-                      type="button"
-                      onClick={tool.open}
-                      title={tool.label}
-                      className="flex flex-col items-center gap-1.5 px-1 py-2.5 rounded-lg border border-white/10 bg-[#0C0C0C] text-neutral-400 hover:text-white hover:border-white/30 transition-colors cursor-pointer"
-                    >
-                      <Icon className="w-4 h-4" />
-                      <span className="text-[9px] font-mono leading-tight text-center">
-                        {tool.label}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
-
-            <section>
-              <p className="text-[10px] font-mono uppercase tracking-wider text-neutral-500 mb-2">
-                Kolejka
-              </p>
-              <QueuePanel
-                tasks={data.planner_tasks || []}
-                posts={data.posts || []}
-                onOpenTask={handleOpenScheduledTask}
-                onCompleteTask={handleCompleteTask}
-                onOpenPost={handleOpenSavedPost}
-              />
-            </section>
-          </aside>
-
-          <main className="min-w-0">
-            <div className="flex items-center gap-1 mb-4 pb-2 border-b border-white/10 select-none">
+        <main className="min-w-0">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4 pb-2 border-b border-white/10 select-none">
+            <div className="flex items-center gap-1">
               {panes.map((pane, idx) => {
                 const Icon = pane.icon;
                 const isActive = activeTab === idx;
@@ -375,53 +292,65 @@ export default function StarkFocusApp() {
               })}
             </div>
 
-            <Suspense fallback={<TabFallback />}>
-              {activeTab === 0 && (
-                <InspirationStudio1to1
-                  key={`${postPreset.spec?.layoutName ?? ""}-${postPreset.text ?? ""}`}
-                  onSaveToPipeline={handleSavePostFrom1to1}
-                  userHandle={data.social_handles?.instagram || "stark_focus"}
-                  initialText={postPreset.text}
-                  initialCaption={postPreset.caption}
-                  initialSpec={postPreset.spec}
-                  onSendToReel={handleSendToReel}
-                  usedHooks={usedHooks}
-                />
-              )}
-              {activeTab === 1 && (
-                <VideoStudioModal
-                  key={reelPreset?.reel.hook || "default-reel"}
-                  embedded={true}
-                  initialReel={reelPreset?.reel}
-                  initialBgUrl={reelPreset?.bgUrl}
-                  availablePosts={data.posts}
-                  vaultAssets={data.vault_assets}
-                  onSendToPost={handleSendToPost}
-                />
-              )}
-              {activeTab === 2 && (
-                <AiRadarTab
-                  data={data}
-                  onUpdateData={handleUpdateData}
-                  incomingCarousel={pendingCarousel}
-                  onIncomingCarouselUsed={() => setPendingCarousel(null)}
-                  onOpenQR={(title, payload) => setQrModal({ isOpen: true, title, data: payload })}
-                  onNavigateToTab={(tabIdx) => setActiveTab(tabIdx)}
-                  onSendToPost={handleSendToPost}
-                  onSendToReel={handleSendToReel}
-                />
-              )}
-              {activeTab === 3 && (
-                <PipelineTab
-                  data={data}
-                  onUpdateData={handleUpdateData}
-                  onOpenInStudio={handleOpenScheduledTask}
-                  onOpenDailyPack={() => setDailyPackOpen(true)}
-                />
-              )}
-            </Suspense>
-          </main>
-        </div>
+            <div className="flex flex-wrap items-center gap-1">
+              {tools.map((tool) => {
+                const Icon = tool.icon;
+                return (
+                  <button
+                    key={tool.label}
+                    type="button"
+                    onClick={tool.open}
+                    title={tool.label}
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-white/10 text-[10px] font-mono uppercase tracking-wider text-neutral-400 hover:text-white hover:border-white/30 transition-colors cursor-pointer"
+                  >
+                    <Icon className="w-3 h-3" />
+                    {tool.label}
+                  </button>
+                );
+              })}
+              <span className="w-px h-4 bg-white/10 mx-1" />
+              <DataBar data={data} tasks={data.planner_tasks || []} />
+            </div>
+          </div>
+
+          <Suspense fallback={<TabFallback />}>
+            {activeTab === 0 && (
+              <InspirationStudio1to1
+                key={`${postPreset.spec?.layoutName ?? ""}-${postPreset.text ?? ""}`}
+                onSaveToPipeline={handleSavePostFrom1to1}
+                userHandle={data.social_handles?.instagram || "stark_focus"}
+                initialText={postPreset.text}
+                initialCaption={postPreset.caption}
+                initialSpec={postPreset.spec}
+                onSendToReel={handleSendToReel}
+                usedHooks={usedHooks}
+              />
+            )}
+            {activeTab === 1 && (
+              <VideoStudioModal
+                key={reelPreset?.reel.hook || "default-reel"}
+                embedded={true}
+                initialReel={reelPreset?.reel}
+                initialBgUrl={reelPreset?.bgUrl}
+                availablePosts={data.posts}
+                vaultAssets={data.vault_assets}
+                onSendToPost={handleSendToPost}
+              />
+            )}
+            {activeTab === 2 && (
+              <AiRadarTab
+                data={data}
+                onUpdateData={handleUpdateData}
+                incomingCarousel={pendingCarousel}
+                onIncomingCarouselUsed={() => setPendingCarousel(null)}
+                onOpenQR={(title, payload) => setQrModal({ isOpen: true, title, data: payload })}
+                onNavigateToTab={(tabIdx) => setActiveTab(tabIdx)}
+                onSendToPost={handleSendToPost}
+                onSendToReel={handleSendToReel}
+              />
+            )}
+          </Suspense>
+        </main>
       </div>
 
       <Suspense fallback={null}>
