@@ -4,7 +4,7 @@ import { hookFingerprint, maxSimilarity, SIMILARITY } from "../../similarity";
 import { pick, pickN } from "../../random";
 import { clampCount, clampInt, clampText, clampTextList, LIMITS } from "../../limits";
 import { asArray, asString, asStringArray, oneOf } from "../normalize.server";
-import { formatStarkCaption, STARK_HASHTAGS } from "../../caption";
+import { formatStarkCaption, STARK_HASHTAGS, starkCaption } from "../../caption";
 
 /**
  * IDEA STREAM — nieskończony generator pomysłów z silną anty-powtórką.
@@ -245,8 +245,7 @@ Zwróć WYŁĄCZNIE JSON:
       "emotionalTarget": "string",
       "format": "string",
       "phrases": ["hook", "kontrast", "puenta"],
-      "caption": "opis z CTA i hashtagami",
-      "hashtags": ["#stoicism", "..."],
+      "caption": "2-3 zdania po angielsku rozwijające myśl z kadru — bez hashtagów i bez CTA, ogon doklejamy u siebie",
       "theme": "obsidian_void|crimson_eclipse|emerald_abyss|carbon_aura|silver_mist",
       "viralityScore": 90
     }
@@ -292,8 +291,8 @@ Zwróć WYŁĄCZNIE JSON:
             emotionalTarget: asString(idea.emotionalTarget, chosenEmos[idx % chosenEmos.length]),
             format: asString(idea.format, chosenFormats[idx % chosenFormats.length]),
             phrases: phrases.length > 0 ? phrases : [hook],
-            caption: asString(idea.caption),
-            hashtags: asStringArray(idea.hashtags, 6),
+            caption: starkCaption(hook, asString(idea.caption)),
+            hashtags: [...STARK_HASHTAGS],
             theme: oneOf(idea.theme, THEMES, "obsidian_void"),
             viralityScore: clampInt(idea.viralityScore, 0, 100, 92),
           };

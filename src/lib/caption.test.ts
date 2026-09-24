@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { formatStarkCaption } from "./caption";
+import { formatStarkCaption, isPolishCopy, starkCaption } from "./caption";
 
 describe("caption.ts - Stark Focus Caption Formatter", () => {
   it("formats hook in uppercase and removes quotes and markdown", () => {
@@ -49,5 +49,52 @@ describe("caption.ts - Stark Focus Caption Formatter", () => {
     assert.ok(
       caption.includes("#stoicism #darkdiscipline #discipline #mindset #focus #starkfocus"),
     );
+  });
+});
+
+describe("isPolishCopy", () => {
+  it("wyłapuje polską diakrytykę i rodzime słowa", () => {
+    assert.equal(isPolishCopy("To jest opis dla ciebie."), true);
+    assert.equal(isPolishCopy("Nie negocjuj ze swoim standardem."), true);
+    assert.equal(isPolishCopy("Zawsze wykonuj w ciszy."), true);
+  });
+
+  it("nie bierze angielskiego za polski", () => {
+    assert.equal(isPolishCopy("Silence cannot be misquoted."), false);
+    assert.equal(isPolishCopy("You are not tired. You are uninspired."), false);
+  });
+});
+
+describe("starkCaption", () => {
+  it("bierze treść od modelu, ale ogon dokleja markowy", () => {
+    const caption = starkCaption(
+      "Comfort is expensive.",
+      "Most people pay for comfort every day and never look at the bill.",
+    );
+
+    assert.ok(caption.startsWith("COMFORT IS EXPENSIVE.\n\n"));
+    assert.ok(caption.includes("pay for comfort every day"));
+    assert.ok(
+      caption.endsWith("#stoicism #darkdiscipline #discipline #mindset #focus #starkfocus"),
+    );
+  });
+
+  it("wyrzuca hashtagi i wezwanie do działania modelu, żeby feed miał jeden ogon", () => {
+    const caption = starkCaption(
+      "Walk alone.",
+      "Spectators cheer the attempt, never the work.\n#darkmotivation #hardwork\nFollow me for more.",
+    );
+
+    assert.equal(caption.includes("darkmotivation"), false);
+    assert.equal(caption.includes("Follow me"), false);
+    assert.ok(caption.includes("Spectators cheer the attempt"));
+  });
+
+  it("przy polskiej lub pustej treści modelu wraca do stałego schematu marki", () => {
+    assert.equal(
+      starkCaption("Silence speaks.", "Nie tłumacz się. Rób swoje i milcz."),
+      formatStarkCaption("Silence speaks."),
+    );
+    assert.equal(starkCaption("Silence speaks.", ""), formatStarkCaption("Silence speaks."));
   });
 });

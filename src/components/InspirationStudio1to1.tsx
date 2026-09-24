@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import JSZip from "jszip";
-import { formatStarkCaption } from "../lib/caption";
+import { formatStarkCaption, isPolishCopy, starkCaption } from "../lib/caption";
 import {
   Link2,
   Sparkles,
@@ -514,7 +514,7 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
               posX: 0.12,
             },
           ],
-      caption: saying.caption || prev.caption,
+      caption: starkCaption(cleanMain, saying.caption || ""),
     }));
   };
 
@@ -565,7 +565,7 @@ Zwróć WYŁĄCZNIE czysty JSON:
 {
   "main": "krótka teza namawiająca do myślenia (1 linijka)",
   "sub": "${quoteStyleMode === "single" ? "" : "krótki dopisek (1 linijka) lub puste dla 1 zdania"}",
-  "caption": "krótki opis na Instagram z wezwaniem do działania i 4 hashtagami (#stoicism #discipline #mindset #focus)"
+  "caption": "2-3 zdania PO ANGIELSKU rozwijające myśl z kadru. Bez hashtagów i bez wezwania do działania — ten ogon doklejamy u siebie."
 }`,
           systemInstruction: "Zwracaj wyłącznie czysty JSON bez znaczników markdown",
         }),
@@ -594,6 +594,13 @@ Zwróć WYŁĄCZNIE czysty JSON:
       }
       setSayingError(null);
       if (parsed && parsed.main) {
+        // Treść idzie na czarny kadr po angielsku. Model odpowiada w języku
+        // instrukcji, a instrukcja jest polska — więc polska teza to błąd,
+        // którego nie pokazujemy widzowi.
+        if (isPolishCopy(parsed.main) || isPolishCopy(parsed.sub || "")) {
+          setSayingError("Model odpowiedział po polsku. Naciśnij generuj jeszcze raz.");
+          return;
+        }
         if (quoteStyleMode === "single") {
           parsed.sub = "";
         }

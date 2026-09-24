@@ -2,7 +2,7 @@ import type { MiniApp } from "../../mini-express.server";
 import { generateContentWithFallback, getGeminiClient, safeJsonParse } from "../gemini.server";
 import { clampCount, clampText, clampTextList } from "../../limits";
 import { asArray, asString, sendDegraded } from "../normalize.server";
-import { formatStarkCaption } from "../../caption";
+import { formatStarkCaption, starkCaption } from "../../caption";
 import { hookFingerprint } from "../../similarity";
 
 const PILLARS = [
@@ -176,7 +176,7 @@ CRITICAL FORMAT RULES:
    - OPTION A: Exactly ONE punchy line on the entire screen (strictly 3 to 7 words total). In this case, "sayingSub" MUST be empty string ("").
    - OPTION B: Exactly TWO ultra-short lines ("sayingMain" of 2-5 words + "sayingSub" of 2-5 words, e.g. "Keep quiet." / "until it is done.").
 4. Under no circumstances produce multi-sentence or wrapped long text.
-5. caption: Complete formatted Instagram caption in English with 3 bullet protocols and hashtags (#stoicism, #discipline, #focus, #starkfocus).
+5. caption: 2-3 zdania po angielsku, które rozwijają myśl z kadru. Bez hashtagów, bez CTA, bez "Follow" — ogon doklejamy u siebie, więc dwa własne końce wyglądałyby jak pomyłka.
 6. NEVER use black font. All posts use pure white font on pitch black background.
 
 Return ONLY valid JSON:
@@ -210,7 +210,7 @@ Return ONLY valid JSON:
             pillar: asString(item?.pillar, `Principle ${idx + 1}`),
             sayingMain,
             sayingSub: asString(item?.sayingSub) || asString(item?.sub),
-            caption: asString(item?.caption, filler.caption),
+            caption: starkCaption(sayingMain, asString(item?.caption)),
             template: "none_solid",
             fontColor: "white",
           };

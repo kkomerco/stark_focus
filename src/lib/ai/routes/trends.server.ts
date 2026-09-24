@@ -2,7 +2,7 @@ import type { MiniApp } from "../../mini-express.server";
 import { getGeminiClient, safeJsonParse, callGeminiWithFallback } from "../gemini.server";
 import { asArray, asString, asStringArray, sendDegraded } from "../normalize.server";
 import { clampText } from "../../limits";
-import { formatStarkCaption, STARK_CTA, STARK_HASHTAGS } from "../../caption";
+import { formatStarkCaption, STARK_CTA, STARK_HASHTAGS, starkCaption } from "../../caption";
 
 /**
  * UI woła `fmt.phrases.map()` i `ang.phrases.join()` bez sprawdzania pola, a
@@ -17,7 +17,8 @@ function normalizeCard(card: unknown) {
   return {
     ...item,
     phrases: phrases.length > 0 ? phrases : hook ? [hook] : [],
-    hashtags: asStringArray(item.hashtags, 12),
+    caption: starkCaption(hook, asString(item.caption)),
+    hashtags: [...STARK_HASHTAGS],
   };
 }
 
@@ -351,7 +352,7 @@ export function registerTrendsRoutes(app: MiniApp): void {
   - angleName: nazwa po polsku z ikoną
   - hook: magnetyczny hook 0-3s po angielsku (Sentence Case lub ALL CAPS)
   - phrases: dokładnie 3 frazy po angielsku [Hook, Kontrast, Climax]
-  - caption: 2 zdania głębokiego opisu stoickiego po angielsku + hashtagi
+  - caption: 2-3 zdania głębokiego opisu stoickiego PO ANGIELSKU, bez hashtagów i bez CTA (ogon doklejamy u siebie)
   - rationale: dlaczego ten kąt działa psychologicznie (po polsku)
 
   Zwróć WYŁĄCZNIE poprawny JSON:
@@ -538,7 +539,7 @@ export function registerTrendsRoutes(app: MiniApp): void {
   1. reel: rolka wideo [hook 0-3s, 3 precyzyjne fazy po angielsku, suggestedTheme: "obsidian_void"|"carbon_aura"|"crimson_eclipse"]
   2. carousel: 5-slajdowa karuzela (headline: 2-4 słowa ALL CAPS, bodyText: 2-3 zdania (25-40 słów), highlightWords)
   3. manifesto: 1 bezkompromisowe zdanie podsumowujące sedno
-  4. caption: gotowy opis posta z mocnym CTA i hashtagami
+  4. caption: 2-3 zdania po angielsku rozwijające myśl, bez hashtagów i bez CTA — ogon doklejamy u siebie
 
   Zwróć WYŁĄCZNIE poprawny JSON:
   {
@@ -565,7 +566,12 @@ export function registerTrendsRoutes(app: MiniApp): void {
 
       const parsed = safeJsonParse(response.text || "");
       if (parsed?.reel && parsed?.carousel) {
-        return res.json(parsed);
+        // Kształt przechodzi dalej bez zmian, ale opis nie: model dopisuje
+        // własne hashtagi i CTA, a przy polskiej instrukcji — po polsku.
+        return res.json({
+          ...parsed,
+          caption: starkCaption(asString(parsed.manifesto), asString(parsed.caption)),
+        });
       }
       return sendDegraded(res, fallbackRecycled);
     } catch (err) {
