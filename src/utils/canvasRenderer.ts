@@ -1099,7 +1099,6 @@ export function renderUniversalLayout(
       width,
       height,
       handle,
-      eyebrow: layerById(spec, "eyebrow") || "PROTOCOL",
       statement: layerById(spec, PRIMARY_LAYER_ID) || l1Fallback(spec),
       steps: groupText(spec, "step"),
       figure: layerById(spec, "figure"),

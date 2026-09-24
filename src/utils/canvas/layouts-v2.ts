@@ -82,8 +82,6 @@ function footer(
 }
 
 export interface ProtocolSlideOptions extends LayoutTheme {
-  /** Nagłówek protokołu, np. "PROTOCOL 04:30". */
-  eyebrow: string;
   /** Teza, którą protokół rozbraja. */
   statement: string;
   /** Kroki — numerowane, zawsze najważniejsza część kadru. */
@@ -95,6 +93,8 @@ export interface ProtocolSlideOptions extends LayoutTheme {
 /**
  * PROTOKÓŁ — numerowane kroki pod mocną tezą.
  * Działa, bo obiecuje użytek: nie „bądź twardy", tylko „zrób te trzy rzeczy".
+ * Bez nadtytułu i bez stopki z nazwą marki: kadr ma mówić treścią, a nie
+ * etykietami.
  */
 export function drawProtocolListSlide(
   canvas: HTMLCanvasElement,
@@ -107,25 +107,11 @@ export function drawProtocolListSlide(
   const margin = Math.round(width * 0.09);
   const usable = width - margin * 2;
 
-  // Nagłówek + rytmiczna kreska po prawej — porządek, nie dekoracja.
-  const eyebrowSize = Math.round(width * 0.028);
-  ctx.font = `700 ${eyebrowSize}px ${getFontFamilySpec("sans")}`;
-  ctx.fillStyle = accent;
-  ctx.fillText(options.eyebrow.toUpperCase(), margin, Math.round(height * 0.11));
-  const eyebrowWidth = ctx.measureText(options.eyebrow.toUpperCase()).width;
-  hairline(
-    ctx,
-    margin + eyebrowWidth + 18,
-    Math.round(height * 0.11) - eyebrowSize * 0.32,
-    width - margin - (margin + eyebrowWidth + 18),
-    "rgba(243,240,234,0.18)",
-  );
-
   // Teza: Cinzel, duży ale z powietrzem — agresywnie, bez przesady.
   const statementSize = Math.round(width * 0.072);
   ctx.font = `700 ${statementSize}px ${getFontFamilySpec("cinzel")}`;
   const statementLines = wrapTextLines(ctx, stripHighlightSyntax(options.statement), usable);
-  let y = Math.round(height * 0.175);
+  let y = Math.round(height * 0.12);
   ctx.fillStyle = INK;
   for (const line of statementLines.slice(0, 4)) {
     ctx.fillText(line, margin, y);
@@ -176,7 +162,7 @@ export function drawProtocolListSlide(
     ctx.textAlign = "left";
   }
 
-  footer(ctx, width, height, options.handle, "STARK STANDARD");
+  footer(ctx, width, height, options.handle);
 }
 
 export interface CostRewardSlideOptions extends LayoutTheme {

@@ -245,7 +245,6 @@ export interface StarkFocusData {
 
 // ===== Idea Stream (nieskończony generator z anty-powtórką) =====
 export interface IdeaStructure {
-  eyebrow?: string;
   statement?: string;
   steps?: string[];
   figure?: string;

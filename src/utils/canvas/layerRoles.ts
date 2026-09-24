@@ -14,7 +14,6 @@ import { UniversalLayoutSpec, UniversalTextLayer } from "../../types";
  *   `cost1..N`  — lewy słupek „co płacisz dziś"
  *   `forfeit1..N` — prawy słupek „co to zabiera potem"
  *   `closing`   — zdanie domykające kadr
- *   `eyebrow`   — nadtytuł układu (np. PROTOCOL 04:30)
  *   `figure`    — duża blada cyfra w tle kadru
  *
  * Id, a nie pozycja w tablicy, bo edytor potrafi warstwę usunąć albo dopisać.

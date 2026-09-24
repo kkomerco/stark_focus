@@ -23,7 +23,6 @@ export interface StructuredContent {
   forfeit?: string[];
   closing?: string;
   /** Nadtytuł układu — warstwa jak każda inna, więc edytowalna w studio. */
-  eyebrow?: string;
   /** Duża blada cyfra w tle. Pusta = bez cyfry. */
   figure?: string;
 }
@@ -73,11 +72,6 @@ export function structuredSpec(
   if (content.closing) {
     layers.push(textLayer("closing", content.closing, { fontSize: 46, posY: 0.84 }));
   }
-  if (content.eyebrow) {
-    layers.push(
-      textLayer("eyebrow", content.eyebrow, { fontFamily: "sans", fontSize: 30, posY: 0.11 }),
-    );
-  }
   if (content.figure) {
     layers.push(textLayer("figure", content.figure, { fontSize: 140, posY: 0.86 }));
   }
@@ -113,7 +107,6 @@ export function specFromIdea(idea: IdeaItem): UniversalLayoutSpec {
     cost: structure.cost,
     forfeit: structure.forfeit,
     closing: structure.closing,
-    eyebrow: structure.eyebrow,
     figure: structure.figure,
   });
 

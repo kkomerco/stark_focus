@@ -155,10 +155,6 @@ const SPEC_PROTOCOL = structuredSpec("Protokół", "protocol_list", {
     "First block of the day belongs to the hardest task.",
     "No negotiations before noon. The deal is already signed.",
   ],
-  // Nadtytuł i cyfra są warstwami, więc zmienia się je w edytorze tak samo
-  // jak resztę kadru — wcześniej „04:30" wisiało w tle na stałe.
-  eyebrow: "PROTOCOL",
-  figure: "",
 });
 
 const SPEC_COST_REWARD = structuredSpec("Koszt i utrata", "cost_vs_reward", {
@@ -238,7 +234,6 @@ const ROLE_LABELS: Record<string, string> = {
 
 const EXACT_LAYER_LABELS: Record<string, string> = {
   closing: "Puenta:",
-  eyebrow: "Nadtytuł:",
   figure: "Cyfra:",
   [PRIMARY_LAYER_ID]: "Teza:",
 };

@@ -197,7 +197,7 @@ LICZBA WCZEŚNIEJSZYCH POMYSŁÓW UŻYTKOWNIKA: ${safeUsed} (nie powtarzaj ich!)
 
 UKŁADY (dobieraj świadomie; w jednej paczce użyj MINIMUM 3 różnych, nigdy nie dawaj wszystkiego jako "quote"):
 - "quote" — jedno zdanie, dużo czerni wokół. Tylko na naprawdę mocne zdanie.
-- "protocol_list" — teza + 3 numerowane kroki do wykonania dziś. Struktura "zrób to". Nazwa protokołu w "eyebrow" i jedna liczba w "figure" mają wynikać z treści (nie z godziny 4:30 — to nie jest stały motyw marki).
+- "protocol_list" — teza + 3 numerowane kroki do wykonania dziś. Struktura "zrób to". Jedna liczba w "figure" ma wynikać z treści (nie z godziny 4:30 — to nie jest stały motyw marki).
 - "cost_vs_reward" — pytanie + 3 rzeczy, które kosztują dziś + 3 rzeczy, które to zabiera później + zdanie domykające BEZ odpowiedzi.
 - "studio_wall_3d" — jedno zdanie jako fizyczny napis w scenie (ściana, neon, baner). Musi działać jako obraz, nie jako plakat z tekstem.
 - "grid_2x2" — cztery kadry z jednym zdaniem pośrodku. "statement" to to zdanie; ma trzymać cztery luźne ujęcia w jedną myśl.
@@ -231,7 +231,6 @@ Zwróć WYŁĄCZNIE JSON:
     {
       "layout": "quote|protocol_list|cost_vs_reward|studio_wall_3d|grid_2x2",
       "structure": {
-        "eyebrow": "tylko protocol: krótka nazwa protokołu wynikająca z tematu, np. PROTOCOL / DEBT LEDGER",
         "statement": "teza albo pytanie otwierające",
         "steps": ["tylko protocol: 3 kroki do wykonania"],
         "figure": "tylko protocol: jedna liczba-pieczęć związana z treścią, np. 72h albo 3:1",
@@ -279,7 +278,6 @@ Zwróć WYŁĄCZNIE JSON:
             // stringowe, maks. 4, bez pustaków — render i tak by je pominął,
             // ale UI pokazywałby dziury w kadrze.
             structure: {
-              eyebrow: asString(rawStructure.eyebrow).slice(0, 40),
               statement: asString(rawStructure.statement).slice(0, 160),
               steps: asStringArray(rawStructure.steps, 4).map((s) => s.slice(0, 90)),
               figure: asString(rawStructure.figure).slice(0, 12),
