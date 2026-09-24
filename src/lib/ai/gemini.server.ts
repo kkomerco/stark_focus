@@ -1,4 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
+import { softenForPlatform } from "../platformSafe";
 
 /**
  * Jedyne źródło prawdy dla modeli Gemini w całym projekcie.
@@ -227,7 +228,9 @@ export async function generateContent(
     config: config as never,
   });
 
-  return response.text ?? "";
+  // Jedno wyjście na wszystkie trasy: to, co model napisał, przechodzi przez
+  // filtr treści ryzykownych dla platformy, zanim ktokolwiek to sparsuje.
+  return softenForPlatform(response.text ?? "");
 }
 
 /** Sygnał przerwania aktywny, gdy przerwie KTÓRYKOLWEK z podanych. */
@@ -329,18 +332,20 @@ export async function callGeminiWithFallback(
 ): Promise<{ text?: string }> {
   const callerSignal = options.config?.abortSignal;
 
-  return withModelFallback(
-    (model, attemptSignal) =>
-      ai.models.generateContent({
-        model,
-        contents: options.contents,
-        config: {
-          ...options.config,
-          abortSignal: anySignal([callerSignal, attemptSignal]),
-        },
-      }),
-    options.preferredModel,
-  );
+  return withModelFallback(async (model, attemptSignal) => {
+    const response = await ai.models.generateContent({
+      model,
+      contents: options.contents,
+      config: {
+        ...options.config,
+        abortSignal: anySignal([callerSignal, attemptSignal]),
+      },
+    });
+    // Odpowiedź wraca jako `{ text }`, nie jako surowy obiekt SDK: wszystkie
+    // trasy czytają z niej wyłącznie `text`, a dzięki temu jednemu miejscu
+    // ryzykowne sformułowania nie docierają ani do jednego silnika treści.
+    return { text: softenForPlatform(response.text ?? "") };
+  }, options.preferredModel);
 }
 
 /** Jak generateContent, ale od razu parsuje odpowiedź do obiektu JSON. */

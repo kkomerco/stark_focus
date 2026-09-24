@@ -921,44 +921,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
       ctx.fillStyle = vignette;
       ctx.fillRect(0, 0, width, height);
 
-      // 3. Kinetic Phrase Calculation with Dynamic Pacing & Smooth Transitions
-      let activeText = "";
-      let phraseOpacity = 1;
-
-      if (phrases.length <= 1) {
-        activeText = phrases[0] || "";
-        // Smooth loop blend edge (first 250ms & last 250ms)
-        const edge = 0.25;
-        if (timeSec < edge) {
-          phraseOpacity = Math.max(0, timeSec / edge);
-        } else if (timeSec > totalDuration - edge) {
-          phraseOpacity = Math.max(0, (totalDuration - timeSec) / edge);
-        } else {
-          phraseOpacity = 1;
-        }
-      } else {
-        const timeline = getPhraseTimeline(phrases, totalDuration, pacingMode);
-        const activeItem =
-          timeline.find((item) => timeSec >= item.start && timeSec < item.end) ||
-          timeline[timeline.length - 1];
-        activeText = activeItem.text;
-
-        const localTime = timeSec - activeItem.start;
-        const itemDur = activeItem.duration;
-
-        // Smooth cinematic fade in & out tailored to item duration
-        const fadeDuration = Math.min(0.22, itemDur * 0.15);
-
-        if (localTime < fadeDuration) {
-          phraseOpacity = Math.min(1, Math.max(0, localTime / fadeDuration));
-        } else if (localTime > itemDur - fadeDuration) {
-          phraseOpacity = Math.min(1, Math.max(0, (itemDur - localTime) / fadeDuration));
-        } else {
-          phraseOpacity = 1;
-        }
-      }
-
-      // 4. Typography Rendering: Wybrana czcionka (domyślnie Cormorant), naturalna wielkość liter, 42% wysokości, wyrównany do lewej z marginesem
+      // 3. Kinowa typografia: wybrane pismo i marginesy
       let selectedFont = '"Cormorant Garamond", "Cormorant", Georgia, serif';
       if (fontFamily === "cinzel") {
         selectedFont = '"Cinzel", "Times New Roman", Georgia, serif';
@@ -973,44 +936,70 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
       // Szerokość tekstu dopasowana do marginesu (1080 * 0.12 = 130px z lewej i prawej => max text width = 820px)
       const leftMargin = width * 0.12;
       const maxTextWidth = width - leftMargin * 2;
-      const layout = layoutLines(activeText, ctx, maxTextWidth, 64, selectedFont);
 
-      ctx.save();
-      ctx.globalAlpha = phraseOpacity;
-      // Kinowe delikatne rozmycie wejściowe zależne od przezroczystości (delikatny blur)
-      if (phraseOpacity < 0.98) {
-        const blurAmount = Math.max(0, (1 - phraseOpacity) * 6);
-        ctx.filter = `blur(${blurAmount.toFixed(1)}px)`;
+      // 4. Frazy wchodzą i ZOSTAJĄ. Wcześniej każda gasła po swojej sekundzie,
+      // więc trzy zdania zachowywały się jak migawka. Tu bieżąca dojeżdża
+      // w 0,18 s, a poprzednie ściemniają się pod nią do 28%.
+      let visible: { text: string; opacity: number }[];
+      if (phrases.length <= 1) {
+        visible = [{ text: phrases[0] || "", opacity: 1 }];
+      } else {
+        const timeline = getPhraseTimeline(phrases, totalDuration, pacingMode);
+        let active = 0;
+        for (let i = 0; i < timeline.length; i++) {
+          if (timeSec >= timeline[i].start) active = i;
+        }
+        visible = timeline.slice(Math.max(0, active - 2), active + 1).map((item, idx, arr) => ({
+          text: item.text,
+          opacity:
+            idx === arr.length - 1 ? Math.max(0, Math.min(1, (timeSec - item.start) / 0.18)) : 0.28,
+        }));
       }
 
-      // Stała kinowa pozycja pionowa na 42% wysokości ekranu
-      const targetY = height * 0.42;
-      const totalH = (layout.lines.length - 1) * layout.lineHeight;
-      const startY = targetY - totalH / 2;
+      const blocks = visible
+        .filter((entry) => entry.text.trim() !== "")
+        .map((entry) => ({
+          ...entry,
+          layout: layoutLines(entry.text, ctx, maxTextWidth, 64, selectedFont),
+        }));
 
+      const blockGap = 30;
+      const totalH =
+        blocks.reduce(
+          (sum, block) =>
+            sum + Math.max(0, block.layout.lines.length - 1) * block.layout.lineHeight,
+          0,
+        ) +
+        blockGap * Math.max(0, blocks.length - 1);
+
+      ctx.save();
       ctx.textBaseline = "middle";
       ctx.textAlign = "left";
+      ctx.shadowColor = "rgba(0, 0, 0, 0.95)";
+      ctx.shadowBlur = 16;
 
-      layout.lines.forEach((line, lIdx) => {
-        const lineY = startY + lIdx * layout.lineHeight;
+      // Stała kinowa pozycja pionowa na 42% wysokości ekranu
+      let cursorY = height * 0.42 - totalH / 2;
+
+      for (const block of blocks) {
+        const { lines, fontSize, lineHeight } = block.layout;
+        ctx.globalAlpha = block.opacity;
+        // Pomiar i rysowanie na tym samym kroju — inaczej słowa wchodzą na siebie.
+        ctx.font = `600 ${fontSize}px ${selectedFont}`;
         const spaceW = ctx.measureText(" ").width;
-        let curX = leftMargin;
+        ctx.fillStyle = "#F8FAFC";
 
-        line.tokens.forEach((tok) => {
-          const wordW = ctx.measureText(tok.raw).width;
-
-          // Naturalna czysta typografia (bez sztucznych wyróżnień)
-          ctx.save();
-          ctx.font = `600 ${layout.fontSize}px ${selectedFont}`;
-          ctx.fillStyle = "#F8FAFC";
-          ctx.shadowColor = "rgba(0, 0, 0, 0.95)";
-          ctx.shadowBlur = 20;
-          ctx.fillText(tok.raw, curX, lineY);
-          ctx.restore();
-
-          curX += wordW + spaceW;
+        lines.forEach((line, lIdx) => {
+          const lineY = cursorY + lIdx * lineHeight;
+          let curX = leftMargin;
+          line.tokens.forEach((tok) => {
+            ctx.fillText(tok.raw, curX, lineY);
+            curX += ctx.measureText(tok.raw).width + spaceW;
+          });
         });
-      });
+
+        cursorY += Math.max(0, lines.length - 1) * lineHeight + blockGap;
+      }
 
       ctx.restore();
 
@@ -1066,6 +1055,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
   // Pętla podglądu w czasie rzeczywistym (taktowana requestAnimationFrame)
   useEffect(() => {
     let lastStamp = performance.now();
+    let lastShown = -1;
 
     const loop = (stamp: number) => {
       const delta = (stamp - lastStamp) / 1000;
@@ -1083,7 +1073,13 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
         }
       }
 
-      setCurrentTime(timeRef.current);
+      // Re-render Reacta 60 razy na sekundę zjadał klatki dokładnie na
+      // przejściach, więc etykieta czasu odświeża się co 0,1 s.
+      const shown = Math.round(timeRef.current * 10) / 10;
+      if (shown !== lastShown) {
+        lastShown = shown;
+        setCurrentTime(shown);
+      }
       renderFrame(timeRef.current);
 
       animationFrameRef.current = requestAnimationFrame(loop);
@@ -1672,9 +1668,19 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
 
                       <button
                         type="button"
-                        onClick={() => {
-                          navigator.clipboard.writeText(activePrompt);
-                          setToastMessage("✓ Skopiowano prompt 9:16 do Bing/Midjourney!");
+                        onClick={async () => {
+                          // `writeText` odpalony bez czekania i bez kopii
+                          // zapasowej udawał sukces, kiedy karta straciła fokus
+                          // albo clipboard nie był dostępny — nic nie wpadało
+                          // do schowka, a użytkownik widział „✓ skopiowano".
+                          try {
+                            await navigator.clipboard.writeText(activePrompt);
+                            setToastMessage("✓ Skopiowano prompt tła (9:16).");
+                          } catch {
+                            setToastMessage(
+                              "Nie udało się skopiować — prompt jest pod przyciskiem, zaznacz go ręcznie.",
+                            );
+                          }
                           setTimeout(() => setToastMessage(null), 2500);
                         }}
                         className="px-2.5 py-1 rounded bg-[#202020] hover:bg-rose-400 hover:text-black text-rose-200 text-[10px] font-mono font-bold border border-rose-500/30 hover:border-rose-400 transition-all flex items-center gap-1.5 cursor-pointer"
@@ -1717,36 +1723,6 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                       }`}
                     >
                       {f.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Czas Trwania Rolki */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[10px] font-mono pt-1.5 border-t border-white/5">
-                <span className="text-neutral-400 font-bold uppercase">Czas trwania rolki:</span>
-                <div className="flex items-center gap-1.5">
-                  {[
-                    { val: 5 as ReelDuration, label: "5s (Wstrząs)" },
-                    { val: 6 as ReelDuration, label: "6s ( Pętla 200%)" },
-                    { val: 7 as ReelDuration, label: "7s" },
-                    { val: 9 as ReelDuration, label: "9s (3 Fazy)" },
-                  ].map((d) => (
-                    <button
-                      key={d.val}
-                      type="button"
-                      onClick={() => {
-                        setDuration(d.val);
-                        timeRef.current = 0;
-                        setCurrentTime(0);
-                      }}
-                      className={`px-2 py-0.5 rounded text-[10px] font-mono transition-all cursor-pointer ${
-                        duration === d.val
-                          ? "bg-white text-black font-black"
-                          : "bg-[#181818] text-neutral-400 hover:text-white border border-white/10"
-                      }`}
-                    >
-                      {d.label}
                     </button>
                   ))}
                 </div>

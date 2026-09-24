@@ -257,16 +257,31 @@ Zwróć WYŁĄCZNIE JSON:
             .map((item, idx) => {
               const raw = (item ?? {}) as Record<string, unknown>;
               const gridType = oneOf(raw.gridType, OUR_LAYOUTS, "none_solid");
+              // Pola dekoracyjne tylko tam, gdzie układ naprawdę je rysuje.
+              // Wypełniane zawsze wracały nawet w czystym cytacie, więc
+              // „wykres" i „ściana" nie znaczyły nic.
+              const diagram =
+                gridType === "concept_diagram"
+                  ? oneOf(raw.diagram, OUR_DIAGRAMS, "chart")
+                  : undefined;
+              const scene =
+                gridType === "studio_wall_3d"
+                  ? oneOf(raw.scene, ["wall", "neon", "billboard"] as const, "wall")
+                  : undefined;
+              // O tym, czy kadr potrzebuje zdjęcia, decyduje jego układ, a nie
+              // widzimisię modelu — inaczej „wymaga obrazu" świeciło na szkicu
+              // liniowym, czyli dokładnie tam, gdzie prompt każe go nie chcieć.
+              const needsImage = gridType === "grid_2x2" || gridType === "studio_wall_3d";
               return {
                 id: `blueprint-${dynamicSeed}-${idx + 1}`,
                 gridType,
-                diagram: oneOf(raw.diagram, OUR_DIAGRAMS, "chart"),
-                scene: oneOf(raw.scene, ["wall", "neon", "billboard"] as const, "wall"),
+                diagram,
+                scene,
                 line: asString(raw.line).slice(0, 160),
                 subline: asString(raw.subline).slice(0, 160),
                 steps: asStringArray(raw.steps, 4).map((s) => s.slice(0, 90)),
-                needsImage: raw.needsImage === true,
-                imagePrompt: asString(raw.imagePrompt).slice(0, 600),
+                needsImage,
+                imagePrompt: needsImage ? asString(raw.imagePrompt).slice(0, 600) : "",
                 why: asString(raw.why).slice(0, 240),
               };
             })
