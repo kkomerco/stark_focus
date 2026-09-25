@@ -11,15 +11,22 @@ import {
 } from "../utils/canvasRenderer";
 import type { RenderSlideOptions } from "../utils/canvasRenderer";
 import type { CarouselFontFamily, SlideData, TopHeaderMode, VisualTheme } from "../types";
+import { seriesCaption, seriesLine } from "../lib/series";
 
 const SLIDE_W = 1080;
 const SLIDE_H = 1350; // 4:5 — standard karuzeli IG/TikTok
-const MAX_SLIDES = 10; // twarde zdjęcie platformy — więcej canvasów nie ma sensu
+/**
+ * Sufit wzięty z pomiaru, nie z wygody: na kontach poniżej 10k obserwujących
+ * karuzele 11-20 slajdów wychodzą w 23,5% przypadków ponad medianę autora,
+ * te 2-4 slajdy w 18,0% (Eden, 655 385 karuzeli). Canvasów nie robimy
+ * w nieskończoność — 16 to pasmo, które da się jeszcze przejrzeć.
+ */
+const MAX_SLIDES = 16;
 const HEADLINE_MAX = 160;
 const BODY_MAX = 700;
 
 const THEMES: Array<{ id: VisualTheme; label: string }> = [
-  { id: "obsidian_monolith", label: "Obsydian (cyjan)" },
+  { id: "obsidian_monolith", label: "Obsydian (kość)" },
   { id: "titanium_slate", label: "Tytan (stal)" },
   { id: "pantheon_mist", label: "Panteon (złoto)" },
   { id: "crimson_eclipse", label: "Karmazyn (czerwień)" },
@@ -47,6 +54,8 @@ interface CarouselStudioModalProps {
   slides: unknown; // odpowiedź modelu / banku treści — kształt niezaufany
   caption?: string;
   handle: string;
+  /** Numer edycji w serii — stopka „STARK CODEX 07/52" robi z postów ciało pracy. */
+  edition?: number;
   onClose: () => void;
 }
 
@@ -112,6 +121,7 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
   slides: incomingSlides,
   caption,
   handle,
+  edition = 1,
   onClose,
 }) => {
   const [slides, setSlides] = useState<SlideData[]>(() => normalizeSlides(incomingSlides));
@@ -137,8 +147,9 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
       theme,
       fontChoice,
       topHeaderMode,
+      footerSignature: seriesLine(edition),
     }),
-    [slides, handle, theme, fontChoice, topHeaderMode],
+    [slides, handle, theme, fontChoice, topHeaderMode, edition],
   );
 
   useEffect(() => {
@@ -199,11 +210,13 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
         slides
           .map((slide, i) => `Slajd ${i + 1}: ${slide.headline}\n${slide.bodyText}`)
           .join("\n\n");
+      // Numer edycji idzie do opisu, nie tylko na kadr: to on robi z serii
+      // coś, co można zbierać.
       await exportAllSlidesAsZip(slides, {
         ...buildOptions(0),
         slideNumber: 1,
         totalSlides: slides.length,
-        captionText,
+        captionText: `${captionText}\n\n${seriesCaption(edition)}`,
         zipName: `stark_karuzela_${slugify(title)}_${Date.now()}.zip`,
       });
     } catch {

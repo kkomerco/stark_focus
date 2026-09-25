@@ -26,6 +26,7 @@ import { Post, ReelHandoff, StarkFocusData, TrendItem } from "../../types";
 import { usedHookFingerprints } from "../../lib/usedContent";
 import { topPublishedHooks } from "../../lib/published";
 import { formatStarkCaption } from "../../lib/caption";
+import { nextEdition } from "../../lib/series";
 import { CarouselStudioModal } from "../CarouselStudioModal";
 
 interface IncomingCarousel {
@@ -1402,6 +1403,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
           slides={carouselStudio.slides}
           caption={carouselStudio.caption}
           handle={data.social_handles?.instagram || "stark_focus"}
+          edition={nextEdition(data)}
           onClose={() => setCarouselStudio(null)}
         />
       )}

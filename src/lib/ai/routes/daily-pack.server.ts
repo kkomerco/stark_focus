@@ -160,7 +160,7 @@ ${exemplarBlock(exemplars)}
    - theme: jeden z: "obsidian_void" | "crimson_eclipse" | "emerald_abyss" | "carbon_aura" | "silver_mist"
    - duration: liczba sekund 7-10
    - captionShort: krótki opis po angielsku (max 2 linie, z CTA "Save this")
-2. Karuzela 4:5: title + 8 slajdów {headline, bodyText} (sedno w 7-9; karuzele z ośmioma slajdami zbierają kilkakrotnie więcej zapisów niż pięciosekundowe rolki, a zapis jest walutą karuzeli). bodyText to 2-3 zdania po angielsku (25-40 słów): najpierw bolesna obserwacja, potem konkret, na koniec cena za jej brak. Jedno zdanie na slajd nie zatrzymuje czytelnika.
+2. Karuzela 4:5: title + 12 slajdów {headline, bodyText}. Długość nie jest kaprysem: u kont poniżej 10k obserwujących karuzele 11-20 slajdów wychodzą ponad medianę autora w 23,5% przypadków, te 2-4 slajdy w 18,0% (Eden, 655 385 karuzeli). Rozkład: slajd 1 to teza, nie tytuł; slajdy 2-10 po jednej myśli każdy, z niedomkniętym zdaniem na końcu (to ono każe swipnąć); slajd 11 konkretna cena za brak zmiany; slajd 12 jedno zdanie do zapisania. bodyText to 2-3 zdania po angielsku (25-40 słów): najpierw bolesna obserwacja, potem konkret, na koniec cena za jej brak. Jedno zdanie na slajd nie zatrzymuje czytelnika.
 3. Grafika 1:1: {headline, body, bingPrompt} — bingPrompt po angielsku do generatora obrazów (ciemne, brutalistyczne, minimalistyczne tło, 1:1, bez tekstu, moody lighting)
 
 Zwróć WYŁĄCZNIE poprawny JSON wg schematu:
