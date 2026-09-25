@@ -56,6 +56,32 @@ describe("fitFrame", () => {
     assert.ok(frame.content.primary.length > 0);
   });
 
+  it("akapit retoryki z radaru nie wchodzi na kadr jako krok", () => {
+    const frame = fitFrame({
+      hook: "You aren't depressed. You're just weak.",
+      phrases: [
+        "You scroll for six hours a day, surround yourself with comfort, and then wonder why your soul feels dead while the modern world is engineered specifically to make you soft and you keep cooperating with it.",
+        "Discipline is not a mood.",
+      ],
+    });
+    const steps = frame.content.steps ?? [];
+    assert.ok(
+      steps.every((step) => step.split(/\s+/).length <= 14),
+      steps.join(" | "),
+    );
+    assert.ok(steps.includes("Discipline is not a mood."));
+  });
+
+  it("z samego akapitu robi cytat, nie pusty protokół", () => {
+    const frame = fitFrame({
+      hook: "Comfort is a cage.",
+      phrases: [
+        "Every single morning you choose the warm blanket over the cold street and that one choice, repeated, is the whole story of your life.",
+      ],
+    });
+    assert.ok(["none_solid", "studio_wall_3d"].includes(frame.gridType));
+  });
+
   it("hint z analizy wygrywa z heurystyką", () => {
     const frame = fitFrame({ hook: "Silence cannot be misquoted." }, "3D Wall Letters");
     assert.equal(frame.gridType, "studio_wall_3d");

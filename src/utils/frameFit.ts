@@ -33,6 +33,13 @@ function words(line: string): number {
   return line.split(/\s+/).filter(Boolean).length;
 }
 
+/**
+ * Ile słów zmieści jeden takt. Radar zwraca pod fazy całe akapity retoryki
+ * (40+ słów) — to materiał na opis, nie na kadr 9:16, więc taki wiersz nie
+ * wchodzi do listy kroków nawet jeśli format jest protokołem.
+ */
+const MAX_STEP_WORDS = 14;
+
 /** "1.", "Step 1:", "- " — znaki wyliczenia, po których widać listę kroków. */
 const ENUMERATED = /^\s*(?:\d+[.)]|step\s*\d+|rule\s*\d+|phase\s*\d+|[-*•])\s*/i;
 
@@ -92,21 +99,33 @@ function singleLineFrame(text: string): FittedFrame {
 /** Kontrast albo dwie kolumny: to, co się płaci, przeciw temu, co się traci. */
 function contrastFrame(lines: string[]): FittedFrame {
   const half = Math.ceil(lines.length / 2);
+  const short = (list: string[]) => list.filter((line) => words(line) <= MAX_STEP_WORDS);
+  const closing = lines[lines.length - 1];
+  const cost = short(lines.slice(1, half + 1));
+  const seen = new Set(cost.map((line) => line.toLowerCase()));
   return {
     gridType: "cost_vs_reward",
     content: {
       primary: lines[0],
-      cost: lines.slice(1, half + 1),
-      forfeit: lines.slice(half + 1),
-      closing: lines[lines.length - 1],
+      cost,
+      // Ten sam wers po obu stronach słupka wygląda jak błąd, nie jak kontrast.
+      forfeit: short(lines.slice(half + 1)).filter(
+        (line) => !seen.has(line.toLowerCase()) && words(line) <= MAX_STEP_WORDS,
+      ),
+      closing: words(closing) <= MAX_STEP_WORDS ? closing : "",
     },
     reason: "Treść mówi o koszcie i stracie — układa się w dwa słupki.",
   };
 }
 
 function listFrame(lines: string[]): FittedFrame {
-  const steps = stripEnumerators(lines.slice(1)).filter(Boolean);
+  const steps = stripEnumerators(lines.slice(1))
+    .filter(Boolean)
+    .filter((line) => words(line) <= MAX_STEP_WORDS);
   const hasNumber = NUMBER_MARKERS.test(lines[0]);
+  // Został sam akapit? To nie protokół, tylko cytat z długim opisem — lepiej
+  // uczciwy cytat niż kadr, którego nikt nie przeczyta.
+  if (steps.length === 0) return singleLineFrame(lines[0]);
   // Cyfra na kadr to ta największa: „4 h dziennie, 300 dni" uderza 300, nie 4.
   const figure = (lines[0].match(/\d+(?:[.,]\d+)?/g) ?? []).reduce(
     (best, value) => (Number(value.replace(",", ".")) > Number(best) ? value : best),
