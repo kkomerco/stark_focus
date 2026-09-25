@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { StarkFocusData, TrendItem, Post } from "../../types";
 import { usedHookFingerprints } from "../../lib/usedContent";
+import { topPublishedHooks } from "../../lib/published";
 import { formatStarkCaption } from "../../lib/caption";
 import { CarouselStudioModal } from "../CarouselStudioModal";
 
@@ -299,6 +300,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
           count: batchCount,
           niche,
           excludeHooks: usedHookFingerprints(data),
+          exemplars: topPublishedHooks(data.published ?? []),
         }),
       });
       const result = await res.json();

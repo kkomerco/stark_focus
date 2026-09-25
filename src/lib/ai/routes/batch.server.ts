@@ -1,7 +1,7 @@
 import type { MiniApp } from "../../mini-express.server";
 import { generateContentWithFallback, getGeminiClient, safeJsonParse } from "../gemini.server";
 import { clampCount, clampText, clampTextList } from "../../limits";
-import { HOOK_CRAFT_PROMPT, auditHook } from "../../hookCraft";
+import { HOOK_CRAFT_PROMPT, auditHook, exemplarBlock } from "../../hookCraft";
 import { asArray, asString, sendDegraded } from "../normalize.server";
 import { formatStarkCaption, starkCaption } from "../../caption";
 import { hookFingerprint } from "../../similarity";
@@ -133,6 +133,7 @@ export function registerBatchRoutes(app: MiniApp): void {
       "stoic discipline, silence, and standards";
     const count = clampCount(req.body?.count, 10);
     const exclude = clampTextList(req.body?.excludeHooks);
+    const exemplars = clampTextList(req.body?.exemplars).slice(0, 8);
     const excluded = new Set(exclude.map(hookFingerprint));
     const ai = getGeminiClient();
     const allPillars = buildBatchFallback();
@@ -165,6 +166,7 @@ ${exclude.length ? `\nALREADY PUBLISHED — never repeat these lines or their cl
 Generate EXACTLY ${count} completely UNIQUE, high-variance posts in ENGLISH.
 
 ${HOOK_CRAFT_PROMPT}
+${exemplarBlock(exemplars)}
 
 CRITICAL ANTI-AI-SLOP & TONE RULES:
 - BAN POMPOUS, ARCHAIC BUZZWORDS: Do NOT use "citadel", "sovereign", "bastion", "monolith", "throne", "decree", "gladiators".

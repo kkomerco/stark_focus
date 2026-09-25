@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo } from "react";
 import { IdeaItem, IdeaStreamResponse, StarkFocusData } from "../types";
 import { hookFingerprint, hookSimilarity, SIMILARITY } from "../lib/similarity";
 import { usedHookFingerprints } from "../lib/usedContent";
+import { topPublishedHooks } from "../lib/published";
 
 export interface ScoredIdea extends IdeaItem {
   /** 0..1 — maksymalne podobieństwo do hooków z historii. */
@@ -29,6 +30,10 @@ export function useIdeaStream(
   // Historia to nie tylko to, co wypadło z generatora, ale i to, co już
   // poszło z aplikacji (zapisane posty, zadania w planerze).
   const usedFingerprints = useMemo(() => usedHookFingerprints(data), [data]);
+  // Wzorce liczone osobno i w osobnym `useMemo`: całe `data` zmienia się przy
+  // każdym kliknięciu, a prompt ma zostawać taki sam, dopóki nie przybędzie
+  // publikacja z metrykami.
+  const exemplars = useMemo(() => topPublishedHooks(data.published ?? []), [data.published]);
 
   const generateIdeas = useCallback(
     async (count: number = 5, topic?: string) => {
@@ -41,6 +46,7 @@ export function useIdeaStream(
           body: JSON.stringify({
             count,
             excludeHooks: usedFingerprints,
+            exemplars,
             usedCount: usedFingerprints.length,
             topic: topic || "dark motivation and brutal discipline",
           }),
@@ -108,7 +114,7 @@ export function useIdeaStream(
         setLoading(false);
       }
     },
-    [usedFingerprints, onUpdateData],
+    [usedFingerprints, exemplars, onUpdateData],
   );
 
   const clearHistory = useCallback(() => {

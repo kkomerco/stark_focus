@@ -3,7 +3,7 @@ import { GEMINI_MODEL, generateJsonWithFallback, getGeminiClient } from "../gemi
 import { hookFingerprint, maxSimilarity, SIMILARITY } from "../../similarity";
 import { pick, pickN } from "../../random";
 import { clampCount, clampInt, clampText, clampTextList, LIMITS } from "../../limits";
-import { HOOK_CRAFT_PROMPT, auditHook } from "../../hookCraft";
+import { HOOK_CRAFT_PROMPT, auditHook, exemplarBlock } from "../../hookCraft";
 import { asArray, asString, asStringArray, oneOf } from "../normalize.server";
 import { formatStarkCaption, starkCaption, starkHashtags } from "../../caption";
 
@@ -173,6 +173,7 @@ export function registerIdeaStreamRoutes(app: MiniApp): void {
     const safeCount = clampCount(req.body?.count, 5);
     const topic = clampText(req.body?.topic, 300, "dark motivation and brutal discipline");
     const safeExclude = clampTextList(req.body?.excludeHooks);
+    const exemplars = clampTextList(req.body?.exemplars).slice(0, 8);
     // usedCount indeksuje bank offline: ujemny lub ułamkowy dałby `undefined`,
     // a potem `hook.toLowerCase()` poza try/catchem = 500.
     const safeUsed = clampInt(req.body?.usedCount, 0, 1_000_000, 0);
@@ -194,6 +195,7 @@ Temat nadrzędny: "${topic}".
 ZADANIE: Wygeneruj DOKŁADNIE ${safeCount} CAŁKOWICIE UNIKALNYCH pomysłów, z których każdy ma UKŁAD WIZUALNY i GŁĘBIĘ, nie samo hasło.
 
 ${HOOK_CRAFT_PROMPT}
+${exemplarBlock(exemplars)}
 
 ZIARNO LOSOWOŚCI: ${dynamicSeed}
 LICZBA WCZEŚNIEJSZYCH POMYSŁÓW UŻYTKOWNIKA: ${safeUsed} (nie powtarzaj ich!)

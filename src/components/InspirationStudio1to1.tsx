@@ -737,6 +737,7 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
           topic: batchTopic,
           count: batchCount,
           excludeHooks: usedHooks,
+          exemplars: exemplarHooks,
         }),
       });
       const data = await res.json();
