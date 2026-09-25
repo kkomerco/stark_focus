@@ -49,10 +49,6 @@
 
 ## Uruchamianie
 
-
-
 - `npm run dev` → `tsx server.ts`: API + middleware Vite na `HOST:PORT` (domyślnie `127.0.0.1:3000`).
-
 - `npm start` → `node dist/server.cjs --prod`: ten sam proces, ale serwuje `dist/`. Flaga `--prod` jest jedynym przełącznikiem — `NODE_ENV` nic tu nie znaczy. Import `vite` jest leniwy, więc build produkcyjny nie wymaga tej zależności.
-
 - `HOST=0.0.0.0` wystawia API bez uwierzytelnienia na całą sieć lokalną. Świadomie nie ma tokenu API, dopóki UI nie ma wspólnego wrapperka `fetch`.
