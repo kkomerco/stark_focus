@@ -89,7 +89,14 @@ export function structuredSpec(
     fontColorMode: "white",
     textLayers: layers,
     layoutData: meta,
-    caption: formatStarkCaption(content.primary),
+    // Opis bierze zdania z kadru, nie z banku zasad — to, co widz przeczytał
+    // na kadrze, ma pojawiać się pod nim w tej samej kolejności.
+    caption: formatStarkCaption(content.primary, [
+      ...(content.steps ?? []),
+      ...(content.cost ?? []),
+      ...(content.forfeit ?? []),
+      ...(content.closing ? [content.closing] : []),
+    ]),
     detectedAudio: "Bed w pliku albo własny dźwięk",
   };
 }

@@ -113,3 +113,52 @@ export function formatFieldSpec(format: FrameFormat): string {
     )
     .join("\n");
 }
+
+/** Tyle kadrów na rolce mieści się przed znudzeniem widza. */
+export const REEL_BEAT_LIMIT = 5;
+
+export interface FrameContent {
+  primary: string;
+  steps: string[];
+  cost: string[];
+  forfeit: string[];
+  closing: string;
+}
+
+/**
+ * Kadr strukturalny na osi czasu rolki.
+ *
+ * Rolka nie ma słupków ani siatki — ma kolejne kadry tekstowe, więc protokół
+ * wchodzi takt po takt, a koszt i utrata w jednym kadrze przez ukośnik. Bez
+ * tego "Generuj rolkę AI" potrafiło ułożyć tylko cytat, czyli dokładnie to,
+ * na co materiał miał przestać się spłaszczać.
+ */
+export function frameToBeats(formatId: FrameFormatId, content: FrameContent): string[] {
+  const clean = (value: string) => (value || "").trim();
+  const primary = clean(content.primary);
+  const beats: string[] = primary ? [primary] : [];
+
+  switch (formatId) {
+    case "protocol":
+    case "collage":
+      beats.push(...content.steps.map(clean).filter(Boolean));
+      break;
+    case "cost": {
+      const rows = Math.max(content.cost.length, content.forfeit.length);
+      for (let i = 0; i < rows; i++) {
+        const left = clean(content.cost[i]);
+        const right = clean(content.forfeit[i]);
+        beats.push(left && right ? `${left} / ${right}` : left || right);
+      }
+      if (clean(content.closing)) beats.push(clean(content.closing));
+      break;
+    }
+    case "diagram":
+      if (clean(content.closing)) beats.push(clean(content.closing));
+      break;
+    default:
+      break;
+  }
+
+  return beats.filter(Boolean).slice(0, REEL_BEAT_LIMIT);
+}

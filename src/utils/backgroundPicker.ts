@@ -59,9 +59,16 @@ export function pickBackground(
     inPool.length > 0 ? inPool : fallback.length > 0 ? fallback : EXPANDED_BACKGROUND_LIBRARY;
 
   const scene = take(pool, hashKey(copy || matched.scene.id));
+  const hits = matched.matchedKeywords.length + matched.matchedTags.length;
   return {
     scene,
     motif: matched.scene,
-    reason: `Tło „${scene.name}" dobrane do treści (${matched.confidenceReason}).`,
+    // Uzasadnienie wymienia JEDNO ujęcie — to to, które study wyświetla.
+    // Dawniej w jednym zdaniu pojawiały się dwie nazwy i nie dało się zgadnąć,
+    // która wchodzi na kadr.
+    reason:
+      hits > 0
+        ? `Tło „${scene.name}" — treść pasuje do motywu: ${matched.scene.name.toLowerCase()}.`
+        : `Tło „${scene.name}" — w treści brak słów-kluczy, ujęcie po odcisku tekstu.`,
   };
 }

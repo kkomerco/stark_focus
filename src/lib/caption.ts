@@ -116,34 +116,34 @@ export function starkHashtags(text: string): string[] {
   return tags.slice(0, HASHTAG_LIMIT);
 }
 
-/**
- * Domyślny trójwers. Kiedy trasa nie zna treść na tyle dobrze, by napisać
- * własne punkty, nie układamy ich na kolanie w komponencie — bierzemy te.
- */
-export const STARK_PRINCIPLES: [string, string, string] = [
-  "Comfort is paid for in regret, later and with interest.",
-  "The standard you hold alone is the only one that counts.",
-  "Silence protects the work; results announce it.",
-];
-
 /** Ten sam post zawsze dostaje to samo wezwanie — opis nie moze sie zmieniac przy odswiezeniu. */
 export function starkCta(text: string): string {
   const key = hashKey(text.slice(0, 2000));
   return STARK_CTAS[key % STARK_CTAS.length];
 }
 
+/**
+ * Stopka marki. `lines` to zdania, które REALNIE są w materiale (kadry roli,
+ * kroki protokołu) — bez nich opis to tylko teza + wezwanie.
+ *
+ * Dawniej domyślnym body był stały trójwers z `STARK_PRINCIPLES`, więc każdy
+ * post bez opisu od modelu wychodził z identycznymi „zasadami" pod spodem —
+ * bank treści w miejscu, z którego konto jest rozpoznawalne.
+ */
 export function formatStarkCaption(
   hook: string,
-  principles: [string, string, string] = STARK_PRINCIPLES,
-  directive: string = "Never negotiate with your standards. Execute in silence.",
+  lines: readonly string[] = [],
+  directive = "",
 ): string {
   const cleanHook = hook.replace(/["#*]/g, "").trim().toUpperCase();
+  const body = lines.map((line) => line.replace(/["#*]/g, "").trim()).filter(Boolean);
+  const numbered = body.length >= 2 ? body.map((line, i) => `${i + 1}. ${line}`).join("\n") : "";
+  const prose = body.length === 1 ? body[0] : "";
+  const middle = [numbered || prose, directive.trim()].filter(Boolean).join("\n\n");
+
   return (
     `${cleanHook}\n\n` +
-    `1. ${principles[0].trim()}\n` +
-    `2. ${principles[1].trim()}\n` +
-    `3. ${principles[2].trim()}\n\n` +
-    `${directive.trim()}\n\n` +
+    `${middle ? `${middle}\n\n` : ""}` +
     `${starkCta(hook)}\n\n` +
     starkHashtags(hook).join(" ")
   );

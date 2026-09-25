@@ -49,6 +49,27 @@ describe("caption.ts - Stark Focus Caption Formatter", () => {
     assert.ok(caption.includes(customDirective));
   });
 
+  it("bez własnych linii nie wkleja banku zasad pod kazdy post", () => {
+    const caption = formatStarkCaption("The stairwell does not ask how you feel.");
+
+    assert.equal(caption.includes("Comfort is paid for in regret"), false);
+    assert.equal(caption.includes("The standard you hold alone"), false);
+    assert.equal(caption.includes("1."), false);
+    // Zostaje to, co naprawde jest w materiale: teza, wezwanie, hashtagi.
+    assert.ok(caption.startsWith("THE STAIRWELL DOES NOT ASK HOW YOU FEEL."));
+    assert.ok(caption.includes("#starkfocus"));
+  });
+
+  it("opis bierze punkty z kadrow materialu, w ich kolejnosci", () => {
+    const caption = formatStarkCaption("You lack a sequence.", [
+      "Phone in another room.",
+      "Hardest task first.",
+    ]);
+
+    assert.ok(caption.includes("1. Phone in another room."));
+    assert.ok(caption.includes("2. Hardest task first."));
+  });
+
   it("always appends the signature call to action and a short hashtag tail", () => {
     const caption = formatStarkCaption("Execution", ["A", "B", "C"]);
 
