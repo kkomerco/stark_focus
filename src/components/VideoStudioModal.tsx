@@ -66,6 +66,8 @@ import {
   VISUAL_THEMES,
 } from "./video/reel-helpers";
 import { pickBackground } from "../utils/backgroundPicker";
+import { drawDoodle } from "../utils/character/rig";
+import { POSES, pickScene } from "../utils/character/poses";
 import { FrameFormatId, formatById, frameToBeats } from "../lib/formats";
 
 interface VideoStudioModalProps {
@@ -267,6 +269,11 @@ export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
   );
   /** Co generator ma ułożyć: cytat, protokół krok po kroku, koszt czy diagram. */
   const [reelShape, setReelShape] = useState<FrameFormatId>("quote");
+  /**
+   * Chłopak w kadrze. Włączony domyślnie, bo bez niego rolka znowu jest
+   * typografią na czerni; wyłączany, gdy kadr ma zostać sam tekst.
+   */
+  const [showCharacter, setShowCharacter] = useState(true);
   const [duration, setDuration] = useState<ReelDuration>(
     () => asReelDuration(initialReel?.duration) || 7,
   );
@@ -1098,6 +1105,42 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
       const leftMargin = band.side;
       const maxTextWidth = width - band.side * 2;
 
+      // 3b. CHŁOPAK W KADRZE. Scenka bierze się z treści — ta sama zasada co
+      // przy układzie kadru i przy tle: poza nie jest kaprysem, tylko tym, co
+      // zdanie naprawdę opisuje. Postać stoi po prawej, więc tekst zwężamy o
+      // jej słup; bez tego litera wchodziłaby w sylwetkę.
+      const scene = pickScene(phrases.join(" "));
+      const beatIndex = (() => {
+        const found = activeTimeline.findIndex(
+          (seg) => timeSec >= seg.start && timeSec < seg.end,
+        );
+        return found >= 0 ? found : Math.max(0, activeTimeline.length - 1);
+      })();
+      const beat = scene.beats[beatIndex % scene.beats.length];
+      const beatStart = activeTimeline[beatIndex]?.start ?? 0;
+      const beatEnd = activeTimeline[beatIndex]?.end ?? totalDuration;
+      const beatPhase = Math.min(
+        1,
+        Math.max(0, (timeSec - beatStart) / Math.max(0.1, beatEnd - beatStart)),
+      );
+      const figureHeight = Math.round(height * 0.26);
+      const figureWidth = Math.round(figureHeight * 0.42);
+
+      if (showCharacter) {
+        const spec = POSES[beat.pose];
+        drawDoodle(ctx, {
+          cx: width - band.side - figureWidth / 2,
+          cy: band.bottom - figureHeight / 2 - Math.round(height * 0.02),
+          height: figureHeight,
+          pose: spec.pose,
+          expression: spec.expression,
+          prop: spec.prop,
+          rotate: spec.rotate,
+          motion: beatPhase * (beat.motion ?? 1),
+        });
+      }
+      const textWidth = showCharacter ? maxTextWidth - figureWidth - 24 : maxTextWidth;
+
       // 4. Które zdanie widać o której sekundzie — logika leży w
       // `video/reelLayout.ts`, bo pętla podglądu nie działa w uśpionej karcie,
       // a bez tego tych reguł nie dało się sprawdzić inaczej niż okiem.
@@ -1110,7 +1153,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
 
       const blocks = visible.map((entry) => ({
         ...entry,
-        layout: layoutLines(entry.text, ctx, maxTextWidth, 64, selectedFont),
+        layout: layoutLines(entry.text, ctx, textWidth, 64, selectedFont),
       }));
 
       // Odstęp między BLOKAMI musi być liczony od pełnej linii, nie od jej
@@ -1261,6 +1304,8 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
       duration,
       fontFamily,
       pacingMode,
+      activeTimeline,
+      showCharacter,
     ],
   );
 
@@ -1755,9 +1800,19 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                   {option.label}
                 </button>
               ))}
+              <button
+                type="button"
+                onClick={() => setShowCharacter((prev) => !prev)}
+                title="Chłopak w kadrze — poza dobierana do treści, nie widelka"
+                className={`px-2.5 py-1 rounded text-[10px] font-mono uppercase tracking-wider cursor-pointer transition-colors shrink-0 ml-auto ${
+                  showCharacter
+                    ? "bg-white text-black"
+                    : "bg-[#141414] text-neutral-500 border border-white/10 hover:text-white"
+                }`}
+              >
+                Chłopak w kadrze
+              </button>
             </div>
-
-            {/* Wybór Formatu Wiralowego */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 pt-1 border-t border-white/5">
               {[
                 {
