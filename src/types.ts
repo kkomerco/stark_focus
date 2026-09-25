@@ -144,7 +144,9 @@ export interface UniversalLayoutSpec {
     | "concept_diagram"
     /** Kadry liczbowe: dowód zamiast podpisu. */
     | "life_grid"
-    | "time_audit";
+    | "time_audit"
+    /** Kadr z maską — chłopak po prawej, teza po lewej. */
+    | "character_scene";
   /**
    * Tryb sceny kadru. Cała treść językowa mieszka w `textLayers`
    * (patrz `canvas/layerRoles.ts`) — nie ma tu miejsca na zdania, bo dopóki
@@ -169,6 +171,8 @@ export interface UniversalLayoutSpec {
     screenHours?: number;
     sleepHours?: number;
     workHours?: number;
+    /** Poza maski; puste = poza liczona z treści. */
+    pose?: string;
   };
   backgroundColor: string;
   dividerWidth: number;

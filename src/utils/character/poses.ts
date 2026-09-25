@@ -210,3 +210,25 @@ export function pickScene(text: string): Scene {
 export function sceneSeconds(scene: Scene): number {
   return scene.beats.reduce((sum, beat) => sum + beat.seconds, 0);
 }
+
+/**
+ * Poza z treści. To ten sam ruch, co przy układzie kadru i przy tle: zdanie
+ * mówi, co chłopak robi, więc nie musimy pytać o to modelu ani użytkownika.
+ */
+const POSE_HINTS: Array<{ pose: PoseId; match: RegExp }> = [
+  { pose: "phone", match: /\b(scroll|phone|screen|feed|swipe|notification|app)\b/i },
+  { pose: "alarm", match: /\b(alarm|bed|wake|morning|snooze|blanket|5 ?am|4 ?30)\b/i },
+  { pose: "carry", match: /\b(carry|weight|heavy|burden|load|boulder|haul)\b/i },
+  { pose: "climb", match: /\b(climb|step|stairs|uphill|scale|progress|build)\b/i },
+  { pose: "fall", match: /\b(fall|fell|drop|collapse|break|slip|quit)\b/i },
+  { pose: "slump", match: /\b(tired|empty|burn|burnout|nothing|alone|defeat)\b/i },
+  { pose: "rise", match: /\b(stand|rise|again|sober|ready|hold|keep|still)\b/i },
+];
+
+export function pickPose(text: string): PoseId {
+  const lower = String(text || "").toLowerCase();
+  const hit = POSE_HINTS.find((hint) => hint.match.test(lower));
+  if (hit) return hit.pose;
+  // Bez trafienia i tak nie może być bezruchu: „stand" to brak decyzji.
+  return SCENES[0].beats[0].pose;
+}

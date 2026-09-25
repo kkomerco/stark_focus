@@ -235,6 +235,27 @@ const SPEC_TIME_AUDIT = structuredSpec("Audyt doby", "time_audit", {
 });
 
 /**
+ * Lista póz dla kadru z maską. Puste `pose` w `layoutData` znaczy „licz z
+ * treści" — ręczny wybór jest wyjściem awaryjnym, nie domyślną ścieżką.
+ */
+const POSE_CHOICES: Array<{ id: string; label: string }> = [
+  { id: "", label: "Z treści" },
+  { id: "stand", label: "Stoi" },
+  { id: "slump", label: "Siedzi" },
+  { id: "alarm", label: "Sięga po budzik" },
+  { id: "carry", label: "Niesie" },
+  { id: "climb", label: "Pnie się" },
+  { id: "fall", label: "Spada" },
+  { id: "rise", label: "Prostuje się" },
+  { id: "phone", label: "Scrolluje" },
+];
+
+const SPEC_CHARACTER_SCENE = structuredSpec("Scena z chłopakiem", "character_scene", {
+  primary: "You get up before you feel like it. That is the whole trick.",
+  closing: "The body moves first. The mood catches up later.",
+});
+
+/**
  * Lista formatów w jednym miejscu — dawniej każdy układ był dodawanym
  * przyciskiem w JSX, przez co pasek rósł szybciej niż możliwości.
  */
@@ -251,6 +272,7 @@ const LAYOUT_PICKER: Array<{
   { gridType: "grid_2x2", label: "Kolaż", spec: SPEC_COLLAGE_4 },
   { gridType: "life_grid", label: "Siatka życia", spec: SPEC_LIFE_GRID },
   { gridType: "time_audit", label: "Audyt doby", spec: SPEC_TIME_AUDIT },
+  { gridType: "character_scene", label: "Chłopak", spec: SPEC_CHARACTER_SCENE },
 ];
 
 /** Gdzie napis stoi w kadrze — ten sam tekst, trzy różne sceny. */
@@ -964,7 +986,7 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
   // szkic przy każdym poście wyglądałby po chwili jak szablon.
   const variantChoices: {
     label: string;
-    field: "scene" | "diagram";
+    field: "scene" | "diagram" | "pose";
     fallback: string;
     options: Array<{ value: string; label: string }>;
   } =
@@ -982,7 +1004,14 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
             fallback: "chart",
             options: DIAGRAM_KINDS.map((d) => ({ value: d.kind, label: d.label })),
           }
-        : { label: "", field: "scene", fallback: "", options: [] };
+        : spec.gridType === "character_scene"
+          ? {
+              label: "Poza",
+              field: "pose",
+              fallback: "",
+              options: POSE_CHOICES.map((p) => ({ value: p.id, label: p.label })),
+            }
+          : { label: "", field: "scene", fallback: "", options: [] };
 
   return (
     <div className="bg-[#0A0A0A] border border-white/10 rounded-2xl p-4 sm:p-6 shadow-2xl space-y-6 text-neutral-200">

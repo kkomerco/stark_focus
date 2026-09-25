@@ -20,6 +20,7 @@ import {
 import {
   centeredTop,
   drawBillboardSignSlide,
+  drawCharacterSceneSlide,
   drawConceptDiagramSlide,
   drawLifeGridSlide,
   drawTimeAuditSlide,
@@ -27,6 +28,7 @@ import {
   drawNeonSignSlide,
   drawProtocolListSlide,
 } from "./canvas/layouts-v2";
+import { POSES, pickPose, type PoseId } from "./character/poses";
 import { groupText, layerById, PRIMARY_LAYER_ID } from "./canvas/layerRoles";
 import { MIN_TEXT_PX, floorFor } from "./safeZones";
 
@@ -1147,6 +1149,31 @@ export function renderUniversalLayout(
       // Ziarno idzie do odcisku szkicu: ten sam wers może wyjść inaczej,
       // a zapisany kadr odtworzy się identycznie przy następnym eksporcie.
       seed: spec.layoutData?.diagramSeed,
+      bgImage: options.backgroundImage ?? null,
+    });
+    return;
+  }
+
+  // Format 9: maska w kadrze feedowym. Poza bierze się z treści, chyba że
+  // ktoś wybrał ją ręcznie w studiu.
+  if (spec.gridType === "character_scene") {
+    const line = layerById(spec, PRIMARY_LAYER_ID) || l1Fallback(spec);
+    const poseId = (
+      spec.layoutData?.pose && POSES[spec.layoutData.pose as PoseId]
+        ? (spec.layoutData.pose as PoseId)
+        : pickPose(line)
+    ) as PoseId;
+    const poseSpec = POSES[poseId];
+    drawCharacterSceneSlide(canvas, {
+      width,
+      height,
+      handle,
+      line,
+      caption: layerById(spec, "closing"),
+      pose: poseSpec.pose,
+      expression: poseSpec.expression,
+      prop: poseSpec.prop,
+      rotate: poseSpec.rotate,
       bgImage: options.backgroundImage ?? null,
     });
     return;

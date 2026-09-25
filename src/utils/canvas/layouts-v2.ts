@@ -1,5 +1,6 @@
 import { BRAND_ACCENT } from "../starkBrandTheme";
 import { centeredTop as centeredInBand, safeBand } from "../safeZones";
+import { drawDoodle, type Expression, type Pose } from "../character/rig";
 import {
   drawImageCover,
   fitLines,
@@ -1108,5 +1109,97 @@ export function drawTimeAuditSlide(canvas: HTMLCanvasElement, options: TimeAudit
   }
 
   ctx.textAlign = "left";
+  footer(ctx, width, height, options.handle);
+}
+
+/**
+ * KADR Z MASKĄ — ten sam chłopak co w rolce, ale w planszy feedowej.
+ *
+ * Tekst idzie lewym słupkiem, postać prawym. Bez tego podziału litera
+ * wchodziła w sylwetkę i nie dało się przeczytać ani jednego, ani drugiego.
+ */
+export interface CharacterSceneOptions extends LayoutTheme {
+  line: string;
+  caption?: string;
+  pose: Pose;
+  expression?: Expression;
+  prop?: "none" | "boulder" | "phone" | "rope";
+  rotate?: number;
+}
+
+export function drawCharacterSceneSlide(
+  canvas: HTMLCanvasElement,
+  options: CharacterSceneOptions,
+): void {
+  const base = prepare(canvas, options);
+  if (!base) return;
+  const { ctx, width, height, accent } = base;
+
+  const margin = Math.round(width * 0.09);
+  const figureHeight = Math.round(height * 0.34);
+  const figureWidth = Math.round(figureHeight * 0.42);
+  // Słupek tekstu ustępuje miejsca sylwetce — inaczej kadr ma dwa pierwsze plany naraz.
+  const textWidth = width - margin * 2 - figureWidth - Math.round(width * 0.04);
+
+  const lineSize = Math.round(width * 0.078);
+  const line = fitLines(
+    ctx,
+    stripHighlightSyntax(options.line),
+    textWidth,
+    5,
+    (size) => `700 ${size}px ${getFontFamilySpec("cinzel")}`,
+    lineSize,
+  );
+
+  const captionSize = Math.round(width * 0.03);
+  const caption = options.caption
+    ? fitLines(
+        ctx,
+        stripHighlightSyntax(options.caption),
+        textWidth,
+        3,
+        (size) => `500 ${size}px ${getFontFamilySpec("sans")}`,
+        captionSize,
+      )
+    : null;
+
+  const centerY = centeredTop(figureHeight, height) + figureHeight / 2;
+
+  drawDoodle(ctx, {
+    cx: width - margin - figureWidth / 2,
+    cy: centerY,
+    height: figureHeight,
+    pose: options.pose,
+    expression: options.expression ?? "empty",
+    prop: options.prop,
+    rotate: options.rotate,
+    line: INK,
+    fill: "#050505",
+  });
+
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  let y = centeredTop(line.lines.length * line.size * 1.25, height) + line.size;
+  ctx.font = `700 ${line.size}px ${getFontFamilySpec("cinzel")}`;
+  ctx.fillStyle = INK;
+  for (const row of line.lines) {
+    ctx.fillText(row, margin, y);
+    y += line.size * 1.25;
+  }
+
+  // Karmazynowy rygiel pod tezą: mówi, gdzie kończy się myśl, a zaczyna dopisek.
+  ctx.fillStyle = accent;
+  ctx.fillRect(margin, y + line.size * 0.2, Math.min(textWidth * 0.3, 320), 3);
+
+  if (caption) {
+    let captionY = y + line.size * 0.9;
+    ctx.font = `500 ${caption.size}px ${getFontFamilySpec("sans")}`;
+    ctx.fillStyle = DIM;
+    for (const row of caption.lines) {
+      ctx.fillText(row, margin, captionY);
+      captionY += caption.size * 1.4;
+    }
+  }
+
   footer(ctx, width, height, options.handle);
 }
