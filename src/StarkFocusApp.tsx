@@ -23,6 +23,7 @@ import {
   UniversalLayoutSpec,
 } from "./types";
 import { specFromIdea } from "./utils/ideaLayout";
+import { fitFrame, specFromFrame } from "./utils/frameFit";
 import { usedHookFingerprints } from "./lib/usedContent";
 import { topPublishedHooks } from "./lib/published";
 import { DataBar } from "./components/DataBar";
@@ -153,10 +154,16 @@ export default function StarkFocusApp() {
     handleUpdateData((prev) => ({ ...prev, posts: [newPost, ...prev.posts], xp: prev.xp + 50 }));
   };
 
-  const handleSendToPost = (text: string, caption?: string, idea?: IdeaItem) => {
-    // Pomysł z układu strumienia niesie układ i strukturę — bez tego
-    // studio i tak renderowałoby cytat na czerni.
-    setPostPreset(idea ? { text, caption, spec: specFromIdea(idea) } : { text, caption });
+  const handleSendToPost = (text: string, caption?: string, idea?: IdeaItem, lines?: string[]) => {
+    // Pomysł z układu strumienia niesie układ i strukturę — bez tego studio i
+    // tak renderowałoby cytat na czerni. Radar ma tylko fazy, więc figurę dla
+    // nich liczy `fitFrame` z kształtu samej treści.
+    const spec = idea
+      ? specFromIdea(idea)
+      : lines?.length
+        ? specFromFrame(fitFrame({ hook: text, phrases: lines }))
+        : undefined;
+    setPostPreset(spec ? { text, caption, spec } : { text, caption });
     setActiveTab(0);
   };
 
@@ -366,7 +373,9 @@ export default function StarkFocusApp() {
                 onIncomingCarouselUsed={() => setPendingCarousel(null)}
                 onOpenQR={(title, payload) => setQrModal({ isOpen: true, title, data: payload })}
                 onNavigateToTab={(tabIdx) => setActiveTab(tabIdx)}
-                onSendToPost={handleSendToPost}
+                onSendToPost={(text, caption, lines) =>
+                  handleSendToPost(text, caption, undefined, lines)
+                }
                 onSendToReel={handleSendToReel}
               />
             )}

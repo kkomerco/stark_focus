@@ -22,7 +22,7 @@ import {
   Link,
   CheckCircle2,
 } from "lucide-react";
-import { StarkFocusData, TrendItem, Post } from "../../types";
+import { Post, ReelHandoff, StarkFocusData, TrendItem } from "../../types";
 import { usedHookFingerprints } from "../../lib/usedContent";
 import { topPublishedHooks } from "../../lib/published";
 import { formatStarkCaption } from "../../lib/caption";
@@ -39,8 +39,13 @@ interface AiRadarTabProps {
   onOpenQR: (title: string, payload: string) => void;
   onNavigateToTab: (tabIndex: number) => void;
   onOpenVideoStudio?: (hookText?: string, bgUrl?: string) => void;
-  onSendToPost?: (text: string, caption?: string) => void;
-  onSendToReel?: (hookText: string) => void;
+  /**
+   * `lines` to fazy, które model już napisał pod ten pomysł. Bez nich studio
+   * posta dostawało gołe zdanie i zawsze stawało jako cytat na czerni —
+   * z listą może ułożyć protokół, koszt albo diagram.
+   */
+  onSendToPost?: (text: string, caption?: string, lines?: string[]) => void;
+  onSendToReel?: (reel: ReelHandoff | string) => void;
   incomingCarousel?: IncomingCarousel | null;
   onIncomingCarouselUsed?: () => void;
 }
@@ -199,7 +204,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
 
   const handleScanTrends = async () => {
     setIsScanning(true);
-    setScanMessage("Skanowanie radarowe sieci i analiza wzorców wirusowości...");
+    setScanMessage("Model układa wątki powtarzające się w tej niszy...");
     try {
       const res = await fetch("/api/ai/scan-trends", {
         method: "POST",
@@ -622,7 +627,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                       onClick={() => {
                         if (onSendToPost)
                           // `rationale` to notatka „dlaczego to działa" po polsku — nigdy opis posta.
-                          onSendToPost(fmt.hook, formatStarkCaption(fmt.hook));
+                          onSendToPost(fmt.hook, formatStarkCaption(fmt.hook), fmt.phrases);
                         else onNavigateToTab(0);
                       }}
                       className="flex-1 py-1.5 px-2.5 rounded bg-white hover:bg-neutral-200 text-black text-xs font-mono font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer"
@@ -632,7 +637,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                     </button>
                     <button
                       onClick={() => {
-                        if (onSendToReel) onSendToReel(fmt.hook);
+                        if (onSendToReel) onSendToReel({ hook: fmt.hook, phrases: fmt.phrases });
                         else onOpenVideoStudio?.(fmt.hook);
                       }}
                       className="flex-1 py-1.5 px-2.5 rounded bg-[#161616] hover:bg-white hover:text-black border border-[rgba(255,255,255,0.1)] text-white text-xs font-mono font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer"
@@ -657,12 +662,17 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
             </div>
           </div>
 
-          {/* Sekcja: Zidentyfikowane Wątki Sieciowe */}
+          {/* Sekcja: Wątki z niszy */}
           <div className="space-y-3">
             <h3 className="text-xs font-bold text-white uppercase font-mono tracking-wider flex items-center gap-2">
               <Bookmark className="w-4 h-4 text-emerald-400" />
-              Przeskanowane Wątki Sieci ({trends.length})
+              Wątki, które powtarzają się w niszy ({trends.length})
             </h3>
+            <p className="text-[10px] font-mono text-neutral-500 leading-relaxed -mt-1">
+              Model układa tu wzorce, które widuje u dużych nadawców w tej niszy: motyw, ból
+              odbiorcy i hooki 0-3 s. To propozycja do napisania, nie pomiar z sieci — procent to
+              szacunek modelu, nie zasięg.
+            </p>
 
             <div className="space-y-3">
               {trends.map((trend, idx) => (
@@ -675,8 +685,23 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                       #{idx + 1} {trend.title}
                     </span>
                     <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-                      Wirusowość: {trend.estimated_virality || "95%"}
+                      Szacunek modelu: {trend.estimated_virality || "—"}
                     </span>
+                  </div>
+
+                  <div className="grid gap-1.5 text-[10px] font-mono">
+                    {trend.source_context && (
+                      <p className="text-neutral-500">
+                        <span className="uppercase text-neutral-600">Skąd:</span>{" "}
+                        <span className="text-neutral-300">{trend.source_context}</span>
+                      </p>
+                    )}
+                    {trend.audience_pain && (
+                      <p className="text-neutral-500">
+                        <span className="uppercase text-neutral-600">Ból odbiorcy:</span>{" "}
+                        <span className="text-neutral-300">{trend.audience_pain}</span>
+                      </p>
+                    )}
                   </div>
 
                   <p className="text-xs font-mono text-neutral-300">{trend.core_message}</p>
@@ -686,9 +711,11 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                       onClick={() => {
                         const text = trend.viral_hooks?.[0] || trend.title;
                         // `title` i `core_message` są po polsku — to notatka dla
-                        // autora, nie opis pod post.
+                        // autora, nie opis pod post. Lista hooków z wątku to
+                        // gotowe kroki, więc idzie razem z tekstem.
                         const cap = trend.copy_draft?.caption || formatStarkCaption(text);
-                        if (onSendToPost) onSendToPost(text, cap);
+                        if (onSendToPost)
+                          onSendToPost(text, cap, (trend.viral_hooks ?? []).slice(1));
                         else onNavigateToTab(0);
                       }}
                       className="flex items-center gap-1.5 py-1.5 px-3 rounded bg-white hover:bg-neutral-200 text-black text-xs font-mono font-bold transition-all cursor-pointer"
@@ -808,7 +835,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                 <div className="flex items-center gap-2 pt-2 border-t border-[rgba(255,255,255,0.1)]">
                   <button
                     onClick={() => {
-                      if (onSendToPost) onSendToPost(ang.hook, ang.caption);
+                      if (onSendToPost) onSendToPost(ang.hook, ang.caption, ang.phrases);
                       else onNavigateToTab(0);
                     }}
                     className="flex-1 py-1.5 px-2.5 rounded bg-white hover:bg-neutral-200 text-black text-xs font-mono font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer"
@@ -818,7 +845,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                   </button>
                   <button
                     onClick={() => {
-                      if (onSendToReel) onSendToReel(ang.hook);
+                      if (onSendToReel) onSendToReel({ hook: ang.hook, phrases: ang.phrases });
                       else onOpenVideoStudio?.(ang.hook);
                     }}
                     className="flex-1 py-1.5 px-2.5 rounded bg-[#161616] hover:bg-white hover:text-black border border-[rgba(255,255,255,0.1)] text-white text-xs font-mono font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer"
@@ -1029,7 +1056,12 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
 
                 <button
                   onClick={() => {
-                    if (onSendToReel) onSendToReel(recycledData.reel?.hook);
+                    const reel = recycledData.reel;
+                    if (onSendToReel)
+                      onSendToReel({
+                        hook: reel?.hook || "",
+                        phrases: Array.isArray(reel?.phrases) ? reel.phrases : undefined,
+                      });
                     else onOpenVideoStudio?.(recycledData.reel?.hook);
                   }}
                   className="w-full py-1.5 px-3 rounded bg-white hover:bg-neutral-200 text-black text-xs font-mono font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer"
