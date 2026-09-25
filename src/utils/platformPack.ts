@@ -59,6 +59,16 @@ function captionFor(task: PlannerTask, limit: number, platformLabel: string): st
   return `${text.slice(0, room).trimEnd()}\n…\n${hashtags}\n\n(dopisano dla ${platformLabel})`;
 }
 
+/**
+ * Alt text do wklejenia przy wrzucaniu. Platformy czytają go jako tekst, więc
+ * dla kadru, który jest tylko typografią na czerni, to jedyne miejsce obok
+ * opisu, gdzie treść grafiki trafia do wyszukiwania.
+ */
+function altTextFor(main: string): string {
+  const line = main.replace(/[*"#]/g, "").trim().slice(0, 160);
+  return `White serif line "${line}" on a solid black background, @stark_focus handle bottom left`;
+}
+
 function canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob> {
   return new Promise((resolve, reject) => {
     canvas.toBlob((blob) => {
@@ -121,7 +131,13 @@ export async function buildPlatformPack(tasks: PlannerTask[]): Promise<PlatformP
     for (const platform of PLATFORMS) {
       folder.file(
         `opis-${platform.id}.txt`,
-        `${platform.label} — ${task.time || ""}\n\n${captionFor(task, platform.captionLimit, platform.label)}\n`,
+        `${platform.label} — ${task.time || ""}
+
+${captionFor(task, platform.captionLimit, platform.label)}
+
+--- ALT TEXT (wklej przy publikacji) ---
+${altTextFor(main)}
+`,
       );
       files++;
     }
@@ -138,6 +154,8 @@ export async function buildPlatformPack(tasks: PlannerTask[]): Promise<PlatformP
     ),
     "",
     "Kadr 9:16 to grafik do rolek; rolkę wideo pobierasz osobno ze studia.",
+    "Każdy opis ma sekcję ALT TEXT — wklej ją przy publikacji; platformy",
+    "traktują ją jako tekst i to ona niesie treść kadru w wyszukiwaniu.",
     "Pakiety NIE zawierają wideo — patrz przycisk pobierania w Studio Rolki.",
   ].join("\n");
   zip.file("README.txt", readme);
