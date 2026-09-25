@@ -32,6 +32,8 @@ FORMAT KADRU: ${format.label} — ${format.shape}
 
 Napisz ${OVERGENERATE} warianty tego kadru. Kazdy wariant to INNA figura retoryczna i INNE rozwinięcie tematu.
 
+KAZDA linia wariantu zostaje w temacie "${topic}" i dotyczy dnia czytelnika (jego telefon, jego godzina, jego praca, jego cialo). Rekwizyt bez zwiazku z tematem — mosiez, szklo, klucz — jest bledem, nie klimatem.
+
 POLA WARIANTU (wszystkie po angielsku, bez polskiego, bez hashtagów, bez emoji):
 ${formatFieldSpec(format)}
 

@@ -1535,10 +1535,14 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
             <ChecklistPanel
               title="Kontrola przed publikacja"
               items={postChecklist({
-                hook: spec.textLayers
+                primary:
+                  spec.textLayers.find((layer) => layer.id === PRIMARY_LAYER_ID)?.text ??
+                  spec.textLayers[0]?.text ??
+                  "",
+                lines: spec.textLayers
+                  .filter((layer) => layer.id !== PRIMARY_LAYER_ID)
                   .map((layer) => layer.text?.trim() ?? "")
-                  .filter(Boolean)
-                  .join(" "),
+                  .filter(Boolean),
                 caption: spec.caption,
               })}
             />

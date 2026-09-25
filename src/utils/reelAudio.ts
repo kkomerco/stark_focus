@@ -8,6 +8,12 @@
  *
  * Cel: 10-25 s materiału, który nie jest cichy. W tej niszy wysyłki idą przez
  * DM-y, a tam się ogląda ze dźwiękiem.
+ *
+ * Rolka zapętla się na `durationSec`, więc bed musi się zgadzać na styku:
+ * dron trzyma ten sam poziom na końcu i na początku, a uderzenia trzymają
+ * zapas na ogon (0,35 s) przed cięciem. Dawniej dron gasł do zera w ostatniej
+ * sekundzie, a ostatnie uderzenie stało 0,12 s przed końcem — słyszalny znak,
+ * że kadr właśnie zaczął się od nowa.
  */
 
 export interface ReelBedOptions {
@@ -17,6 +23,9 @@ export interface ReelBedOptions {
 }
 
 const SAMPLE_RATE = 44_100;
+/** Tyle trzeba zostawić na wybrzmienie uderzenia, żeby nie zostało ucięte na styku pętli. */
+const HIT_TAIL_SEC = 0.35;
+const EDGE_FADE_SEC = 0.03;
 
 /** Biały szum dwóch sekund — wystarczy, bo puszczamy go w pętli. */
 function makeNoise(ctx: BaseAudioContext, seconds = 2): AudioBuffer {
@@ -42,10 +51,11 @@ function addDrone(ctx: BaseAudioContext, master: GainNode, durationSec: number) 
     osc.frequency.value = freq;
 
     const gain = ctx.createGain();
-    // Wchodzi z ciemności w pierwsze 0,35 s i trzyma — bez nagłego startu.
+    // Poziom stały przez cały kadr; fade tylko na samych krańcach i taki sam
+    // z obu stron, więc pętla nie ma gdzie „odetchnąć".
     gain.gain.setValueAtTime(0.0001, 0);
-    gain.gain.linearRampToValueAtTime(level, durationSec * 0.35);
-    gain.gain.setValueAtTime(level, Math.max(durationSec * 0.35, durationSec - 0.4));
+    gain.gain.linearRampToValueAtTime(level, EDGE_FADE_SEC);
+    gain.gain.setValueAtTime(level, durationSec - EDGE_FADE_SEC);
     gain.gain.linearRampToValueAtTime(0.0001, durationSec);
 
     osc.connect(gain).connect(filter);
@@ -54,7 +64,8 @@ function addDrone(ctx: BaseAudioContext, master: GainNode, durationSec: number) 
   }
 }
 
-function addRiser(ctx: BaseAudioContext, master: GainNode, durationSec: number, from: number) {
+/** Riser prowadzi do OSTATNIEGO grzbietu, nie do końca pliku — tam jest puenta. */
+function addRiser(ctx: BaseAudioContext, master: GainNode, from: number, to: number) {
   const noise = ctx.createBufferSource();
   noise.buffer = makeNoise(ctx);
   noise.loop = true;
@@ -62,18 +73,18 @@ function addRiser(ctx: BaseAudioContext, master: GainNode, durationSec: number, 
   const band = ctx.createBiquadFilter();
   band.type = "highpass";
   band.frequency.setValueAtTime(500, from);
-  band.frequency.exponentialRampToValueAtTime(6000, Math.max(from + 0.2, durationSec - 0.12));
+  band.frequency.exponentialRampToValueAtTime(6000, to);
 
   const gain = ctx.createGain();
   gain.gain.setValueAtTime(0.0001, from);
-  gain.gain.linearRampToValueAtTime(0.05, Math.max(from + 0.2, durationSec - 0.12));
-  // Cisza przed uderzeniem — to ten moment, w którym widz zostaje.
-  gain.gain.setValueAtTime(0.05, Math.max(durationSec - 0.1, from + 0.2));
-  gain.gain.linearRampToValueAtTime(0.0001, durationSec);
+  gain.gain.linearRampToValueAtTime(0.05, to);
+  // Cięcie następuje dokładnie na uderzeniu, nie po nim — to ten moment, w
+  // którym widz zostaje sam z puentą.
+  gain.gain.setValueAtTime(0.0001, to);
 
   noise.connect(band).connect(gain).connect(master);
   noise.start(from);
-  noise.stop(durationSec);
+  noise.stop(to + 0.02);
 }
 
 function addHit(ctx: BaseAudioContext, master: GainNode, at: number, strength: number) {
@@ -88,7 +99,7 @@ function addHit(ctx: BaseAudioContext, master: GainNode, at: number, strength: n
 
   osc.connect(gain).connect(master);
   osc.start(at);
-  osc.stop(at + 0.35);
+  osc.stop(at + HIT_TAIL_SEC);
 }
 
 /**
@@ -105,15 +116,21 @@ export async function renderReelBed(options: ReelBedOptions): Promise<AudioBuffe
 
   addDrone(ctx, master, durationSec);
 
+  // Uderzenie musi zmieścić się z ogonem przed cięciem — inaczej ucięty wybrzmiewający bas
+  // jest dokładnie tym, co zdradza restart pętli.
   const beats = options.beatTimes
     .map((t) => Number(t))
-    .filter((t) => Number.isFinite(t) && t > 0.05 && t < durationSec - 0.05)
+    .filter((t) => Number.isFinite(t) && t >= 0 && t + HIT_TAIL_SEC <= durationSec)
     .sort((a, b) => a - b);
 
-  for (const beat of beats) addHit(ctx, master, beat, 0.34);
-  if (beats.length > 0) addRiser(ctx, master, durationSec, beats[beats.length - 1] * 0.55);
-  // Ostatnie uderzenie jest najmocniejsze: to na nim kadr się zapętla.
-  addHit(ctx, master, Math.max(0.1, durationSec - 0.12), 0.5);
+  beats.forEach((beat, index) => {
+    const last = index === beats.length - 1;
+    addHit(ctx, master, beat, last ? 0.44 : 0.34);
+  });
+  if (beats.length > 1) {
+    const payoff = beats[beats.length - 1];
+    addRiser(ctx, master, beats[beats.length - 2], payoff);
+  }
 
   return await ctx.startRendering();
 }

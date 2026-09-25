@@ -42,7 +42,9 @@ export const FRAME_FORMATS: readonly FrameFormat[] = [
     label: "Protokół",
     gridType: "protocol_list",
     layoutName: "Protokół",
-    shape: "Teza + trzy kroki w kolejności wykonania. Kroki to gesty, nie rady.",
+    shape:
+      "Teza plus trzy kroki w kolejnosci wykonania. Krok to czynnosc czytelnika z jego dnia " +
+      "(telefon, biurko, pierwszy blok pracy, sen), nie rekwizyt z martwej natury.",
     fields: [
       { key: "primary", label: "Teza", words: "5-12" },
       { key: "steps", label: "Kroki", list: 3, words: "5-12" },

@@ -53,7 +53,7 @@ describe("reelChecklist", () => {
 describe("postChecklist", () => {
   it("opis z `formatStarkCaption` przechodzi kontrole", () => {
     const caption = formatStarkCaption("Rust works while you sleep.");
-    const items = postChecklist({ hook: "Rust works while you sleep.", caption });
+    const items = postChecklist({ primary: "Rust works while you sleep.", caption });
 
     assert.deepEqual(
       checklistProblems(items).map((item) => item.id),
@@ -63,7 +63,7 @@ describe("postChecklist", () => {
 
   it("uchacony opis z polska trescia odpada", () => {
     const items = postChecklist({
-      hook: "Discipline is everything, but it's worth it.",
+      primary: "Discipline is everything, but it's worth it.",
       caption: "Nie poddawaj się. #stoicism #stoicism",
     });
     const problems = checklistProblems(items).map((item) => item.id);
@@ -72,5 +72,35 @@ describe("postChecklist", () => {
     assert.ok(problems.includes("english"));
     assert.ok(problems.includes("hashtags"));
     assert.ok(problems.includes("cta"));
+  });
+
+  it("protokol nie dostaje falszywego „za dlugie na kadr” za cala swoja tresc", () => {
+    const items = postChecklist({
+      primary: "You don't lack discipline. You lack a sequence.",
+      lines: [
+        "Phone in another room before you decide anything.",
+        "First block of the day belongs to the hardest task.",
+        "No negotiations before noon. The deal is already signed.",
+      ],
+      caption: formatStarkCaption("You don't lack discipline."),
+    });
+
+    assert.deepEqual(
+      checklistProblems(items).map((item) => item.id),
+      [],
+    );
+  });
+
+  it("klisza w kroku jest wylaprywana, nie tylko w tezie", () => {
+    const items = postChecklist({
+      primary: "The gym does not care what you meant.",
+      lines: ["Unlock your potential every morning."],
+      caption: formatStarkCaption("The gym does not care what you meant."),
+    });
+
+    assert.ok(
+      checklistProblems(items).some((item) => item.id === "hook"),
+      "krok z klisza nie moze byc OK",
+    );
   });
 });

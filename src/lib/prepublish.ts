@@ -8,7 +8,7 @@
  * Panel jest doradczy. Blokowanie eksportu byłoby zakładaniem, że aplikacja
  * wie lepiej niż właściciel marki — wie tylko tyle, co wpisaliście w reguły.
  */
-import { auditHook } from "./hookCraft";
+import { auditHook, auditLine } from "./hookCraft";
 import { isPolishCopy, STARK_CTAS, starkCaption } from "./caption";
 
 export interface ChecklistItem {
@@ -86,16 +86,33 @@ export function reelChecklist(options: {
   ];
 }
 
-export function postChecklist(options: { hook: string; caption: string }): ChecklistItem[] {
+/**
+ * Kontrola kadru feedowego.
+ *
+ * Myśl z kadru i wiersze to dwie różne miary: protokół ma tezę plus kroki,
+ * więc limit „jedno zdanie do dwunastu słów" nie może obejmować całości —
+ * dawniej każdy strukturalny kadr dostawał fałszywe „za długie na kadr (58
+ * słów)" i panel przestawał cokolwiek znaczyć.
+ */
+export function postChecklist(options: {
+  primary: string;
+  lines?: string[];
+  caption: string;
+}): ChecklistItem[] {
   const tags = (options.caption.match(/#[\p{L}\d_]+/gu) ?? []).map((tag) => tag.toLowerCase());
   const unique = new Set(tags);
+  const hookIssues = auditHook(options.primary).issues;
+  const bodyIssues = (options.lines ?? []).flatMap((line) =>
+    auditLine(line).issues.map((issue) => `${issue} („${line.slice(0, 24)}…”)`),
+  );
+  const issues = [...hookIssues, ...bodyIssues];
 
   return [
     {
       id: "hook",
       label: "Myśl z kadru przechodzi kontrolę rzemiosła",
-      ok: auditHook(options.hook).ok,
-      hint: auditHook(options.hook).issues.join("; ") || "Czysto.",
+      ok: issues.length === 0,
+      hint: issues.join("; ") || "Czysto.",
     },
     {
       id: "english",
