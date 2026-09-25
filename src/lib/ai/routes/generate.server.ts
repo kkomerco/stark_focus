@@ -1,7 +1,7 @@
 import type { MiniApp } from "../../mini-express.server";
 import { getGeminiClient, safeJsonParse, callGeminiWithFallback } from "../gemini.server";
-import { formatStarkCaption, starkHashtags } from "../../caption";
-import { HOOK_CRAFT_PROMPT } from "../../hookCraft";
+import { formatStarkCaption, isPolishCopy, starkHashtags } from "../../caption";
+import { HOOK_CRAFT_PROMPT, auditHook } from "../../hookCraft";
 
 export function registerGenerateRoutes(app: MiniApp): void {
   app.post("/api/ai/generate-background-prompt", async (req, res) => {
@@ -111,6 +111,7 @@ export function registerGenerateRoutes(app: MiniApp): void {
       try {
         const prompt = `You are the lead viral stoic copywriter for the elite brand @stark_focus (dark stoicism, high agency, ruthless execution, zero excuses).
   Create a brand new, highly original, non-repetitive script in ENGLISH for a vertical video reel.
+  TOPIC może być opisany po polsku — to tylko temat. CAŁY wynik (phrases, captionShort, captionDeep) musi być po angielsku.
 
   FORMAT REQUIREMENT: Exactly ${count} phrase(s) for format "${targetFormat}".
   TOPIC / ANGLE: ${topic}
@@ -195,8 +196,17 @@ ${HOOK_CRAFT_PROMPT}
 
         const rawText = response.text || "";
         const parsed = safeJsonParse(rawText);
-
-        if (parsed && Array.isArray(parsed.phrases) && parsed.phrases.length === count) {
+        // Instrukcja jest po polsku, więc model potrafi odpowiedzieć po
+        // polsku — a to idzie prosto na kadr. Taki wynik jest błędem, nie
+        // wariantem: spadam na bank treści, który jest po angielsku.
+        if (isPolishCopy(rawText)) {
+          console.warn("Ghostwriter oddał materiał po polsku — używam banku treści.");
+        } else if (
+          parsed &&
+          Array.isArray(parsed.phrases) &&
+          parsed.phrases.length === count &&
+          parsed.phrases.every((phrase: unknown) => auditHook(String(phrase)).ok)
+        ) {
           const fallbackThemes = [
             "obsidian_void",
             "silver_mist",

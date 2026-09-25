@@ -30,6 +30,7 @@ import { BRAND_ACCENT } from "../utils/starkBrandTheme";
 import { REEL_SAFE, bandCenter, safeBand } from "../utils/safeZones";
 import { beatTimesFrom, renderReelBed } from "../utils/reelAudio";
 import { reelChecklist } from "../lib/prepublish";
+import { reelBlocksAt, stackBlocks } from "./video/reelLayout";
 import { ChecklistPanel } from "./ChecklistPanel";
 import { VIRAL_REEL_TEMPLATES, type ReelTemplate } from "../data/reelTemplates";
 import {
@@ -970,44 +971,20 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
       const leftMargin = band.side;
       const maxTextWidth = width - band.side * 2;
 
-      // 4. Frazy wchodzą i ZOSTAJĄ. Wcześniej każda gasła po swojej sekundzie,
-      // więc trzy zdania zachowywały się jak migawka. Bieżąca odsłania się
-      // maską lewo->prawo w 0,28 s, poprzednie ściemniają pod nią do 28%.
-      // Maska, nie słowo-po-słowie: karaoke bez lektora irytuje.
-      let visible: { text: string; opacity: number; reveal: number }[];
-      const timeline =
-        phrases.length > 1 ? getPhraseTimeline(phrases, totalDuration, pacingMode) : [];
+      // 4. Które zdanie widać o której sekundzie — logika leży w
+      // `video/reelLayout.ts`, bo pętla podglądu nie działa w uśpionej karcie,
+      // a bez tego tych reguł nie dało się sprawdzić inaczej niż okiem.
+      const visible = reelBlocksAt({
+        phrases,
+        timeSec,
+        durationSec: totalDuration,
+        pacing: pacingMode,
+      });
 
-      if (phrases.length <= 1) {
-        visible = [{ text: phrases[0] || "", opacity: 1, reveal: 1 }];
-      } else if (timeSec >= totalDuration - 0.4) {
-        // Szew pętli: ostatnie 0,4 s pokazuje dokładnie to, co klatka zero.
-        visible = [{ text: timeline[0].text, opacity: 1, reveal: 1 }];
-      } else {
-        let active = 0;
-        for (let i = 0; i < timeline.length; i++) {
-          if (timeSec >= timeline[i].start) active = i;
-        }
-        visible = timeline.slice(Math.max(0, active - 2), active + 1).map((item, idx, arr) => {
-          const isLast = idx === arr.length - 1;
-          const age = timeSec - item.start;
-          return {
-            text: item.text,
-            // Pierwszy kadr jest czytelny od zera: decyzja o przewinięciu
-            // zapada po ~1,7 s, a fade od zera znaczy czarny ekran.
-            opacity: isLast ? (item.index === 0 ? 1 : Math.min(1, age / 0.12)) : 0.28,
-            reveal: isLast && item.index > 0 ? easeOutCubic(age / 0.28) : 1,
-          };
-        });
-      }
-
-      const blocks = visible
-        .filter((entry) => entry.text.trim() !== "")
-        .map((entry) => ({
-          ...entry,
-          layout: layoutLines(entry.text, ctx, maxTextWidth, 64, selectedFont),
-          reveal: entry.reveal,
-        }));
+      const blocks = visible.map((entry) => ({
+        ...entry,
+        layout: layoutLines(entry.text, ctx, maxTextWidth, 64, selectedFont),
+      }));
 
       // Odstęp między BLOKAMI musi być liczony od pełnej linii, nie od jej
       // środka do środka następnej — 30 px przy ~80 px linii sprawiało, że
@@ -1016,8 +993,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
       const blockHeights = blocks.map(
         (block) => block.layout.lines.length * block.layout.lineHeight,
       );
-      const totalH =
-        blockHeights.reduce((sum, h) => sum + h, 0) + blockGap * Math.max(0, blocks.length - 1);
+      const tops = stackBlocks(blockHeights, band, blockGap);
 
       ctx.save();
       ctx.textBaseline = "middle";
@@ -1025,12 +1001,11 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
       ctx.shadowColor = "rgba(0, 0, 0, 0.95)";
       ctx.shadowBlur = 16;
 
-      // Kolumna trzyma się środka bezpiecznego pasa, nie magicznego 0,42.
-      let cursorY = bandCenter(band) - totalH / 2;
       let accentUsed = false;
 
       blocks.forEach((block, blockIdx) => {
         const { lines, fontSize, lineHeight } = block.layout;
+        const cursorY = tops[blockIdx];
         ctx.globalAlpha = block.opacity;
         if (block.reveal < 1) {
           ctx.save();
@@ -1057,7 +1032,6 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
         });
 
         if (block.reveal < 1) ctx.restore();
-        cursorY += blockHeights[blockIdx] + blockGap;
       });
 
       ctx.restore();
