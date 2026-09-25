@@ -1111,9 +1111,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
       // jej słup; bez tego litera wchodziłaby w sylwetkę.
       const scene = pickScene(phrases.join(" "));
       const beatIndex = (() => {
-        const found = activeTimeline.findIndex(
-          (seg) => timeSec >= seg.start && timeSec < seg.end,
-        );
+        const found = activeTimeline.findIndex((seg) => timeSec >= seg.start && timeSec < seg.end);
         return found >= 0 ? found : Math.max(0, activeTimeline.length - 1);
       })();
       const beat = scene.beats[beatIndex % scene.beats.length];
