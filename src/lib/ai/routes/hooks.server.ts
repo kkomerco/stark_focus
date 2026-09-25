@@ -66,6 +66,8 @@ ${
         .join("\n")}\n`
     : ""
 }
+Jedno wybrane slowo w zdaniu mozesz oznaczyc gwiazdkami (*tak*) — to na nie padnie karmazynowy akcent marki. Maksymalnie jedno slowo na zdanie, czasem zadne.
+
 Zwróc WYŁĄCZNIE czysty JSON:
 {
   "candidates": [

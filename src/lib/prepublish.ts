@@ -20,6 +20,7 @@ export interface ChecklistItem {
 
 /** Ile sekund na jedno zdanie, żeby dało się je przeczytać na spokojnie. */
 const SECONDS_PER_BEAT = 2.2;
+const NL = String.fromCharCode(10);
 const MAX_WORDS_PER_LINE = 4;
 
 function words(text: string): string[] {
@@ -107,6 +108,13 @@ export function postChecklist(options: { hook: string; caption: string }): Check
       label: "Trzy do pięciu hashtagów, bez powtórzeń",
       ok: tags.length >= 3 && tags.length <= 5 && unique.size === tags.length,
       hint: `Masz ${tags.length}. Meta ucina listę powyżej pięciu, więc szósty i tak odpada.`,
+    },
+    {
+      id: "lead",
+      label: "Pierwsze 125 znaków niesie sedno",
+      // Instagram ucina opis po ~125 znakach, zanim dopisze „więcej”.
+      ok: options.caption.trim().length > 40 && options.caption.split(NL)[0].length <= 125,
+      hint: "To, co widać przed „więcej”, musi być myślą, a nie powtórzeniem hasła.",
     },
     {
       id: "cta",
