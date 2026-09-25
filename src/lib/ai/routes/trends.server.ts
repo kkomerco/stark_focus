@@ -551,7 +551,7 @@ export function registerTrendsRoutes(app: MiniApp): void {
 
   I natychmiast zremiksuj ją na 4 gotowe formaty STARK:
   1. reel: rolka wideo [hook 0-3s, 3 precyzyjne fazy po angielsku, suggestedTheme: "obsidian_void"|"carbon_aura"|"crimson_eclipse"]
-  2. carousel: 5-slajdowa karuzela (headline: 2-4 słowa ALL CAPS, bodyText: 2-3 zdania (25-40 słów), highlightWords)
+  2. carousel: karuzela 7-9 slajdów (headline: 2-4 słowa ALL CAPS, bodyText: 2-3 zdania (25-40 słów), highlightWords)
   3. manifesto: 1 bezkompromisowe zdanie podsumowujące sedno
   4. caption: 2-3 zdania po angielsku rozwijające myśl, bez hashtagów i bez CTA — ogon doklejamy u siebie
 

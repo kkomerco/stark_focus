@@ -11,6 +11,7 @@ import {
   normalizePublished,
   statsByFormat,
 } from "../lib/published";
+import { guessLedgerFields } from "../lib/ledgerHints";
 
 interface PublishLedgerModalProps {
   isOpen: boolean;
@@ -98,6 +99,26 @@ export function PublishLedgerModal({
     setForm({ ...EMPTY_FORM, postedAt: form.postedAt, platform: form.platform, kind: form.kind });
   };
 
+  // Zadanie z planera wie o sobie więcej niż pusty formularz: gatunek, format
+  // i treść kadru da się przeczytać z jego payloadu.
+  const prefillFromTask = (taskId: string) => {
+    const task = (data.planner_tasks ?? []).find((item) => item.id === taskId);
+    if (!task) return;
+    const guess = guessLedgerFields({
+      task,
+      text: task.payload?.post?.text ?? task.payload?.reel?.hook,
+      format: task.format,
+    });
+
+    setForm((prev) => ({
+      ...prev,
+      kind: guess.kind,
+      format: guess.formatLabel,
+      hook: guess.hook,
+      postedAt: task.date || prev.postedAt,
+    }));
+  };
+
   const removeEntry = (id: string) =>
     onUpdateData((prev) => ({
       ...prev,
@@ -166,6 +187,30 @@ export function PublishLedgerModal({
               </table>
             )}
           </div>
+
+          {(data.planner_tasks ?? []).length > 0 && (
+            <div className={`${PANEL} p-3 space-y-2`}>
+              <p className="text-[10px] font-mono uppercase text-neutral-400">
+                Zadania z planera — wstaw treść do formularza
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {(data.planner_tasks ?? [])
+                  .slice(-10)
+                  .reverse()
+                  .map((task) => (
+                    <button
+                      key={task.id}
+                      type="button"
+                      onClick={() => prefillFromTask(task.id)}
+                      className="px-2 py-1 bg-[#080808] border border-white/10 rounded text-[10px] font-mono text-neutral-400 hover:text-white cursor-pointer truncate max-w-[260px]"
+                      title={`${task.date} · ${task.title}`}
+                    >
+                      {task.date} · {task.title}
+                    </button>
+                  ))}
+              </div>
+            </div>
+          )}
 
           <div className={`${PANEL} p-3 space-y-2`}>
             <p className="text-[10px] font-mono uppercase text-neutral-400">Nowy wpis</p>
