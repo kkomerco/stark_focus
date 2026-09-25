@@ -219,6 +219,22 @@ const DIAGRAM_KINDS: Array<{ kind: "chart" | "scales" | "path" | "split"; label:
 ];
 
 /**
+ * Kadry liczbowe. Teza jest tu mniej warta niż siatka pod nią: jeden kwadrat
+ * to jeden tydzień albo jedna godzina, więc kadr odpowiada na „skąd wiesz".
+ */
+const SPEC_LIFE_GRID = structuredSpec("Siatka życia", "life_grid", {
+  primary: "You have spent most of the grid already.",
+  closing: "The week you are in right now is the one you keep postponing.",
+  numbers: { yearsLived: 31 },
+});
+
+const SPEC_TIME_AUDIT = structuredSpec("Audyt doby", "time_audit", {
+  primary: "You are not out of time. You are out of order.",
+  closing: "Forty hours a week is not a habit. It is a second job.",
+  numbers: { screenHours: 41 },
+});
+
+/**
  * Lista formatów w jednym miejscu — dawniej każdy układ był dodawanym
  * przyciskiem w JSX, przez co pasek rósł szybciej niż możliwości.
  */
@@ -233,6 +249,8 @@ const LAYOUT_PICKER: Array<{
   { gridType: "studio_wall_3d", label: "Napis w scenie", spec: SPEC_WALL_3D },
   { gridType: "concept_diagram", label: "Diagram", spec: SPEC_DIAGRAM },
   { gridType: "grid_2x2", label: "Kolaż", spec: SPEC_COLLAGE_4 },
+  { gridType: "life_grid", label: "Siatka życia", spec: SPEC_LIFE_GRID },
+  { gridType: "time_audit", label: "Audyt doby", spec: SPEC_TIME_AUDIT },
 ];
 
 /** Gdzie napis stoi w kadrze — ten sam tekst, trzy różne sceny. */
@@ -253,6 +271,12 @@ interface FrameCandidate {
 
 function asStringList(value: unknown): string[] {
   return Array.isArray(value) ? value.map((item) => String(item).trim()).filter(Boolean) : [];
+}
+
+/** Liczba z odpowiedzi modelu: tylko cyfry i tylko w zakresie, jaki rysuje siatka. */
+function numberOr(value: unknown, fallback: number): number {
+  const raw = Number(String(value ?? "").replace(/[^\d.-]/g, ""));
+  return Number.isFinite(raw) && raw > 0 ? Math.round(raw) : fallback;
 }
 
 /**
@@ -285,6 +309,12 @@ function asCandidate(
       cost: keeps("cost") ? cost : undefined,
       forfeit: keeps("forfeit") ? forfeit : undefined,
       closing: keeps("closing") ? closing : "",
+      // Liczby idą do geometrii siatki, nie do warstw tekstowych.
+      numbers: keeps("years")
+        ? { yearsLived: numberOr(frame.years, 31) }
+        : keeps("hours")
+          ? { screenHours: numberOr(frame.hours, 41) }
+          : undefined,
     },
   };
 }
@@ -1041,6 +1071,44 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
                 Inny szkic
               </button>
             )}
+          </div>
+        )}
+
+        {/*
+          Kadry liczbowe: liczba jest treścią merytoryczną, nie ozdobą, więc
+          musi dać się wpisać. Bez tego „siatka życia" pokazuje czyjś wiek.
+        */}
+        {(spec.gridType === "life_grid" || spec.gridType === "time_audit") && (
+          <div className="flex items-center gap-2">
+            <label className="text-[10px] font-mono text-neutral-500 uppercase shrink-0">
+              {spec.gridType === "life_grid" ? "Wiek" : "Ekran (godzin w tygodniu)"}:
+            </label>
+            <input
+              type="number"
+              min={spec.gridType === "life_grid" ? 14 : 5}
+              max={spec.gridType === "life_grid" ? 90 : 120}
+              value={
+                spec.gridType === "life_grid"
+                  ? (spec.layoutData?.yearsLived ?? 31)
+                  : (spec.layoutData?.screenHours ?? 41)
+              }
+              onChange={(e) => {
+                const raw = Number(e.target.value);
+                if (!Number.isFinite(raw)) return;
+                const value = Math.max(
+                  spec.gridType === "life_grid" ? 14 : 5,
+                  Math.min(spec.gridType === "life_grid" ? 90 : 120, Math.round(raw)),
+                );
+                setSpec((prev) => ({
+                  ...prev,
+                  layoutData:
+                    prev.gridType === "life_grid"
+                      ? { ...prev.layoutData, yearsLived: value }
+                      : { ...prev.layoutData, screenHours: value },
+                }));
+              }}
+              className="w-24 px-2 py-1 bg-[#050505] border border-white/15 rounded text-[11px] font-mono text-white focus:outline-none focus:border-white"
+            />
           </div>
         )}
 

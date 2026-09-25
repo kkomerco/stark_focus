@@ -87,6 +87,18 @@ export function rankFrameCandidates(
     let broken = false;
 
     for (const field of format.fields) {
+      if (field.number) {
+        // Liczba jest tu całą tezą kadru: model ma podać cyfrę, a nie zdanie
+        // z cyfrą w środku. Nic z tego nie rysujemy, jeśli liczby nie ma.
+        const raw = Number(String(entry[field.key] ?? "").replace(/[^\d.-]/g, ""));
+        if (!Number.isFinite(raw) || raw < field.number.min || raw > field.number.max) {
+          broken = true;
+          break;
+        }
+        frame[field.key] = Math.round(raw);
+        continue;
+      }
+
       if (field.list) {
         const lines = asStringArray(entry[field.key], field.list + 2).map(cleanLine);
         if (lines.length !== field.list) {

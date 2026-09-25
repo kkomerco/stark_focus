@@ -8,7 +8,8 @@
 // studio budujące `textLayers`.
 import { UniversalLayoutSpec } from "../types";
 
-export type FrameFormatId = "quote" | "protocol" | "cost" | "diagram" | "sign" | "collage";
+export type FrameFormatId =
+  "quote" | "protocol" | "cost" | "diagram" | "sign" | "collage" | "life_grid" | "time_audit";
 
 export interface FrameFormat {
   id: FrameFormatId;
@@ -20,11 +21,13 @@ export interface FrameFormat {
   shape: string;
   /** Pola struktury wraz z limitem wierszy — po to, żeby dało to zweryfikować. */
   fields: Array<{
-    key: "primary" | "steps" | "cost" | "forfeit" | "closing";
+    key: "primary" | "steps" | "cost" | "forfeit" | "closing" | "years" | "hours";
     label: string;
     /** 0 = pole pojedyncze (zdanie), >0 = lista o dokładnie tylu wierszach. */
     list?: number;
     words: string;
+    /** Pole liczbowe: model podaje liczbę, układ rysuje z niej siatkę. */
+    number?: { min: number; max: number };
   }>;
 }
 
@@ -93,6 +96,41 @@ export const FRAME_FORMATS: readonly FrameFormat[] = [
       { key: "steps", label: "Kadry", list: 4, words: "3-8" },
     ],
   },
+  {
+    id: "life_grid",
+    label: "Siatka życia",
+    gridType: "life_grid",
+    layoutName: "Siatka życia",
+    shape:
+      "Teza, która robi się prawdziwa dopiero po policzeniu: jeden kwadrat to jeden tydzień życia.",
+    fields: [
+      { key: "primary", label: "Teza", words: "4-10" },
+      {
+        key: "years",
+        label: "Wiek",
+        words: "liczba przeżytych lat",
+        number: { min: 14, max: 90 },
+      },
+      { key: "closing", label: "Puenta", words: "4-10" },
+    ],
+  },
+  {
+    id: "time_audit",
+    label: "Audyt doby",
+    gridType: "time_audit",
+    layoutName: "Audyt doby",
+    shape: "Tydzień rozpisany na godziny: sen, praca, ekran. Liczby robią całą tezę.",
+    fields: [
+      { key: "primary", label: "Teza", words: "4-10" },
+      {
+        key: "hours",
+        label: "Ekran w tygodniu",
+        words: "liczba godzin przed ekranem w tygodniu",
+        number: { min: 5, max: 120 },
+      },
+      { key: "closing", label: "Puenta", words: "4-10" },
+    ],
+  },
 ];
 
 export function formatById(id: string): FrameFormat | undefined {
@@ -106,11 +144,14 @@ export function formatByGrid(gridType: string): FrameFormat | undefined {
 /** Sam prompt dla modelu: lista pól z limitami, bez zgadywania kształtu. */
 export function formatFieldSpec(format: FrameFormat): string {
   return format.fields
-    .map((field) =>
-      field.list
+    .map((field) => {
+      if (field.number) {
+        return `- "${field.key}": jedna liczba całkowita (${field.words}), tylko cyfry, bez słowa`;
+      }
+      return field.list
         ? `- "${field.key}": dokładnie ${field.list} wierszy po angielsku (${field.words} słów każdy)`
-        : `- "${field.key}": jedno zdanie po angielsku (${field.words} słów)`,
-    )
+        : `- "${field.key}": jedno zdanie po angielsku (${field.words} słów)`;
+    })
     .join("\n");
 }
 

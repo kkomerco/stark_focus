@@ -25,6 +25,12 @@ export interface StructuredContent {
   /** Nadtytuł układu — warstwa jak każda inna, więc edytowalna w studio. */
   /** Duża blada cyfra w tle. Pusta = bez cyfry. */
   figure?: string;
+  /**
+   * Liczby dla układów liczbowych (wiek, godziny przed ekranem). Leżą w
+   * `layoutData`, bo sterują geometrią siatki — zdania i tak mieszkają
+   * w `textLayers`.
+   */
+  numbers?: { yearsLived?: number; screenHours?: number };
 }
 
 const LAYOUT_NAMES: Record<string, string> = {
@@ -88,7 +94,7 @@ export function structuredSpec(
     fontFamilyCustom: "cinzel",
     fontColorMode: "white",
     textLayers: layers,
-    layoutData: meta,
+    layoutData: { ...meta, ...(content.numbers ?? {}) },
     // Opis bierze zdania z kadru, nie z banku zasad — to, co widz przeczytał
     // na kadrze, ma pojawiać się pod nim w tej samej kolejności.
     caption: formatStarkCaption(content.primary, [

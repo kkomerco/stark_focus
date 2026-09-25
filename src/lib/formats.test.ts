@@ -1,6 +1,24 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { REEL_BEAT_LIMIT, frameToBeats } from "./formats";
+import { FRAME_FORMATS, REEL_BEAT_LIMIT, frameToBeats, formatByGrid } from "./formats";
+
+describe("FRAME_FORMATS", () => {
+  it("kadry liczbowe mają pole liczbowe i tylko jedno", () => {
+    for (const grid of ["life_grid", "time_audit"]) {
+      const format = formatByGrid(grid);
+      assert.ok(format, `${grid} nie ma formatu`);
+      const numbers = format.fields.filter((field) => field.number);
+      assert.equal(numbers.length, 1, `${grid}: liczba ma być jedna`);
+      assert.ok(numbers[0].number.min < numbers[0].number.max);
+    }
+  });
+
+  it("każdy format ma tezę jako pierwsze pole", () => {
+    for (const format of FRAME_FORMATS) {
+      assert.equal(format.fields[0].key, "primary", format.id);
+    }
+  });
+});
 
 const FULL = {
   primary: "You don't lack discipline. You lack a sequence.",

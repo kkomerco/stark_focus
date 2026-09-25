@@ -141,7 +141,10 @@ export interface UniversalLayoutSpec {
     | "studio_wall_3d"
     | "protocol_list"
     | "cost_vs_reward"
-    | "concept_diagram";
+    | "concept_diagram"
+    /** Kadry liczbowe: dowód zamiast podpisu. */
+    | "life_grid"
+    | "time_audit";
   /**
    * Tryb sceny kadru. Cała treść językowa mieszka w `textLayers`
    * (patrz `canvas/layerRoles.ts`) — nie ma tu miejsca na zdania, bo dopóki
@@ -156,6 +159,16 @@ export interface UniversalLayoutSpec {
      * tego „raz wykorzystałem i już nie mogę" było prawdą — wykres był jeden.
      */
     diagramSeed?: string;
+    /**
+     * Liczby napędzające kadry liczbowe. To geometria, nie treść: zdania
+     * i tak mieszkają w `textLayers`, ale bez tych pól siatka nie wie,
+     * ile kwadratów zamalować.
+     */
+    yearsLived?: number;
+    horizonYears?: number;
+    screenHours?: number;
+    sleepHours?: number;
+    workHours?: number;
   };
   backgroundColor: string;
   dividerWidth: number;

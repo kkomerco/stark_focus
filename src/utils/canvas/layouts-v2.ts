@@ -810,3 +810,303 @@ export function drawBillboardSignSlide(canvas: HTMLCanvasElement, options: SignS
 
   footer(ctx, width, height, options.handle);
 }
+
+/**
+ * KADRY LICZBOWE.
+ *
+ * Materiał nie miał czym odpowiedzieć sąsiedniemu kontu. Te dwa układy
+ * zamieniają twierdzenie w dowód: siatka tygodni pokazuje, ile życia już
+ * minęło, a audyt tygodnia pokazuje, gdzie ten tydzień poszedł. Jeden
+ * kwadrat to jeden tydzień albo jedna godzina — bez osi bez etykiet.
+ */
+
+export const WEEKS_PER_YEAR = 52;
+/** Horyzont 76 lat to ~4000 tygodni — tyle, ile liczy klasyk gatunku. */
+export const LIFE_HORIZON_YEARS = 76;
+
+export interface LifeGridOptions extends LayoutTheme {
+  /** Teza nad siatką. */
+  line: string;
+  /** Puenta pod liczbą. */
+  caption?: string;
+  yearsLived: number;
+  horizonYears?: number;
+}
+
+export interface TimeAuditOptions extends LayoutTheme {
+  line: string;
+  caption?: string;
+  /** Godziny na ekran w tygodniu (nie na dobę). */
+  screenHours: number;
+  sleepHours?: number;
+  workHours?: number;
+}
+
+/** Siatka kwadratów: krok liczony ze SZEROKOŚCI, więc wypełnia kadr. */
+function cellGrid(
+  ctx: CanvasRenderingContext2D,
+  cols: number,
+  rows: number,
+  box: { x: number; y: number; w: number },
+  paint: (col: number, row: number, x: number, y: number, size: number) => void,
+): number {
+  const step = box.w / cols;
+  const size = step * 0.66;
+  const originX = box.x;
+
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      paint(
+        col,
+        row,
+        originX + col * step + (step - size) / 2,
+        box.y + row * step + (step - size) / 2,
+        size,
+      );
+    }
+  }
+  return step * rows;
+}
+
+export function drawLifeGridSlide(canvas: HTMLCanvasElement, options: LifeGridOptions): void {
+  const base = prepare(canvas, options);
+  if (!base) return;
+  const { ctx, width, height, accent } = base;
+
+  const margin = Math.round(width * 0.08);
+  const usable = width - margin * 2;
+  const horizon = Math.max(20, Math.min(95, options.horizonYears ?? LIFE_HORIZON_YEARS));
+  const lived = Math.max(0, Math.min(horizon, Math.round(options.yearsLived)));
+  const weeksLived = lived * WEEKS_PER_YEAR;
+  const weeksLeft = horizon * WEEKS_PER_YEAR - weeksLived;
+
+  const lineSize = Math.round(width * 0.052);
+  const line = fitLines(
+    ctx,
+    stripHighlightSyntax(options.line),
+    usable,
+    3,
+    (size) => `700 ${size}px ${getFontFamilySpec("cinzel")}`,
+    lineSize,
+  );
+
+  const numberSize = Math.round(width * 0.115);
+  const captionSize = Math.round(width * 0.032);
+  const caption = options.caption
+    ? fitLines(
+        ctx,
+        stripHighlightSyntax(options.caption),
+        usable,
+        2,
+        (size) => `500 ${size}px ${getFontFamilySpec("sans")}`,
+        captionSize,
+      )
+    : null;
+
+  // Siatka: 52 kolumn (tygodnie w roku), wierszy tyle, ile lat horyzontu.
+  // Krok bierzemy z szerokości — inaczej kwadraty kurczą się do kreski.
+  const cols = WEEKS_PER_YEAR;
+  const rows = horizon;
+  const gridH = (usable / cols) * rows;
+
+  const number = fitLines(
+    ctx,
+    `${weeksLeft.toLocaleString("en-US")} WEEKS`,
+    usable,
+    1,
+    (size) => `800 ${size}px ${getFontFamilySpec("sans")}`,
+    numberSize,
+    Math.round(numberSize * 0.55),
+  );
+
+  const blockHeight =
+    line.lines.length * lineSize * 1.3 +
+    gridH +
+    number.size * 1.7 +
+    (caption ? caption.lines.length * captionSize * 1.4 + 60 : 0);
+  let y = centeredTop(blockHeight, height) + lineSize;
+
+  ctx.textAlign = "center";
+  ctx.fillStyle = INK;
+  ctx.font = `700 ${line.size}px ${getFontFamilySpec("cinzel")}`;
+  for (const row of line.lines) {
+    ctx.fillText(row, width / 2, y);
+    y += line.size * 1.3;
+  }
+
+  const gridTop = y + height * 0.015;
+  cellGrid(ctx, cols, rows, { x: margin, y: gridTop, w: usable }, (col, row, x, cy, size) => {
+    const index = row * cols + col;
+    if (index === weeksLived) {
+      // Bieżący tydzień: jeden karmazyn w całym kadrze, celowo większy.
+      ctx.fillStyle = accent;
+      ctx.fillRect(x - size * 0.3, cy - size * 0.3, size * 1.6, size * 1.6);
+    } else if (index < weeksLived) {
+      ctx.fillStyle = INK;
+      ctx.fillRect(x, cy, size, size);
+    } else {
+      ctx.strokeStyle = "rgba(243,240,234,0.15)";
+      ctx.lineWidth = Math.max(1, size * 0.14);
+      ctx.strokeRect(x, cy, size, size);
+    }
+  });
+
+  y = gridTop + gridH + number.size;
+  ctx.fillStyle = accent;
+  ctx.font = `800 ${number.size}px ${getFontFamilySpec("sans")}`;
+  ctx.fillText(number.lines[0] ?? "", width / 2, y);
+
+  ctx.fillStyle = DIM;
+  ctx.font = `500 ${Math.round(width * 0.025)}px ${getFontFamilySpec("sans")}`;
+  ctx.fillText(
+    `LEFT IF YOU REACH ${horizon} - ${lived} YEARS BEHIND YOU`,
+    width / 2,
+    y + numberSize * 0.45,
+  );
+
+  if (caption) {
+    let captionY = y + numberSize * 1.1;
+    ctx.fillStyle = INK;
+    ctx.font = `500 ${caption.size}px ${getFontFamilySpec("sans")}`;
+    for (const row of caption.lines) {
+      ctx.fillText(row, width / 2, captionY);
+      captionY += caption.size * 1.4;
+    }
+  }
+
+  ctx.textAlign = "left";
+  footer(ctx, width, height, options.handle);
+}
+
+export function drawTimeAuditSlide(canvas: HTMLCanvasElement, options: TimeAuditOptions): void {
+  const base = prepare(canvas, options);
+  if (!base) return;
+  const { ctx, width, height, accent } = base;
+
+  const margin = Math.round(width * 0.1);
+  const usable = width - margin * 2;
+  const sleep = Math.max(0, Math.min(24, options.sleepHours ?? 8));
+  const work = Math.max(0, Math.min(24, options.workHours ?? 9));
+  const screenPerDay = Math.max(0, Math.min(24, options.screenHours / 7));
+
+  const lineSize = Math.round(width * 0.055);
+  const line = fitLines(
+    ctx,
+    stripHighlightSyntax(options.line),
+    usable,
+    3,
+    (size) => `700 ${size}px ${getFontFamilySpec("cinzel")}`,
+    lineSize,
+  );
+
+  const numberSize = Math.round(width * 0.17);
+  const captionSize = Math.round(width * 0.032);
+  const caption = options.caption
+    ? fitLines(
+        ctx,
+        stripHighlightSyntax(options.caption),
+        usable,
+        2,
+        (size) => `500 ${size}px ${getFontFamilySpec("sans")}`,
+        captionSize,
+      )
+    : null;
+
+  // Godziny w poziomie, dni w pionie: przy 7 kolumnach na 24 komórki siatka
+  // zwężała się do słupeczka i nie wypełniała kadru.
+  const cols = 24;
+  const rows = 7;
+  const step = usable / cols;
+  const rowGap = step * 0.55;
+  const boxH = rows * step + (rows - 1) * rowGap;
+
+  const number = fitLines(
+    ctx,
+    `${Math.round(options.screenHours)} HOURS`,
+    usable,
+    1,
+    (size) => `800 ${size}px ${getFontFamilySpec("sans")}`,
+    numberSize,
+    Math.round(numberSize * 0.5),
+  );
+
+  const blockHeight =
+    line.lines.length * lineSize * 1.3 +
+    boxH +
+    number.size * 1.7 +
+    (caption ? caption.lines.length * captionSize * 1.4 + 60 : 0);
+  let y = centeredTop(blockHeight, height) + lineSize;
+
+  ctx.textAlign = "center";
+  ctx.fillStyle = INK;
+  ctx.font = `700 ${line.size}px ${getFontFamilySpec("cinzel")}`;
+  for (const row of line.lines) {
+    ctx.fillText(row, width / 2, y);
+    y += line.size * 1.3;
+  }
+
+  const boxTop = y + step * 1.4;
+  for (let day = 0; day < rows; day++) {
+    cellGrid(
+      ctx,
+      cols,
+      1,
+      { x: margin, y: boxTop + day * (step + rowGap), w: usable },
+      (hour, _row, x, cy, size) => {
+        let fill = "rgba(243,240,234,0.10)";
+        if (hour < sleep) fill = "rgba(243,240,234,0.34)";
+        else if (hour < sleep + work) fill = "rgba(243,240,234,0.66)";
+        else if (hour < sleep + work + screenPerDay) fill = accent;
+        ctx.fillStyle = fill;
+        ctx.fillRect(x, cy, size, size);
+      },
+    );
+  }
+
+  y = boxTop + boxH + number.size;
+  ctx.fillStyle = accent;
+  ctx.font = `800 ${number.size}px ${getFontFamilySpec("sans")}`;
+  ctx.fillText(number.lines[0] ?? "", width / 2, y);
+
+  // Trzy szarości bez etykiety to zgadywanka. Siatka życia obroni się sama,
+  // tu legenda jest częścią argumentu.
+  const legendSize = Math.round(width * 0.022);
+  const legendY = boxTop - Math.round(step * 0.35);
+  const legend: Array<[string, string]> = [
+    ["SLEEP", "rgba(243,240,234,0.34)"],
+    ["WORK", "rgba(243,240,234,0.66)"],
+    ["SCREEN", accent],
+  ];
+  const legendWidth = legend.length * legendSize * 6.4;
+  ctx.textAlign = "left";
+  ctx.font = `500 ${legendSize}px ${getFontFamilySpec("sans")}`;
+  legend.forEach(([label, color], i) => {
+    const x = width / 2 - legendWidth / 2 + i * legendSize * 6.4;
+    ctx.fillStyle = color;
+    ctx.fillRect(x, legendY - legendSize * 0.75, legendSize, legendSize);
+    ctx.fillStyle = DIM;
+    ctx.fillText(label, x + legendSize * 1.5, legendY - legendSize * 0.05);
+  });
+  ctx.textAlign = "center";
+
+  ctx.fillStyle = DIM;
+  ctx.font = `500 ${Math.round(width * 0.025)}px ${getFontFamilySpec("sans")}`;
+  ctx.fillText(
+    `ON A SCREEN A WEEK - ${(options.screenHours / 24).toFixed(1)} WHOLE DAYS AWAKE`,
+    width / 2,
+    y + number.size * 0.45,
+  );
+
+  if (caption) {
+    let captionY = y + numberSize * 1.05;
+    ctx.fillStyle = INK;
+    ctx.font = `500 ${caption.size}px ${getFontFamilySpec("sans")}`;
+    for (const row of caption.lines) {
+      ctx.fillText(row, width / 2, captionY);
+      captionY += caption.size * 1.4;
+    }
+  }
+
+  ctx.textAlign = "left";
+  footer(ctx, width, height, options.handle);
+}

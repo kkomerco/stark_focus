@@ -21,6 +21,8 @@ import {
   centeredTop,
   drawBillboardSignSlide,
   drawConceptDiagramSlide,
+  drawLifeGridSlide,
+  drawTimeAuditSlide,
   drawCostVsRewardSlide,
   drawNeonSignSlide,
   drawProtocolListSlide,
@@ -1145,6 +1147,37 @@ export function renderUniversalLayout(
       // Ziarno idzie do odcisku szkicu: ten sam wers może wyjść inaczej,
       // a zapisany kadr odtworzy się identycznie przy następnym eksporcie.
       seed: spec.layoutData?.diagramSeed,
+      bgImage: options.backgroundImage ?? null,
+    });
+    return;
+  }
+
+  // Format 7: siatka życia — jeden kwadrat to jeden przeżyty tydzień.
+  if (spec.gridType === "life_grid") {
+    drawLifeGridSlide(canvas, {
+      width,
+      height,
+      handle,
+      line: layerById(spec, PRIMARY_LAYER_ID) || l1Fallback(spec),
+      caption: layerById(spec, "closing"),
+      yearsLived: spec.layoutData?.yearsLived ?? 30,
+      horizonYears: spec.layoutData?.horizonYears,
+      bgImage: options.backgroundImage ?? null,
+    });
+    return;
+  }
+
+  // Format 8: audyt tygodnia — 168 godzin rozpisane na kolumny.
+  if (spec.gridType === "time_audit") {
+    drawTimeAuditSlide(canvas, {
+      width,
+      height,
+      handle,
+      line: layerById(spec, PRIMARY_LAYER_ID) || l1Fallback(spec),
+      caption: layerById(spec, "closing"),
+      screenHours: spec.layoutData?.screenHours ?? 40,
+      sleepHours: spec.layoutData?.sleepHours,
+      workHours: spec.layoutData?.workHours,
       bgImage: options.backgroundImage ?? null,
     });
     return;
