@@ -458,7 +458,14 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
       customVideoRef.current = vid;
       customImageRef.current = null;
       setCustomBgType("video");
-      setToastMessage("✓ Załadowano własne tło wideo!");
+      // Wideo nie zna swoich wymiarów przed załadowaniem metadanych.
+      vid.onloadedmetadata = () => {
+        setToastMessage(
+          vid.videoWidth < 720 || vid.videoHeight < 1280
+            ? `Uwaga: wideo ma ${vid.videoWidth}x${vid.videoHeight} — na kadrze 1080x1920 będzie miękkie.`
+            : "✓ Załadowano własne tło wideo!",
+        );
+      };
     } else if (file.type.startsWith("image/")) {
       const img = new Image();
       img.src = fileUrl;
@@ -466,7 +473,13 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
         customImageRef.current = img;
         customVideoRef.current = null;
         setCustomBgType("image");
-        setToastMessage("✓ Załadowano własne tło graficzne!");
+        // Material w niższej rozdzielczości platformy tłumią, a my i tak
+        // rysujemy na 1080x1920 — więc rozciągnięty kadr to podwójna strata.
+        setToastMessage(
+          img.naturalWidth < 720 || img.naturalHeight < 1280
+            ? `Uwaga: tło ma ${img.naturalWidth}x${img.naturalHeight}, a kadr ma 1080x1920 — będzie rozciągnięte.`
+            : "✓ Załadowano własne tło graficzne!",
+        );
       };
     }
     setTimeout(() => setToastMessage(null), 3000);

@@ -1,4 +1,10 @@
-import { PlannerTask, PlannerTaskPayload, ReelHandoff, StarkFocusData } from "../types";
+import {
+  AbExperiment,
+  PlannerTask,
+  PlannerTaskPayload,
+  ReelHandoff,
+  StarkFocusData,
+} from "../types";
 import { normalizePublished } from "../lib/published";
 import { INITIAL_DATA } from "../data/initialData";
 
@@ -104,6 +110,7 @@ function normalizeParsedData(parsed: any, base: StarkFocusData): StarkFocusData 
     },
     // Dziennik publikacji: bez tego aplikacja nie wie, co naprawdę wyszło.
     published: normalizePublished(parsed?.published),
+    ab_experiments: normalizeAbExperiments(parsed?.ab_experiments),
     // Streak z zapisanej wartości, inaczej liczony od daty utworzenia konta
     streak: readStreak(parsed),
   };
@@ -325,41 +332,25 @@ export function getNextSaturday20(): { date: Date; hoursLeft: number; isSaturday
   return { date: target, hoursLeft, isSaturdayToday };
 }
 
-export function analyzeHookStrength(hook: string): {
-  score: number;
-  level: "Krytyczny" | "Przeciętny" | "Dobry" | "Wiralowy";
-  feedback: string;
-} {
-  const clean = hook.trim();
-  if (!clean) return { score: 0, level: "Krytyczny", feedback: "Wpisz treść hooka." };
-
-  let score = 50;
-  const words = clean.split(/\s+/).length;
-  if (words >= 5 && words <= 12) score += 25;
-  if (/\d+/.test(clean)) score += 10;
-  if (clean.endsWith("?") || clean.endsWith(".")) score += 5;
-
-  const triggerWords = [
-    "truth",
-    "nobody",
-    "stop",
-    "destroy",
-    "discipline",
-    "silence",
-    "comfort",
-    "habits",
-    "cost",
-  ];
-  triggerWords.forEach((w) => {
-    if (clean.toLowerCase().includes(w)) score += 5;
-  });
-
-  score = Math.min(99, Math.max(20, score));
-  const level =
-    score >= 85 ? "Wiralowy" : score >= 70 ? "Dobry" : score >= 50 ? "Przeciętny" : "Krytyczny";
-  const feedback =
-    score >= 85
-      ? "Wysoki potencjał zatrzymania scrolla w pierwszych 800ms."
-      : "Zwiększ kontrast i usuń zbędne słowa.";
-  return { score, level, feedback };
+/**
+ * Eksperymenty A/B czytamy bez walidacji nie da się: widok wariantu liczy na
+ * `phrases` i `metrics`, a starszy blob może mieć ich połowę. Przy okazji
+ * tniemy listę — 50 pozycji to tyle, ile zapisuje sam eksport.
+ */
+function normalizeAbExperiments(value: unknown): AbExperiment[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((entry, index) => {
+      const item = (entry ?? {}) as Record<string, any>;
+      return {
+        id: typeof item.id === "string" && item.id ? item.id : `ab-${index}`,
+        topic: typeof item.topic === "string" ? item.topic : "",
+        createdAt: typeof item.createdAt === "string" ? item.createdAt : "",
+        variants: Array.isArray(item.variants) ? item.variants : [],
+        winner: item.winner === "A" || item.winner === "B" ? item.winner : null,
+        lesson: typeof item.lesson === "string" ? item.lesson : "",
+        concludedAt: typeof item.concludedAt === "string" ? item.concludedAt : null,
+      };
+    })
+    .slice(0, 50);
 }

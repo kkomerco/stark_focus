@@ -54,17 +54,20 @@ export function parseLineTokens(line: string, highlightTerms: string[]): TextTok
 
     const stripped = wordText.replace(/[^a-zA-Z0-9ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/g, "").toLowerCase();
 
-    if (
-      stripped &&
-      (normalizedTerms.has(stripped) ||
-        Array.from(normalizedTerms).some(
-          (t) => stripped === t || stripped.includes(t) || (t.length >= 3 && t.includes(stripped)),
-        ))
-    ) {
-      isMarked = true;
-    }
+    // Tylko pelne slowo. Wczesniejsze dopasowanie po podstringach
+    // („silen" trafialo w „silence", a „the" w „them") barwilo cale linie —
+    // wyroznienie, ktore zajmuje pol wiersza, przestaje wyrozniac.
+    if (stripped && normalizedTerms.has(stripped)) isMarked = true;
 
     tokens.push({ text: wordText, isHighlight: isMarked });
+  }
+
+  // Jeden akcent na wiersz — marka ma JEDEN karmazynowy wyraz, nie zdanie.
+  let accentUsed = false;
+  for (const token of tokens) {
+    if (!token.isHighlight) continue;
+    if (accentUsed) token.isHighlight = false;
+    accentUsed = true;
   }
 
   return tokens;
