@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import JSZip from "jszip";
-import { formatStarkCaption, isPolishCopy, starkCaption } from "../lib/caption";
+import { formatStarkCaption, isPolishCopy, starkCaption, starkPinned } from "../lib/caption";
 import { postChecklist } from "../lib/prepublish";
 import { ChecklistPanel } from "./ChecklistPanel";
 import {
@@ -410,6 +410,7 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
   const [activeSlotToUpload, setActiveSlotToUpload] = useState<number>(0);
 
   const [copiedCaption, setCopiedCaption] = useState(false);
+  const [copiedPinned, setCopiedPinned] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -1618,6 +1619,48 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
               className="w-full bg-[#0A0A0A] border border-white/10 focus:border-white rounded-lg p-2.5 text-xs font-mono text-neutral-300 focus:outline-none leading-relaxed transition-colors"
             />
           </div>
+
+          {(() => {
+            const pinned = starkPinned(
+              spec.textLayers.find((layer) => layer.id === PRIMARY_LAYER_ID)?.text ??
+                spec.textLayers[0]?.text ??
+                "",
+              spec.textLayers
+                .filter((layer) => layer.id !== PRIMARY_LAYER_ID)
+                .map((layer) => layer.text ?? ""),
+            );
+            return (
+              <div className="bg-[#121212] p-4 rounded-xl border border-white/10 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-mono text-neutral-400 uppercase">
+                    Komentarz przypięty pod postem:
+                  </label>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(pinned);
+                      setCopiedPinned(true);
+                      setTimeout(() => setCopiedPinned(false), 2000);
+                    }}
+                    className="text-[10px] font-mono text-white hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    {copiedPinned ? (
+                      <Check className="w-3 h-3 text-emerald-400" />
+                    ) : (
+                      <Copy className="w-3 h-3" />
+                    )}
+                    {copiedPinned ? "Skopiowano!" : "Kopiuj komentarz"}
+                  </button>
+                </div>
+                <p className="text-[11px] font-mono text-neutral-400 whitespace-pre-line leading-relaxed">
+                  {pinned}
+                </p>
+                <p className="text-[9px] font-mono text-neutral-600 leading-relaxed">
+                  Komentarze są jedyną rzeczą, którą konto poniżej 10k obserwujących uzbiera bez
+                  zasięgu. Wklej to i przypnij zaraz po publikacji.
+                </p>
+              </div>
+            );
+          })()}
 
           <div className="flex items-center justify-between pt-1">
             {savedSuccess ? (

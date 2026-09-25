@@ -23,6 +23,35 @@ export const STARK_CTAS: readonly string[] = [
 /** Domyślna, gdy nic nie trafimy: wciąż nasza, wciąż bez żebrania o engagement. */
 export const STARK_CTA = STARK_CTAS[0];
 
+/**
+ * Pytanie do przypiętego komentarza.
+ *
+ * Komentarze są jedyną walutą, którą konto poniżej 10k obserwujących może
+ * wygenerować bez zasięgu: algorytm czyta je jako sygnał, a widz, który
+ * odpowiedział jednym zdaniem, wraca na post częściej niż ten, co tylko
+ * scrollnął. Pytanie ma być konkretne i jedno — „what do you think?" nie
+ * odpowiada nikt.
+ */
+export const STARK_QUESTIONS: readonly string[] = [
+  "Which of these did you do this week?",
+  "What changes if you do the first one tomorrow at the same hour?",
+  "Which line is the one you keep avoiding?",
+  "What is the version of this you keep postponing?",
+  "Which number hits closest?",
+];
+
+/**
+ * Treść przypięta pod postem: pierwsze zdanie materiału (kontekst, nie
+ * powtórka opisu) plus jedno pytanie. Rotacja po treści, nie po losie —
+ * ten sam post daje ten sam komentarz.
+ */
+export function starkPinned(hook: string, lines: readonly string[] = []): string {
+  const clean = (value: string) => value.replace(/[*#"]/g, "").trim();
+  const first = lines.map(clean).find(Boolean) ?? clean(hook);
+  const question = STARK_QUESTIONS[hashKey(`${hook}|${first}`) % STARK_QUESTIONS.length];
+  return `${clean(first)}\n\n${question}`;
+}
+
 const BRAND_HASHTAG = "#starkfocus";
 
 /**

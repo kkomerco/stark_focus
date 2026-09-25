@@ -1,6 +1,6 @@
 import { drawMinimalBlackQuoteSlide } from "./canvasRenderer";
 import { Post } from "../types";
-import { STARK_CTA, starkHashtags } from "../lib/caption";
+import { STARK_CTA, starkHashtags, starkPinned } from "../lib/caption";
 
 /**
  * PAKIET NA PLATFORMY.
@@ -137,6 +137,11 @@ ${altTextFor(main)}
       );
       files++;
     }
+
+    // Komentarz przypięty to osobny plik, nie dopisek do opisu: wkleja się go
+    // po publikacji, a bez niego dyskusja pod postem zaczyna się od zera.
+    folder.file("komentarz-przypieity.txt", starkPinned(post.title, [main, sub]));
+    files++;
   }
 
   const readme = [
@@ -148,6 +153,8 @@ ${altTextFor(main)}
     ...PLATFORMS.map(
       (p) => `  opis-${p.id}.txt      — opis zmieszczony w limicie ${p.captionLimit} znaków`,
     ),
+    "  komentarz-przypieity.txt — wklej i przypnij zaraz po publikacji;",
+    "  to jedyny komentarz, który i tak przeczyta każdy, kto otworzy wątek.",
     "",
     "Kadr 9:16 to grafik do rolek; rolkę wideo pobierasz osobno ze studia.",
     "Każdy opis ma sekcję ALT TEXT — wklej ją przy publikacji; platformy",
