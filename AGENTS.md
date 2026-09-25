@@ -39,12 +39,6 @@
 - Treść wchodzi do układu przez `src/utils/frameFit.ts` (`fitFrame`), nie przez domyślny cytat: radar, paczka dnia i strumień pomysłów oddają studio to, co model już napisał (fazy, kroki, kontrast, liczba), a figura wynika z kształtu tej treści.
 - Tło kadru liczy `src/utils/backgroundPicker.ts`: treść → scena semantyczna (`pickBroll`) → pula kategorii → ujęcie po odcisku tekstu. Nigdy nie bierz tła z bazy szablonu ani z `CINEMATIC_BROLL_LIBRARY[0]` — to dawало „jedno sugerowane ujęcie dla wszystkiego".
 - Bank treści na wyjściu jest zakazany także w stopce: `formatStarkCaption(hook, lines)` dostaje zdania z materiału, a bez nich wypisuje tylko tezę, wezwanie i hashtagi. Dawniej domyślnym body był stały trójwers „zasad" i każdy post bez opisu od modelu miał identyczny opis.
-
-## Uruchamianie
-
-- `npm run dev` → `tsx server.ts`: API + middleware Vite na `HOST:PORT` (domyślnie `127.0.0.1:3000`).
-- `npm start` → `node dist/server.cjs --prod`: ten sam proces, ale serwuje `dist/`. Flaga `--prod` jest jedynym przełącznikiem — `NODE_ENV` nic tu nie znaczy. Import `vite` jest leniwy, więc build produkcyjny nie wymaga tej zależności.
-- `HOST=0.0.0.0` wystawia API bez uwierzytelnienia na całą sieć lokalną. Świadomie nie ma tokenu API, dopóki UI nie ma wspólnego wrapperka `fetch`.
 - Maska (@stark_focus) mieszka w `src/utils/character/`: `rig.ts` to szkielet z kątami stawowymi (pozy to NIE osobne rysunki), `poses.ts` to pozy i scenki. Poza i scenka są liczona z treści (`pickPose`, `pickScene`) — tak jak układ kadru i tło. Rysunek stosuje zasadę „fill then stroke" (kształt zamalowany tłem przed obrysem) i kotwiczy się od NAJNIŻSZEGO punktu rysu (`figureBounds`), bo sztywna reguła „stopy na dole" wypycha siedzącego za kadr.
 - Kadry liczbowe (`life_grid`, `time_audit`) biorą liczbę z `layoutData` (geometria siatki), a zdania z `textLayers`. Krok siatki liczy się ze SZEROKOŚCI kadru, duża liczba przechodzi przez `fitLines` — inaczej albo siatka zwęża się do słupeczka, albo „41 HOURS" wychodzi za krawędzie.
 - Animacja rolki to czyste funkcje w `video/reelLayout.ts` (`wordStagger`, `wordRise`, `easedReveal`, `quantizeToFps`) — malarski słupek je tylko zużywa. Tło kwantujemy do 12 fps, TEKST nigdy: klatkowanie litery przenosi ją z linii bazowej.
@@ -52,3 +46,13 @@
 - Numer edycji liczy `src/lib/series.ts` z tego, co realnie powstało (posty + dziennik). Stopka kadru i opis biorą `seriesLine`/`seriesCaption`, nie własny napis.
 - Cudzy cytat: `src/lib/quotes.ts`. Zdanie trafia do UI tylko jeśli występuje w transkrypcie słowo w słowo (`isVerbatim`) i ma podpis (`attributionLine`). Nie pobieramy ani nie publikujemy cudzego audio/wideo — recykling materiału jest od 30.04.2026 karany w rekomendacjach, a sfałszowany cytat przypisany żywej osobie kosztuje więcej niż cały zasięg posta.
 - Komentarz przypięty to osobny artefakt (`starkPinned`, plik `komentarz-przypieity.txt` w pakiecie, przycisk w studiu posta), nie dopisek do opisu.
+
+## Uruchamianie
+
+
+
+- `npm run dev` → `tsx server.ts`: API + middleware Vite na `HOST:PORT` (domyślnie `127.0.0.1:3000`).
+
+- `npm start` → `node dist/server.cjs --prod`: ten sam proces, ale serwuje `dist/`. Flaga `--prod` jest jedynym przełącznikiem — `NODE_ENV` nic tu nie znaczy. Import `vite` jest leniwy, więc build produkcyjny nie wymaga tej zależności.
+
+- `HOST=0.0.0.0` wystawia API bez uwierzytelnienia na całą sieć lokalną. Świadomie nie ma tokenu API, dopóki UI nie ma wspólnego wrapperka `fetch`.
