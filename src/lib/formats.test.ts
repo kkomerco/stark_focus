@@ -9,7 +9,9 @@ describe("FRAME_FORMATS", () => {
       assert.ok(format, `${grid} nie ma formatu`);
       const numbers = format.fields.filter((field) => field.number);
       assert.equal(numbers.length, 1, `${grid}: liczba ma być jedna`);
-      assert.ok(numbers[0].number.min < numbers[0].number.max);
+      const range = numbers[0]?.number;
+      assert.ok(range, `${grid}: pole liczbowe bez zakresu`);
+      assert.ok(range.min < range.max, `${grid}: zakres odwrócony`);
     }
   });
 
