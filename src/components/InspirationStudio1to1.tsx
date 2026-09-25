@@ -46,6 +46,8 @@ interface InspirationStudioProps {
   onSendToReel?: (text: string) => void;
   /** Odciski treści, która już poszła — generatory mają jej nie powtarzać. */
   usedHooks?: string[];
+  /** Nasze zdania o najlepszym wyniku — wzorzec rytmu dla modelu. */
+  exemplarHooks?: string[];
 }
 
 export interface StoicSaying {
@@ -273,6 +275,7 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
   initialSpec,
   onSendToReel,
   usedHooks = [],
+  exemplarHooks = [],
 }) => {
   // Format proporcji: wyłącznie wertykalny 9:16 (1080x1920 PX)
   const aspectRatio = "9:16" as const;
@@ -564,6 +567,7 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
           shape,
           count: 5,
           excludeHooks: usedHooks,
+          exemplars: exemplarHooks,
         }),
       });
       const data = await res.json();

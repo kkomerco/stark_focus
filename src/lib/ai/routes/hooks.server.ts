@@ -4,6 +4,7 @@ import { asArray, asNumber, asString, sendDegraded } from "../normalize.server";
 import { clampInt, clampText, clampTextList } from "../../limits";
 import {
   HOOK_ARCHETYPES,
+  exemplarBlock,
   HOOK_IDEAL_WORDS,
   HOOK_REGISTER,
   SLOP_BAN_LIST,
@@ -37,8 +38,11 @@ export function buildHookPrompt(options: {
   shape: string;
   exclude: string[];
   count: number;
+  /** Nasze zdania, które najwięcej zarobiły — wzorzec rytmu, nie temat do powtórzenia. */
+  exemplars?: string[];
 }): string {
-  const { topic, shape, exclude } = options;
+  const { topic, shape, exclude, exemplars = [] } = options;
+  const exemplar = exemplarBlock(exemplars);
   return `Jesteś głównym autorem tekstu marki @stark_focus (brutalny stoicyzm, dyscyplina, wysokie standardy, zero kompromisów).
 
 TEMAT: "${topic}".
@@ -50,6 +54,7 @@ FIGURY DO UŻYCIA (wybieraj świadomie, podaj id w polu "archetype"):
 ${ARCHETYPE_TABLE}
 
 REJESTR: ${HOOK_REGISTER}
+${exemplar}
 
 ZAKAZY: ${SLOP_BAN_LIST}
 Podmiot zdania musi dać się sfotografować: rzecz, gest, liczba, człowiek.
@@ -139,6 +144,7 @@ export function registerHookRoutes(app: MiniApp): void {
     const shape = clampText(req.body?.shape, 200);
     const count = clampInt(req.body?.count, 1, 10, 5);
     const exclude = clampTextList(req.body?.excludeHooks);
+    const exemplars = clampTextList(req.body?.exemplars).slice(0, 8);
 
     if (!getGeminiClient()) {
       return sendDegraded(res, {
@@ -150,7 +156,7 @@ export function registerHookRoutes(app: MiniApp): void {
 
     try {
       const parsed = await generateJsonWithFallback({
-        contents: buildHookPrompt({ topic, shape, exclude, count }),
+        contents: buildHookPrompt({ topic, shape, exclude, count, exemplars }),
         temperature: 1.0,
       });
       const { candidates, rejected } = rankHookCandidates(parsed?.candidates, exclude, count);

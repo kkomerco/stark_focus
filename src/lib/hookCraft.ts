@@ -255,6 +255,24 @@ export const HOOK_ARCHETYPES: HookArchetype[] = [
   },
 ];
 
+/**
+ * Wzorce z dziennika publikacji wklejane w prompt. Few-shot na własnych
+ * zdaniach, które najwięcej zarobiły, bije few-shot na cytatach Marka
+ * Aureliusza: model nie uczy się wtedy rytmu marki, tylko łaciny i pompy.
+ */
+export function exemplarBlock(hooks: string[]): string {
+  if (hooks.length === 0) return "";
+  const lines = hooks
+    .slice(0, 8)
+    .map((hook) => `- ${hook}`)
+    .join("\n");
+  return (
+    "WZORCE - to sa nasze zdania, ktore najwiecej zarobily. Trzymaj ich rytm i gestosc,\n" +
+    "ale NIE kopiuj z nich slow:\n" +
+    lines
+  );
+}
+
 /** Rejestr, nie nastrój: „koronerski raport” daje lepszy tekst niż „mrocznie i mocno”. */
 export const HOOK_REGISTER =
   "Register: a coroner's report, a debt notice, a field manual. Flat, exact, unsentimental. No preaching, no cheering.";

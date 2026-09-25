@@ -96,6 +96,42 @@ export function publishedHookFingerprints(items: { hook: string }[]): string[] {
   return items.map((item) => hookFingerprint(item.hook));
 }
 
+/**
+ * Własne wzorce do wklejenia w prompt. Few-shot na zdaniach, które u nas
+ * zadziałały, bije few-shot na cytatach Marka Aureliusza: model nie uczy się
+ * wtedy rytmu marki, tylko łaciny i pompy.
+ *
+ * Bez metryk nie ma wzorca — stąd próg zasięgu. Poniżej niego nie wiemy, czy
+ * zdanie było dobre, czy po prostu nikt go nie zobaczył.
+ */
+export const EXEMPLAR_MIN_REACH = 500;
+
+export function topPublishedHooks(items: PublishedItem[], limit = 6): string[] {
+  const scored = items
+    .filter((item) => (item.metrics?.reach ?? 0) >= EXEMPLAR_MIN_REACH)
+    .map((item) => {
+      const reach = item.metrics?.reach ?? 1;
+      const sharesPerK = ((item.metrics?.shares ?? 0) / reach) * 1000;
+      const savesPerK = ((item.metrics?.saves ?? 0) / reach) * 1000;
+      return {
+        hook: item.hook,
+        score: sharesPerK * 2 + savesPerK + (item.metrics?.hold3s ?? 0) / 10,
+      };
+    })
+    .sort((a, b) => b.score - a.score);
+
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const entry of scored) {
+    const fp = hookFingerprint(entry.hook);
+    if (seen.has(fp)) continue;
+    seen.add(fp);
+    out.push(entry.hook);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
 export interface FormatStat {
   key: string;
   kind: PublishKind;

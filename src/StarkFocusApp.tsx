@@ -24,6 +24,7 @@ import {
 } from "./types";
 import { specFromIdea } from "./utils/ideaLayout";
 import { usedHookFingerprints } from "./lib/usedContent";
+import { topPublishedHooks } from "./lib/published";
 import { DataBar } from "./components/DataBar";
 import { loadStoredData, normalizePlannerTasks, saveStoredData } from "./utils/storage";
 import { useIdeaStream } from "./hooks/useIdeaStream";
@@ -134,6 +135,9 @@ export default function StarkFocusApp() {
   // Jedna lista na wszystkie generatory: to, co już wyszło z aplikacji.
   // Memoizowana, bo każdy generator trzyma ją w zależnościach efektu.
   const usedHooks = useMemo(() => usedHookFingerprints(data), [data]);
+  // Wzorce idą do promptu dopiero, gdy dziennik ma co pokazać: bez metryk
+  // „najlepsze zdanie" jest zgadywanką.
+  const exemplarHooks = useMemo(() => topPublishedHooks(data.published ?? []), [data.published]);
 
   const handleSavePostFrom1to1 = (post: any) => {
     const newPost: Post = {
@@ -340,6 +344,7 @@ export default function StarkFocusApp() {
                 initialSpec={postPreset.spec}
                 onSendToReel={handleSendToReel}
                 usedHooks={usedHooks}
+                exemplarHooks={exemplarHooks}
               />
             )}
             {activeTab === 1 && (
@@ -398,6 +403,7 @@ export default function StarkFocusApp() {
             }}
             onSchedulePack={handleSchedulePack}
             usedHooks={usedHooks}
+            exemplarHooks={exemplarHooks}
           />
         )}
         {ideaStreamOpen && (

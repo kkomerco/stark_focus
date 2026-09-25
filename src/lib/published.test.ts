@@ -7,6 +7,7 @@ import {
   normalizePublished,
   publishedHookFingerprints,
   statsByFormat,
+  topPublishedHooks,
 } from "./published";
 import type { PublishedItem } from "../types";
 
@@ -113,6 +114,31 @@ describe("ledgerVerdict", () => {
     assert.equal(verdict.conclusive, true);
     assert.match(verdict.headline, /three_phases/);
     assert.match(verdict.detail, /przytrzymanie/);
+  });
+});
+
+describe("topPublishedHooks", () => {
+  it("bierze tylko zdania z mierzalnym zasiegiem", () => {
+    assert.deepEqual(
+      topPublishedHooks([entry({ metrics: { reach: 120, shares: 40 } })]),
+      [],
+      "120 odbiorcow to za malo, mowic o 'najlepiej zarabiajacym'",
+    );
+  });
+
+  it("stawia na wysylki, nie na lajki", () => {
+    const likes = entry({
+      id: "l",
+      hook: "You rehearse the excuses, not the work.",
+      metrics: { reach: 5000, likes: 900, shares: 2 },
+    });
+    const sends = entry({
+      id: "s",
+      hook: "Rust works while you sleep.",
+      metrics: { reach: 5000, likes: 40, shares: 120 },
+    });
+
+    assert.deepEqual(topPublishedHooks([likes, sends]), [sends.hook, likes.hook]);
   });
 });
 

@@ -6,7 +6,7 @@ import { getRandomBackgroundScene } from "../../../data/expandedBackgrounds";
 import { hookFingerprint } from "../../similarity";
 import { pick, pickForDay, shuffle } from "../../random";
 import { clampInt, clampText, LIMITS } from "../../limits";
-import { HOOK_CRAFT_PROMPT } from "../../hookCraft";
+import { HOOK_CRAFT_PROMPT, exemplarBlock } from "../../hookCraft";
 import { asArray, asString, asStringArray, oneOf } from "../normalize.server";
 import { STARK_CTA, starkHashtags } from "../../caption";
 
@@ -116,6 +116,10 @@ export function registerDailyPackRoutes(app: MiniApp): void {
       .map((hook: unknown) => asString(hook))
       .filter(Boolean)
       .slice(0, LIMITS.maxExcludeHooks);
+    const exemplars = (Array.isArray(req.body?.exemplars) ? req.body.exemplars : [])
+      .map((hook: unknown) => asString(hook))
+      .filter(Boolean)
+      .slice(0, 8);
 
     if (!getGeminiClient()) {
       return res.json(buildOfflinePack(topic, reelsCount, safeExclude));
@@ -143,6 +147,7 @@ ${
    - hook: bezwzględny hook 0-3s po angielsku (max 8 słów, konkret, zero lania wody)
 
 ${HOOK_CRAFT_PROMPT}
+${exemplarBlock(exemplars)}
    - phrases: dokładnie 3 frazy po angielsku [hook, bolesny kontrast, puenta/climax]
    - theme: jeden z: "obsidian_void" | "crimson_eclipse" | "emerald_abyss" | "carbon_aura" | "silver_mist"
    - duration: liczba sekund 7-10
