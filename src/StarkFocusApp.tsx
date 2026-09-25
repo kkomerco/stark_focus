@@ -9,6 +9,7 @@ import {
   Link2,
   TestTubes,
   Rocket,
+  Quote,
   Image as ImageIcon,
   BarChart3,
 } from "lucide-react";
@@ -56,6 +57,9 @@ const AutopilotModal = lazy(() =>
 );
 const PromptLibraryModal = lazy(() =>
   import("./components/PromptLibraryModal").then((m) => ({ default: m.PromptLibraryModal })),
+);
+const ClipMinerModal = lazy(() =>
+  import("./components/ClipMinerModal").then((m) => ({ default: m.ClipMinerModal })),
 );
 
 const QRModal = lazy(() => import("./components/QRModal").then((m) => ({ default: m.QRModal })));
@@ -114,6 +118,7 @@ export default function StarkFocusApp() {
   const [abOpen, setAbOpen] = useState(false);
   const [autopilotOpen, setAutopilotOpen] = useState(false);
   const [promptLibOpen, setPromptLibOpen] = useState(false);
+  const [clipOpen, setClipOpen] = useState(false);
   const [ledgerOpen, setLedgerOpen] = useState(false);
 
   const [qrModal, setQrModal] = useState<{ isOpen: boolean; title: string; data: string }>({
@@ -205,6 +210,7 @@ export default function StarkFocusApp() {
     { label: "Publikacje", icon: BarChart3, open: () => setLedgerOpen(true) },
     { label: "Autopilot", icon: Rocket, open: () => setAutopilotOpen(true) },
     { label: "Prompty tła", icon: ImageIcon, open: () => setPromptLibOpen(true) },
+    { label: "Cytaty z transkryptu", icon: Quote, open: () => setClipOpen(true) },
   ];
 
   return (
@@ -395,6 +401,13 @@ export default function StarkFocusApp() {
             onClose={() => setPromptLibOpen(false)}
             data={data}
             onUpdateData={handleUpdateData}
+          />
+        )}
+        {clipOpen && (
+          <ClipMinerModal
+            isOpen={clipOpen}
+            onClose={() => setClipOpen(false)}
+            onSendToPost={handleSendToPost}
           />
         )}
       </Suspense>

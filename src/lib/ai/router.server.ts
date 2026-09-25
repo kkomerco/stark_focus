@@ -14,6 +14,7 @@ import { registerBatchRoutes } from "./routes/batch.server";
 import { registerBackgroundRoutes } from "./routes/backgrounds.server";
 import { registerHookRoutes } from "./routes/hooks.server";
 import { registerFrameRoutes } from "./routes/frames.server";
+import { registerClipRoutes } from "./routes/clips.server";
 
 // Cache odpowiedzi AI (identyczne zapytanie = ta sama odpowiedz)
 const aiCache = createTtlCache<{ body: string; contentType: string }>({
@@ -46,6 +47,9 @@ registerBackgroundRoutes(app);
 registerHookRoutes(app);
 // Też poza cache'em: kadr ma się dać wypełnić ponownie tym samym kliknięciem.
 registerFrameRoutes(app);
+// Cytaty z transkryptu: ten sam transkrypt ma oddawać ten sam wybór, ale
+// kliknięcie po edycji tekstu nie może dostać starej odpowiedzi.
+registerClipRoutes(app);
 
 /**
  * Cache zostaje tylko tam, gdzie identyczne zapytanie MA znaczyć identyczną
