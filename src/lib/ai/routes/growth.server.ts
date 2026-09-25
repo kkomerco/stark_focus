@@ -33,6 +33,20 @@ const WEEK_CATEGORIES = [
 
 const DAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"] as const;
 
+/**
+ * Tydzień nie jest siedmioma rolkami. Rolka robi zasięg, karuzela robi zapisy
+ * (a zapis najtaniej utrzymuje post w obiegu), a spokojny kadr 1:1 podtrzymuje
+ * markę między nimi. Dwie publikacje dziennie „żeby nadrobić spadający zasięg"
+ * działają przeciwnie — liczy się stałość, nie wolumen.
+ */
+const WEEK_FORMATS = ["reel", "carousel", "reel", "post", "reel", "carousel", "reel"] as const;
+
+const FORMAT_LABELS: Record<(typeof WEEK_FORMATS)[number], string> = {
+  reel: "Rolka (zasięg)",
+  carousel: "Karuzela (zapisy)",
+  post: "Kadr 1:1 (marka)",
+};
+
 export function registerGrowthRoutes(app: MiniApp): void {
   // ============ A/B WARIANTY TEJ SAMEJ ROLKI ============
   app.post("/api/ai/ab-variants", async (req, res) => {
@@ -301,6 +315,8 @@ W 2-3 zdaniach po polsku wyciągnij LEKCJĘ: co faktycznie zmierzono i jak to st
         week: DAYS.map((day, idx) => ({
           day,
           dayIndex: idx,
+          format: WEEK_FORMATS[idx % WEEK_FORMATS.length],
+          formatLabel: FORMAT_LABELS[WEEK_FORMATS[idx % WEEK_FORMATS.length]],
           category: WEEK_CATEGORIES[idx % WEEK_CATEGORIES.length],
           topic: `${WEEK_CATEGORIES[idx % WEEK_CATEGORIES.length]} — dark motivation for @stark_focus`,
         })),
@@ -309,13 +325,18 @@ W 2-3 zdaniach po polsku wyciągnij LEKCJĘ: co faktycznie zmierzono i jak to st
 
     try {
       const prompt = `Jesteś strategiem treści dark motivation dla @stark_focus.
-Zaplanuj TYDZIEŃ (7 dni) publikacji. Każdy dzień ma przypisaną kategorię:
+Zaplanuj TYDZIEŃ (7 dni) publikacji. Każdy dzień ma przypisaną kategorię i format:
+
+Formaty po kolei: ${WEEK_FORMATS.map((f) => FORMAT_LABELS[f]).join(" · ")}.
+JEDNA publikacja dziennie, w formacie przypisanym do dnia. Nie dokładamy drugiej
+„żeby nadrobić spadający zasięg" — stałość bije wolumen, a mieszanka formatów
+rośnie szybciej niż tydzień samych rolek.
 ${DAYS.map((d, i) => `- ${d}: ${WEEK_CATEGORIES[i]}`).join("\n")}
 
 Dla każdego dnia zwróć:
 - topic: temat dnia po angielsku, pod kategorię
 - hookOfDay: główny hook dnia, max 8 słów, po angielsku
-- plan: 1 zdanie po polsku — jaka rolka rano, jaka wieczorem
+- plan: 1 zdanie po polsku — co dokładnie wychodzi tego dnia w przypisanym formacie
 
 Zwróć WYŁĄCZNIE JSON:
 { "week": [ { "day": "MON", "category": "...", "topic": "...", "hookOfDay": "...", "plan": "..." } ] }`;
@@ -335,6 +356,8 @@ Zwróć WYŁĄCZNIE JSON:
         week: week.map((d: any, idx: number) => ({
           day: DAYS[idx],
           dayIndex: idx,
+          format: WEEK_FORMATS[idx % WEEK_FORMATS.length],
+          formatLabel: FORMAT_LABELS[WEEK_FORMATS[idx % WEEK_FORMATS.length]],
           category: WEEK_CATEGORIES[idx % WEEK_CATEGORIES.length],
           topic: String(d.topic || WEEK_CATEGORIES[idx]),
           hookOfDay: String(d.hookOfDay || "")
@@ -351,6 +374,8 @@ Zwróć WYŁĄCZNIE JSON:
         week: DAYS.map((day, idx) => ({
           day,
           dayIndex: idx,
+          format: WEEK_FORMATS[idx % WEEK_FORMATS.length],
+          formatLabel: FORMAT_LABELS[WEEK_FORMATS[idx % WEEK_FORMATS.length]],
           category: WEEK_CATEGORIES[idx % WEEK_CATEGORIES.length],
           topic: WEEK_CATEGORIES[idx % WEEK_CATEGORIES.length],
         })),

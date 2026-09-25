@@ -33,6 +33,9 @@ interface DayPlan {
   day: string;
   dayIndex: number;
   category: string;
+  /** Format przydzielony dniu przez route — tydzień to nie siedem rolek. */
+  format?: "reel" | "carousel" | "post";
+  formatLabel?: string;
   topic: string;
   hookOfDay?: string;
   plan?: string;
@@ -109,7 +112,7 @@ export const AutopilotModal: React.FC<AutopilotModalProps> = ({
       "SCHEMAT TYGODNIA:",
       ...allPacks.map(
         (p) =>
-          `${p.day} (${DAY_PL[p.dayIndex]}) — ${p.category}\n  ${p.plan || ""}\n  Hook dnia: ${p.hookOfDay || p.reels[0]?.hook || ""}`,
+          `${p.day} (${DAY_PL[p.dayIndex]}) — ${p.category} · ${p.formatLabel || "rolka"}\n  ${p.plan || ""}\n  Hook dnia: ${p.hookOfDay || p.reels[0]?.hook || ""}`,
       ),
       "",
       "STRUKTURA: <DZIEN>/<GODZINA_TRESC>/  ->12-00_ROLKA-1 | 14-00_KARUZELA | 15-00_ROLKA-2 | 18-00_POST-1-1",
@@ -344,6 +347,9 @@ export const AutopilotModal: React.FC<AutopilotModalProps> = ({
                   </div>
                   <div className="text-[8px] font-mono text-slate-500 truncate">
                     {p.category.split(" ")[0]}
+                  </div>
+                  <div className="text-[8px] font-mono text-rose-300/80 truncate">
+                    {p.format === "carousel" ? "karuzela" : p.format === "post" ? "kadr" : "rolka"}
                   </div>
                 </div>
               ))}
