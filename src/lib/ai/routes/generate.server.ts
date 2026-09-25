@@ -166,7 +166,6 @@ ${HOOK_CRAFT_PROMPT}
     "phrases": ["phrase 1"${count > 1 ? ', "phrase 2"' : ""}${count > 2 ? ', "phrase 3"' : ""}${count > 3 ? ', "phrase 4"' : ""}],
     "captionShort": "Viral short Instagram/TikTok caption (independent insight, 1-2 sentences)",
     "captionDeep": "Deep Instagram caption with independent opening hook, 3 actionable protocols, and CTA",
-    "hashtags": ["#stoicism", "#discipline", "#focus", "#mindset", "#starkfocus"],
     "suggestedTheme": "obsidian_void",
     "suggestedBackground": "Descriptive visual scene name",
     "backgroundRationale": "Reason why this background fits the reel",
@@ -217,10 +216,8 @@ ${HOOK_CRAFT_PROMPT}
                 "Do the hardest task first.",
                 "Hold your standard in secret.",
               ]),
-            hashtags:
-              Array.isArray(parsed.hashtags) && parsed.hashtags.length > 0
-                ? parsed.hashtags
-                : starkHashtags(Array.isArray(parsed.phrases) ? parsed.phrases.join(" ") : ""),
+            // Hashtagi liczymy z fraz rolki — nigdy od modelu.
+            hashtags: starkHashtags(Array.isArray(parsed.phrases) ? parsed.phrases.join(" ") : ""),
             suggestedTheme: parsed.suggestedTheme || randomTheme,
             suggestedBackground: parsed.suggestedBackground || "Marmurowy Posąg Stoika w Cieniu",
             backgroundRationale:
@@ -244,7 +241,7 @@ ${HOOK_CRAFT_PROMPT}
       phrases: matrixItem.phrases,
       captionShort: matrixItem.captionShort,
       captionDeep: matrixItem.captionDeep,
-      hashtags: matrixItem.hashtags,
+      hashtags: starkHashtags(matrixItem.phrases.join(" ")),
       suggestedTheme: matrixItem.suggestedTheme,
       suggestedDuration: matrixItem.suggestedDuration,
       suggestedBackground: matrixItem.suggestedBackground,
@@ -254,7 +251,7 @@ ${HOOK_CRAFT_PROMPT}
         phrases: matrixItem.phrases,
         captionShort: matrixItem.captionShort,
         captionDeep: matrixItem.captionDeep,
-        hashtags: matrixItem.hashtags,
+        hashtags: starkHashtags(matrixItem.phrases.join(" ")),
         suggestedBackground: matrixItem.suggestedBackground,
         backgroundRationale: matrixItem.backgroundRationale,
       }),

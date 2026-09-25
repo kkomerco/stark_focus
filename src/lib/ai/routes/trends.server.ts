@@ -24,7 +24,8 @@ function normalizeCard(card: unknown) {
     ...item,
     phrases: phrases.length > 0 ? phrases : hook ? [hook] : [],
     caption: starkCaption(hook, asString(item.caption)),
-    hashtags: starkHashtags(hook),
+    // Hashtagi liczymy z treści: własny ogon modelu rozbija spójność feedu.
+    hashtags: starkHashtags(hook + " " + phrases.join(" ")),
   };
 }
 
@@ -144,8 +145,7 @@ export function registerTrendsRoutes(app: MiniApp): void {
         "copy_draft": {
           "hook": "Hook (EN)",
           "supportingText": "Podtytuł (EN)",
-          "caption": "Pełny opis pod post z hashtagami (EN)",
-          "hashtags": ["#stoicism", "#discipline", "#focus"]
+          "caption": "Pełny opis pod post (EN), bez hashtagów — ogon doklejamy u siebie"
         }
       }
     ]

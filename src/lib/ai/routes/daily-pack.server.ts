@@ -37,7 +37,9 @@ function normalizeReel(item: unknown) {
     theme: oneOf(reel.theme, REEL_THEMES, "obsidian_void"),
     duration: clampInt(reel.duration, 5, 15, 8),
     captionShort: asString(reel.captionShort),
-    hashtags: asStringArray(reel.hashtags, 12),
+    // Hashtagi liczymy z tego, co jest na kadrze. Model niech ich nie prosi:
+    // każdy własny zestaw to inny ogon pod kolejnym postem tego samego konta.
+    hashtags: starkHashtags((hook + " " + phrases.join(" ")).trim()),
   };
 }
 
@@ -69,7 +71,7 @@ function buildOfflinePack(topic: string, reelsCount: number, excludeHooks: strin
       theme: template.suggestedTheme,
       duration: template.suggestedDuration,
       captionShort: template.captionShort,
-      hashtags: template.hashtags,
+      hashtags: starkHashtags(template.phrases.join(" ")),
     }));
 
   const rule = pick(STARK_CODEX_RULES);
@@ -152,7 +154,6 @@ ${exemplarBlock(exemplars)}
    - theme: jeden z: "obsidian_void" | "crimson_eclipse" | "emerald_abyss" | "carbon_aura" | "silver_mist"
    - duration: liczba sekund 7-10
    - captionShort: krótki opis po angielsku (max 2 linie, z CTA "Save this")
-   - hashtags: 5 hashtagów z miksu: #darkmotivation #discipline #hardwork #mindset + 1 niszowy
 2. Karuzela 4:5: title + 8 slajdów {headline, bodyText} (sedno w 7-9; karuzele z ośmioma slajdami zbierają kilkakrotnie więcej zapisów niż pięciosekundowe rolki, a zapis jest walutą karuzeli). bodyText to 2-3 zdania po angielsku (25-40 słów): najpierw bolesna obserwacja, potem konkret, na koniec cena za jej brak. Jedno zdanie na slajd nie zatrzymuje czytelnika.
 3. Grafika 1:1: {headline, body, bingPrompt} — bingPrompt po angielsku do generatora obrazów (ciemne, brutalistyczne, minimalistyczne tło, 1:1, bez tekstu, moody lighting)
 
@@ -166,7 +167,6 @@ Zwróć WYŁĄCZNIE poprawny JSON wg schematu:
       "theme": "obsidian_void",
       "duration": 8,
       "captionShort": "string",
-      "hashtags": ["#string", "#string", "#string", "#string", "#string"]
     }
   ],
   "carousel": {
