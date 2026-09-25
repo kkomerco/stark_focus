@@ -2,6 +2,7 @@
 // Auto-dobór klipu B-Roll z biblioteki na podstawie treści (keywords) i motywu (theme).
 // Działa zarówno po stronie klienta jak i serwera (brak zależności DOM).
 import { CINEMATIC_BROLL_LIBRARY, BrollScene } from "../data/brollLibrary";
+import { hashKey } from "../lib/hash";
 
 export interface BrollMatch {
   scene: BrollScene;
@@ -42,7 +43,7 @@ function describe(match: SceneScore): string {
   const hits = match.matchedKeywords.length + match.matchedTags.length;
   return hits > 0
     ? `Dobrano "${match.scene.name}" na podstawie ${hits} trafień (score ${match.score})`
-    : `Brak trafień — domyślna scena STARK: ${match.scene.name}`;
+    : `Brak trafień w słowach-kluczach — ujęcie po odcisku treści: ${match.scene.name}`;
 }
 
 /**
@@ -66,13 +67,25 @@ export function pickBroll(text: string, theme?: string, excludeIds: string[] = [
   }
 
   const chosen: SceneScore = best ?? {
-    scene: CINEMATIC_BROLL_LIBRARY.find((s) => !excluded.has(s.id)) ?? CINEMATIC_BROLL_LIBRARY[0],
+    scene: fallbackScene(lower, excluded),
     score: 0,
     matchedKeywords: [],
     matchedTags: [],
   };
 
   return { ...chosen, confidenceReason: describe(chosen) };
+}
+
+/**
+ * Bez trafień nie ma „domyślnej sceny STARK": stały default sprawiał, że każda
+ * treść poza słowami-kluczami (np. polski szkic) dostawała to samo ujęcie.
+ * Odcisk tekstu rozbija wybór po bibliotece, więc jest powtarzalny, ale nie
+ * identyczny dla wszystkiego.
+ */
+function fallbackScene(text: string, excluded: Set<string>): BrollScene {
+  const pool = CINEMATIC_BROLL_LIBRARY.filter((scene) => !excluded.has(scene.id));
+  const list = pool.length > 0 ? pool : CINEMATIC_BROLL_LIBRARY;
+  return list[hashKey(text) % list.length];
 }
 
 /** Ranking — top N scen (sortowane po score). Do wyboru potwierdzonego przez AI. */

@@ -5,6 +5,7 @@ import { Check, Download, Loader2, Rocket, X } from "lucide-react";
 import { StarkFocusData, PlannerTask } from "../types";
 import { usedHookFingerprints } from "../lib/usedContent";
 import { pickBroll } from "../utils/brollPicker";
+import { pickBackground } from "../utils/backgroundPicker";
 
 interface AutopilotModalProps {
   isOpen: boolean;
@@ -125,6 +126,7 @@ export const AutopilotModal: React.FC<AutopilotModalProps> = ({
     // więc bez wykluczeń każda rolka z tym samym słowem-kluczem dostawała
     // identyczny B-roll w siedmiu paczkach.
     const usedBroll = new Set<string>();
+    const usedBackgrounds = new Set<string>();
 
     for (const pack of allPacks) {
       const dayFolder = zip.folder(DAY_PL[pack.dayIndex])!;
@@ -134,11 +136,19 @@ export const AutopilotModal: React.FC<AutopilotModalProps> = ({
         const slot = dayFolder.folder(reelSlots[idx])!;
         const broll = pickBroll(reel.hook, reel.theme, [...usedBroll]);
         usedBroll.add(broll.scene.id);
+        // Prompt tła ma być gotowy do wklejenia, nie havełem „Motyw: xyz".
+        const background = pickBackground(reel.phrases?.join(" ") || reel.hook, reel.theme, [
+          ...usedBackgrounds,
+        ]);
+        usedBackgrounds.add(background.scene.id);
         slot.file("HOOK.txt", reel.hook);
         slot.file("FRAZY.txt", reel.phrases.join("\n"));
         slot.file("OPIS.txt", reel.captionShort || "");
         slot.file("HASHTAGI.txt", Array.isArray(reel.hashtags) ? reel.hashtags.join(" ") : "");
-        slot.file("TLO-PROMPT.txt", `Motyw: ${reel.theme}`);
+        slot.file(
+          "TLO-PROMPT.txt",
+          `Ujęcie: ${background.scene.name}\nMotyw: ${background.scene.theme}\n${background.scene.bingPrompt}`,
+        );
         slot.file(
           "B-ROLL.txt",
           `${broll.scene.name}\n${broll.scene.description}\nAtmosfera: ${broll.scene.ambientVibe}`,

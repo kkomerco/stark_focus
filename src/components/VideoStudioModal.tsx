@@ -58,7 +58,7 @@ import {
   parseTokens,
   VISUAL_THEMES,
 } from "./video/reel-helpers";
-import { pickBroll } from "../utils/brollPicker";
+import { pickBackground } from "../utils/backgroundPicker";
 
 interface VideoStudioModalProps {
   onClose?: () => void;
@@ -176,9 +176,12 @@ function formatForPhraseCount(count: number): ViralReelFormat {
 }
 
 /**
- * Bazę (prompt tła, opis-głęboki) bierzemy z pasującego szablonu, ale pola pakietu
- * je nadpisują — inaczej przełącznik „Krótki / Głębszy" cofnąłby opis do tekstu
+ * Bazę (opis-głęboki) bierzemy z pasującego szablonu, ale pola pakietu je
+ * nadpisują — inaczej przełącznik „Krótki / Głębszy" cofnąłby opis do tekstu
  * z biblioteki zamiast tego, co użytkownik wybrał.
+ *
+ * Tło liczmy z treści pakietu, nigdy z bazy szablonu: bez tego każda rolka
+ * z radaru pokazywała „Sugerowane ujęcie" tej samej sceny.
  */
 function pickTemplate(reel?: ReelHandoff): ReelTemplate {
   const matched = findMatchedTemplate(reel);
@@ -186,14 +189,19 @@ function pickTemplate(reel?: ReelHandoff): ReelTemplate {
   if (!reel) return base;
 
   const caption = resolveCaption(reel, matched);
+  const phrases = resolvePhrases(reel);
+  const theme = asReelTheme(reel.theme);
+  const background = pickBackground(phrases.join(" "), theme || undefined);
   return {
     ...base,
-    phrases: resolvePhrases(reel),
+    phrases,
     captionShort: caption,
     captionDeep: caption,
     hashtags: starkHashtags(reel.hook || reel.caption || ""),
-    suggestedTheme: asReelTheme(reel.theme) || base.suggestedTheme,
+    suggestedTheme: theme || background.scene.theme,
     suggestedDuration: asReelDuration(reel.duration) || base.suggestedDuration,
+    suggestedBackground: background.scene.name,
+    backgroundRationale: background.reason,
   };
 }
 
@@ -306,14 +314,9 @@ export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
     setReelFormat(formatForPhraseCount(nextPhrases.length));
     const nextDuration = asReelDuration(reel.duration);
     if (nextDuration) setDuration(nextDuration);
-    const nextTheme = asReelTheme(reel.theme);
-    if (nextTheme) setSelectedTheme(nextTheme);
-    else {
-      // Rolka przyszła gołym tekstem (radar, post, batch) bez motywu. Bez
-      // tego trzymała tło poprzedniej — dobór musi wynikać z jej treści.
-      const scene = pickBroll(nextPhrases.join(" ")).scene;
-      setSelectedTheme((prev) => asReelTheme(scene.suggestedTheme) ?? prev);
-    }
+    // Motyw idzie za wybranym ujęciem, nie za bazą szablonu — dobór tła
+    // zrobił `pickTemplate` na treści pakietu i oba pola muszą się zgadzać.
+    setSelectedTheme(nextTemplate.suggestedTheme);
     setCaption(nextTemplate.captionShort);
     setHashtags(starkHashtags(nextPhrases.join(" ")));
     timeRef.current = 0;
