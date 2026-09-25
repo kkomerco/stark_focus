@@ -5,7 +5,23 @@
  * budowały każdy własny ogon (`#darkmotivation #hardwork…`, `#darkaesthetic…`),
  * przez to feed wyglądał na prowadzony przez kilka osób.
  */
-export const STARK_CTA = "Save this reminder. Execute in silence. Follow @stark_focus.";
+/**
+ * Kilka wersji wezwania do działania, wszystkie nasze.
+ *
+ * Jedno zdanie pod każdym postem wygląda jak stopka generatora, a nie jak
+ * głos autora; platformy od lat tną też żebranie o lajki i komentarze, więc
+ * warianty mówią o konkretnym człowieku po drugiej stronie, nie o metrykach.
+ */
+export const STARK_CTAS: readonly string[] = [
+  "Save this reminder. Execute in silence. Follow @stark_focus.",
+  "Send this to the one person who still asks why you disappeared.",
+  "Keep it for the next morning you do not want to.",
+  "Send it to whoever is starting this over again on Monday.",
+  "Do the first rep before you decide how you feel.",
+];
+
+/** Domyślna, gdy nic nie trafimy: wciąż nasza, wciąż bez żebrania o engagement. */
+export const STARK_CTA = STARK_CTAS[0];
 
 const BRAND_HASHTAG = "#starkfocus";
 
@@ -110,6 +126,12 @@ export const STARK_PRINCIPLES: [string, string, string] = [
   "Silence protects the work; results announce it.",
 ];
 
+/** Ten sam post zawsze dostaje to samo wezwanie — opis nie moze sie zmieniac przy odswiezeniu. */
+export function starkCta(text: string): string {
+  const key = hashKey(text.slice(0, 2000));
+  return STARK_CTAS[key % STARK_CTAS.length];
+}
+
 export function formatStarkCaption(
   hook: string,
   principles: [string, string, string] = STARK_PRINCIPLES,
@@ -122,7 +144,7 @@ export function formatStarkCaption(
     `2. ${principles[1].trim()}\n` +
     `3. ${principles[2].trim()}\n\n` +
     `${directive.trim()}\n\n` +
-    `${STARK_CTA}\n\n` +
+    `${starkCta(hook)}\n\n` +
     starkHashtags(hook).join(" ")
   );
 }
@@ -165,7 +187,7 @@ export function starkCaption(hook: string, modelCaption = ""): string {
   return (
     `${cleanHook ? `${cleanHook}\n\n` : ""}` +
     `${body}\n\n` +
-    `${STARK_CTA}\n\n` +
+    `${starkCta(hook + body)}\n\n` +
     starkHashtags(`${hook} ${body}`).join(" ")
   );
 }

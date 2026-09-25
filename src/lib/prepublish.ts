@@ -9,7 +9,7 @@
  * wie lepiej niż właściciel marki — wie tylko tyle, co wpisaliście w reguły.
  */
 import { auditHook } from "./hookCraft";
-import { isPolishCopy, STARK_CTA } from "./caption";
+import { isPolishCopy, STARK_CTAS } from "./caption";
 
 export interface ChecklistItem {
   id: string;
@@ -121,7 +121,7 @@ export function postChecklist(options: { hook: string; caption: string }): Check
       label: "Wezwanie do działania jest nasze",
       // Ogon to CTA + hashtagi, wiec CTA nie lezy na samym koncu — sprawdza
       // sie jego obecnosc, nie pozycja.
-      ok: options.caption.includes(STARK_CTA),
+      ok: STARK_CTAS.some((cta) => options.caption.includes(cta)),
       hint: "Markowy ogon zamiast własnego — inaczej feed wygląda na prowadzony przez kilka osób.",
     },
   ];

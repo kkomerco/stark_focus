@@ -1,6 +1,13 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { formatStarkCaption, isPolishCopy, starkCaption, starkHashtags } from "./caption";
+import {
+  STARK_CTAS,
+  formatStarkCaption,
+  isPolishCopy,
+  starkCaption,
+  starkCta,
+  starkHashtags,
+} from "./caption";
 
 describe("caption.ts - Stark Focus Caption Formatter", () => {
   it("formats hook in uppercase and removes quotes and markdown", () => {
@@ -45,7 +52,7 @@ describe("caption.ts - Stark Focus Caption Formatter", () => {
   it("always appends the signature call to action and a short hashtag tail", () => {
     const caption = formatStarkCaption("Execution", ["A", "B", "C"]);
 
-    assert.ok(caption.includes("Save this reminder. Execute in silence. Follow @stark_focus."));
+    assert.ok(STARK_CTAS.some((cta) => caption.includes(cta)));
     const tags = caption.trim().split("\n").pop()!.split(" ");
     assert.ok(tags.length <= 5, `Meta ucina powyzszej piatki: ${tags.join(" ")}`);
     assert.ok(tags.includes("#starkfocus"));
@@ -123,5 +130,16 @@ describe("starkCaption", () => {
       formatStarkCaption("Silence speaks."),
     );
     assert.equal(starkCaption("Silence speaks.", ""), formatStarkCaption("Silence speaks."));
+  });
+});
+
+describe("starkCta", () => {
+  it("rotuje wezwanie po tresci posta, ale deterministycznie", () => {
+    const a = "Rust works while you sleep.";
+    const b = "Maybe forty more summers. That is the whole budget.";
+    assert.equal(starkCta(a), starkCta(a));
+    assert.ok(STARK_CTAS.includes(starkCta(a)));
+    assert.ok(STARK_CTAS.includes(starkCta(b)));
+    assert.notEqual(starkCta(a), starkCta(b), "dwa rozne posty nie moga miec identycznej stopki");
   });
 });
