@@ -26,6 +26,7 @@ import {
   drawProtocolListSlide,
 } from "./canvas/layouts-v2";
 import { groupText, layerById, PRIMARY_LAYER_ID } from "./canvas/layerRoles";
+import { MIN_TEXT_PX, floorFor } from "./safeZones";
 
 export type { SlideData };
 
@@ -813,7 +814,7 @@ export function drawMinimalBlackQuoteSlide(
       8,
       (size) => `700 ${size}px ${fontSpec}`,
       Math.round(baseFontSize * textScale),
-      30,
+      MIN_TEXT_PX,
     );
     const mainFontSize = fitted.size;
     const mainLines = fitted.lines;
@@ -836,7 +837,7 @@ export function drawMinimalBlackQuoteSlide(
     // za prawą krawędź kadru.
     let mainFontSize = Math.round((height >= 1800 ? 72 : 60) * textScale);
     ctx.font = `700 ${mainFontSize}px ${fontSpec}`;
-    while (ctx.measureText(cleanMain).width > maxLineWidth && mainFontSize > 34) {
+    while (ctx.measureText(cleanMain).width > maxLineWidth && mainFontSize > MIN_TEXT_PX) {
       mainFontSize -= 2;
       ctx.font = `700 ${mainFontSize}px ${fontSpec}`;
     }
@@ -847,7 +848,7 @@ export function drawMinimalBlackQuoteSlide(
 
     let subFontSize = Math.round((height >= 1800 ? 44 : 36) * textScale);
     ctx.font = `400 ${subFontSize}px ${fontSpec}`;
-    while (ctx.measureText(cleanSub).width > maxLineWidth && subFontSize > 22) {
+    while (ctx.measureText(cleanSub).width > maxLineWidth && subFontSize > 34) {
       subFontSize -= 2;
       ctx.font = `400 ${subFontSize}px ${fontSpec}`;
     }
@@ -1014,7 +1015,8 @@ function drawLayeredTextSlide(
     const rawText = applyCasing(String(layer.text || ""), layer.casing).trim();
     if (!rawText) continue;
 
-    const size = Math.max(18, Math.min(340, Math.round((layer.fontSize || 64) * textScale)));
+    const desired = layer.fontSize || 64;
+    const size = Math.max(floorFor(desired), Math.min(340, Math.round(desired * textScale)));
     const style = layer.fontStyle === "italic" ? "italic " : "";
     ctx.font = `${style}${cssFontWeight(layer.fontWeight)} ${size}px ${getFontFamilySpec(
       layer.fontFamily || "sans",

@@ -25,6 +25,8 @@ import {
 import JSZip from "jszip";
 import { Post, ReelHandoff, VaultAsset } from "../types";
 import { STARK_CTA, starkHashtags } from "../lib/caption";
+import { BRAND_ACCENT } from "../utils/starkBrandTheme";
+import { REEL_SAFE, bandCenter, safeBand } from "../utils/safeZones";
 import { VIRAL_REEL_TEMPLATES, type ReelTemplate } from "../data/reelTemplates";
 import {
   STOIC_CATEGORIES,
@@ -916,8 +918,11 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
       }
 
       // Szerokość tekstu dopasowana do marginesu (1080 * 0.12 = 130px z lewej i prawej => max text width = 820px)
-      const leftMargin = width * 0.12;
-      const maxTextWidth = width - leftMargin * 2;
+      // Jedna zrodlo liczb dla kadra: to samo, po czym rysujemy przewodnik
+      // stref, trzyma teraz tekst i handle.
+      const band = safeBand(height, width, true);
+      const leftMargin = band.side;
+      const maxTextWidth = width - band.side * 2;
 
       // 4. Frazy wchodzą i ZOSTAJĄ. Wcześniej każda gasła po swojej sekundzie,
       // więc trzy zdania zachowywały się jak migawka. Tu bieżąca dojeżdża
@@ -933,8 +938,14 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
         }
         visible = timeline.slice(Math.max(0, active - 2), active + 1).map((item, idx, arr) => ({
           text: item.text,
+          // Pierwszy kadr jest czytelny od zera: decyzja o przewinięciu zapada
+          // po ~1,7 s, a fade-in od zera oznacza czarny ekran w pierwszej sekundzie.
           opacity:
-            idx === arr.length - 1 ? Math.max(0, Math.min(1, (timeSec - item.start) / 0.18)) : 0.28,
+            idx === arr.length - 1
+              ? item.index === 0
+                ? 1
+                : Math.max(0, Math.min(1, (timeSec - item.start) / 0.18))
+              : 0.28,
         }));
       }
 
@@ -961,8 +972,9 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
       ctx.shadowColor = "rgba(0, 0, 0, 0.95)";
       ctx.shadowBlur = 16;
 
-      // Cała kolumna trzyma się środka kadru, ale układa od góry do dołu.
-      let cursorY = height * 0.42 - totalH / 2;
+      // Kolumna trzyma się środka bezpiecznego pasa, nie magicznego 0,42.
+      let cursorY = bandCenter(band) - totalH / 2;
+      let accentUsed = false;
 
       blocks.forEach((block, blockIdx) => {
         const { lines, fontSize, lineHeight } = block.layout;
@@ -970,12 +982,16 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
         // Pomiar i rysowanie na tym samym kroju — inaczej słowa wchodzą na siebie.
         ctx.font = `600 ${fontSize}px ${selectedFont}`;
         const spaceW = ctx.measureText(" ").width;
-        ctx.fillStyle = "#F8FAFC";
 
         lines.forEach((line, lIdx) => {
           const lineY = cursorY + lineHeight / 2 + lIdx * lineHeight;
           let curX = leftMargin;
           line.tokens.forEach((tok) => {
+            // Jeden akcent na kadr: *słowo* w tekście rolki łapie karmazyn,
+            // reszta zostaje kością. Bez tego wyróżniony był cały wers.
+            const accent = tok.isKeyword && !accentUsed;
+            if (accent) accentUsed = true;
+            ctx.fillStyle = accent ? BRAND_ACCENT : "#F8FAFC";
             ctx.fillText(tok.raw, curX, lineY);
             curX += ctx.measureText(tok.raw).width + spaceW;
           });
@@ -986,13 +1002,15 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
 
       ctx.restore();
 
-      // 5. Handle / Nick (@stark_focus) małym drukiem na dole ekranu (ponad strefą opisu)
+      // 5. Handle tuż nad strefą, którą platforma zakrywa opisem i komentarzami.
+      // Wcześniej stał na 0,88 wysokości, czyli dokładnie w pasie oznaczonym
+      // przez nasz własny przewodnik na czerwono.
       ctx.save();
       ctx.font = `400 24px ${selectedFont}`;
       ctx.fillStyle = "rgba(248, 250, 252, 0.45)";
       ctx.textAlign = "left";
       ctx.textBaseline = "middle";
-      ctx.fillText("@stark_focus", leftMargin, height * 0.88);
+      ctx.fillText("@stark_focus", leftMargin, band.bottom - 30);
       ctx.restore();
 
       // 6. ZERO LOOP BAR: Clean monumental canvas.
@@ -1000,39 +1018,62 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
       // 7. Optional TikTok Safe Zone UI overlay (Preview only)
       if (showTikTokGuides && !isExportingRef.current) {
         ctx.save();
-        // Top Danger Zone
+        // Przewodnik rysuje TE same liczby, które trzymają tekst i handle.
+        const scale = height / 1920;
+        const topEdge = Math.round(REEL_SAFE.top * scale);
+        const bottomEdge = band.bottom;
+        const sideEdge = Math.round(REEL_SAFE.side * scale);
+
         ctx.fillStyle = "rgba(239, 68, 68, 0.12)";
-        ctx.fillRect(0, 0, width, 210);
+        ctx.fillRect(0, 0, width, topEdge);
         ctx.strokeStyle = "rgba(239, 68, 68, 0.45)";
         ctx.lineWidth = 2;
         ctx.setLineDash([8, 8]);
         ctx.beginPath();
-        ctx.moveTo(0, 210);
-        ctx.lineTo(width, 210);
+        ctx.moveTo(0, topEdge);
+        ctx.lineTo(width, topEdge);
         ctx.stroke();
 
         ctx.fillStyle = "#F87171";
         ctx.font = "bold 16px monospace";
         ctx.textAlign = "center";
-        ctx.fillText("GÓRNY PASEK TIKTOK (STATUS / TABS)", width / 2, 110);
+        ctx.fillText("GÓRNY PASEK PLATFORMY", width / 2, topEdge / 2);
 
         // Right Action Icons
         ctx.fillStyle = "rgba(239, 68, 68, 0.10)";
-        ctx.fillRect(width - 130, 690, 130, 900);
-        ctx.fillText("SIDEBAR", width - 65, 1140);
+        ctx.fillRect(
+          width - sideEdge,
+          Math.round(height * 0.36),
+          sideEdge,
+          Math.round(height * 0.47),
+        );
+        ctx.fillText("SIDEBAR", width - sideEdge / 2, Math.round(height * 0.6));
 
         // Bottom Caption Danger Zone
         ctx.fillStyle = "rgba(239, 68, 68, 0.15)";
-        ctx.fillRect(0, 1560, width, 360);
+        ctx.fillRect(0, bottomEdge, width, height - bottomEdge);
         ctx.beginPath();
-        ctx.moveTo(0, 1560);
-        ctx.lineTo(width, 1560);
+        ctx.moveTo(0, bottomEdge);
+        ctx.lineTo(width, bottomEdge);
         ctx.stroke();
-        ctx.fillText("DOLNA STREFA TIKTOK (OPIS, DŹWIĘK, PROFIL)", width / 2, 1710);
+        ctx.fillText(
+          "DOLNA STREFA (OPIS, DŹWIĘK, PROFIL)",
+          width / 2,
+          bottomEdge + (height - bottomEdge) / 2,
+        );
         ctx.restore();
       }
     },
-    [customBgType, selectedTheme, showTikTokGuides, phrases, reelFormat, duration, fontFamily],
+    [
+      customBgType,
+      selectedTheme,
+      showTikTokGuides,
+      phrases,
+      reelFormat,
+      duration,
+      fontFamily,
+      pacingMode,
+    ],
   );
 
   // Pętla podglądu w czasie rzeczywistym (taktowana requestAnimationFrame)

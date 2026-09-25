@@ -1,4 +1,5 @@
 import { BRAND_ACCENT } from "../starkBrandTheme";
+import { centeredTop as centeredInBand, safeBand } from "../safeZones";
 import {
   drawImageCover,
   fitLines,
@@ -75,17 +76,17 @@ function footer(ctx: CanvasRenderingContext2D, width: number, height: number, ha
 }
 
 /**
- * Bezpieczny pas kadru. Interfejs TikToka, Rolka i Shorts zasłaniają górę
- * (nazwa konta, audio) i dół (opis, komentarze), więc treść musi stać środkiem
- * — inaczej najciekawsza linia wpada pod pasek z przyciskami.
+ * Bezpieczny pas kadru bierze liczby z `src/utils/safeZones.ts` — dawno temu
+ * każda warstwa miała własne: przewodnik po podglądzie rysował 210/360, treść
+ * stała na 0,42, a handle na 0,88, czyli w strefie, którą sam przewodnik
+ * oznaczał na czerwono.
+ *
+ * `video` to jedyna różnica, która tu decyduje: kadr idący do feedu nie ma na
+ * sobie interfejsu, więc zostaje mu środek; rolka musi uciekać znad paska
+ * opisu i komentarzy.
  */
-const SAFE_TOP = 0.17;
-const SAFE_BOTTOM = 0.83;
-
-/** Górna krawędź bloku o danej wysokości, wyśrodkowana w bezpiecznym pasie. */
-export function centeredTop(blockHeight: number, height: number): number {
-  const band = height * (SAFE_BOTTOM - SAFE_TOP);
-  return Math.round(height * SAFE_TOP + Math.max(0, band - blockHeight) / 2);
+export function centeredTop(blockHeight: number, height: number, video = false): number {
+  return centeredInBand(blockHeight, safeBand(height, 1080, video));
 }
 
 export interface ProtocolSlideOptions extends LayoutTheme {

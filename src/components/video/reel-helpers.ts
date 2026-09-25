@@ -2,6 +2,7 @@
 // Czyste typy, metadane motywow i helpery do renderu ramek rolek.
 // Wyodrębnione z VideoStudioModal.tsx — brak zależności od Reacta.
 import { ReelVisualTheme } from "../../data/reelTemplates";
+import { MIN_TEXT_PX } from "../../utils/safeZones";
 
 export type VisualTheme = ReelVisualTheme;
 export type HighlightStyle = "white_halo" | "bold";
@@ -240,13 +241,15 @@ export function layoutLines(
   maxW: number,
   targetFontSize: number,
   fontFamily: string,
+  weight = 600,
 ): { lines: Array<{ tokens: Token[]; width: number }>; fontSize: number; lineHeight: number } {
-  // 46 px to tylko domyślne minimum: niższy target też musi wejść do pętli,
-  // inaczej tekst idzie jednym wierszem bez łamania.
-  const minFontSize = Math.min(46, targetFontSize);
+  // Podłoga to minimum czytelności na telefonie, nie umowne 46 px.
+  const minFontSize = Math.min(MIN_TEXT_PX, targetFontSize);
 
+  // Mierzymy TYM samym krojem, którym rysujemy: pomiar przy 900 i rysowanie
+  // przy 600 zawijało wiersze pod tekst, którego nikt nie maluje.
   for (let fontSize = targetFontSize; fontSize >= minFontSize; fontSize -= 2) {
-    ctx.font = `900 ${fontSize}px ${fontFamily}`;
+    ctx.font = `${weight} ${fontSize}px ${fontFamily}`;
     const lines = breakToLines(text, ctx, maxW, MAX_LINES);
     if (lines) {
       return { lines, fontSize, lineHeight: Math.round(fontSize * 1.25) };
@@ -255,7 +258,7 @@ export function layoutLines(
 
   // Fallback: tekst nie mieści się nawet w 4 liniach minimalnym pismem — twardo dzielimy go
   // na równe bloki (75 znaków w jednej linii to ~2200 px, czyli ucieczka za kadr 1080 px).
-  ctx.font = `900 ${minFontSize}px ${fontFamily}`;
+  ctx.font = `${weight} ${minFontSize}px ${fontFamily}`;
   const spaceW = ctx.measureText(" ").width;
   const tokens = parseTokens(text);
   const lines: LaidLine[] = [];
