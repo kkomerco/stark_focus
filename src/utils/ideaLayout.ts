@@ -90,7 +90,7 @@ export function structuredSpec(
     textLayers: layers,
     layoutData: meta,
     caption: formatStarkCaption(content.primary),
-    detectedAudio: "bez dźwięku — dodaj w aplikacji social media",
+    detectedAudio: "Bed w pliku albo własny dźwięk",
   };
 }
 

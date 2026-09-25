@@ -1177,7 +1177,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
   }, [duration, renderFrame]);
 
   // Export rolki: nagranie z canvasu 1080x1920 w 30 FPS (mp4 albo webm, zależnie od
-  // przeglądarki) — zegarmistrzowski czas 1:1, bez podwajania, bez ścieżki dźwiękowej
+  // przeglądarki) — zegarmistrzowski czas 1:1, bez podwajania, z proceduralnym bedem
   const handleExportVideo = async () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -1207,7 +1207,8 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
       // 1. Idealny czas trwania 1:1 (film 7s ma dokładnie 7.00s na każdym odtwarzaczu i w social media).
       // 2. Maksymalną ostrość typografii i brak zacinania.
       // Strumień z canvasu jest wyłącznie wideo — dlatego na liście nie ma kodka audio, a eksport
-      // nie ma ścieżki dźwiękowej (dźwięk dodaje się w aplikacji social media).
+      // ścieżki dźwiękowej, więc na liście nie było kodka audio; teraz bed jest
+      // proceduralny (`reelAudio.ts`) i dokłada się do strumienia.
       const stream = canvas.captureStream(30);
 
       // Dźwięk składamy w kodzie, nie z pliku: aplikacja jest lokalna, bez
@@ -2079,12 +2080,12 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                 Czas: <strong className="text-emerald-400">{duration}.00s (Dokładny 1:1)</strong>
               </span>
 
-              {/* captureStream(30) daje sam obraz — plik nie ma ścieżki dźwiękowej. */}
+              {/* captureStream(30) daje sam obraz — audio doklejamy osobnym trackiem. */}
               <span
                 className="text-[10px] text-rose-300"
-                title="Nagrywarka dostaje wyłącznie strumień z canvasu, więc w pliku nie ma audio."
+                title="Bed dokleja się do strumienia przy eksporcie; jeśli go wyłączysz, zostaje cichy plik."
               >
-                bez dźwięku — dodaj go w aplikacji social media
+                bed w pliku albo własny dźwięk w aplikacji social media
               </span>
 
               {isExporting && (
@@ -2143,7 +2144,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                 onClick={handleExportVideo}
                 disabled={isExporting}
                 className="flex-1 sm:flex-initial px-5 py-2.5 rounded-lg bg-white hover:bg-neutral-200 text-black text-xs font-mono font-black uppercase tracking-wider flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(255,255,255,0.2)] hover:shadow-[0_0_25px_rgba(255,255,255,0.35)] transition-all cursor-pointer disabled:opacity-50"
-                title={`Pobierz wideo w pętli 1080x1920 (30 FPS, ${duration}.00s, bez dźwięku — dodaj go w aplikacji social media)`}
+                title={`Pobierz wideo w pętli 1080x1920 (30 FPS, ${duration}.00s, ${reelAudioEnabled ? "bed w pliku" : "bez dźwięku"})`}
               >
                 <Film className="w-4 h-4" />
                 {isExporting
