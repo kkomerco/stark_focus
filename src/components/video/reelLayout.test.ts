@@ -1,6 +1,15 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { DIMMED_OPACITY, LOOP_TAIL_SECONDS, reelBlocksAt, stackBlocks } from "./reelLayout";
+import {
+  DIMMED_OPACITY,
+  LOOP_TAIL_SECONDS,
+  easedReveal,
+  quantizeToFps,
+  reelBlocksAt,
+  stackBlocks,
+  wordRise,
+  wordStagger,
+} from "./reelLayout";
 
 const PHRASES = [
   "Rust works while you sleep.",
@@ -82,5 +91,50 @@ describe("stackBlocks", () => {
     const tops = stackBlocks([900, 900], band, 28);
 
     assert.equal(tops[0], band.top);
+  });
+});
+
+describe("animacja wejścia", () => {
+  it("słowa wchodzą po kolei, nie wszystkie naraz", () => {
+    const mid = wordStagger(6, 0.3);
+    assert.ok(mid[0] > mid[3], "wcześniejsze słowo musi być dalej niż późniejsze");
+    assert.equal(mid[5], 0, "ostatnie słowo nie mogło jeszcze wejść");
+  });
+
+  it("przy pełnym odsłonięciu całe zdanie jest na miejscu", () => {
+    assert.deepEqual(wordStagger(5, 1), [1, 1, 1, 1, 1]);
+    assert.deepEqual(wordStagger(5, 0), [0, 0, 0, 0, 0]);
+  });
+
+  it("żadne słowo nie ma alfa poza zakresem", () => {
+    for (const reveal of [0, 0.1, 0.35, 0.7, 0.99, 1]) {
+      for (const alpha of wordStagger(8, reveal)) {
+        assert.ok(alpha >= 0 && alpha <= 1, `alfa ${alpha} przy reveal ${reveal}`);
+      }
+    }
+  });
+
+  it("wznoszenie słowa jest proporcjonalne do stopnia pisma i znika na końcu", () => {
+    assert.equal(wordRise(1, 64), 0);
+    assert.ok(wordRise(0, 64) > 0);
+    assert.ok(wordRise(0, 64) < 64 * 0.3, "skok nie może wynosić połowy linii");
+  });
+
+  it("tło klatkuje do 12 fps, ale nie cofa czasu", () => {
+    const seen = new Set<number>();
+    for (let i = 0; i <= 60; i++) seen.add(quantizeToFps(i / 10, 12));
+    assert.equal(quantizeToFps(0.5, 12), quantizeToFps(0.55, 12));
+    assert.ok(seen.size <= 61);
+    let last = -1;
+    for (const value of [...seen].sort((a, b) => a - b)) {
+      assert.ok(value > last);
+      last = value;
+    }
+  });
+
+  it("wygładzenie startuje od zera i kończy na jedynce", () => {
+    assert.equal(easedReveal(0), 0);
+    assert.equal(easedReveal(1), 1);
+    assert.ok(easedReveal(0.5) > 0.5, "easeOut ma iść szybko na początku");
   });
 });

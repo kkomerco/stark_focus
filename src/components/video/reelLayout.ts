@@ -76,6 +76,51 @@ function easeOutCubic(value: number): number {
 }
 
 /**
+ * ANIMACJA WEJŚCIA SŁÓW.
+ *
+ * Całe zdanie wchodzące jednym fade'em to dziś połowa rolek w tej niszy i
+ * wygląda jak szablon. Słowo po słowie, z lekkim niedobrzmiem następnego,
+ * czyta się tam, gdzie widz i tak patrzy — na kciuk zatrzymany nad treścią.
+ *
+ * `overlap > 1` steruje tym, jak bardzo wejścia na siebie zachodzą: przy 1,0
+ * słowa wchodziłyby pojedynczo i zdanie trwałoby zbyt długo, przy ~1,6 idzie
+ * jak fala. Zwraca alfa 0-1 dla każdego słowa; 1 = już na swoim miejscu.
+ */
+export function wordStagger(count: number, reveal: number, overlap = 1.6): number[] {
+  if (count <= 0) return [];
+  if (reveal >= 1) return Array.from({ length: count }, () => 1);
+  if (reveal <= 0) return Array.from({ length: count }, () => 0);
+  const window = count * overlap;
+  return Array.from({ length: count }, (_, i) => Math.min(1, Math.max(0, reveal * window - i)));
+}
+
+/** Wejście wygładzone, nie liniowe — kadr ma „siadać", nie jechać jednostajnie. */
+export function easedReveal(reveal: number): number {
+  return easeOutCubic(reveal);
+}
+
+/**
+ * Ile w górę wchodzi słowo, zanim znajdzie się na linii.
+ * Jedna czwarta stopnia pisma: dość, żeby ruch było widać, za mało, żeby
+ * litera uciekała z linii bazowej i kadr się trząsł.
+ */
+export function wordRise(alpha: number, fontSize: number): number {
+  return (1 - Math.min(1, Math.max(0, alpha))) * fontSize * 0.25;
+}
+
+/**
+ * Skok tła do 12 klatek na sekundę przy tekście idącym w 30.
+ *
+ * To trik z montażu „dokumentalnego": grafika klatkuje, tekst płynie, kadr
+ * przestaje wyglądać na wygenerowany. Kwantujemy tylko warstwę tła — przy
+ * kwantowaniu tekstu litera skacze i nie da się tego czytać.
+ */
+export function quantizeToFps(timeSec: number, fps = 12): number {
+  if (!Number.isFinite(timeSec) || timeSec <= 0) return 0;
+  return Math.floor(timeSec * fps) / fps;
+}
+
+/**
  * Pionowy układ bloków w bezpiecznym pasie.
  *
  * Odstęp dokłada się DO pełnej wysokości bloku, nie od środka linii do środka

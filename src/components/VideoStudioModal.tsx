@@ -30,7 +30,14 @@ import { BRAND_ACCENT } from "../utils/starkBrandTheme";
 import { REEL_SAFE, bandCenter, safeBand } from "../utils/safeZones";
 import { beatTimesFrom, renderReelBed } from "../utils/reelAudio";
 import { reelChecklist } from "../lib/prepublish";
-import { reelBlocksAt, stackBlocks } from "./video/reelLayout";
+import {
+  easedReveal,
+  quantizeToFps,
+  reelBlocksAt,
+  stackBlocks,
+  wordRise,
+  wordStagger,
+} from "./video/reelLayout";
 import { ChecklistPanel } from "./ChecklistPanel";
 import { VIRAL_REEL_TEMPLATES, type ReelTemplate } from "../data/reelTemplates";
 import {
@@ -837,14 +844,18 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
       }
 
       const totalDuration = duration;
-      const zoomProgress = Math.min(1, Math.max(0, timeSec / totalDuration));
+      // Tło klatkuje do 12 fps, tekst zostaje w 30: to trik z montażu
+      // „dokumentalnego", przez który kadr przestaje wyglądać na wygenerowany.
+      // Kwantowanie tekstu przenosiłoby literę z linii bazowej.
+      const bgTime = quantizeToFps(timeSec, 12);
+      const zoomProgress = Math.min(1, Math.max(0, bgTime / totalDuration));
       const isDynamicCut = reelFormat === "dynamic_broll_cut" && timeSec >= totalDuration * 0.48;
       // Ken Burns startuje od 1,02, nie od 1,00: kadr, ktory w pierwszej
       // sekundzie nie drgnie, nie jest hookiem — jest stopklatka.
       // Ostatnie 12% wraca do 1,02, zeby zapetlenie nie bylo widoczne jako skok.
       const loopReturn = Math.max(0, (zoomProgress - 0.88) / 0.12);
       const zoomScale = isDynamicCut
-        ? 1.09 + 0.03 * ((timeSec - totalDuration * 0.48) / (totalDuration * 0.52))
+        ? 1.09 + 0.03 * ((bgTime - totalDuration * 0.48) / (totalDuration * 0.52))
         : 1.02 + 0.03 * easeOutCubic(zoomProgress) * (1 - loopReturn);
 
       // 1. Background: Custom Upload (Image or Video) or Dark Generative Theme with Slow Zoom
@@ -1118,36 +1129,63 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
       ctx.shadowBlur = 16;
 
       let accentUsed = false;
+      // Tylko najnowszy blok wchodzi słowo po słowie; te już przeczytane
+      // zostają w miejscu, bo animowanie ich ponownie rozprasza.
+      const activeIndex = blocks.length - 1;
 
       blocks.forEach((block, blockIdx) => {
         const { lines, fontSize, lineHeight } = block.layout;
         const cursorY = tops[blockIdx];
         ctx.globalAlpha = block.opacity;
-        if (block.reveal < 1) {
+        const reveal = blockIdx === activeIndex ? easedReveal(block.reveal) : 1;
+        const tokenCount = lines.reduce((sum, line) => sum + line.tokens.length, 0);
+        const alphas =
+          blockIdx === activeIndex
+            ? wordStagger(tokenCount, block.reveal)
+            : Array.from({ length: tokenCount }, () => 1);
+
+        if (reveal < 1) {
           ctx.save();
           ctx.beginPath();
-          ctx.rect(0, cursorY - lineHeight, width * block.reveal, lineHeight * (lines.length + 1));
+          ctx.rect(0, cursorY - lineHeight, width * reveal, lineHeight * (lines.length + 1));
           ctx.clip();
         }
         // Pomiar i rysowanie na tym samym kroju — inaczej słowa wchodzą na siebie.
         ctx.font = `600 ${fontSize}px ${selectedFont}`;
         const spaceW = ctx.measureText(" ").width;
 
+        let tokenIndex = 0;
         lines.forEach((line, lIdx) => {
-          const lineY = cursorY + lineHeight / 2 + lIdx * lineHeight;
           let curX = leftMargin;
           line.tokens.forEach((tok) => {
+            const alpha = alphas[tokenIndex] ?? 1;
+            tokenIndex++;
+            // Słowo wchodzi z lekkim niedobrzmiem następnego: fala, nie karuzela.
+            const lineY = cursorY + lineHeight / 2 + lIdx * lineHeight + wordRise(alpha, fontSize);
             // Jeden akcent na kadr: *słowo* w tekście rolki łapie karmazyn,
             // reszta zostaje kością. Bez tego wyróżniony był cały wers.
             const accent = tok.isKeyword && !accentUsed;
             if (accent) accentUsed = true;
+            ctx.globalAlpha = block.opacity * alpha;
             ctx.fillStyle = accent ? BRAND_ACCENT : "#F8FAFC";
             ctx.fillText(tok.raw, curX, lineY);
             curX += ctx.measureText(tok.raw).width + spaceW;
           });
         });
 
-        if (block.reveal < 1) ctx.restore();
+        ctx.globalAlpha = block.opacity;
+
+        // Linia pod aktywnym kadrem rysuje się razem z nim — to ona mówi
+        // „tu jest teza", zanim widz doczyta zdanie.
+        if (blockIdx === activeIndex && block.reveal > 0) {
+          const ruleY = cursorY + lines.length * lineHeight + fontSize * 0.28;
+          const ruleWidth = Math.min(maxTextWidth * 0.34, fontSize * 6) * block.reveal;
+          ctx.fillStyle = BRAND_ACCENT;
+          ctx.globalAlpha = block.opacity;
+          ctx.fillRect(leftMargin, ruleY, ruleWidth, Math.max(2, fontSize * 0.05));
+        }
+
+        if (reveal < 1) ctx.restore();
       });
 
       ctx.restore();
