@@ -186,6 +186,47 @@ export interface UniversalLayoutSpec {
   fontColorMode?: "white" | "black";
 }
 
+// ===== Dziennik publikacji (pamięć o tym, co naprawdę poszło) =====
+export type PublishPlatform = "instagram" | "tiktok" | "youtube";
+export type PublishKind = "reel" | "post" | "carousel";
+
+/**
+ * Wpis o rzeczy, która wyszła na konto. Bez tego cała analityka jest
+ * zgadywanką: aplikacja wie, co wygenerowała, ale nie wie, co zostało
+ * opublikowane i ile to uciułało.
+ */
+export interface PublishedItem {
+  id: string;
+  /** Data publikacji w formacie YYYY-MM-DD — nie data dodania wpisu. */
+  postedAt: string;
+  platform: PublishPlatform;
+  kind: PublishKind;
+  /** Główna myśl z kadru; na niej liczymy powtórki i ranking hooków. */
+  hook: string;
+  /** Układ albo format rolki, np. „none_solid", „viral_loop_6s". */
+  format: string;
+  theme?: string;
+  music?: string;
+  /** Id wpisu z `posts`, jeśli ledger przejął gotowy materiał. */
+  sourceId?: string;
+  metrics?: PublishMetrics;
+  loggedAt: string;
+}
+
+export interface PublishMetrics {
+  reach?: number;
+  /** % widzów, którzy zostali po trzech sekundach. Prog „dobrze" to 60. */
+  hold3s?: number;
+  /** Średni procent obejrania, nie sekundy. */
+  watchPct?: number;
+  likes?: number;
+  comments?: number;
+  /** Wysyłki w DM — najsilniejszy sygnał dystrybucji rolek. */
+  shares?: number;
+  saves?: number;
+  follows?: number;
+}
+
 // ===== A/B Eksperymenty (pętla uczenia) =====
 export interface AbVariant {
   label: "A" | "B";
@@ -241,6 +282,8 @@ export interface StarkFocusData {
   used_idea_fingerprints?: string[];
   ab_experiments?: AbExperiment[];
   prompt_library?: PromptLibraryItem[];
+  /** Co poszło na konto i jak sobie poradziło — jedyna pamięć o rzeczywistości. */
+  published?: PublishedItem[];
 }
 
 // ===== Idea Stream (nieskończony generator z anty-powtórką) =====

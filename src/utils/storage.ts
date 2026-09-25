@@ -1,4 +1,5 @@
 import { PlannerTask, PlannerTaskPayload, ReelHandoff, StarkFocusData } from "../types";
+import { normalizePublished } from "../lib/published";
 import { INITIAL_DATA } from "../data/initialData";
 
 const STORAGE_KEY = "stark_focus_os_v31_data";
@@ -101,6 +102,8 @@ function normalizeParsedData(parsed: any, base: StarkFocusData): StarkFocusData 
         ? parsed.dynamic_db.cta_presets
         : base.dynamic_db.cta_presets,
     },
+    // Dziennik publikacji: bez tego aplikacja nie wie, co naprawdę wyszło.
+    published: normalizePublished(parsed?.published),
     // Streak z zapisanej wartości, inaczej liczony od daty utworzenia konta
     streak: readStreak(parsed),
   };

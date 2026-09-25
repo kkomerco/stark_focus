@@ -1,4 +1,5 @@
 import { hookFingerprint } from "./similarity";
+import { publishedHookFingerprints } from "./published";
 import { PlannerTaskPayload } from "../types";
 
 /**
@@ -24,6 +25,8 @@ export interface UsedContentSource {
   posts?: { title?: string; caption?: string }[];
   planner_tasks?: { payload?: PlannerTaskPayload }[];
   used_idea_fingerprints?: string[];
+  /** To, co realnie wyszło na konto — najmocniejsze źródło „tego już nie powtarzaj". */
+  published?: { hook: string }[];
 }
 
 export function usedHookFingerprints(
@@ -44,6 +47,7 @@ export function usedHookFingerprints(
     );
   }
   sources.push(...(data.used_idea_fingerprints ?? []));
+  sources.push(...publishedHookFingerprints(data.published ?? []));
 
   const seen = new Set<string>();
   for (const source of sources) {

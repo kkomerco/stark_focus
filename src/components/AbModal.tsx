@@ -153,7 +153,10 @@ export const AbModal: React.FC<AbModalProps> = ({
           const r = results.find((x) => x.label === v.label);
           return {
             ...v,
-            publishedAt: new Date().toISOString(),
+            // Data publikacji jest nasza, nie licznika: wczesniej wpisywaliśmy
+            // tu `now()`, więc każdy eksperyment wyglądał jak opublikowany w
+            // momencie zamknięcia, a to nieprawda.
+            publishedAt: v.publishedAt ?? null,
             metrics: {
               views: r?.views || 0,
               likes: r?.likes || 0,

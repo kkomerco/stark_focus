@@ -10,6 +10,7 @@ import {
   TestTubes,
   Rocket,
   Image as ImageIcon,
+  BarChart3,
 } from "lucide-react";
 import {
   DailyPack,
@@ -57,6 +58,9 @@ const PromptLibraryModal = lazy(() =>
 );
 
 const QRModal = lazy(() => import("./components/QRModal").then((m) => ({ default: m.QRModal })));
+const PublishLedgerModal = lazy(() =>
+  import("./components/PublishLedgerModal").then((m) => ({ default: m.PublishLedgerModal })),
+);
 
 function TabFallback() {
   return (
@@ -109,6 +113,7 @@ export default function StarkFocusApp() {
   const [abOpen, setAbOpen] = useState(false);
   const [autopilotOpen, setAutopilotOpen] = useState(false);
   const [promptLibOpen, setPromptLibOpen] = useState(false);
+  const [ledgerOpen, setLedgerOpen] = useState(false);
 
   const [qrModal, setQrModal] = useState<{ isOpen: boolean; title: string; data: string }>({
     isOpen: false,
@@ -270,6 +275,7 @@ export default function StarkFocusApp() {
     { label: "Pomysły", icon: Lightbulb, open: () => setIdeaStreamOpen(true) },
     { label: "Analiza linku", icon: Link2, open: () => setDeconstructOpen(true) },
     { label: "Test A/B", icon: TestTubes, open: () => setAbOpen(true) },
+    { label: "Publikacje", icon: BarChart3, open: () => setLedgerOpen(true) },
     { label: "Autopilot", icon: Rocket, open: () => setAutopilotOpen(true) },
     { label: "Prompty tła", icon: ImageIcon, open: () => setPromptLibOpen(true) },
   ];
@@ -436,6 +442,14 @@ export default function StarkFocusApp() {
               setAbOpen(false);
               handleSendToReel(reel);
             }}
+          />
+        )}
+        {ledgerOpen && (
+          <PublishLedgerModal
+            isOpen={ledgerOpen}
+            onClose={() => setLedgerOpen(false)}
+            data={data}
+            onUpdateData={handleUpdateData}
           />
         )}
         {autopilotOpen && (
