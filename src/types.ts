@@ -172,6 +172,11 @@ export interface UniversalLayoutSpec {
     scene?: "wall" | "neon" | "billboard";
     /** Jaki szkic rysuje układ „diagram + wiersz". */
     diagram?: "chart" | "scales" | "path" | "split";
+    /**
+     * Zmienny ziarnisty odcisk dla diagramu: ten sam wers, inny szkic. Bez
+     * tego „raz wykorzystałem i już nie mogę" było prawdą — wykres był jeden.
+     */
+    diagramSeed?: string;
   };
   backgroundColor: string;
   dividerWidth: number;

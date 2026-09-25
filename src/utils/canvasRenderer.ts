@@ -1142,6 +1142,9 @@ export function renderUniversalLayout(
       line: layerById(spec, PRIMARY_LAYER_ID) || l1Fallback(spec),
       caption: layerById(spec, "closing"),
       diagram: spec.layoutData?.diagram ?? "chart",
+      // Ziarno idzie do odcisku szkicu: ten sam wers może wyjść inaczej,
+      // a zapisany kadr odtworzy się identycznie przy następnym eksporcie.
+      seed: spec.layoutData?.diagramSeed,
       bgImage: options.backgroundImage ?? null,
     });
     return;

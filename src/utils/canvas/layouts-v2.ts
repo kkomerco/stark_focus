@@ -341,29 +341,27 @@ export interface ConceptDiagramOptions extends LayoutTheme {
   diagram: DiagramKind;
   /** Jedno zdanie pod rysunkiem; puste = czysty szkic. */
   caption?: string;
+  /** Ziarno do „Losuj inny szkic" — ten sam wers, inna kompozycja. */
+  seed?: string;
 }
 
 const STROKE = "rgba(243,240,234,0.82)";
 
-/** Złota liczba jako krok losowości — wykres ma być nierówny, ale powtarzalny dla tego samego tekstu. */
-function seededPoints(
-  seedText: string,
-  count: number,
-  box: { x: number; y: number; w: number; h: number },
-) {
+/**
+ * Generator liczb z odcisku tekstu: ten sam wers daje ten sam szkic (da się
+ * go powtórzyć i porównać), inny wers — inny. Diagram nie może być jedną
+ * grafiką z biblioteki, bo po jednym użyciu przestaje cokolwiek znaczyć.
+ */
+function rngFor(seedText: string) {
   let state = 2166136261;
   for (let i = 0; i < seedText.length; i++) {
     state ^= seedText.charCodeAt(i);
     state = Math.imul(state, 16777619) >>> 0;
   }
-  const next = () => {
+  return () => {
     state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
     return state / 4294967296;
   };
-  return Array.from({ length: count }, (_, i) => ({
-    x: box.x + (box.w * (i + 0.5)) / count + (next() - 0.5) * (box.w / count) * 0.5,
-    y: box.y + next() * box.h,
-  }));
 }
 
 function polyline(ctx: CanvasRenderingContext2D, points: { x: number; y: number }[]) {
@@ -372,6 +370,11 @@ function polyline(ctx: CanvasRenderingContext2D, points: { x: number; y: number 
   ctx.stroke();
 }
 
+/**
+ * Trzy kształty linii, bo „wykres z dołkiem" po trzech postach przestaje
+ * cokolwiek mówić: załamanie i powrót, równe wspinanie się, plateau po którym
+ * kreska wreszcie przebija sufit.
+ */
 function drawChart(
   ctx: CanvasRenderingContext2D,
   cx: number,
@@ -379,73 +382,147 @@ function drawChart(
   size: number,
   seed: string,
 ) {
+  const next = rngFor(seed);
+  const shape = Math.floor(next() * 3);
+  const points = 5 + Math.floor(next() * 4);
   const box = { x: cx - size * 0.34, y: cy - size * 0.34, w: size * 0.68, h: size * 0.68 };
   ctx.strokeRect(box.x, box.y, box.w, box.h);
-  const fall = seededPoints(seed, 7, {
-    x: box.x + 10,
-    y: box.y + 10,
-    w: box.w - 20,
-    h: box.h - 20,
+
+  const inner = { x: box.x + 10, y: box.y + 10, w: box.w - 20, h: box.h - 20 };
+  const walk = Array.from({ length: points }, (_, i) => {
+    const t = i / (points - 1);
+    const noise = (next() - 0.5) * inner.h * 0.18;
+    const depth = 0.35 + next() * 0.5;
+    let y: number;
+    if (shape === 0) {
+      // Najpierw równo, potem uderzenie w dno i powrót do góry.
+      y =
+        t < 0.45
+          ? inner.y + noise * 0.4
+          : t < 0.7
+            ? inner.y + inner.h * depth
+            : inner.y + inner.h * 0.1;
+    } else if (shape === 1) {
+      y = inner.y + inner.h * (1 - t) * 0.9 + noise;
+    } else {
+      y = t < 0.65 ? inner.y + inner.h * 0.62 + noise * 0.3 : inner.y + inner.h * 0.12;
+    }
+    return { x: inner.x + inner.w * t, y };
   });
-  polyline(ctx, fall);
-  // Odbicie po dnie — cała pointa diagramu jest w tym, że linia wraca do góry.
-  const last = fall[fall.length - 1];
+  polyline(ctx, walk);
+
+  // Kropka na końcu: kadr ma mówić, że linia gdzieś stanęła, a nie że faluje.
+  const last = walk[walk.length - 1];
   ctx.beginPath();
-  ctx.moveTo(last.x, last.y);
-  ctx.lineTo(cx + size * 0.48, cy - size * 0.46);
-  ctx.stroke();
+  ctx.arc(last.x, last.y, Math.max(3, size * 0.014), 0, Math.PI * 2);
+  ctx.fillStyle = ctx.strokeStyle as string;
+  ctx.fill();
+
+  if (shape === 2) {
+    // Kreska „standard", do której plateau nie doszło — wyznacza ją sufit kadru.
+    ctx.setLineDash([size * 0.03, size * 0.025]);
+    ctx.beginPath();
+    ctx.moveTo(inner.x, inner.y + inner.h * 0.3);
+    ctx.lineTo(inner.x + inner.w, inner.y + inner.h * 0.3);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
 }
 
-function drawScales(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number) {
+/** Która szala ciągnie w dół i ile na niej leży — to jest teza kadru. */
+function drawScales(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  size: number,
+  seed: string,
+) {
+  const next = rngFor(seed);
+  const tilt = (0.06 + next() * 0.1) * (next() > 0.5 ? 1 : -1);
+  const arm = size * (0.3 + next() * 0.08);
+  const top = cy - size * 0.42;
+  const heavyY = cy + size * 0.34;
+
   ctx.beginPath();
-  ctx.moveTo(cx, cy - size * 0.4);
-  ctx.lineTo(cx, cy + size * 0.36);
+  ctx.moveTo(cx, top);
+  ctx.lineTo(cx, heavyY);
   ctx.stroke();
-  // Ramiona nie są poziome: jedna szala zawsze wygrywa, i o tym jest kadr.
   ctx.beginPath();
-  ctx.moveTo(cx - size * 0.36, cy - size * 0.2);
-  ctx.lineTo(cx + size * 0.36, cy - size * 0.3);
+  ctx.moveTo(cx, top);
+  ctx.lineTo(cx - arm, top + tilt * size);
+  ctx.moveTo(cx, top);
+  ctx.lineTo(cx + arm, top - tilt * size);
   ctx.stroke();
-  [-0.36, 0.36].forEach((offset, i) => {
-    const x = cx + size * offset;
-    const y = cy - (i === 0 ? -0.2 : -0.3) * size;
+
+  [-1, 1].forEach((side) => {
+    const x = cx + arm * side;
+    const y = top + tilt * size * side;
+    const drop = size * (0.14 + next() * 0.06);
     ctx.beginPath();
     ctx.moveTo(x, y);
-    ctx.lineTo(x - size * 0.13, y + size * 0.16);
-    ctx.lineTo(x + size * 0.13, y + size * 0.16);
+    ctx.lineTo(x - size * 0.13, y + drop);
+    ctx.lineTo(x + size * 0.13, y + drop);
     ctx.closePath();
     ctx.stroke();
+    // Ciężar widać po liczbie kresek na szali, nie po opisie.
+    const pips = side * tilt > 0 ? 3 + Math.floor(next() * 3) : 1 + Math.floor(next() * 2);
+    for (let i = 0; i < pips; i++) {
+      const px = x - size * 0.09 + (i * size * 0.18) / Math.max(1, pips - 1);
+      ctx.beginPath();
+      ctx.moveTo(px, y + drop + size * 0.03);
+      ctx.lineTo(px, y + drop + size * 0.075);
+      ctx.stroke();
+    }
   });
 }
 
-function drawPath(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number) {
+/** Ilu przystanków droga ma i którędy wychodzi ze zdjęcia. */
+function drawPath(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  size: number,
+  seed: string,
+) {
+  const next = rngFor(seed);
+  const stops = 3 + Math.floor(next() * 3);
+  const drop = next() > 0.5 ? 1 : -1;
+  const pts = Array.from({ length: stops + 2 }, (_, i) => {
+    const t = i / (stops + 1);
+    return {
+      x: cx - size * 0.44 + size * 0.88 * t,
+      y: cy + Math.sin(t * Math.PI * (1 + next())) * size * 0.3 * drop,
+    };
+  });
+
   ctx.beginPath();
-  ctx.moveTo(cx - size * 0.44, cy - size * 0.3);
-  ctx.bezierCurveTo(
-    cx - size * 0.1,
-    cy - size * 0.3,
-    cx - size * 0.36,
-    cy + size * 0.36,
-    cx + size * 0.04,
-    cy + size * 0.16,
-  );
-  ctx.bezierCurveTo(
-    cx + size * 0.3,
-    cy,
-    cx + size * 0.1,
-    cy - size * 0.34,
-    cx + size * 0.44,
-    cy - size * 0.42,
-  );
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length - 1; i++) {
+    const midX = (pts[i].x + pts[i + 1].x) / 2;
+    const midY = (pts[i].y + pts[i + 1].y) / 2;
+    ctx.quadraticCurveTo(pts[i].x, pts[i].y, midX, midY);
+  }
+  ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
   ctx.stroke();
+
+  const end = pts[pts.length - 1];
   ctx.beginPath();
-  ctx.moveTo(cx + size * 0.44, cy - size * 0.42);
-  ctx.lineTo(cx + size * 0.3, cy - size * 0.4);
-  ctx.moveTo(cx + size * 0.44, cy - size * 0.42);
-  ctx.lineTo(cx + size * 0.4, cy - size * 0.28);
+  ctx.moveTo(end.x, end.y);
+  ctx.lineTo(end.x - size * 0.07, end.y - size * 0.02);
+  ctx.moveTo(end.x, end.y);
+  ctx.lineTo(end.x - size * 0.02, end.y + size * 0.07);
   ctx.stroke();
+
+  // Kropki to dni/rundy — bez nich „ścieżka" jest tylko zawijasem.
+  pts.slice(1, -1).forEach((p) => {
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, Math.max(2.5, size * 0.012), 0, Math.PI * 2);
+    ctx.fillStyle = ctx.strokeStyle as string;
+    ctx.fill();
+  });
 }
 
+/** Podział to nie dwie identyczne połówki: raz jedną stronę wypełnia czas, raz drugą. */
 function drawSplit(
   ctx: CanvasRenderingContext2D,
   cx: number,
@@ -453,28 +530,40 @@ function drawSplit(
   size: number,
   seed: string,
 ) {
-  const panelW = size * 0.4;
-  const panelH = size * 0.52;
-  const left = cx - panelW - size * 0.04;
-  const right = cx + size * 0.04;
+  const next = rngFor(seed);
+  const panelW = size * (0.34 + next() * 0.08);
+  const panelH = size * (0.44 + next() * 0.12);
+  const gap = size * 0.04;
+  const left = cx - panelW - gap / 2;
+  const right = cx + gap / 2;
   const top = cy - panelH / 2;
   ctx.strokeRect(left, top, panelW, panelH);
   ctx.strokeRect(right, top, panelW, panelH);
-  // Lewa strona jest pusta, prawa zapisana — to cały żart „I'm gonna" vs „I did".
-  ctx.beginPath();
-  ctx.moveTo(left + panelW * 0.72, top + panelH * 0.3);
-  ctx.lineTo(left + panelW * 0.72, top + panelH * 0.78);
-  ctx.stroke();
-  seededPoints(seed, 16, { x: right + 10, y: top + 12, w: panelW - 20, h: panelH - 24 }).forEach(
-    (p, i) => {
+
+  const busyLeft = next() > 0.6;
+  const marks = 8 + Math.floor(next() * 10);
+  const fill = (x0: number, x1: number, count: number) => {
+    for (let i = 0; i < count; i++) {
+      const px = x0 + next() * (x1 - x0);
+      const py = top + 12 + next() * (panelH - 24);
       ctx.beginPath();
-      ctx.moveTo(p.x - 6, p.y - (i % 2 ? 6 : -6));
-      ctx.lineTo(p.x + 6, p.y + (i % 2 ? 6 : -6));
-      ctx.moveTo(p.x + 6, p.y - (i % 2 ? 6 : -6));
-      ctx.lineTo(p.x - 6, p.y + (i % 2 ? 6 : -6));
+      ctx.moveTo(px - 6, py - 6);
+      ctx.lineTo(px + 6, py + 6);
+      ctx.moveTo(px + 6, py - 6);
+      ctx.lineTo(px - 6, py + 6);
       ctx.stroke();
-    },
-  );
+    }
+  };
+  fill(left + 8, left + panelW - 8, busyLeft ? marks : 0);
+  fill(right + 8, right + panelW - 8, busyLeft ? 0 : marks);
+
+  // Kreska dzieląca: „tu stałem" oddzielone od „tu jestem".
+  ctx.setLineDash([size * 0.028, size * 0.022]);
+  ctx.beginPath();
+  ctx.moveTo(cx, top - size * 0.03);
+  ctx.lineTo(cx, top + panelH + size * 0.03);
+  ctx.stroke();
+  ctx.setLineDash([]);
 }
 
 /**
@@ -536,10 +625,11 @@ export function drawConceptDiagramSlide(
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
 
-  if (options.diagram === "scales") drawScales(ctx, width / 2, cy, size);
-  else if (options.diagram === "path") drawPath(ctx, width / 2, cy, size);
-  else if (options.diagram === "split") drawSplit(ctx, width / 2, cy, size, options.line);
-  else drawChart(ctx, width / 2, cy, size, options.line);
+  const sketchSeed = `${options.line}|${options.seed ?? ""}`;
+  if (options.diagram === "scales") drawScales(ctx, width / 2, cy, size, sketchSeed);
+  else if (options.diagram === "path") drawPath(ctx, width / 2, cy, size, sketchSeed);
+  else if (options.diagram === "split") drawSplit(ctx, width / 2, cy, size, sketchSeed);
+  else drawChart(ctx, width / 2, cy, size, sketchSeed);
 
   if (caption) {
     ctx.font = `500 ${caption.size}px ${getFontFamilySpec("sans")}`;
