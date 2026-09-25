@@ -12,6 +12,7 @@ import {
   Sliders,
   Copy,
   Smartphone,
+  Volume2,
   Type,
   RefreshCw,
   SlidersHorizontal,
@@ -27,6 +28,7 @@ import { Post, ReelHandoff, VaultAsset } from "../types";
 import { STARK_CTA, starkHashtags } from "../lib/caption";
 import { BRAND_ACCENT } from "../utils/starkBrandTheme";
 import { REEL_SAFE, bandCenter, safeBand } from "../utils/safeZones";
+import { beatTimesFrom, renderReelBed } from "../utils/reelAudio";
 import { VIRAL_REEL_TEMPLATES, type ReelTemplate } from "../data/reelTemplates";
 import {
   STOIC_CATEGORIES,
@@ -313,6 +315,8 @@ export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [showTikTokGuides, setShowTikTokGuides] = useState<boolean>(false);
+  // Bed proceduralny (dron + uderzenia na grzbietach) zamiast cichego pliku.
+  const [reelAudioEnabled, setReelAudioEnabled] = useState<boolean>(true);
   const [isGeneratingAi, setIsGeneratingAi] = useState<boolean>(false);
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const seenTitlesRef = useRef<string[]>([]);
@@ -1184,14 +1188,50 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
       // Strumień z canvasu jest wyłącznie wideo — dlatego na liście nie ma kodka audio, a eksport
       // nie ma ścieżki dźwiękowej (dźwięk dodaje się w aplikacji social media).
       const stream = canvas.captureStream(30);
-      const mimeTypes = [
-        "video/mp4;codecs=avc1.42E01E",
-        "video/mp4;codecs=avc1",
-        "video/mp4",
-        "video/webm;codecs=vp9",
-        "video/webm;codecs=vp8",
-        "video/webm",
-      ];
+
+      // Dźwięk składamy w kodzie, nie z pliku: aplikacja jest lokalna, bez
+      // konta i bez prawa do bibliotek platformowych (konto firmowe dostaje
+      // tylko próbkę komercyjną). Render jest deterministyczny, więc ten sam
+      // kadr brzmi identycznie przy każdym eksporcie.
+      let audioCtx: AudioContext | null = null;
+      let audioSource: AudioBufferSourceNode | null = null;
+      if (reelAudioEnabled) {
+        try {
+          const bed = await renderReelBed({
+            durationSec: totalDur,
+            beatTimes: beatTimesFrom(getPhraseTimeline(phrases, totalDur, pacingMode)),
+          });
+          audioCtx = new AudioContext();
+          audioSource = audioCtx.createBufferSource();
+          audioSource.buffer = bed;
+          const out = audioCtx.createMediaStreamDestination();
+          audioSource.connect(out);
+          for (const track of out.stream.getAudioTracks()) stream.addTrack(track);
+        } catch (err) {
+          console.error("Bed dźwiękowy nie powstał, nagrywamy bez niego:", err);
+          void audioCtx?.close();
+          audioCtx = null;
+          audioSource = null;
+        }
+      }
+
+      const mimeTypes = audioSource
+        ? [
+            'video/mp4;codecs="avc1.42E01E,mp4a.40.2"',
+            "video/mp4;codecs=avc1.42E01E,mp4a.40.2",
+            "video/mp4",
+            'video/webm;codecs="vp9,opus"',
+            "video/webm;codecs=vp9,opus",
+            "video/webm",
+          ]
+        : [
+            "video/mp4;codecs=avc1.42E01E",
+            "video/mp4;codecs=avc1",
+            "video/mp4",
+            "video/webm;codecs=vp9",
+            "video/webm;codecs=vp8",
+            "video/webm",
+          ];
       const selectedMime = mimeTypes.find((t) => MediaRecorder.isTypeSupported(t)) || "video/webm";
       // Firefox/Safari wybierają z listy webm — plik .mp4 z bajtami webm nie da się otworzyć.
       const extension = selectedMime.includes("mp4") ? "mp4" : "webm";
@@ -1203,7 +1243,15 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
 
       // Canvas capture track żyje dopóki go nie zamkniemy — bez tego każda
       // kolejna eksport zostawia w karcie aktywny strumień.
-      const releaseStream = () => stream.getTracks().forEach((track) => track.stop());
+      const releaseStream = () => {
+        stream.getTracks().forEach((track) => track.stop());
+        try {
+          audioSource?.stop();
+        } catch {
+          // już zatrzymany przez odtworzenie do końca bufora
+        }
+        void audioCtx?.close();
+      };
 
       const chunks: Blob[] = [];
       recorder.ondataavailable = (e) => {
@@ -1240,6 +1288,13 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
       };
 
       recorder.start();
+      // Ten sam takt co nagrywarka: bed startuje w momencie, w którym klatka
+      // zero idzie do pliku, więc uderzenia trafiają w grzbiety fraz.
+      try {
+        audioSource?.start();
+      } catch (err) {
+        console.error("Nie udało się wystartować ścieżki dźwiękowej:", err);
+      }
 
       const startTime = performance.now();
 
@@ -1422,6 +1477,20 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
               >
                 <Smartphone className="w-3.5 h-3.5" />
                 TikTok UI
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setReelAudioEnabled(!reelAudioEnabled)}
+                className={`px-2.5 py-1.5 rounded border text-[10px] font-mono flex items-center gap-1 transition-colors cursor-pointer ${
+                  reelAudioEnabled
+                    ? "bg-rose-500/20 border-rose-500 text-rose-300 font-bold"
+                    : "bg-[#141414] border-white/10 text-neutral-400 hover:text-white"
+                }`}
+                title="Dodaj do eksportu proceduralny bed: dron basowy i uderzenia na grzbietach fraz"
+              >
+                <Volume2 className="w-3.5 h-3.5" />
+                {reelAudioEnabled ? "Dźwięk w pliku" : "Bez dźwięku"}
               </button>
             </div>
 
@@ -2042,7 +2111,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                 <Film className="w-4 h-4" />
                 {isExporting
                   ? `Eksportowanie (${exportProgress}%)...`
-                  : ` Pobierz Rolkę (${duration}s • 30 FPS • bez dźwięku)`}
+                  : ` Pobierz Rolkę (${duration}s • 30 FPS • ${reelAudioEnabled ? "z bedem" : "bez dźwięku"})`}
               </button>
             </div>
           </div>
