@@ -2,7 +2,7 @@
 // pakowane do ZIP z folderami PON/WT/... i slotami 12-00/14-00/15-00/18-00.
 import React, { useEffect, useRef, useState } from "react";
 import { Check, Download, Loader2, Rocket, X } from "lucide-react";
-import { StarkFocusData, PlannerTask } from "../types";
+import { StarkFocusData } from "../types";
 import { usedHookFingerprints } from "../lib/usedContent";
 import { pickBroll } from "../utils/brollPicker";
 import { pickBackground } from "../utils/backgroundPicker";
@@ -11,7 +11,6 @@ interface AutopilotModalProps {
   isOpen: boolean;
   onClose: () => void;
   data: StarkFocusData;
-  onUpdateData: (updater: (prev: StarkFocusData) => StarkFocusData) => void;
 }
 interface DayPack extends DayPlan {
   reels: Array<{
@@ -42,12 +41,7 @@ interface DayPlan {
   plan?: string;
 }
 
-export const AutopilotModal: React.FC<AutopilotModalProps> = ({
-  isOpen,
-  onClose,
-  data,
-  onUpdateData,
-}) => {
+export const AutopilotModal: React.FC<AutopilotModalProps> = ({ isOpen, onClose, data }) => {
   const [planning, setPlanning] = useState(false);
   const [packing, setPacking] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -56,7 +50,6 @@ export const AutopilotModal: React.FC<AutopilotModalProps> = ({
   const [packs, setPacks] = useState<DayPack[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
-  const [addToPlanner, setAddToPlanner] = useState(true);
 
   // Zamknięcie modala odmontowuje komponent - przerwaj 8 zapytań i nie wstawiaj wyników "w pustkę"
   const cancelledRef = useRef(false);
@@ -221,51 +214,6 @@ export const AutopilotModal: React.FC<AutopilotModalProps> = ({
       // Natychmiastowe revokeObjectURL ucina pobierany ZIP w Firefox i Safari
       setTimeout(() => URL.revokeObjectURL(url), 60000);
 
-      if (addToPlanner && !cancelledRef.current) {
-        const tasks: PlannerTask[] = [];
-        for (const pack of all) {
-          const day = new Date();
-          day.setDate(day.getDate() + pack.dayIndex);
-          const date = day.toISOString().split("T")[0];
-          pack.reels.slice(0, 2).forEach((reel, idx) => {
-            tasks.push({
-              id: `ap-${Date.now()}-${pack.dayIndex}-${idx}`,
-              time: idx === 0 ? "12:00" : "15:00",
-              title: `${DAY_PL[pack.dayIndex]} Rolka ${idx + 1}: ${reel.hook.slice(0, 42)}...`,
-              category: "post",
-              targetTab: 1,
-              completed: false,
-              date,
-              actionLabel: "Otwórz Studio Rolek",
-            });
-          });
-          tasks.push({
-            id: `ap-${Date.now()}-${pack.dayIndex}-car`,
-            time: "14:00",
-            title: `${DAY_PL[pack.dayIndex]} Karuzela: ${pack.carousel.title.slice(0, 40)}...`,
-            category: "post",
-            targetTab: 2,
-            completed: false,
-            date,
-            actionLabel: "Otwórz Studio Karuzeli",
-          });
-          tasks.push({
-            id: `ap-${Date.now()}-${pack.dayIndex}-post`,
-            time: "18:00",
-            title: `${DAY_PL[pack.dayIndex]} Post 1:1: ${pack.post.headline.slice(0, 40)}...`,
-            category: "post",
-            targetTab: 0,
-            completed: false,
-            date,
-            actionLabel: "Otwórz Studio Posta",
-          });
-        }
-        onUpdateData((prev) => ({
-          ...prev,
-          planner_tasks: [...(prev.planner_tasks || []), ...tasks],
-        }));
-      }
-
       if (cancelledRef.current) return;
       setStage("Gotowe!");
       setDone(true);
@@ -303,20 +251,11 @@ export const AutopilotModal: React.FC<AutopilotModalProps> = ({
         </div>
 
         <p className="text-[11px] font-mono text-slate-400">
-          Generuje 7 paczek treści (po jednej kategorii na dzień z rotacji), pakuje je do ZIP z
+          Generuje 7 paczek treści (po jednej kategorii na dzień z rotacji) i pakuje je do ZIP z
           folderami <span className="text-slate-200">PON / WT / SR / CZW / PT / SB / ND</span>{" "}
-          (sloty 12-00, 14-00, 15-00, 18-00) i opcjonalnie dodaje zadania do plannera.
+          (sloty 12-00, 14-00, 15-00, 18-00). Zip to gotowy materiał do studiów — aplikacja niczego
+          nie trzyma w kolejce za ciebie.
         </p>
-
-        <label className="flex items-center gap-2 text-[11px] font-mono text-slate-300 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={addToPlanner}
-            onChange={(e) => setAddToPlanner(e.target.checked)}
-            className="accent-emerald-500"
-          />
-          Dodaj wszystkie sloty do plannera (harmonogram na 7 dni)
-        </label>
 
         {(planning || packing) && (
           <div className="space-y-2">
@@ -343,8 +282,7 @@ export const AutopilotModal: React.FC<AutopilotModalProps> = ({
           <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg space-y-2">
             <p className="text-xs font-mono text-emerald-300 flex items-center gap-2">
               <Check className="w-4 h-4" />
-              ZIP pobrany
-              {addToPlanner && " + zadania w plannerze"}!
+              ZIP pobrany!
             </p>
             <div className="grid grid-cols-7 gap-1">
               {packs.map((p) => (

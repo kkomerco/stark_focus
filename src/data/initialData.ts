@@ -48,5 +48,4 @@ export const INITIAL_DATA: StarkFocusData = {
     tiktok: "stark_focus",
     youtube: "@stark_focus",
   },
-  planner_tasks: [],
 };

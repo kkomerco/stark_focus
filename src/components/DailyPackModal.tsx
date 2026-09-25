@@ -3,7 +3,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ArrowRight,
-  Calendar,
   Check,
   Copy,
   Film,
@@ -28,7 +27,6 @@ interface DailyPackModalProps {
   ) => void;
   /** Bez tego post z paczki trzeba przepisywać ręcznie. */
   onOpenPostStudio?: (text: string, caption?: string) => void;
-  onSchedulePack?: (pack: DailyPack) => void;
   /** Odciski tego, co już poszło — paczka dnia nie może tego powtórzyć. */
   usedHooks?: string[];
   /** Nasze najlepiej zarabiające zdania — wzorzec rytmu dla modelu. */
@@ -61,14 +59,12 @@ export const DailyPackModal: React.FC<DailyPackModalProps> = ({
   onOpenVideoStudio,
   onOpenCarouselStudio,
   onOpenPostStudio,
-  onSchedulePack,
   usedHooks,
   exemplarHooks,
 }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [scheduled, setScheduled] = useState(false);
 
   const generate = useCallback(async () => {
     setLoading(true);
@@ -137,34 +133,6 @@ export const DailyPackModal: React.FC<DailyPackModalProps> = ({
             )}
           </div>
           <div className="flex items-center gap-2">
-            {pack && onSchedulePack && (
-              <button
-                type="button"
-                onClick={() => {
-                  onSchedulePack(pack);
-                  setScheduled(true);
-                  setTimeout(() => setScheduled(false), 3000);
-                }}
-                disabled={scheduled}
-                className={`py-1.5 px-3 rounded text-[11px] font-mono font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer transition-all ${
-                  scheduled
-                    ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
-                    : "bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40"
-                }`}
-              >
-                {scheduled ? (
-                  <>
-                    <Check className="w-3 h-3" />
-                    Zaplanowano
-                  </>
-                ) : (
-                  <>
-                    <Calendar className="w-3 h-3" />
-                    Zaplanuj publikację
-                  </>
-                )}
-              </button>
-            )}
             <button
               type="button"
               onClick={() => generate()}
@@ -383,7 +351,8 @@ export const DailyPackModal: React.FC<DailyPackModalProps> = ({
                     </div>
                   </div>
                   <p className="text-[10px] font-mono text-slate-500 text-center pt-1">
-                    Kliknij "Zaplanuj publikację" aby dodać te zadania do plannera
+                    Godziny to plan dnia, nie kolejka: każdy element wchodzi do studia przyciskiem
+                    powyżej.
                   </p>
                 </div>
               </section>

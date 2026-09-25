@@ -19,7 +19,6 @@ import {
   ReelHandoff,
   StarkFocusData,
   Post,
-  PlannerTask,
   UniversalLayoutSpec,
 } from "./types";
 import { specFromIdea } from "./utils/ideaLayout";
@@ -27,7 +26,7 @@ import { fitFrame, specFromFrame } from "./utils/frameFit";
 import { usedHookFingerprints } from "./lib/usedContent";
 import { topPublishedHooks } from "./lib/published";
 import { DataBar } from "./components/DataBar";
-import { loadStoredData, normalizePlannerTasks, saveStoredData } from "./utils/storage";
+import { loadStoredData, saveStoredData } from "./utils/storage";
 import { useIdeaStream } from "./hooks/useIdeaStream";
 import type { AbDraft } from "./components/AbModal";
 import { Header } from "./components/Header";
@@ -189,89 +188,6 @@ export default function StarkFocusApp() {
     setActiveTab(1);
   };
 
-  // Generuje zadania publikacji w plannerze na podstawie paczki dnia
-  const handleSchedulePack = (pack: DailyPack) => {
-    const today = new Date().toISOString().split("T")[0];
-    const stamp = Date.now();
-    const tasks: PlannerTask[] = [];
-    // Paczka przyszła z modelu: zanim weźmiemy z niej tytuł do zadania, sprawdzamy pole.
-    const labelOf = (value: unknown) => (typeof value === "string" ? value.slice(0, 40) : "");
-    const reels = Array.isArray(pack.reels) ? pack.reels : [];
-
-    // Rolki — publikacja o 12:00, 15:00, 18:00
-    const reelTimes = ["12:00", "15:00", "18:00"];
-    reels.forEach((reel, idx) => {
-      tasks.push({
-        id: `task-${stamp}-reel-${idx}`,
-        time: reelTimes[idx] || "18:00",
-        title: `Publikacja Rolki ${idx + 1}: ${labelOf(reel.hook)}...`,
-        category: "post",
-        targetTab: 1,
-        completed: false,
-        date: today,
-        actionLabel: "Otwórz Studio Rolek",
-        format: "Rolka",
-        // Pełna treść zadania — bez payloadu "Otwórz w studio" byłoby pustą nawigacją
-        payload: {
-          reel: {
-            hook: typeof reel.hook === "string" ? reel.hook : "",
-            phrases: Array.isArray(reel.phrases) ? reel.phrases : [],
-            theme: reel.theme,
-            duration: reel.duration,
-            caption: reel.captionShort,
-            hashtags: reel.hashtags,
-          },
-        },
-      });
-    });
-
-    // Karuzela — publikacja o 14:00
-    tasks.push({
-      id: `task-${stamp}-carousel`,
-      time: "14:00",
-      title: `Publikacja Karuzeli: ${labelOf(pack.carousel?.title)}...`,
-      category: "post",
-      targetTab: 2,
-      completed: false,
-      date: today,
-      actionLabel: "Otwórz Studio Karuzeli",
-      format: "Karuzela",
-      payload: {
-        carousel: {
-          title: typeof pack.carousel?.title === "string" ? pack.carousel.title : "",
-          slides: Array.isArray(pack.carousel?.slides) ? pack.carousel.slides : [],
-        },
-      },
-    });
-
-    // Post 1:1 — publikacja o 20:00 (studio posta mieszka w zakładce 0)
-    tasks.push({
-      id: `task-${stamp}-post`,
-      time: "20:00",
-      title: `Publikacja Posta 1:1: ${labelOf(pack.post?.headline)}...`,
-      category: "post",
-      targetTab: 0,
-      completed: false,
-      date: today,
-      actionLabel: "Otwórz Studio Posta",
-      format: "Post 1:1",
-      payload: {
-        post: {
-          text:
-            (typeof pack.post?.headline === "string" ? pack.post.headline : "") +
-            "\n\n" +
-            (typeof pack.post?.body === "string" ? pack.post.body : ""),
-        },
-      },
-    });
-
-    handleUpdateData((prev) => ({
-      ...prev,
-      // Ten sam normalizator co przy odczycie z localStorage — dane od modelu są niezaufane
-      planner_tasks: [...(prev.planner_tasks || []), ...normalizePlannerTasks(tasks)],
-    }));
-  };
-
   // Powierzchnie robocze: to, w czym się robi materiał.
   const panes = [
     { id: "post", label: "Kadr", icon: Sparkles },
@@ -336,7 +252,7 @@ export default function StarkFocusApp() {
                 );
               })}
               <span className="w-px h-4 bg-white/10 mx-1" />
-              <DataBar data={data} tasks={data.planner_tasks || []} />
+              <DataBar data={data} />
             </div>
           </div>
 
@@ -410,7 +326,6 @@ export default function StarkFocusApp() {
               setDailyPackOpen(false);
               handleSendToPost(text, caption);
             }}
-            onSchedulePack={handleSchedulePack}
             usedHooks={usedHooks}
             exemplarHooks={exemplarHooks}
           />
@@ -472,7 +387,6 @@ export default function StarkFocusApp() {
             isOpen={autopilotOpen}
             onClose={() => setAutopilotOpen(false)}
             data={data}
-            onUpdateData={handleUpdateData}
           />
         )}
         {promptLibOpen && (

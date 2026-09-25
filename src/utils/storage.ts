@@ -1,10 +1,4 @@
-import {
-  AbExperiment,
-  PlannerTask,
-  PlannerTaskPayload,
-  ReelHandoff,
-  StarkFocusData,
-} from "../types";
+import { AbExperiment, StarkFocusData } from "../types";
 import { normalizePublished } from "../lib/published";
 import { INITIAL_DATA } from "../data/initialData";
 
@@ -98,7 +92,6 @@ function normalizeParsedData(parsed: any, base: StarkFocusData): StarkFocusData 
     ...parsed,
     posts: Array.isArray(parsed?.posts) ? parsed.posts : [],
     vault_assets: cleanedAssets,
-    planner_tasks: normalizePlannerTasks(parsed?.planner_tasks),
     // Fallback polami: starszy blob może mieć tylko część dynamic_db
     dynamic_db: {
       formats: Array.isArray(parsed?.dynamic_db?.formats)
@@ -125,102 +118,6 @@ function readStreak(parsed: any): number {
     ? calculateStreakFromStartDate(createdAt)
     : calculateStreakFromStartDate();
   return Number.isFinite(fromDate) && fromDate > 0 ? fromDate : 1;
-}
-
-// ===== planner_tasks =====
-// Zadania trafiają do UI bezpośrednio (mapowanie wierszy), a ich źródłem jest
-// localStorage albo zaimportowany plik — walidujemy cały kształt, nie tylko tablicę.
-const textOf = (value: unknown, max: number): string =>
-  typeof value === "string" ? value.slice(0, max) : "";
-
-const strList = (value: unknown, max: number): string[] =>
-  Array.isArray(value) ? value.filter((v): v is string => typeof v === "string").slice(0, max) : [];
-
-const TASK_CATEGORIES = ["rutyna", "post", "montaz", "analiza", "inne"] as const;
-type TaskCategory = (typeof TASK_CATEGORIES)[number];
-
-function normalizeTaskPayload(value: unknown): PlannerTaskPayload | undefined {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
-  const src = value as Record<string, unknown>;
-  const out: PlannerTaskPayload = {};
-
-  const reel = src.reel;
-  if (reel && typeof reel === "object") {
-    const r = reel as Record<string, unknown>;
-    const hook = textOf(r.hook, 300);
-    const phrases = strList(r.phrases, 24);
-    if (hook || phrases.length > 0) {
-      const handoff: ReelHandoff = { hook: hook || phrases[0], phrases };
-      const theme = textOf(r.theme, 120);
-      const caption = textOf(r.caption, 2000);
-      const hashtags = strList(r.hashtags, 40);
-      if (theme) handoff.theme = theme;
-      if (typeof r.duration === "number" && Number.isFinite(r.duration)) {
-        handoff.duration = r.duration;
-      }
-      if (caption) handoff.caption = caption;
-      if (hashtags.length > 0) handoff.hashtags = hashtags;
-      out.reel = handoff;
-    }
-  }
-
-  const carousel = src.carousel;
-  if (carousel && typeof carousel === "object") {
-    const c = carousel as Record<string, unknown>;
-    const slides = Array.isArray(c.slides)
-      ? c.slides.slice(0, 12).map((s) => ({
-          headline: textOf((s as Record<string, unknown>)?.headline, 200),
-          bodyText: textOf((s as Record<string, unknown>)?.bodyText, 800),
-        }))
-      : [];
-    const title = textOf(c.title, 200);
-    if (title || slides.length > 0) out.carousel = { title, slides };
-  }
-
-  const post = src.post;
-  if (post && typeof post === "object") {
-    const p = post as Record<string, unknown>;
-    const text = textOf(p.text, 2000);
-    if (text) out.post = { text, caption: textOf(p.caption, 4000) };
-  }
-
-  return out.reel || out.carousel || out.post ? out : undefined;
-}
-
-export function normalizePlannerTasks(raw: unknown): PlannerTask[] {
-  if (!Array.isArray(raw)) return [];
-  const tasks: PlannerTask[] = [];
-  for (const item of raw.slice(0, 300)) {
-    if (!item || typeof item !== "object") continue;
-    const t = item as Record<string, unknown>;
-    const id = textOf(t.id, 64);
-    const title = textOf(t.title, 300);
-    if (!id || !title) continue;
-    const date = typeof t.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(t.date) ? t.date : "";
-    const category = (TASK_CATEGORIES as readonly string[]).includes(String(t.category))
-      ? (t.category as TaskCategory)
-      : "inne";
-    const targetTab =
-      typeof t.targetTab === "number" &&
-      Number.isInteger(t.targetTab) &&
-      t.targetTab >= 0 &&
-      t.targetTab <= 3
-        ? t.targetTab
-        : undefined;
-    tasks.push({
-      id,
-      title,
-      time: textOf(t.time, 5),
-      category,
-      targetTab,
-      completed: t.completed === true,
-      date,
-      actionLabel: textOf(t.actionLabel, 80) || undefined,
-      format: textOf(t.format, 80) || undefined,
-      payload: normalizeTaskPayload(t.payload),
-    });
-  }
-  return tasks;
 }
 
 // Etapy odzyskiwania miejsca: 1 = tylko ciężar odtwarzalny, 2 = + skrócona historia
@@ -293,7 +190,7 @@ export function importStoredData(rawJson: string): ImportResult {
   const recognizable =
     Array.isArray(source.posts) ||
     Array.isArray(source.vault_assets) ||
-    Array.isArray(source.planner_tasks) ||
+    Array.isArray(source.published) ||
     typeof source.xp === "number";
   if (!recognizable) {
     return {

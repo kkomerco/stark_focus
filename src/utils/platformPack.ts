@@ -1,5 +1,5 @@
 import { drawMinimalBlackQuoteSlide } from "./canvasRenderer";
-import { PlannerTask } from "../types";
+import { Post } from "../types";
 import { STARK_CTA, starkHashtags } from "../lib/caption";
 
 /**
@@ -27,29 +27,25 @@ const FRAME_SIZES = [
   { key: "9x16", width: 1080, height: 1920, note: "relacja 9:16 (rolka)" },
 ] as const;
 
-/** Tekst zadania na grafikę: hook plus pierwsza fraza, bez markdownu modelu. */
-function frameText(task: PlannerTask): { main: string; sub: string } {
-  const reel = task.payload?.reel;
-  const post = task.payload?.post;
-  const clean = (value: string) => value.replace(/[*"#]/g, "").trim();
+/**
+ * Tekst na grafikę bierzemy z pierwszego wiersza opisu, nie z tytułu: to on
+ * jest materiałem, a tytuł to etykieta porządkowa w aplikacji.
+ */
+function frameText(post: Post): { main: string; sub: string } {
+  const clean = (value: string) => (value || "").replace(/[*"#]/g, "").trim();
+  const lines = (post.caption || "")
+    .split("\n")
+    .map(clean)
+    .filter((line) => line.length > 0 && !line.startsWith("#"));
 
-  if (post?.text) {
-    return { main: clean(post.text), sub: "" };
-  }
-  if (reel?.hook) {
-    const second = (reel.phrases || [])[1] || "";
-    return { main: clean(reel.hook), sub: second ? clean(second) : "" };
-  }
-  return { main: clean(task.title || "STARK FOCUS"), sub: "" };
+  if (lines.length === 0) return { main: clean(post.title), sub: "" };
+  return { main: lines[0], sub: lines[1] || "" };
 }
 
-function captionFor(task: PlannerTask, limit: number, platformLabel: string): string {
-  const raw =
-    task.payload?.post?.caption || task.payload?.reel?.caption || task.payload?.reel?.hook || "";
-  const hashtags = task.payload?.reel?.hashtags?.length
-    ? task.payload.reel.hashtags.join(" ")
-    : starkHashtags(raw).join(" ");
-  const body = raw.trim() || STARK_CTA;
+function captionFor(post: Post, limit: number, platformLabel: string): string {
+  const raw = (post.caption || post.title || "").trim();
+  const hashtags = starkHashtags(raw).join(" ");
+  const body = raw || STARK_CTA;
   const text = `${body}\n\n${hashtags}`;
 
   if (text.length <= limit) return text;
@@ -96,7 +92,7 @@ export interface PlatformPackResult {
  * Buduje ZIP. `jszip` ładowany leniwie, bo pakiet jest opcjonalną ścieżką —
  * nie po to, żeby powiększał główny bundel każdemu, kto nigdy go nie użyje.
  */
-export async function buildPlatformPack(tasks: PlannerTask[]): Promise<PlatformPackResult> {
+export async function buildPlatformPack(posts: Post[]): Promise<PlatformPackResult> {
   const { default: JSZip } = await import("jszip");
   const zip = new JSZip();
   const skipped: string[] = [];
@@ -104,15 +100,15 @@ export async function buildPlatformPack(tasks: PlannerTask[]): Promise<PlatformP
 
   const working = document.createElement("canvas");
 
-  for (const task of tasks) {
-    const { main, sub } = frameText(task);
+  for (const post of posts) {
+    const { main, sub } = frameText(post);
     if (!main) {
-      skipped.push(task.title || task.id);
+      skipped.push(post.title || post.id);
       continue;
     }
 
-    const slug = sanitizeFileName(task.title || task.id);
-    const folder = zip.folder(`${task.date || "bez-terminu"}_${slug}`)!;
+    const slug = sanitizeFileName(post.title || post.id);
+    const folder = zip.folder(`${post.created_date || "bez-daty"}_${slug}`)!;
 
     for (const size of FRAME_SIZES) {
       drawMinimalBlackQuoteSlide(working, {
@@ -131,9 +127,9 @@ export async function buildPlatformPack(tasks: PlannerTask[]): Promise<PlatformP
     for (const platform of PLATFORMS) {
       folder.file(
         `opis-${platform.id}.txt`,
-        `${platform.label} — ${task.time || ""}
+        `${platform.label} — ${post.created_date || ""}
 
-${captionFor(task, platform.captionLimit, platform.label)}
+${captionFor(post, platform.captionLimit, platform.label)}
 
 --- ALT TEXT (wklej przy publikacji) ---
 ${altTextFor(main)}

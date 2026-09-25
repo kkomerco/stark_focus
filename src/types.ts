@@ -107,27 +107,6 @@ export interface SocialHandles {
   metaBusiness?: string;
 }
 
-// Zadanie w pipeline'ie publikacji. `payload` przenosi treść do studia, żeby
-// "Otwórz w studio" odtworzyło dokładnie to, co zaplanowano w paczce dnia.
-export interface PlannerTaskPayload {
-  reel?: ReelHandoff;
-  carousel?: { title: string; slides: Array<{ headline: string; bodyText: string }> };
-  post?: { text: string; caption?: string };
-}
-
-export interface PlannerTask {
-  id: string;
-  time: string;
-  title: string;
-  category: "rutyna" | "post" | "montaz" | "analiza" | "inne";
-  targetTab?: number;
-  completed: boolean;
-  date: string;
-  actionLabel?: string;
-  format?: string;
-  payload?: PlannerTaskPayload;
-}
-
 // =========================================================================
 // UNIWERSALNA SPECYFIKACJA DOWOLNEGO UKŁADU WIZUALNEGO 1:1
 // =========================================================================
@@ -291,7 +270,6 @@ export interface StarkFocusData {
   notificationsEnabled?: boolean;
   saved_trends?: TrendItem[];
   social_handles?: SocialHandles;
-  planner_tasks?: PlannerTask[];
   used_idea_fingerprints?: string[];
   ab_experiments?: AbExperiment[];
   prompt_library?: PromptLibraryItem[];

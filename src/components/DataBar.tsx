@@ -1,6 +1,6 @@
 import React, { useRef, useState } from "react";
 import { Download, Package, Upload } from "lucide-react";
-import { PlannerTask, StarkFocusData } from "../types";
+import { StarkFocusData } from "../types";
 import { importStoredData, serializeBackup } from "../utils/storage";
 import { buildPlatformPack } from "../utils/platformPack";
 
@@ -12,7 +12,6 @@ import { buildPlatformPack } from "../utils/platformPack";
 
 interface DataBarProps {
   data: StarkFocusData;
-  tasks: PlannerTask[];
 }
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -20,11 +19,13 @@ const today = () => new Date().toISOString().slice(0, 10);
 const BTN =
   "flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-white/10 text-[10px] font-mono uppercase tracking-wider text-neutral-400 hover:text-white hover:border-white/30 transition-colors cursor-pointer disabled:opacity-40";
 
-export const DataBar: React.FC<DataBarProps> = ({ data, tasks }) => {
+export const DataBar: React.FC<DataBarProps> = ({ data }) => {
   const [packing, setPacking] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
-  const queued = tasks.filter((t) => t && !t.completed);
+  // Kolejka to zapisane posty, które jeszcze nie poszły na konto. Planera w
+  // aplikacji nie ma, więc nie udajemy, że pakiet bierze z niego pozycje.
+  const queued = data.posts.filter((post) => post && !post.published_date);
 
   const download = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
@@ -40,7 +41,7 @@ export const DataBar: React.FC<DataBarProps> = ({ data, tasks }) => {
 
   const handlePlatformPack = async () => {
     if (queued.length === 0) {
-      setNotice("Nie ma nic w kolejce publikacji — najpierw wygeneruj paczkę dnia.");
+      setNotice("Nie ma czego pakować — zapisane posty muszą najpierw powstać w studio.");
       return;
     }
     setPacking(true);
