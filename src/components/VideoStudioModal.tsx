@@ -82,6 +82,9 @@ const DEFAULT_CAPTION =
 // pięć, a sztywny ogon sprawiał, że każdy post miał identyczną stopkę.
 const DEFAULT_HASHTAGS = starkHashtags(DEFAULT_PHRASES[0]);
 
+/** Wyjscie z lagodnym hamowaniem — liniowy fade wyglada jak włącznik swiatla. */
+const easeOutCubic = (t: number) => 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 3);
+
 /** Studio ogarnia maksymalnie 4 kadry — dłuższe listy z modelu tniemy, nie renderujemy. */
 const MAX_PHRASES = 4;
 
@@ -694,10 +697,13 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
       const totalDuration = duration;
       const zoomProgress = Math.min(1, Math.max(0, timeSec / totalDuration));
       const isDynamicCut = reelFormat === "dynamic_broll_cut" && timeSec >= totalDuration * 0.48;
-      // Subtle cinematic Ken Burns zoom (1.00x ->1.05x, or cut to 1.09x on second shot)
+      // Ken Burns startuje od 1,02, nie od 1,00: kadr, ktory w pierwszej
+      // sekundzie nie drgnie, nie jest hookiem — jest stopklatka.
+      // Ostatnie 12% wraca do 1,02, zeby zapetlenie nie bylo widoczne jako skok.
+      const loopReturn = Math.max(0, (zoomProgress - 0.88) / 0.12);
       const zoomScale = isDynamicCut
         ? 1.09 + 0.03 * ((timeSec - totalDuration * 0.48) / (totalDuration * 0.52))
-        : 1.0 + 0.04 * zoomProgress;
+        : 1.02 + 0.03 * easeOutCubic(zoomProgress) * (1 - loopReturn);
 
       // 1. Background: Custom Upload (Image or Video) or Dark Generative Theme with Slow Zoom
       ctx.save();
@@ -905,6 +911,21 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
       ctx.fillStyle = vignette;
       ctx.fillRect(0, 0, width, height);
 
+      // 2b. Ziarno. Plaska czerń wygląda jak tło z generatora grafik — to ona
+      // sprawia, że materiał wygląda na wypluty, a nie nagrany. Seed idzie po
+      // numerze klatki, więc ziarno żyje, ale nie skacze między odtworzeniami.
+      ctx.save();
+      let grainState = (Math.floor(timeSec * 24) + 1) * 2654435761;
+      ctx.fillStyle = "rgba(248, 250, 252, 0.055)";
+      for (let i = 0; i < 700; i++) {
+        grainState = (Math.imul(grainState, 1664525) + 1013904223) | 0;
+        const x = ((grainState >>> 8) / 16777216) * width;
+        grainState = (Math.imul(grainState, 1664525) + 1013904223) | 0;
+        const y = ((grainState >>> 8) / 16777216) * height;
+        ctx.fillRect(x, y, 2, 2);
+      }
+      ctx.restore();
+
       // 3. Kinowa typografia: wybrane pismo i marginesy
       let selectedFont = '"Cormorant Garamond", "Cormorant", Georgia, serif';
       if (fontFamily === "cinzel") {
@@ -925,28 +946,34 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
       const maxTextWidth = width - band.side * 2;
 
       // 4. Frazy wchodzą i ZOSTAJĄ. Wcześniej każda gasła po swojej sekundzie,
-      // więc trzy zdania zachowywały się jak migawka. Tu bieżąca dojeżdża
-      // w 0,18 s, a poprzednie ściemniają się pod nią do 28%.
-      let visible: { text: string; opacity: number }[];
+      // więc trzy zdania zachowywały się jak migawka. Bieżąca odsłania się
+      // maską lewo->prawo w 0,28 s, poprzednie ściemniają pod nią do 28%.
+      // Maska, nie słowo-po-słowie: karaoke bez lektora irytuje.
+      let visible: { text: string; opacity: number; reveal: number }[];
+      const timeline =
+        phrases.length > 1 ? getPhraseTimeline(phrases, totalDuration, pacingMode) : [];
+
       if (phrases.length <= 1) {
-        visible = [{ text: phrases[0] || "", opacity: 1 }];
+        visible = [{ text: phrases[0] || "", opacity: 1, reveal: 1 }];
+      } else if (timeSec >= totalDuration - 0.4) {
+        // Szew pętli: ostatnie 0,4 s pokazuje dokładnie to, co klatka zero.
+        visible = [{ text: timeline[0].text, opacity: 1, reveal: 1 }];
       } else {
-        const timeline = getPhraseTimeline(phrases, totalDuration, pacingMode);
         let active = 0;
         for (let i = 0; i < timeline.length; i++) {
           if (timeSec >= timeline[i].start) active = i;
         }
-        visible = timeline.slice(Math.max(0, active - 2), active + 1).map((item, idx, arr) => ({
-          text: item.text,
-          // Pierwszy kadr jest czytelny od zera: decyzja o przewinięciu zapada
-          // po ~1,7 s, a fade-in od zera oznacza czarny ekran w pierwszej sekundzie.
-          opacity:
-            idx === arr.length - 1
-              ? item.index === 0
-                ? 1
-                : Math.max(0, Math.min(1, (timeSec - item.start) / 0.18))
-              : 0.28,
-        }));
+        visible = timeline.slice(Math.max(0, active - 2), active + 1).map((item, idx, arr) => {
+          const isLast = idx === arr.length - 1;
+          const age = timeSec - item.start;
+          return {
+            text: item.text,
+            // Pierwszy kadr jest czytelny od zera: decyzja o przewinięciu
+            // zapada po ~1,7 s, a fade od zera znaczy czarny ekran.
+            opacity: isLast ? (item.index === 0 ? 1 : Math.min(1, age / 0.12)) : 0.28,
+            reveal: isLast && item.index > 0 ? easeOutCubic(age / 0.28) : 1,
+          };
+        });
       }
 
       const blocks = visible
@@ -954,6 +981,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
         .map((entry) => ({
           ...entry,
           layout: layoutLines(entry.text, ctx, maxTextWidth, 64, selectedFont),
+          reveal: entry.reveal,
         }));
 
       // Odstęp między BLOKAMI musi być liczony od pełnej linii, nie od jej
@@ -979,6 +1007,12 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
       blocks.forEach((block, blockIdx) => {
         const { lines, fontSize, lineHeight } = block.layout;
         ctx.globalAlpha = block.opacity;
+        if (block.reveal < 1) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(0, cursorY - lineHeight, width * block.reveal, lineHeight * (lines.length + 1));
+          ctx.clip();
+        }
         // Pomiar i rysowanie na tym samym kroju — inaczej słowa wchodzą na siebie.
         ctx.font = `600 ${fontSize}px ${selectedFont}`;
         const spaceW = ctx.measureText(" ").width;
@@ -997,6 +1031,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
           });
         });
 
+        if (block.reveal < 1) ctx.restore();
         cursorY += blockHeights[blockIdx] + blockGap;
       });
 
