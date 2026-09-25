@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import JSZip from "jszip";
 import { formatStarkCaption, isPolishCopy, starkCaption } from "../lib/caption";
+import { postChecklist } from "../lib/prepublish";
+import { ChecklistPanel } from "./ChecklistPanel";
 import {
   Link2,
   Sparkles,
@@ -1447,6 +1449,17 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
             ) : (
               <div />
             )}
+
+            <ChecklistPanel
+              title="Kontrola przed publikacja"
+              items={postChecklist({
+                hook: spec.textLayers
+                  .map((layer) => layer.text?.trim() ?? "")
+                  .filter(Boolean)
+                  .join(" "),
+                caption: spec.caption,
+              })}
+            />
 
             <button
               onClick={handleSaveToPipeline}

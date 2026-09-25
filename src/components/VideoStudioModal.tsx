@@ -29,6 +29,8 @@ import { STARK_CTA, starkHashtags } from "../lib/caption";
 import { BRAND_ACCENT } from "../utils/starkBrandTheme";
 import { REEL_SAFE, bandCenter, safeBand } from "../utils/safeZones";
 import { beatTimesFrom, renderReelBed } from "../utils/reelAudio";
+import { reelChecklist } from "../lib/prepublish";
+import { ChecklistPanel } from "./ChecklistPanel";
 import { VIRAL_REEL_TEMPLATES, type ReelTemplate } from "../data/reelTemplates";
 import {
   STOIC_CATEGORIES,
@@ -2078,6 +2080,15 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                 </span>
               )}
             </div>
+
+            <ChecklistPanel
+              title="Kontrola przed publikacja"
+              items={reelChecklist({
+                phrases,
+                durationSec: Number(duration) || 0,
+                audioEnabled: reelAudioEnabled,
+              })}
+            />
 
             <div className="flex items-center gap-2 w-full sm:w-auto">
               {onSendToPost && (
