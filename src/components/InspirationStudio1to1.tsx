@@ -33,7 +33,8 @@ import {
   drawMinimalBlackQuoteSlide,
   drawSceneBackdrop,
 } from "../utils/canvasRenderer";
-import { structuredSpec } from "../utils/ideaLayout";
+import { StructuredContent, structuredSpec } from "../utils/ideaLayout";
+import { FrameFormat, formatByGrid } from "../lib/formats";
 import { groupText, nextLayerId, PRIMARY_LAYER_ID } from "../utils/canvas/layerRoles";
 
 interface InspirationStudioProps {
@@ -241,6 +242,53 @@ const SIGN_SCENES: Array<{ scene: "wall" | "neon" | "billboard"; label: string }
   { scene: "billboard", label: "Baner" },
 ];
 
+/** Kandydat z generatora: cała struktura kadru plus to, co widać na liście. */
+interface FrameCandidate {
+  key: string;
+  preview: string;
+  extra: string;
+  archetype: string;
+  content: StructuredContent;
+}
+
+function asStringList(value: unknown): string[] {
+  return Array.isArray(value) ? value.map((item) => String(item).trim()).filter(Boolean) : [];
+}
+
+/**
+ * Odpowiedź serwera (pole modelu) → struktura kadru. Listy zostają listami:
+ * gdyby tu spłaszczyć kroki do jednego zdania, protokół znowu byłby cytatem.
+ */
+function asCandidate(
+  frame: Record<string, unknown>,
+  format: FrameFormat | undefined,
+): FrameCandidate | null {
+  const steps = asStringList(frame.steps);
+  const cost = asStringList(frame.cost);
+  const forfeit = asStringList(frame.forfeit);
+  const primary = String(frame.primary ?? "").trim();
+  const closing = String(frame.closing ?? "").trim();
+  if (!primary) return null;
+  const keeps = (key: string) => !!format?.fields.some((field) => field.key === key);
+  const lists = [steps, cost, forfeit].filter((list) => list.length > 0);
+  return {
+    key: `${primary}|${lists.map((list) => list.join(" ")).join("|")}`,
+    preview: primary,
+    extra: lists
+      .flat()
+      .concat(closing ? [closing] : [])
+      .join("\n"),
+    archetype: String(frame.archetype ?? "unlabeled"),
+    content: {
+      primary,
+      steps: keeps("steps") ? steps : undefined,
+      cost: keeps("cost") ? cost : undefined,
+      forfeit: keeps("forfeit") ? forfeit : undefined,
+      closing: keeps("closing") ? closing : "",
+    },
+  };
+}
+
 /**
  * Etykieta wiersza edytora z roli warstwy. Bez niej przy protokole było osiem
  * pól "Wers 1..8" i nie dało się zgadnąć, które idzie do lewego słupka.
@@ -286,9 +334,13 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
   // Stan generatora powiedzonek
   const [isGeneratingSayings, setIsGeneratingSayings] = useState(false);
   const [sayingError, setSayingError] = useState<string | null>(null);
-  const [sayingCandidates, setSayingCandidates] = useState<{ line: string; archetype: string }[]>(
-    [],
-  );
+  /**
+   * Kandydat to cały kadr, nie jedno zdanie: struktura idzie z formatem, który
+   * stoi aktualnie w studio, więc "Generuj z AI" pod protokół zwraca protokół.
+   */
+  const [sayingCandidates, setSayingCandidates] = useState<
+    { key: string; preview: string; extra: string; archetype: string; content: StructuredContent }[]
+  >([]);
   const [sayingTopic, setSayingTopic] = useState(
     "Dyscyplina stoicka, milczenie, wysokie standardy",
   );
@@ -297,6 +349,9 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
 
   // Aktywna specyfikacja układu (domyślnie: czysty minimalistyczny cytat na czerni 9:16)
   const [spec, setSpec] = useState<UniversalLayoutSpec>(SPEC_BLACK_QUOTE);
+
+  // Generator ma pisać pod ten układ, pod którym patrzy się w podgląd.
+  const activeFormat = formatByGrid(spec.gridType);
 
   // Tablica zdjęć wgranych do slotów
   const [slotImages, setSlotImages] = useState<(string | null)[]>([]);
@@ -542,36 +597,29 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
   };
 
   /**
-   * Studio nie prosi modelu o jedną odpowiedź, tylko o dziesięć, i pokazuje
-   * je do wyboru. Limitem jest liczba zapytań na dobę, nie tokeny — nadmiar
-   * kandydatów jest darmowy, każdy kolejny klik już nie. Selekcja z kliszami
-   * dzieje się na serwerze (`/api/ai/hooks`), więc do UI nie wchodzi zdanie,
-   * które odrzuciłaby kontrola jakości.
+   * Studio nie prosi modelu o jedną odpowiedź, tylko o kilka, i pokazuje je do
+   * wyboru. Limitem jest liczba zapytań na dobę, nie tokeny. Model dostaje
+   * format aktualnego kadru, więc wypełnia protokół krokami, a koszt słupkami —
+   * dawniej zawsze dostawał jedno zdanie i każdy format zapadał się w cytat.
    */
   const handleGenerateAiSayings = async () => {
     setIsGeneratingSayings(true);
     setSayingError(null);
+    const format = activeFormat;
     try {
-      const shape =
-        quoteStyleMode === "single"
-          ? "Każdy kandydat to JEDNO zdanie 4-7 słów, które mieści się na jednym kadrze."
-          : quoteStyleMode === "two_lines"
-            ? "Każdy kandydat to DWA ultra-krótkie wersy oddzielone znakiem / (2-5 słów na wers)."
-            : "Kandydat to jedno zdanie 4-7 słów albo dwa krótkie wersy oddzielone znakiem /.";
-
-      const res = await fetch("/api/ai/hooks", {
+      const res = await fetch("/api/ai/frame-fill", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          topic: sayingTopic || "Prowokujące cytaty stoickie skierowane do odbiorcy",
-          shape,
-          count: 5,
+          format: format?.id ?? "quote",
+          topic: sayingTopic || "Prowokujące treści stoickie skierowane do odbiorcy",
+          count: 3,
           excludeHooks: usedHooks,
           exemplars: exemplarHooks,
         }),
       });
       const data = await res.json();
-      const list = Array.isArray(data?.candidates) ? data.candidates : [];
+      const list = Array.isArray(data?.frames) ? data.frames : [];
 
       if (list.length === 0) {
         setSayingError(
@@ -585,10 +633,9 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
       }
 
       setSayingCandidates(
-        list.slice(0, 5).map((entry: any) => ({
-          line: String(entry?.line ?? ""),
-          archetype: String(entry?.archetype ?? ""),
-        })),
+        list
+          .map((frame: Record<string, unknown>) => asCandidate(frame, format))
+          .filter((candidate: FrameCandidate | null): candidate is FrameCandidate => !!candidate),
       );
     } catch (err) {
       setSayingError("Nie udało się połączyć z generatorem. Sprawdź, czy serwer działa.");
@@ -599,20 +646,25 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
   };
 
   // Wybranie kandydata, nie „generuj aż wypadnie dobrze": decyzja jest ludzka.
-  const handleApplyCandidate = (candidate: { line: string; archetype: string }) => {
-    const [main, sub = ""] = candidate.line.split(/\s+\/\s+/);
-    const saying: StoicSaying = {
-      main: main.trim(),
-      sub: quoteStyleMode === "single" ? "" : sub.trim(),
-    };
-
-    if (isPolishCopy(saying.main) || isPolishCopy(saying.sub ?? "")) {
+  const handleApplyCandidate = (candidate: FrameCandidate) => {
+    setSayingCandidates([]);
+    if (isPolishCopy(candidate.preview)) {
       setSayingError("Ta linia jest po polsku. Wybierz inną albo generuj ponownie.");
       return;
     }
+    applyStructuredFrame(candidate.content);
+  };
 
-    setSayingCandidates([]);
-    handleApplySaying(saying);
+  /** Przebudowa kadru z zachowaniem tego, co właściciel marki ustawił sam. */
+  const applyStructuredFrame = (content: StructuredContent) => {
+    const next = structuredSpec(spec.layoutName, spec.gridType, content, spec.layoutData ?? {});
+    setSpec((prev) => ({
+      ...next,
+      fontFamilyCustom: prev.fontFamilyCustom,
+      fontColorMode: prev.fontColorMode,
+      backgroundColor: prev.backgroundColor,
+      caption: starkCaption(content.primary, next.caption),
+    }));
   };
 
   const handleUploadPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -971,6 +1023,24 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
                 {option.label}
               </button>
             ))}
+            {spec.gridType === "concept_diagram" && (
+              <button
+                type="button"
+                onClick={() =>
+                  setSpec((prev) => ({
+                    ...prev,
+                    layoutData: {
+                      ...prev.layoutData,
+                      diagramSeed: Math.random().toString(36).slice(2, 8),
+                    },
+                  }))
+                }
+                className="px-2.5 py-1 rounded text-[10px] font-mono uppercase tracking-wider cursor-pointer transition-colors shrink-0 bg-[#141414] text-neutral-500 border border-white/10 hover:text-white"
+                title="Ten sam wers, inny szkic"
+              >
+                Inny szkic
+              </button>
+            )}
           </div>
         )}
 
@@ -1150,20 +1220,24 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
             </div>
           </div>
 
-          {/* DEDYKOWANY GENERATOR DLA "CYTAT NA CZERNI (9:16)" */}
-          {spec.gridType === "none_solid" && (
-            <div className="bg-[#111111] p-4 rounded-xl border border-white/10 space-y-3.5">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-mono font-bold text-white uppercase flex items-center gap-1.5">
-                  <Quote className="w-3.5 h-3.5 text-white" />
-                  Generator Cytatu na Czerni (9:16)
-                </span>
-                <span className="text-[10px] font-mono text-neutral-400">
-                  Wysoki Kontrast • Zero Długich Bloków
-                </span>
-              </div>
+          {/*
+            GENERATOR TREŚCI — dla każdego formatu, nie tylko cytatu.
+            Kształt tego, co zwraca model, dyktuje `activeFormat`, więc
+            "Generuj z AI" pod protokół daje protokół z krokami.
+          */}
+          <div className="bg-[#111111] p-4 rounded-xl border border-white/10 space-y-3.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-mono font-bold text-white uppercase flex items-center gap-1.5">
+                <Quote className="w-3.5 h-3.5 text-white" />
+                Generator treści — {activeFormat?.label ?? spec.layoutName}
+              </span>
+              <span className="text-[10px] font-mono text-neutral-400">
+                {activeFormat?.shape ?? "Jedno zdanie na kadr"}
+              </span>
+            </div>
 
-              {/* Wybór formatu cytatu: 1 zdanie (~5 słów) vs 2 krótkie wersy po 1 linii */}
+            {/* Wybór formatu cytatu: 1 zdanie (~5 słów) vs 2 krótkie wersy po 1 linii */}
+            {spec.gridType === "none_solid" && (
               <div className="space-y-1.5">
                 <label className="text-[10px] font-mono text-neutral-400 uppercase block">
                   Układ Cytatu:
@@ -1245,62 +1319,65 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
                   </button>
                 </div>
               </div>
+            )}
 
-              {/* Temat / Prompt do generatora */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-mono text-neutral-400 uppercase block">
-                  Temat lub idea (np. dyscyplina, zima, brak wymówek, samotność):
-                </label>
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <input
-                    type="text"
-                    value={sayingTopic}
-                    onChange={(e) => setSayingTopic(e.target.value)}
-                    placeholder="Wpisz temat lub zostaw domyślny..."
-                    className="flex-1 px-3 py-2 bg-[#080808] border border-white/15 rounded-lg text-xs font-mono text-white placeholder-neutral-500 focus:outline-none focus:border-white"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleGenerateAiSayings}
-                    disabled={isGeneratingSayings}
-                    className="px-4 py-2 bg-white hover:bg-neutral-200 text-black rounded-lg text-xs font-mono font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-50 shadow-sm shrink-0"
-                  >
-                    {isGeneratingSayings ? (
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <Sparkles className="w-3.5 h-3.5" />
-                    )}
-                    <span>{isGeneratingSayings ? "Generuję..." : "Generuj z AI"}</span>
-                  </button>
-                </div>
-                {sayingError && (
-                  <p className="text-[10px] font-mono text-rose-400">{sayingError}</p>
-                )}
-                {sayingCandidates.length > 0 && (
-                  <div className="space-y-1.5">
-                    <p className="text-[10px] font-mono text-neutral-500 uppercase">
-                      Kandydaci — wybierz jeden
-                    </p>
-                    {sayingCandidates.map((candidate) => (
-                      <button
-                        key={candidate.line}
-                        type="button"
-                        onClick={() => handleApplyCandidate(candidate)}
-                        className="w-full text-left px-3 py-2 bg-[#080808] border border-white/10 hover:border-white rounded-lg transition-all cursor-pointer"
-                      >
-                        <span className="block text-[11px] font-mono text-white leading-snug">
-                          {candidate.line}
-                        </span>
-                        <span className="block text-[9px] font-mono text-neutral-500 uppercase mt-0.5">
-                          {ARCHETYPE_LABELS[candidate.archetype] ?? candidate.archetype}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                )}
+            {/* Temat / Prompt do generatora */}
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-mono text-neutral-400 uppercase block">
+                Temat lub idea (np. dyscyplina, zima, brak wymówek, samotność):
+              </label>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  type="text"
+                  value={sayingTopic}
+                  onChange={(e) => setSayingTopic(e.target.value)}
+                  placeholder="Wpisz temat lub zostaw domyślny..."
+                  className="flex-1 px-3 py-2 bg-[#080808] border border-white/15 rounded-lg text-xs font-mono text-white placeholder-neutral-500 focus:outline-none focus:border-white"
+                />
+                <button
+                  type="button"
+                  onClick={handleGenerateAiSayings}
+                  disabled={isGeneratingSayings}
+                  className="px-4 py-2 bg-white hover:bg-neutral-200 text-black rounded-lg text-xs font-mono font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-50 shadow-sm shrink-0"
+                >
+                  {isGeneratingSayings ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Sparkles className="w-3.5 h-3.5" />
+                  )}
+                  <span>{isGeneratingSayings ? "Generuję..." : "Generuj z AI"}</span>
+                </button>
               </div>
+              {sayingError && <p className="text-[10px] font-mono text-rose-400">{sayingError}</p>}
+              {sayingCandidates.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-[10px] font-mono text-neutral-500 uppercase">
+                    Kandydaci w formacie „{activeFormat?.label ?? spec.layoutName}" — wybierz jeden
+                  </p>
+                  {sayingCandidates.map((candidate) => (
+                    <button
+                      key={candidate.key}
+                      type="button"
+                      onClick={() => handleApplyCandidate(candidate)}
+                      className="w-full text-left px-3 py-2 bg-[#080808] border border-white/10 hover:border-white rounded-lg transition-all cursor-pointer"
+                    >
+                      <span className="block text-[11px] font-mono text-white leading-snug">
+                        {candidate.preview}
+                      </span>
+                      {candidate.extra && (
+                        <span className="block text-[10px] font-mono text-neutral-400 leading-snug mt-1 whitespace-pre-line">
+                          {candidate.extra}
+                        </span>
+                      )}
+                      <span className="block text-[9px] font-mono text-neutral-500 uppercase mt-0.5">
+                        {ARCHETYPE_LABELS[candidate.archetype] ?? candidate.archetype}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-          )}
+          </div>
 
           <div className="bg-[#121212] p-4 rounded-xl border border-white/10 space-y-4">
             <div className="flex items-center justify-between">

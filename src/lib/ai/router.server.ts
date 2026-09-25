@@ -13,6 +13,7 @@ import { registerGrowthRoutes } from "./routes/growth.server";
 import { registerBatchRoutes } from "./routes/batch.server";
 import { registerBackgroundRoutes } from "./routes/backgrounds.server";
 import { registerHookRoutes } from "./routes/hooks.server";
+import { registerFrameRoutes } from "./routes/frames.server";
 
 // Cache odpowiedzi AI (identyczne zapytanie = ta sama odpowiedz)
 const aiCache = createTtlCache<{ body: string; contentType: string }>({
@@ -43,6 +44,8 @@ registerBatchRoutes(app);
 registerBackgroundRoutes(app);
 // Świadomie poza cache'em: ten sam temat ma innego dnia dawać inne zdania.
 registerHookRoutes(app);
+// Też poza cache'em: kadr ma się dać wypełnić ponownie tym samym kliknięciem.
+registerFrameRoutes(app);
 
 /**
  * Cache zostaje tylko tam, gdzie identyczne zapytanie MA znaczyć identyczną

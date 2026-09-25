@@ -8,6 +8,8 @@ import { pick, pickForDay, shuffle } from "../../random";
 import { clampInt, clampText, LIMITS } from "../../limits";
 import { HOOK_CRAFT_PROMPT, exemplarBlock } from "../../hookCraft";
 import { asArray, asString, asStringArray, oneOf } from "../normalize.server";
+import { publishableLine, publishableLines } from "../../prepublish";
+import { starkCaption } from "../../caption";
 import { STARK_CTA, starkHashtags } from "../../caption";
 
 const REEL_THEMES = [
@@ -25,18 +27,22 @@ const MAX_PACK_REELS = 6;
  * UI robi `reel.phrases.map()` i `reel.hashtags.join()` bez sprawdzania pola,
  * więc kompletne kształty robimy tutaj: jedna rolka bez `phrases` nie może
  * rozbijać całej paczki dnia.
+ *
+ * Frazy przechodzą przez te same reguły co kontrola przed publikacją — klisza
+ * i polszczyzna nie mogą dojść do paczki, a potem do konta.
  */
 function normalizeReel(item: unknown) {
   const reel = (item ?? {}) as Record<string, unknown>;
-  const hook = asString(reel.hook);
-  const phrases = asStringArray(reel.phrases, 5);
+  const phrases = publishableLines(asStringArray(reel.phrases, 5));
+  const rawHook = asString(reel.hook);
+  const hook = publishableLine(rawHook) ? rawHook : phrases[0] || "";
 
   return {
-    hook: hook || phrases[0] || "",
+    hook,
     phrases: phrases.length > 0 ? phrases : hook ? [hook] : [],
     theme: oneOf(reel.theme, REEL_THEMES, "obsidian_void"),
     duration: clampInt(reel.duration, 5, 15, 8),
-    captionShort: asString(reel.captionShort),
+    captionShort: starkCaption(hook, asString(reel.captionShort)),
     // Hashtagi liczymy z tego, co jest na kadrze. Model niech ich nie prosi:
     // każdy własny zestaw to inny ogon pod kolejnym postem tego samego konta.
     hashtags: starkHashtags((hook + " " + phrases.join(" ")).trim()),

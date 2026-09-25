@@ -3,6 +3,7 @@ import { getGeminiClient, safeJsonParse, callGeminiWithFallback } from "../gemin
 import { asArray, asString, asStringArray, sendDegraded } from "../normalize.server";
 import { clampText } from "../../limits";
 import { formatStarkCaption, STARK_CTA, starkCaption, starkHashtags } from "../../caption";
+import { publishableLine, publishableLines } from "../../prepublish";
 
 /**
  * Bank treści zapasowych: zdanie + markowe CTA + hashtagi dobrane do tego
@@ -14,18 +15,24 @@ const starkTail = (line: string) => `${line}\n\n${STARK_CTA}\n\n${starkHashtags(
  * UI woła `fmt.phrases.map()` i `ang.phrases.join()` bez sprawdzania pola, a
  * w aplikacji nie ma granicy błędu na dane — więc każda karta odchodzi stąd
  * z tablicą frazami i hashtagami, nawet gdy model jej nie zwrócił.
+ *
+ * Filtr `publishable*` to te same reguły, które pokazujemy w kontroli przed
+ * publikacją: zdanie, które odrzuciłby własny checklist, nie powinno w ogóle
+ * pojawić się w radarze.
  */
 function normalizeCard(card: unknown) {
   const item = (card ?? {}) as Record<string, unknown>;
-  const phrases = asStringArray(item.phrases, 8);
   const hook = asString(item.hook);
+  const phrases = publishableLines(asStringArray(item.phrases, 8));
+  const safeHook = publishableLine(hook) ? hook : phrases[0] || "";
 
   return {
     ...item,
-    phrases: phrases.length > 0 ? phrases : hook ? [hook] : [],
-    caption: starkCaption(hook, asString(item.caption)),
+    hook: safeHook,
+    phrases: phrases.length > 0 ? phrases : safeHook ? [safeHook] : [],
+    caption: starkCaption(safeHook, asString(item.caption)),
     // Hashtagi liczymy z treści: własny ogon modelu rozbija spójność feedu.
-    hashtags: starkHashtags(hook + " " + phrases.join(" ")),
+    hashtags: starkHashtags(safeHook + " " + phrases.join(" ")),
   };
 }
 
@@ -128,7 +135,10 @@ export function registerTrendsRoutes(app: MiniApp): void {
     try {
       const prompt = `Jesteś analitykiem wirusowości dla konta @stark_focus (brutalny stoicyzm, mroczny minimalizm).
   Nisza: "${niche}". Platforma: "${platform}".
-  Wyszukaj lub zsyntetyzuj 3 najgorętsze trendy i wątki wirusowe z ich hookami 0-3s.
+  Z własnej pamięci o tej niszy podaj 3 wątki, które NAJCZĘŚCIEJ powtarzają się u dużych
+  nadawców, wraz z hookami 0-3s. Nie wymyślaj, że coś sprawdziłeś w sieci — "source_context"
+  ma mówić, u kogo i w jakiej formie ten wątek chodzi (np. "powtarza się u kont 100k+ w
+  formatie mówiącej głowy"). "estimated_virality" to uczciwy zgadywany przedział, nie pomiar.
   Zwróć poprawny JSON:
   {
     "trends": [
@@ -137,7 +147,7 @@ export function registerTrendsRoutes(app: MiniApp): void {
         "title": "Tytuł trendu po angielsku",
         "suggested_format": "Rolka 7-Sekundowa" | "3D Wall Letters" | "Karuzela 5-Slajdowa",
         "estimated_virality": "96%",
-        "source_context": "TikTok FYP Viral",
+        "source_context": "U kogo i w jakiej formie ten wątek się powtarza",
         "audience_pain": "Dokładna frustracja widza po polsku",
         "viral_hooks": ["Hook 1 (EN)", "Hook 2 (EN)", "Hook 3 (EN)"],
         "core_message": "Główne przesłanie po polsku",
@@ -155,27 +165,33 @@ export function registerTrendsRoutes(app: MiniApp): void {
         config: { temperature: 0.9 },
       });
       const parsed = safeJsonParse(response.text || "");
-      const trends = asArray(parsed.trends).map((trend, idx) => ({
-        ...normalizeCard(trend),
-        // `trend.id` jest kluczem Reacta — bez niego lista dostaje duplikaty kluczy.
-        id: asString((trend as Record<string, unknown>).id, `trend-${Date.now()}-${idx}`),
-        viral_hooks: asStringArray((trend as Record<string, unknown>).viral_hooks, 6),
-      }));
+      const trends = asArray(parsed.trends)
+        .map((trend, idx) => {
+          const card = (trend ?? {}) as Record<string, unknown>;
+          return {
+            ...normalizeCard(card),
+            // `trend.id` jest kluczem Reacta — bez niego lista dostaje duplikaty kluczy.
+            id: asString(card.id, `trend-${Date.now()}-${idx}`),
+            viral_hooks: publishableLines(asStringArray(card.viral_hooks, 6)),
+          };
+        })
+        // Karta bez ani jednego nadającego się zdania to szum, nie wynik skanu.
+        .filter((card) => card.hook || card.viral_hooks.length > 0);
       if (trends.length > 0) {
         return res.json({
           trends,
-          message: "✓ Wykryto świeże trendy algorytmiczne.",
+          message: "Wątki z pamięci modelu — wzorce, które powtarzają się w tej niszy.",
         });
       }
       return sendDegraded(res, {
         trends: fallbackTrends,
-        message: "Wygenerowano sprofilowane wątki wirusowe.",
+        message: "Model nie odpowiedział — pokazujemy zestaw z banku treści.",
       });
     } catch (err: any) {
       console.warn("Skaner trendów - użyto bezpiecznego generatora:", err?.message || err);
       return sendDegraded(res, {
         trends: fallbackTrends,
-        message: "Aktywowano zoptymalizowany zestaw trendów wirusowych.",
+        message: "Model nie odpowiedział — pokazujemy zestaw z banku treści.",
       });
     }
   });

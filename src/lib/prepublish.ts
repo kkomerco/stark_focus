@@ -9,7 +9,7 @@
  * wie lepiej niż właściciel marki — wie tylko tyle, co wpisaliście w reguły.
  */
 import { auditHook } from "./hookCraft";
-import { isPolishCopy, STARK_CTAS } from "./caption";
+import { isPolishCopy, STARK_CTAS, starkCaption } from "./caption";
 
 export interface ChecklistItem {
   id: string;
@@ -129,4 +129,31 @@ export function postChecklist(options: { hook: string; caption: string }): Check
 
 export function checklistProblems(items: ChecklistItem[]): ChecklistItem[] {
   return items.filter((item) => !item.ok);
+}
+
+/**
+ * Reguły przed publikacją jako FILTROWANIE, nie tylko jako ostrzeżenie.
+ *
+ * Kontrola w UI jest doradcza i taka ma zostać, ale generator nie ma prawa
+ * oddać dalej zdania, które samo się odrzuca: kliszy, polszczyzny w materiale
+ * i wersji dłuższej niż kadr. Stąd te trzy funkcje — każda trasa treści
+ * (radar, paczka dnia, seria, kadr) przepuszcza odpowiedź modelu przez nie
+ * zamiast pisać własną miarkę.
+ */
+export function publishableLine(line: string): boolean {
+  const text = (line || "").trim();
+  if (!text) return false;
+  if (isPolishCopy(text)) return false;
+  return auditHook(text).ok;
+}
+
+export function publishableLines(lines: string[], minWords = 3): string[] {
+  return lines
+    .map((line) => (line || "").trim())
+    .filter((line) => line && !isPolishCopy(line) && words(line).length >= minWords);
+}
+
+/** Puenta opisu: markowe CTA i hashtagi, nigdy to, co wymyślił model. */
+export function publishableCaption(hook: string, caption: string): string {
+  return starkCaption(hook, caption);
 }
