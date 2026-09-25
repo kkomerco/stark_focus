@@ -1,6 +1,7 @@
 import type { MiniApp } from "../../mini-express.server";
 import { generateContentWithFallback, getGeminiClient, safeJsonParse } from "../gemini.server";
 import { clampCount, clampText, clampTextList } from "../../limits";
+import { HOOK_CRAFT_PROMPT, auditHook } from "../../hookCraft";
 import { asArray, asString, sendDegraded } from "../normalize.server";
 import { formatStarkCaption, starkCaption } from "../../caption";
 import { hookFingerprint } from "../../similarity";
@@ -163,6 +164,8 @@ Topic or niche focus: "${topic}".
 ${exclude.length ? `\nALREADY PUBLISHED — never repeat these lines or their close variants:\n- ${banList}\n` : ""}
 Generate EXACTLY ${count} completely UNIQUE, high-variance posts in ENGLISH.
 
+${HOOK_CRAFT_PROMPT}
+
 CRITICAL ANTI-AI-SLOP & TONE RULES:
 - BAN POMPOUS, ARCHAIC BUZZWORDS: Do NOT use "citadel", "sovereign", "bastion", "monolith", "throne", "decree", "gladiators".
 - REALISTIC & LIFE-IMPACTING: Ground every line in real psychological observations, modern friction, distractions, self-respect, exhaustion, quiet consistency, and interpersonal boundaries.
@@ -203,8 +206,10 @@ Return ONLY valid JSON:
       const enriched = asArray(parsed.posts)
         .map((item: any, idx: number) => {
           const filler = fillers[idx % fillers.length];
-          const sayingMain =
-            asString(item?.sayingMain) || asString(item?.hook) || filler.sayingMain;
+          const fromModel = asString(item?.sayingMain) || asString(item?.hook);
+          // Klisza od modelu nie trafia na kadr — w jej miejsce wchodzi bank.
+          // Bez tego jedna zla partia zabralaby caly zestaw.
+          const sayingMain = fromModel && auditHook(fromModel).ok ? fromModel : filler.sayingMain;
           return {
             id: `batch-${Date.now()}-${idx + 1}`,
             pillar: asString(item?.pillar, `Principle ${idx + 1}`),

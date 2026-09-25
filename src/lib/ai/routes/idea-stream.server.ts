@@ -3,6 +3,7 @@ import { GEMINI_MODEL, generateJsonWithFallback, getGeminiClient } from "../gemi
 import { hookFingerprint, maxSimilarity, SIMILARITY } from "../../similarity";
 import { pick, pickN } from "../../random";
 import { clampCount, clampInt, clampText, clampTextList, LIMITS } from "../../limits";
+import { HOOK_CRAFT_PROMPT, auditHook } from "../../hookCraft";
 import { asArray, asString, asStringArray, oneOf } from "../normalize.server";
 import { formatStarkCaption, starkCaption, starkHashtags } from "../../caption";
 
@@ -192,6 +193,8 @@ Temat nadrzędny: "${topic}".
 
 ZADANIE: Wygeneruj DOKŁADNIE ${safeCount} CAŁKOWICIE UNIKALNYCH pomysłów, z których każdy ma UKŁAD WIZUALNY i GŁĘBIĘ, nie samo hasło.
 
+${HOOK_CRAFT_PROMPT}
+
 ZIARNO LOSOWOŚCI: ${dynamicSeed}
 LICZBA WCZEŚNIEJSZYCH POMYSŁÓW UŻYTKOWNIKA: ${safeUsed} (nie powtarzaj ich!)
 
@@ -297,7 +300,7 @@ Zwróć WYŁĄCZNIE JSON:
             viralityScore: clampInt(idea.viralityScore, 0, 100, 92),
           };
         })
-        .filter((idea) => idea.hook.length > 5)
+        .filter((idea) => idea.hook.length > 5 && auditHook(idea.hook).ok)
         .filter((idea) => {
           const fingerprint = hookFingerprint(idea.hook);
           if (seenInBatch.has(fingerprint)) return false;

@@ -6,6 +6,7 @@ import {
   callGeminiWithFallback,
 } from "../gemini.server";
 import { clampText } from "../../limits";
+import { HOOK_CRAFT_PROMPT } from "../../hookCraft";
 import { asStringArray } from "../normalize.server";
 
 /**
@@ -114,6 +115,8 @@ ZADANIE: Zaprojektuj EKSPERYMENT A/B — DWIE wersje TEJ SAMEJ rolki (ta sama na
 - WARIANT B: hook typu "konkret/liczba/czas" (np. 3AM, 5AM, 99%), motyw "carbon_aura"
 
 Oba warianty: hook max 8 słów po angielsku, phrases [hook, kontrast, puenta], CTA po angielsku, angle po polsku (krótko).
+
+${HOOK_CRAFT_PROMPT}
 
 Zwróć WYŁĄCZNIE JSON:
 {

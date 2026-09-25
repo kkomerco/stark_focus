@@ -12,6 +12,7 @@ import { registerIdeaStreamRoutes } from "./routes/idea-stream.server";
 import { registerGrowthRoutes } from "./routes/growth.server";
 import { registerBatchRoutes } from "./routes/batch.server";
 import { registerBackgroundRoutes } from "./routes/backgrounds.server";
+import { registerHookRoutes } from "./routes/hooks.server";
 
 // Cache odpowiedzi AI (identyczne zapytanie = ta sama odpowiedz)
 const aiCache = createTtlCache<{ body: string; contentType: string }>({
@@ -40,6 +41,8 @@ registerGrowthRoutes(app);
 registerBatchRoutes(app);
 // Świadomie poza CACHEABLE_AI_PATHS: tło ma być za każdym razem inne.
 registerBackgroundRoutes(app);
+// Świadomie poza cache'em: ten sam temat ma innego dnia dawać inne zdania.
+registerHookRoutes(app);
 
 /**
  * Cache zostaje tylko tam, gdzie identyczne zapytanie MA znaczyć identyczną

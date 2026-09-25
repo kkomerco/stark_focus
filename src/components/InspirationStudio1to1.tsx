@@ -52,6 +52,21 @@ export interface StoicSaying {
   caption?: string;
 }
 
+/** Nazwy figur zwracanych przez `/api/ai/hooks` — w UI po polsku, w materiale po angielsku. */
+const ARCHETYPE_LABELS: Record<string, string> = {
+  accusation: "oskarżenie o gest",
+  "two-selves": "dwa ja w czasie",
+  ledger: "rachunek kosztu",
+  inversion: "odwrócone przekonanie",
+  object: "jeden przedmiot",
+  "subverted-proverb": "złamane porzekadło",
+  "quiet-close": "ciche zamknięcie",
+  "counted-finitude": "policzona skończoność",
+  "withdrawn-audience": "widownia bez oklasku",
+  "earned-command": "rozkaz po diagnozie",
+  unlabeled: "bez figury",
+};
+
 export interface BatchPostItem {
   id: string;
   pillar: string;
@@ -266,6 +281,9 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
   // Stan generatora powiedzonek
   const [isGeneratingSayings, setIsGeneratingSayings] = useState(false);
   const [sayingError, setSayingError] = useState<string | null>(null);
+  const [sayingCandidates, setSayingCandidates] = useState<{ line: string; archetype: string }[]>(
+    [],
+  );
   const [sayingTopic, setSayingTopic] = useState(
     "Dyscyplina stoicka, milczenie, wysokie standardy",
   );
@@ -518,102 +536,77 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
     }));
   };
 
-  // Generowanie unikalnego powiedzonka przez Gemini AI na podstawie wpisanego tematu i trybu
+  /**
+   * Studio nie prosi modelu o jedną odpowiedź, tylko o dziesięć, i pokazuje
+   * je do wyboru. Limitem jest liczba zapytań na dobę, nie tokeny — nadmiar
+   * kandydatów jest darmowy, każdy kolejny klik już nie. Selekcja z kliszami
+   * dzieje się na serwerze (`/api/ai/hooks`), więc do UI nie wchodzi zdanie,
+   * które odrzuciłaby kontrola jakości.
+   */
   const handleGenerateAiSayings = async () => {
     setIsGeneratingSayings(true);
+    setSayingError(null);
     try {
-      let formatGuide = "";
-      if (quoteStyleMode === "single") {
-        formatGuide = `ŚCIŚLE 1 POJEDYNCZE MOCNE ZDANIE (MAKSYMALNIE 4 DO 7 SŁÓW NA CAŁY EKRAN). Wartość "sub" MUSI BYĆ PUSTA ("").
-NAMA WIAJĄCE DO MYŚLENIA, SKIEROWANE BEZPOŚREDNIO DO ODBIORCY w 2. osobie ("you", "your") lub suwerenny aforyzm.
-Przykłady idealne:
-- "Walk like a king, or walk like you don't care who the king is."
-- "Notice how they treat you when you no longer need them."
-- "You are not tired. You are uninspired."
-- "The version of you they remember no longer exists."
-- "If you don't build your peace, someone sells you chaos."
-- "Silence cannot be misquoted."`;
-      } else if (quoteStyleMode === "two_lines") {
-        formatGuide = `ŚCIŚLE 2 BARDZO KRÓTKIE WERSY (PO DOKŁADNIE 1 KRÓTKIEJ LINIJCE KAŻDY, MAKSYMALNIE 2-5 SŁÓW NA WERS!). Żadnych długich zdań!
-Przykłady idealne:
-main: "Walk like a king.", sub: "or like you don't care who is."
-main: "You are not tired.", sub: "you are uninspired."
-main: "Stop explaining yourself.", sub: "let results speak."
-main: "Comfort is poison.", sub: "seek the friction."`;
-      } else {
-        formatGuide = `Albo 1 pojedyncze zdanie 4-7 słów (sub: ""), albo 2 ultra-krótkie wersy po 1 linijce każdy (po 2-5 słów na wers). Cytaty silnie namawiające do myślenia, skierowane do widza.`;
-      }
+      const shape =
+        quoteStyleMode === "single"
+          ? "Każdy kandydat to JEDNO zdanie 4-7 słów, które mieści się na jednym kadrze."
+          : quoteStyleMode === "two_lines"
+            ? "Każdy kandydat to DWA ultra-krótkie wersy oddzielone znakiem / (2-5 słów na wers)."
+            : "Kandydat to jedno zdanie 4-7 słów albo dwa krótkie wersy oddzielone znakiem /.";
 
-      const res = await fetch("/api/generate", {
+      const res = await fetch("/api/ai/hooks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          prompt: `Jesteś głównym kuratorem marki Stark Focus (brutalny stoicyzm, suwerenność psychologiczna, wysokie standardy, brak kompromisów).
-Temat przewodni: "${sayingTopic || "Prowokujące cytaty stoickie namawiające do myślenia skierowane do odbiorcy"}".
-${
-  usedHooks.length
-    ? `\nNIE powtarzaj żadnej z tych linii ani ich mutacji:\n${usedHooks
-        .slice(-15)
-        .map((hook) => `- ${hook}`)
-        .join("\n")}\n`
-    : ""
-}
-
-${formatGuide}
-
-Zwróć WYŁĄCZNIE czysty JSON:
-{
-  "main": "krótka teza namawiająca do myślenia (1 linijka)",
-  "sub": "${quoteStyleMode === "single" ? "" : "krótki dopisek (1 linijka) lub puste dla 1 zdania"}",
-  "caption": "2-3 zdania PO ANGIELSKU rozwijające myśl z kadru. Bez hashtagów i bez wezwania do działania — ten ogon doklejamy u siebie."
-}`,
-          systemInstruction: "Zwracaj wyłącznie czysty JSON bez znaczników markdown",
+          topic: sayingTopic || "Prowokujące cytaty stoickie skierowane do odbiorcy",
+          shape,
+          count: 5,
+          excludeHooks: usedHooks,
         }),
       });
       const data = await res.json();
-      // Trasa oddaje { text } albo { error }. Dotąd błąd znikał w console.error,
-      // a przycisk tylko na chwilę zmieniał etykietę — „nic się nie dzieje".
-      if (!res.ok || typeof data?.text !== "string") {
+      const list = Array.isArray(data?.candidates) ? data.candidates : [];
+
+      if (list.length === 0) {
         setSayingError(
-          typeof data?.error === "string"
-            ? data.error
-            : `Serwer nie zwrócił treści (HTTP ${res.status}).`,
+          typeof data?.notice === "string"
+            ? data.notice
+            : typeof data?.error === "string"
+              ? data.error
+              : `Serwer nie zwrócił treści (HTTP ${res.status}).`,
         );
         return;
       }
-      const raw = data.text
-        .replace(/```json/gi, "")
-        .replace(/```/g, "")
-        .trim();
-      let parsed: StoicSaying;
-      try {
-        parsed = JSON.parse(raw);
-      } catch {
-        setSayingError("Model odesłał tekst, którego nie da się odczytać. Spróbuj ponownie.");
-        return;
-      }
-      setSayingError(null);
-      if (parsed && parsed.main) {
-        // Treść idzie na czarny kadr po angielsku. Model odpowiada w języku
-        // instrukcji, a instrukcja jest polska — więc polska teza to błąd,
-        // którego nie pokazujemy widzowi.
-        if (isPolishCopy(parsed.main) || isPolishCopy(parsed.sub || "")) {
-          setSayingError("Model odpowiedział po polsku. Naciśnij generuj jeszcze raz.");
-          return;
-        }
-        if (quoteStyleMode === "single") {
-          parsed.sub = "";
-        }
-        handleApplySaying(parsed);
-      } else {
-        setSayingError("Model odesłał pustą tezę. Naciśnij generuj jeszcze raz.");
-      }
+
+      setSayingCandidates(
+        list.slice(0, 5).map((entry: any) => ({
+          line: String(entry?.line ?? ""),
+          archetype: String(entry?.archetype ?? ""),
+        })),
+      );
     } catch (err) {
       setSayingError("Nie udało się połączyć z generatorem. Sprawdź, czy serwer działa.");
       console.error("Błąd AI Sayings:", err);
     } finally {
       setIsGeneratingSayings(false);
     }
+  };
+
+  // Wybranie kandydata, nie „generuj aż wypadnie dobrze": decyzja jest ludzka.
+  const handleApplyCandidate = (candidate: { line: string; archetype: string }) => {
+    const [main, sub = ""] = candidate.line.split(/\s+\/\s+/);
+    const saying: StoicSaying = {
+      main: main.trim(),
+      sub: quoteStyleMode === "single" ? "" : sub.trim(),
+    };
+
+    if (isPolishCopy(saying.main) || isPolishCopy(saying.sub ?? "")) {
+      setSayingError("Ta linia jest po polsku. Wybierz inną albo generuj ponownie.");
+      return;
+    }
+
+    setSayingCandidates([]);
+    handleApplySaying(saying);
   };
 
   const handleUploadPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1275,6 +1268,28 @@ Zwróć WYŁĄCZNIE czysty JSON:
                 </div>
                 {sayingError && (
                   <p className="text-[10px] font-mono text-rose-400">{sayingError}</p>
+                )}
+                {sayingCandidates.length > 0 && (
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] font-mono text-neutral-500 uppercase">
+                      Kandydaci — wybierz jeden
+                    </p>
+                    {sayingCandidates.map((candidate) => (
+                      <button
+                        key={candidate.line}
+                        type="button"
+                        onClick={() => handleApplyCandidate(candidate)}
+                        className="w-full text-left px-3 py-2 bg-[#080808] border border-white/10 hover:border-white rounded-lg transition-all cursor-pointer"
+                      >
+                        <span className="block text-[11px] font-mono text-white leading-snug">
+                          {candidate.line}
+                        </span>
+                        <span className="block text-[9px] font-mono text-neutral-500 uppercase mt-0.5">
+                          {ARCHETYPE_LABELS[candidate.archetype] ?? candidate.archetype}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
                 )}
               </div>
             </div>

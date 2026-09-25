@@ -1,6 +1,7 @@
 import type { MiniApp } from "../../mini-express.server";
 import { getGeminiClient, safeJsonParse, callGeminiWithFallback } from "../gemini.server";
 import { formatStarkCaption, starkHashtags } from "../../caption";
+import { HOOK_CRAFT_PROMPT } from "../../hookCraft";
 
 export function registerGenerateRoutes(app: MiniApp): void {
   app.post("/api/ai/generate-background-prompt", async (req, res) => {
@@ -119,6 +120,8 @@ export function registerGenerateRoutes(app: MiniApp): void {
   - Every phrase MUST be ULTRA-SHORT: strictly 3 to 7 words maximum per phrase!
   - Never generate long or compound sentences. A viewer only has 2-3 seconds to read each slide.
   - Avoid all filler words. Each phrase must hit like a cold chisel: concise, sharp, high-contrast stoic axioms.
+
+${HOOK_CRAFT_PROMPT}
   - Example good: "You bargain with your alarm." (5 words)
   - Example good: "Discipline ignores your feelings." (4 words)
   - Example good: "Rise now or stay mediocre." (5 words)

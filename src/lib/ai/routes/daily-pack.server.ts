@@ -6,6 +6,7 @@ import { getRandomBackgroundScene } from "../../../data/expandedBackgrounds";
 import { hookFingerprint } from "../../similarity";
 import { pick, pickForDay, shuffle } from "../../random";
 import { clampInt, clampText, LIMITS } from "../../limits";
+import { HOOK_CRAFT_PROMPT } from "../../hookCraft";
 import { asArray, asString, asStringArray, oneOf } from "../normalize.server";
 import { STARK_CTA, starkHashtags } from "../../caption";
 
@@ -140,6 +141,8 @@ ${
 
 1. Rolki 9:16 w liczbie ${reelsCount} — każda z:
    - hook: bezwzględny hook 0-3s po angielsku (max 8 słów, konkret, zero lania wody)
+
+${HOOK_CRAFT_PROMPT}
    - phrases: dokładnie 3 frazy po angielsku [hook, bolesny kontrast, puenta/climax]
    - theme: jeden z: "obsidian_void" | "crimson_eclipse" | "emerald_abyss" | "carbon_aura" | "silver_mist"
    - duration: liczba sekund 7-10
