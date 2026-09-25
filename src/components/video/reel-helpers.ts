@@ -1,13 +1,14 @@
 // src/components/video/reel-helpers.ts
 // Czyste typy, metadane motywow i helpery do renderu ramek rolek.
 // Wyodrębnione z VideoStudioModal.tsx — brak zależności od Reacta.
-import { ReelVisualTheme } from "../../data/reelTemplates";
+import type { ReelVisualTheme } from "../../data/reelTemplates";
+import type { ReelDuration } from "../../types";
 import { MIN_TEXT_PX } from "../../utils/safeZones";
 
 export type VisualTheme = ReelVisualTheme;
+export type { ReelDuration };
 export type HighlightStyle = "white_halo" | "bold";
 export type FontFamily = "cinzel" | "sans" | "inter" | "cormorant";
-export type ReelDuration = 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 14 | 15;
 export type PacingMode = "climax_hold" | "stoic_steady" | "uniform";
 
 export interface PhraseTimeInterval {

@@ -1,3 +1,4 @@
+import type { ReelDuration } from "../types";
 export type NarrativeFormat = "three_phases" | "single_quote" | "four_phrases" | "two_phases";
 
 export type ReelVisualTheme =
@@ -12,7 +13,7 @@ export interface ReelTemplate {
   captionDeep: string;
   hashtags: string[];
   suggestedTheme: ReelVisualTheme;
-  suggestedDuration: 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 14 | 15;
+  suggestedDuration: ReelDuration;
   suggestedBackground?: string;
   backgroundRationale?: string;
 }

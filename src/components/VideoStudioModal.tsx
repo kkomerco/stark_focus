@@ -71,7 +71,12 @@ interface VideoStudioModalProps {
 }
 
 export type ViralReelFormat =
-  "viral_loop_6s" | "hook_payoff_5s" | "dynamic_broll_cut" | "three_phases";
+  | "viral_loop_6s"
+  | "hook_payoff_5s"
+  | "dynamic_broll_cut"
+  | "three_phases"
+  /** Dlugy oddech: 5 zdan w 20 s. Nisza pokazuje, ze krotka petla nie jest jedynym formatem. */
+  | "five_beats_20s";
 
 const PRESET_STORAGE_KEY = "stark_reel_default_preset_v2";
 
@@ -88,9 +93,9 @@ const DEFAULT_HASHTAGS = starkHashtags(DEFAULT_PHRASES[0]);
 const easeOutCubic = (t: number) => 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 3);
 
 /** Studio ogarnia maksymalnie 4 kadry — dłuższe listy z modelu tniemy, nie renderujemy. */
-const MAX_PHRASES = 4;
+const MAX_PHRASES = 5;
 
-const ALLOWED_DURATIONS: ReelDuration[] = [5, 6, 7, 8, 9, 10, 11, 12, 14, 15];
+const ALLOWED_DURATIONS: ReelDuration[] = [5, 6, 7, 8, 9, 10, 11, 12, 15, 18, 20, 25];
 
 function asText(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value : null;
@@ -163,6 +168,7 @@ function resolveCaption(reel: ReelHandoff | undefined, matched: ReelTemplate | n
 function formatForPhraseCount(count: number): ViralReelFormat {
   if (count <= 1) return "viral_loop_6s";
   if (count === 2) return "hook_payoff_5s";
+  if (count >= 5) return "five_beats_20s";
   return "three_phases";
 }
 
@@ -1586,7 +1592,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
             </div>
 
             {/* Wybór Formatu Wiralowego */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 border-t border-white/5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 pt-1 border-t border-white/5">
               {[
                 {
                   id: "viral_loop_6s" as ViralReelFormat,
@@ -1615,6 +1621,13 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                   name: "3 Fazy 9s",
                   badge: "Klasyczny",
                   desc: "Hook ➔ Prawda ➔ Puenta",
+                },
+                {
+                  id: "five_beats_20s" as ViralReelFormat,
+                  dur: 20 as ReelDuration,
+                  name: "5 Taktów 20s",
+                  badge: "Długi oddech",
+                  desc: "Zdanie po zdaniu, pętla bez szwu",
                 },
               ].map((fmt) => {
                 const isCurrent = reelFormat === fmt.id;

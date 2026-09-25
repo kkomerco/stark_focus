@@ -186,6 +186,14 @@ export interface UniversalLayoutSpec {
   fontColorMode?: "white" | "black";
 }
 
+// ===== Czas trwania rolki =====
+/**
+ * Jedna definicja dla studia, szablonów i eksportu. Wcześniejszy unia
+ `5|6|7|8|9|10|11|12|14|15` trzymał dwa razy w dwóch plikach i cicho zaokrąślał
+ * każdą dłuższą wartość w dół, więc 20-sekundowa rolka była niemożliwa.
+ */
+export type ReelDuration = 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 15 | 18 | 20 | 25;
+
 // ===== Dziennik publikacji (pamięć o tym, co naprawdę poszło) =====
 export type PublishPlatform = "instagram" | "tiktok" | "youtube";
 export type PublishKind = "reel" | "post" | "carousel";
