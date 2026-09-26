@@ -6,6 +6,7 @@ import { getRandomBackgroundScene } from "../../../data/expandedBackgrounds";
 import { hookFingerprint } from "../../similarity";
 import { pick, pickForDay, shuffle } from "../../random";
 import { clampInt, clampText, clampTextList } from "../../limits";
+import { CAROUSEL_MAX_SLIDES, CAROUSEL_TARGET_SLIDES } from "../../carousel";
 import {
   HOOK_CRAFT_PROMPT,
   HOOK_IDEAL_WORDS,
@@ -28,13 +29,11 @@ const REEL_THEMES = [
 const MAX_PACK_REELS = 6;
 
 /**
- * KONTRAKT PACZKI — jedyne miejsce, gdzie te liczby istnieją. Prompt, klamki i
- * cięcia odpowiedzi czytają stąd, więc nie może się już zdarzyć, że prompt
- * żąda 12 slajdów, trasa ucina do 10, bank ma 5, a studio przyjmuje 16.
- * Karuzela: 12+ slajdów, bo u kont <10k obserwujących właśnie takie wychodzą
- * ponad medianę autora w 23,5% przypadków (Eden, 655 385 karuzeli).
+ * KONTRAKT PACZKI — liczba slajdów NIE mieszka tu: czytamy ją z
+ * `src/lib/carousel.ts`, żeby paczka dnia, recykler i studio nie miały trzech
+ * różnych odpowiedzi na to samo pytanie. Zostają własne miary paczki: czas
+ * rolki, którego studio i tak przyciąga do swoich kroków.
  */
-const CAROUSEL_SLIDES = 12;
 const REEL_DURATION_MIN = 5;
 const REEL_DURATION_MAX = 15;
 
@@ -177,7 +176,7 @@ ${exemplarBlock(exemplars)}
    - theme: jeden z: "obsidian_void" | "crimson_eclipse" | "emerald_abyss" | "carbon_aura" | "silver_mist"
    - duration: liczba sekund ${REEL_DURATION_MIN}-${REEL_DURATION_MAX}
    - captionShort: jedno-dwa zdania po angielsku rozwijające hook. BEZ wezwania do działania i BEZ hashtagów — ogon z puli marki dokłada \`caption.ts\`, a dwa ogony pod jednym postem wyglądają jak dwóch autorów.
-2. Karuzela 4:5: title + ${CAROUSEL_SLIDES} slajdów {headline, bodyText}. Długość nie jest kaprysem: u kont poniżej 10k obserwujących karuzele 11-20 slajdów wychodzą ponad medianę autora w 23,5% przypadków, te 2-4 slajdy w 18,0% (Eden, 655 385 karuzeli). Rozkład: slajd 1 to teza, nie tytuł; slajdy 2-${CAROUSEL_SLIDES - 2} po jednej myśli każdy, z niedomkniętym zdaniem na końcu (to ono każe swipnąć); slajd ${CAROUSEL_SLIDES - 1} konkretna cena za brak zmiany; slajd ${CAROUSEL_SLIDES} jedno zdanie do zapisania. bodyText to 2-3 zdania po angielsku (25-40 słów): najpierw bolesna obserwacja, potem konkret, na koniec cena za jej brak. Jedno zdanie na slajd nie zatrzymuje czytelnika.
+2. Karuzela 4:5: title + ${CAROUSEL_TARGET_SLIDES} slajdów {headline, bodyText}. Długość nie jest kaprysem: u kont poniżej 10k obserwujących karuzele 11-20 slajdów wychodzą ponad medianę autora w 23,5% przypadków, te 2-4 slajdy w 18,0% (Eden, 655 385 karuzeli). Rozkład: slajd 1 to teza, nie tytuł; slajdy 2-${CAROUSEL_TARGET_SLIDES - 2} po jednej myśli każdy, z niedomkniętym zdaniem na końcu (to ono każe swipnąć); slajd ${CAROUSEL_TARGET_SLIDES - 1} konkretna cena za brak zmiany; slajd ${CAROUSEL_TARGET_SLIDES} jedno zdanie do zapisania. bodyText to 2-3 zdania po angielsku (25-40 słów): najpierw bolesna obserwacja, potem konkret, na koniec cena za jej brak. Jedno zdanie na slajd nie zatrzymuje czytelnika.
 3. Grafika 1:1: {headline, body, bingPrompt} — bingPrompt po angielsku do generatora obrazów (ciemne, brutalistyczne, minimalistyczne tło, 1:1, bez tekstu, moody lighting). \`headline\` to jedno zdanie na czarnym kadrze (4-10 słów, PO ANGIELSKU), a \`body\` to JEDNO zdanie po angielsku (max 22 słowa), które dopowiada to, czego nie widać na kadrze. Pod cytatem na czerni nie ma wykładu na pięć linijek — nikt go nie czyta, a kadr zostaje tym samym zdaniem.
 
 Zwróć WYŁĄCZNIE poprawny JSON wg schematu:
@@ -220,7 +219,7 @@ Zwróć WYŁĄCZNIE poprawny JSON wg schematu:
           bodyText: asString((slide as Record<string, unknown>)?.bodyText),
         }))
         .filter((slide) => slide.headline || slide.bodyText)
-        .slice(0, CAROUSEL_SLIDES);
+        .slice(0, CAROUSEL_MAX_SLIDES);
 
       const postHeadline = asString(parsed.post?.headline);
 
