@@ -1857,11 +1857,38 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                         <Sparkles className="w-3 h-3 text-rose-400" />
                         <span>Losuj inne (100+)</span>
                       </button>
+
+                      {/* Darmowy tier nie ma modelu obrazów, więc kadr i tak
+                          zaczyna jako prompt wklejony w generatorze poza
+                          aplikacją — kopiarka jest tu jedyną uczciwą ścieżką. */}
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            await navigator.clipboard.writeText(activePrompt);
+                            setToastMessage("Prompt tła (9:16) w schowku.");
+                          } catch {
+                            setToastMessage(
+                              "Nie udało się skopiować — zaznacz prompt pod przyciskiem ręcznie.",
+                            );
+                          }
+                          setTimeout(() => setToastMessage(null), 2500);
+                        }}
+                        className="px-2.5 py-1 rounded bg-[#202020] hover:bg-white hover:text-black text-neutral-300 text-[10px] font-mono font-bold border border-white/10 transition-all flex items-center gap-1.5 cursor-pointer"
+                        title="Skopiuj gotowy prompt do wygenerowania tego tła w Bing Image Creator / Midjourney"
+                      >
+                        <Copy className="w-3 h-3" />
+                        <span>Kopiuj prompt tła (9:16)</span>
+                      </button>
                     </div>
                   </div>
 
                   <p className="text-[11px] text-neutral-300 font-sans leading-relaxed">
                     <strong>Dlaczego to pasuje:</strong> {bgInfo.rationale}
+                  </p>
+
+                  <p className="text-[10px] font-mono text-neutral-500 leading-relaxed break-words">
+                    {activePrompt}
                   </p>
                 </div>
               );
