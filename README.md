@@ -19,13 +19,11 @@ src/lib/ai/normalize.server.ts   # normalizacja odpowiedzi modelu + znakowanie t
 src/lib/limits.ts                # clamp każdego parametru liczbowego i tekstowego z req.body
 src/lib/fetch-image.server.ts    # pobieranie zewnętrznych obrazków z ochroną SSRF (jedyna droga)
 src/lib/random.ts                # Fisher-Yates, pick, pickN, pickForDay
-src/lib/ai/router.server.ts      # spina moduly tras + cache odpowiedzi AI
+src/lib/ai/router.server.ts      # spina moduly tras
 src/lib/ai/routes/               # trasy AI podzielone domenowo:
-  analyze.server.ts              #   analiza linkow/hookow, hook battle
   deconstruct.server.ts          #   dekonstrukcja viralowych postow + warianty @stark_focus
-  generate.server.ts             #   posty, prompty tla, slajdy, ghostwriting
+  generate.server.ts             #   ghostwriting rolki
   trends.server.ts               #   skaner trendow, matryca katow, cognitive friction, evergreen
-  backgrounds.server.ts          #   generowanie tła kadru wewnątrz aplikacji
   daily-pack.server.ts           #   paczka dnia (rolki + karuzela + post)
   idea-stream.server.ts          #   nieskonczony generator pomyslow z anty-powtorka
   status.server.ts               #   status klucza API
@@ -81,10 +79,9 @@ Serwer dev (`tsx server.ts`) uruchamia jednocześnie API i Vite w trybie middlew
 - **Nieskończone pomysły** (`POST /api/ai/idea-stream`) — generator bez limitu z **anty-powtórką**: każdy hook trafia do historii fingerprintów w `localStorage` (`used_idea_fingerprints`), a kolejne paczki dostają listę wykluczeń. Dodatkowo macierz kombinatoryczna: 10 kategorii × 10 archetypów × 8 celów emocjonalnych × 5 formatów.
 - **Analiza virala** (`POST /api/ai/deconstruct-viral`) — wklejasz link (TikTok/IG/Shorts), AI rozbiera post na hook, strukturę, wyzwalacze psychologiczne i generuje 3 własne warianty w stylu @stark_focus.
 - **Silnik wzrostu** (`POST /api/ai/ab-variants`, `/api/ai/ab-conclusion`, `/api/ai/weekly-autopilot`, `/api/ai/reroll-prompt`) — eksperymenty A/B z pętlą uczenia, tygodniowy autopilot i reroll promptów tła w tym samym stylu.
-- **Tło kadru** (`POST /api/ai/generate-background`) — z hooka robi scenę, ze sceny obraz; bez klucza API zwraca 503 zamiast udawać wygenerowaną grafikę.
 - **Generator masowy** (`POST /api/ai/batch-generator`) — paczka N unikalnych cytatów 9:16 (hook + podpis + caption).
 
-> **Architektura:** runtime używa wyłącznie modularnych tras z `src/lib/ai/routes/*` spiętych przez `src/lib/ai/router.server.ts` (z cache odpowiedzi AI — pomijającym odpowiedzi zapasowe). Jedyne źródło prawdy dla klienta Gemini, modeli (`GEMINI_MODEL` / `GEMINI_LITE_MODEL`) i retry/fallbacku (503/429) to `src/lib/ai/gemini.server.ts`. Każda trasa ma własny bank treści zapasowych (oznaczany nagłówkiem `x-stark-degraded`, żeby router go nie cache'ował).
+> **Architektura:** runtime używa wyłącznie modularnych tras z `src/lib/ai/routes/*` spiętych przez `src/lib/ai/router.server.ts`. Jedyne źródło prawdy dla klienta Gemini, modeli (`GEMINI_MODEL` / `GEMINI_LITE_MODEL`) i retry/fallbacku (503/429) to `src/lib/ai/gemini.server.ts`. Każda trasa ma własny bank treści zapasowych (oznaczany nagłówkiem `x-stark-degraded`).
 
 ## 🧭 Roadmapa automatyzacji (docelowo 1–2–3 kliknięcia)
 

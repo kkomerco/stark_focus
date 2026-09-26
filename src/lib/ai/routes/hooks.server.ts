@@ -1,7 +1,4 @@
-import type { MiniApp } from "../../mini-express.server";
-import { generateJsonWithFallback, getGeminiClient } from "../gemini.server";
-import { asArray, asNumber, asString, sendDegraded } from "../normalize.server";
-import { clampInt, clampText, clampTextList } from "../../limits";
+import { asArray, asNumber, asString } from "../normalize.server";
 import {
   HOOK_ARCHETYPES,
   exemplarBlock,
@@ -138,49 +135,4 @@ export function rankHookCandidates(
   }
 
   return { candidates: accepted, rejected };
-}
-
-export function registerHookRoutes(app: MiniApp): void {
-  app.post("/api/ai/hooks", async (req, res) => {
-    const topic = clampText(req.body?.topic, 200, "stoic discipline and quiet standards");
-    const shape = clampText(req.body?.shape, 200);
-    const count = clampInt(req.body?.count, 1, 10, 5);
-    const exclude = clampTextList(req.body?.excludeHooks);
-    const exemplars = clampTextList(req.body?.exemplars).slice(0, 8);
-
-    if (!getGeminiClient()) {
-      return sendDegraded(res, {
-        candidates: [],
-        rejected: 0,
-        error: "Brak skonfigurowanego klucza GEMINI_API_KEY",
-      });
-    }
-
-    try {
-      const parsed = await generateJsonWithFallback({
-        contents: buildHookPrompt({ topic, shape, exclude, count, exemplars }),
-        temperature: 1.0,
-      });
-      const { candidates, rejected } = rankHookCandidates(parsed?.candidates, exclude, count);
-
-      if (candidates.length === 0) {
-        // Uczciwie: model dał tekst, który nie przeszedł kontroli, więc UI
-        // nie może pokazywać pustej listy, jakby nic się nie stało.
-        return res.json({
-          candidates: [],
-          rejected,
-          notice: `Model dał ${rejected} kandydatów i żaden nie przeszedł kontroli klisz. Zmień temat albo spróbuj ponownie.`,
-        });
-      }
-
-      return res.json({ candidates, rejected });
-    } catch (error) {
-      console.error("Błąd generatora hooków:", error);
-      return sendDegraded(res, {
-        candidates: [],
-        rejected: 0,
-        error: "Generowanie hooków nie udało się",
-      });
-    }
-  });
 }
