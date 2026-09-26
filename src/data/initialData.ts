@@ -1,5 +1,4 @@
 import { StarkFocusData } from "../types";
-import { DEFAULT_PRESETS_EN } from "./mentorTemplates";
 
 export const POLISH_DAYS = [
   "Poniedziałek",
@@ -33,16 +32,6 @@ export const INITIAL_DATA: StarkFocusData = {
   streak: 1,
   created_at: new Date().toISOString().split("T")[0],
   vault_assets: [], // Puste – zero sztucznych teł
-  dynamic_db: {
-    formats: [
-      "Rolka 7-Sekundowa (Short Reel)",
-      "Karuzela 5-Slajdowa (IG / TikTok Slides)",
-      "Monolith Ledger (Split 50/50)",
-      "Prowokacja / Debate Bait",
-      "Minimalistyczny Cytat (One-Liner)",
-    ],
-    cta_presets: DEFAULT_PRESETS_EN,
-  },
   social_handles: {
     instagram: "stark_focus",
     tiktok: "stark_focus",

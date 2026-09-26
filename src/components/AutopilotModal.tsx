@@ -1,10 +1,11 @@
 // AutopilotModal.tsx — Tygodniowy autopilot: plan na 7 dni (1 zapytanie) plus paczki treści
-// (1 zapytanie na dzień, który sam wybierzesz), pakowane do ZIP z folderami PON/WT/...
-// i slotami 12-00/14-00/15-00/18-00. Koszt kliknięcia stoi w UI, bo na darmowym
-// tierze limitem jest liczba zapytań na dobę, nie tokeny.
+// (1 zapytanie na dzień, który sam wybierzesz), pakowane do ZIP z folderami PON/WT/....
+// W folderze dnia leży tylko to, co plan tego dnia przydzielił — reszta paczki jedzie
+// do REZERWA. Koszt kliknięcia stoi w UI, bo na darmowym tierze limitem jest liczba
+// zapytań na dobę, nie tokeny.
 import React, { useEffect, useRef, useState } from "react";
 import { Check, Download, Loader2, Rocket, X } from "lucide-react";
-import { StarkFocusData } from "../types";
+import { DailyPackCarousel, DailyPackPost, DailyPackReel, StarkFocusData } from "../types";
 import { usedHookFingerprints } from "../lib/usedContent";
 import { pickBroll } from "../utils/brollPicker";
 import { pickBackground } from "../utils/backgroundPicker";
@@ -15,16 +16,9 @@ interface AutopilotModalProps {
   data: StarkFocusData;
 }
 interface DayPack extends DayPlan {
-  reels: Array<{
-    hook: string;
-    phrases: string[];
-    theme: string;
-    duration: number;
-    captionShort: string;
-    hashtags: string[];
-  }>;
-  carousel: { title: string; slides: Array<{ headline: string; bodyText: string }> };
-  post: { headline: string; body: string; bingPrompt: string };
+  reels: DailyPackReel[];
+  carousel?: DailyPackCarousel;
+  post?: DailyPackPost;
   source: "ai" | "offline";
 }
 
@@ -58,13 +52,58 @@ interface DayPlan {
   plan?: string;
 }
 
+type PlannedKind = NonNullable<DayPlan["format"]>;
+
+/**
+ * Nazwy folderów. Slot z godziną należy się tylko temu, co plan przypisał
+ * danemu dniowi — materiału spoza planu nie udajemy publikacją, bo paczka
+ * dnia zawsze zwraca rolkę, karuzelę i kadr naraz, a kalendarz mówi „JEDNA
+ * publikacja dziennie".
+ */
+const SLOTS: Record<PlannedKind, { day: string; reserve: string }> = {
+  reel: { day: "12-00_ROLKA", reserve: "ROLKA" },
+  carousel: { day: "14-00_KARUZELA", reserve: "KARUZELA" },
+  post: { day: "18-00_POST-1-1", reserve: "POST-1-1" },
+};
+
+const KIND_LABEL: Record<PlannedKind, string> = {
+  reel: "rolka",
+  carousel: "karuzela",
+  post: "kadr 1:1",
+};
+
+/** Route przydziela dzieńowi jeden z trzech formatów; brak to najczęstszy slot rotacji. */
+function plannedKind(plan: DayPlan): PlannedKind {
+  return plan.format === "carousel" || plan.format === "post" ? plan.format : "reel";
+}
+
+/** Jeden artefakt z paczki dnia: co to jest, który to z kolei, i pliki do zapisu. */
+interface Block {
+  kind: PlannedKind;
+  index: number;
+  files: Record<string, string>;
+}
+
+function slotName(block: Block, isPlanned: boolean): string {
+  const slot = isPlanned ? SLOTS[block.kind].day : SLOTS[block.kind].reserve;
+  // Rolek w paczce są dwie; tylko pierwsza jest tym, co nazywamy rolką dnia.
+  return isPlanned || block.index === 0 ? slot : `${slot}-${block.index + 1}`;
+}
+
+/** Co realnie weszło do archiwum — UI nie może obiecywać innej liczby niż README w ZIP-ie. */
+interface ZipSummary {
+  publications: number;
+  reserve: number;
+  gaps: string[];
+}
+
 export const AutopilotModal: React.FC<AutopilotModalProps> = ({ isOpen, onClose, data }) => {
   const [planning, setPlanning] = useState(false);
   const [packing, setPacking] = useState(false);
   const [progress, setProgress] = useState(0);
   const [stage, setStage] = useState<string>("");
-  const [week, setWeek] = useState<DayPlan[] | null>(null);
   const [packs, setPacks] = useState<DayPack[]>([]);
+  const [summary, setSummary] = useState<ZipSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [days, setDays] = useState(7);
@@ -120,38 +159,27 @@ export const AutopilotModal: React.FC<AutopilotModalProps> = ({ isOpen, onClose,
     };
   };
 
-  const buildZip = async (allPacks: DayPack[]) => {
+  const buildZip = async (allPacks: DayPack[]): Promise<ZipSummary & { blob: Blob }> => {
     const { default: JSZip } = await import("jszip");
     const zip = new JSZip();
-
-    const readme = [
-      "STARK FOCUS // WEEKLY AUTOPILOT",
-      `Wygenerowano: ${new Date().toLocaleString("pl-PL")}`,
-      "",
-      "SCHEMAT TYGODNIA:",
-      ...allPacks.map(
-        (p) =>
-          `${p.day} (${DAY_PL[p.dayIndex]}) — ${p.category} · ${p.formatLabel || "rolka"}\n  ${p.plan || ""}\n  Hook dnia: ${p.hookOfDay || p.reels[0]?.hook || ""}`,
-      ),
-      "",
-      "STRUKTURA: <DZIEN>/<GODZINA_TRESC>/  ->12-00_ROLKA-1 | 14-00_KARUZELA | 15-00_ROLKA-2 | 18-00_POST-1-1",
-      "Każdy folder: HOOK.txt, FRAZY.txt, OPIS.txt, HASHTAGI.txt, TLO-PROMPT.txt, B-ROLL.txt",
-      "Wgraj do odpowiedniego studia (Post / Rolka / Karuzela).",
-    ].join("\n");
-    zip.file("README-TYGODNIEN.txt", readme);
 
     // Rotacja klipów w obrębie całego tygodnia: pickBroll to funkcja tekstu,
     // więc bez wykluczeń każda rolka z tym samym słowem-kluczem dostawała
     // identyczny B-roll w siedmiu paczkach.
     const usedBroll = new Set<string>();
     const usedBackgrounds = new Set<string>();
+    const targets: { path: string[]; files: Record<string, string> }[] = [];
+    const weekLines: string[] = [];
+    const gaps: string[] = [];
+    let publications = 0;
+    let reserve = 0;
 
     for (const pack of allPacks) {
-      const dayFolder = zip.folder(DAY_PL[pack.dayIndex])!;
-      const reelSlots = ["12-00_ROLKA-1", "15-00_ROLKA-2"];
+      const label = DAY_PL[pack.dayIndex];
+      const kind = plannedKind(pack);
+      const blocks: Block[] = [];
 
-      pack.reels.slice(0, 2).forEach((reel, idx) => {
-        const slot = dayFolder.folder(reelSlots[idx])!;
+      pack.reels.slice(0, 2).forEach((reel, index) => {
         const broll = pickBroll(reel.hook, reel.theme, [...usedBroll]);
         usedBroll.add(broll.scene.id);
         // Prompt tła ma być gotowy do wklejenia, nie havełem „Motyw: xyz".
@@ -159,40 +187,100 @@ export const AutopilotModal: React.FC<AutopilotModalProps> = ({ isOpen, onClose,
           ...usedBackgrounds,
         ]);
         usedBackgrounds.add(background.scene.id);
-        slot.file("HOOK.txt", reel.hook);
-        slot.file("FRAZY.txt", reel.phrases.join("\n"));
-        slot.file("OPIS.txt", reel.captionShort || "");
-        slot.file("HASHTAGI.txt", Array.isArray(reel.hashtags) ? reel.hashtags.join(" ") : "");
-        slot.file(
-          "TLO-PROMPT.txt",
-          `Ujęcie: ${background.scene.name}\nMotyw: ${background.scene.theme}\n${background.scene.bingPrompt}`,
-        );
-        slot.file(
-          "B-ROLL.txt",
-          `${broll.scene.name}\n${broll.scene.description}\nAtmosfera: ${broll.scene.ambientVibe}`,
-        );
+        blocks.push({
+          kind: "reel",
+          index,
+          files: {
+            "HOOK.txt": reel.hook,
+            "FRAZY.txt": (reel.phrases || []).join("\n"),
+            "OPIS.txt": reel.captionShort || "",
+            "HASHTAGI.txt": Array.isArray(reel.hashtags) ? reel.hashtags.join(" ") : "",
+            "TLO-PROMPT.txt": `Ujęcie: ${background.scene.name}\nMotyw: ${background.scene.theme}\n${background.scene.bingPrompt}`,
+            "B-ROLL.txt": `${broll.scene.name}\n${broll.scene.description}\nAtmosfera: ${broll.scene.ambientVibe}`,
+          },
+        });
       });
 
       if (pack.carousel) {
-        const slot = dayFolder.folder("14-00_KARUZELE")!;
-        slot.file("TYTUL.txt", pack.carousel.title);
-        slot.file(
-          "SLAJDY.txt",
-          pack.carousel.slides
-            .map((s, i) => `SLAJD ${i + 1}\n${s.headline}\n${s.bodyText}`)
-            .join("\n\n"),
-        );
+        blocks.push({
+          kind: "carousel",
+          index: 0,
+          files: {
+            "TYTUL.txt": pack.carousel.title,
+            "SLAJDY.txt": pack.carousel.slides
+              .map((slide, i) => `SLAJD ${i + 1}\n${slide.headline}\n${slide.bodyText}`)
+              .join("\n\n"),
+          },
+        });
       }
 
       if (pack.post) {
-        const slot = dayFolder.folder("18-00_POST-1-1")!;
-        slot.file("HEADLINE.txt", pack.post.headline);
-        slot.file("BODY.txt", pack.post.body);
-        slot.file("TLO-PROMPT.txt", pack.post.bingPrompt);
+        blocks.push({
+          kind: "post",
+          index: 0,
+          files: {
+            "HEADLINE.txt": pack.post.headline,
+            "BODY.txt": pack.post.body,
+            "TLO-PROMPT.txt": pack.post.bingPrompt,
+          },
+        });
+      }
+
+      const planned = blocks.find((block) => block.kind === kind && block.index === 0);
+
+      if (planned) {
+        targets.push({ path: [label, slotName(planned, true)], files: planned.files });
+        publications++;
+        weekLines.push(
+          `${label} — ${SLOTS[kind].day} · ${pack.formatLabel || KIND_LABEL[kind]}\n  ${pack.plan || ""}\n  Hook dnia: ${pack.hookOfDay || planned.files["HOOK.txt"] || ""}`,
+        );
+      } else {
+        gaps.push(label);
+        weekLines.push(
+          `${label} — BRAK MATERIAŁU na ${KIND_LABEL[kind]} · ${pack.formatLabel || ""}\n  ${pack.plan || ""}\n  Hook dnia: ${pack.hookOfDay || ""}`,
+        );
+      }
+
+      // Wszystko, czego plan nie przewidział na ten dzień, nie wchodzi do
+      // kalendarza: leży w REZERWA i czeka na własny slot.
+      for (const block of blocks) {
+        if (block === planned) continue;
+        targets.push({ path: ["REZERWA", label, slotName(block, false)], files: block.files });
+        reserve++;
       }
     }
 
-    return zip.generateAsync({ type: "blob" });
+    for (const target of targets) {
+      let node = zip;
+      for (const part of target.path) node = node.folder(part)!;
+      for (const [name, content] of Object.entries(target.files)) node.file(name, content);
+    }
+
+    const readme = [
+      "STARK FOCUS // WEEKLY AUTOPILOT",
+      `Wygenerowano: ${new Date().toLocaleString("pl-PL")}`,
+      "",
+      `PLAN: ${publications} publikacji na ${allPacks.length} dni — jedna na dzień, w formacie`,
+      "przypisanym dniowi przez plan tygodnia. Paczka dnia zwraca jednak zawsze",
+      "rolkę, karuzelę i kadr naraz, więc to, czego plan nie przewidział, nie idzie",
+      `do kalendarza, tylko do REZERWA/ (${reserve} folderów) i czeka na własny slot.`,
+      gaps.length > 0
+        ? `Dni bez materiału na zaplanowany format: ${gaps.join(", ")} — ich folderów nie ma.`
+        : "Każdy dzień ma swój materiał.",
+      "",
+      "SCHEMAT TYGODNIA:",
+      ...weekLines,
+      "",
+      "STRUKTURA: <DZIEN>/<SLT_DNIA>/  oraz  REZERWA/<DZIEN>/<NAZWA>/",
+      "  12-00_ROLKA     -> HOOK.txt, FRAZY.txt, OPIS.txt, HASHTAGI.txt, TLO-PROMPT.txt, B-ROLL.txt",
+      "  14-00_KARUZELA  -> TYTUL.txt, SLAJDY.txt",
+      "  18-00_POST-1-1  -> HEADLINE.txt, BODY.txt, TLO-PROMPT.txt",
+      "Wgraj do odpowiedniego studia (Post / Rolka / Karuzela).",
+    ].join("\n");
+    zip.file("README-TYGODNIOWY.txt", readme);
+
+    const blob = await zip.generateAsync({ type: "blob" });
+    return { blob, publications, reserve, gaps };
   };
 
   const run = async () => {
@@ -204,12 +292,12 @@ export const AutopilotModal: React.FC<AutopilotModalProps> = ({ isOpen, onClose,
     setError(null);
     setDone(false);
     setPacks([]);
+    setSummary(null);
     try {
       setStage("Planuję tydzień...");
       const plan = await fetchDayPlan(controller.signal);
       if (cancelledRef.current) return;
       if (!plan || plan.length < days) throw new Error("Nie udało się zaplanować tygodnia.");
-      setWeek(plan);
       setProgress(Math.round((1 / (1 + days)) * 100));
 
       const selected = plan.slice(0, days);
@@ -232,7 +320,7 @@ export const AutopilotModal: React.FC<AutopilotModalProps> = ({ isOpen, onClose,
 
       setStage("Pakuję ZIP...");
       setPacking(true);
-      const blob = await buildZip(all);
+      const { blob, publications, reserve, gaps } = await buildZip(all);
       if (cancelledRef.current) return;
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -245,6 +333,7 @@ export const AutopilotModal: React.FC<AutopilotModalProps> = ({ isOpen, onClose,
       setTimeout(() => URL.revokeObjectURL(url), 60000);
 
       if (cancelledRef.current) return;
+      setSummary({ publications, reserve, gaps });
       setStage("Gotowe!");
       setDone(true);
     } catch (err) {
@@ -282,10 +371,12 @@ export const AutopilotModal: React.FC<AutopilotModalProps> = ({ isOpen, onClose,
 
         <p className="text-[11px] font-mono text-slate-400">
           Plan przydziela dniom kategorie i formaty (rotacja, nie siedem rolek), a paczki treści
-          schodzą tylko na tyle dni, ile wybierzesz niżej. ZIP ma foldery{" "}
-          <span className="text-slate-200">PON / WT / SR / CZW / PT / SB / ND</span> (sloty 12-00,
-          14-00, 15-00, 18-00). Zip to gotowy materiał do studiów — aplikacja niczego nie trzyma w
-          kolejce za ciebie.
+          schodzą tylko na tyle dni, ile wybierzesz niżej. W folderze dnia leży JEDNA publikacja —
+          ta, którą przypisał plan:{" "}
+          <span className="text-slate-200">12-00_ROLKA / 14-00_KARUZELA / 18-00_POST-1-1</span>.
+          Paczka dnia zwraca zawsze wszystkie trzy formaty, więc reszta jedzie do{" "}
+          <span className="text-slate-200">REZERWA/</span> i nie wchodzi w ten tydzień. Zip to
+          gotowy materiał do studiów — aplikacja niczego nie trzyma w kolejce za ciebie.
         </p>
 
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
@@ -338,29 +429,45 @@ export const AutopilotModal: React.FC<AutopilotModalProps> = ({ isOpen, onClose,
         )}
 
         {done && (
-          <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg space-y-2">
-            <p className="text-xs font-mono text-emerald-300 flex items-center gap-2">
-              <Check className="w-4 h-4" />
-              ZIP pobrany!
-            </p>
-            <div className="grid grid-cols-7 gap-1">
-              {packs.map((p) => (
-                <div
-                  key={p.day}
-                  className="text-center p-1.5 bg-[#141824] rounded border border-[#2C354B]"
-                >
-                  <div className="text-[10px] font-mono font-bold text-white">
-                    {DAY_PL[p.dayIndex]}
-                  </div>
-                  <div className="text-[8px] font-mono text-slate-500 truncate">
-                    {p.category.split(" ")[0]}
-                  </div>
-                  <div className="text-[8px] font-mono text-rose-300/80 truncate">
-                    {p.format === "carousel" ? "karuzela" : p.format === "post" ? "kadr" : "rolka"}
-                  </div>
-                </div>
-              ))}
+          <div className="space-y-2">
+            <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg space-y-1">
+              <p className="text-xs font-mono text-emerald-300 flex items-center gap-2">
+                <Check className="w-4 h-4" />
+                ZIP pobrany: {summary?.publications ?? 0} publikacji — jedna na dzień.
+              </p>
+              {(summary?.reserve ?? 0) > 0 && (
+                <p className="text-[10px] font-mono text-slate-400">
+                  Reszta paczek ({summary?.reserve} folderów) leży w REZERWA/ — ten tydzień ma
+                  trzymać plan, nie wolumen.
+                </p>
+              )}
+              {summary && summary.gaps.length > 0 && (
+                <p className="text-[10px] font-mono text-amber-300/90">
+                  Dni bez materiału na zaplanowany format: {summary.gaps.join(", ")}.
+                </p>
+              )}
             </div>
+            <ul className="space-y-1 max-h-40 overflow-y-auto">
+              {packs.map((p) => (
+                <li
+                  key={p.day}
+                  className="p-1.5 bg-[#141824] rounded border border-[#2C354B] space-y-0.5"
+                >
+                  <div className="flex items-baseline gap-2 text-[10px] font-mono">
+                    <span className="font-bold text-white">{DAY_PL[p.dayIndex]}</span>
+                    <span className="text-rose-300/80 truncate">
+                      {p.formatLabel || KIND_LABEL[plannedKind(p)]}
+                    </span>
+                    <span className="text-slate-500 ml-auto shrink-0">
+                      {SLOTS[plannedKind(p)].day}
+                    </span>
+                  </div>
+                  <div className="text-[10px] font-mono text-slate-400">
+                    {p.plan || p.hookOfDay || p.topic}
+                  </div>
+                </li>
+              ))}
+            </ul>
           </div>
         )}
 

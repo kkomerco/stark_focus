@@ -92,15 +92,6 @@ function normalizeParsedData(parsed: any, base: StarkFocusData): StarkFocusData 
     ...parsed,
     posts: Array.isArray(parsed?.posts) ? parsed.posts : [],
     vault_assets: cleanedAssets,
-    // Fallback polami: starszy blob może mieć tylko część dynamic_db
-    dynamic_db: {
-      formats: Array.isArray(parsed?.dynamic_db?.formats)
-        ? parsed.dynamic_db.formats
-        : base.dynamic_db.formats,
-      cta_presets: Array.isArray(parsed?.dynamic_db?.cta_presets)
-        ? parsed.dynamic_db.cta_presets
-        : base.dynamic_db.cta_presets,
-    },
     // Dziennik publikacji: bez tego aplikacja nie wie, co naprawdę wyszło.
     published: normalizePublished(parsed?.published),
     ab_experiments: normalizeAbExperiments(parsed?.ab_experiments),

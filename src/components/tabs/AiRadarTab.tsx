@@ -334,7 +334,6 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
       asset: "AI_BATCH_" + post.id,
       caption: post.caption,
       created_date: new Date().toISOString().split("T")[0],
-      published_date: null,
       notes: `Filary: ${post.pillar}. Wygenerowano masowo z Radaru AI.`,
     };
 
@@ -358,7 +357,6 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
       asset: "AI_BATCH_" + post.id,
       caption: post.caption,
       created_date: new Date().toISOString().split("T")[0],
-      published_date: null,
       notes: `Filary: ${post.pillar}. Wygenerowano masowo z Radaru AI.`,
       tags: ["stoicism", "discipline", "radar_batch"],
       status: "draft",
@@ -387,7 +385,6 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
       asset: "AI_RADAR_" + trend.id,
       caption: `${primaryHook}\n\n${trend.core_message || ""}\n\nSave this reminder. Execute in silence.\n\n#stoicism #discipline #mindset #starkfocus`,
       created_date: new Date().toISOString().split("T")[0],
-      published_date: null,
       notes: `Wywiad Trendu: ${trend.source_context || "Sieć"}. Ból widza: ${trend.audience_pain || "N/A"}`,
     };
 

@@ -628,6 +628,7 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
         asset: spec.gridType,
         caption: spec.caption,
         created_date: new Date().toISOString().split("T")[0],
+        spec,
       });
     }
 

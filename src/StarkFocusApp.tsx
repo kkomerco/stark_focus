@@ -153,7 +153,9 @@ export default function StarkFocusApp() {
       asset: post.asset || "Monolith_Ledger",
       caption: post.caption,
       created_date: new Date().toISOString().split("T")[0],
-      published_date: null,
+      // Bez tego pakiet na platformy nie miał odtąd wziąć układu i rysował
+      // protokół jako cytat na czerni.
+      spec: post.spec,
     };
     handleUpdateData((prev) => ({ ...prev, posts: [newPost, ...prev.posts], xp: prev.xp + 50 }));
   };
@@ -345,9 +347,9 @@ export default function StarkFocusApp() {
               setIdeaStreamOpen(false);
               handleSendToReel(reel);
             }}
-            onSendToPost={(text, caption) => {
+            onSendToPost={(text, caption, idea) => {
               setIdeaStreamOpen(false);
-              handleSendToPost(text, caption);
+              handleSendToPost(text, caption, idea);
             }}
           />
         )}

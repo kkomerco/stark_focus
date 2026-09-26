@@ -1,6 +1,9 @@
-import { drawMinimalBlackQuoteSlide } from "./canvasRenderer";
-import { Post } from "../types";
-import { STARK_CTA, starkHashtags, starkPinned } from "../lib/caption";
+import { renderUniversalLayout } from "./canvasRenderer";
+import { UniversalLayoutSpec, Post } from "../types";
+import { STARK_CTAS, starkHashtags, starkPinned } from "../lib/caption";
+import { structuredSpec } from "./ideaLayout";
+import { layerById, PRIMARY_LAYER_ID } from "./canvas/layerRoles";
+import { ensureBrandFonts } from "./fonts";
 
 /**
  * PAKIET NA PLATFORMY.
@@ -9,6 +12,12 @@ import { STARK_CTA, starkHashtags, starkPinned } from "../lib/caption";
  * tej pory musiał dla każdej platformy pobierać grafikę osobno i ręcznie
  * przycinać opis. Jedna operacja -> jeden ZIP z gotowymi kadrami 1:1 (feed),
  * 4:5 (karuzela) i 9:16 (rolka/post) plus opisami zmieszczonymi w limity.
+ *
+ * Kadr bierze się ze `spec` zapisanego razem z postem i jest rysowany tym
+ * samym `renderUniversalLayout` co podgląd w studiu. Dawniej pakiet wołał
+ * własny `drawMinimalBlackQuoteSlide` z sztywnym „cinzel", lewym wyrównaniem i
+ * dwiema liniami, więc protokół, koszt i kolaż wychodziły z ZIP-a jako cytat
+ * na czerni — czyli inny kadr niż ten zatwierdzony sekundę wcześniej.
  *
  * Limity opisów to liczby z dokumentacji platform; przycinamy je przed
  * zapisem pliku, inaczej wrzut na Instagram uśnie na walidacji.
@@ -28,41 +37,90 @@ const FRAME_SIZES = [
 ] as const;
 
 /**
- * Tekst na grafikę bierzemy z pierwszego wiersza opisu, nie z tytułu: to on
- * jest materiałem, a tytuł to etykieta porządkowa w aplikacji.
+ * Kadr, który realnie eksportujemy: zapisany `spec` ze studia albo — dla
+ * postów starszych niż ten zapis — cytat złożony z tekstu.
+ *
+ * `rebuilt` idzie do README: bez `spec` nie odtworzymy geometrii, więc w ZIP-ie
+ * taki kadr nie może udawać zatwierdzonego kadru ze studia.
  */
-function frameText(post: Post): { main: string; sub: string } {
-  const clean = (value: string) => (value || "").replace(/[*"#]/g, "").trim();
-  const lines = (post.caption || "")
-    .split("\n")
-    .map(clean)
-    .filter((line) => line.length > 0 && !line.startsWith("#"));
-
-  if (lines.length === 0) return { main: clean(post.title), sub: "" };
-  return { main: lines[0], sub: lines[1] || "" };
+function frameFor(post: Post): { spec: UniversalLayoutSpec; rebuilt: boolean } {
+  if (post.spec) return { spec: post.spec, rebuilt: false };
+  return { spec: rebuiltQuote(post), rebuilt: true };
 }
 
+/**
+ * Teza wpisu: pierwsza linia opisu, która nie jest ogonem marki. Hashtagi
+ * odfiltrowujemy PRZED zjadaniem znaków, bo po `replace("#")` „#stoicism"
+ * udawało treść kadru, a `formatStarkCaption` numeruje wiersze struktury —
+ * bez `spec` nie wiemy, które z nich były warstwami kadru, a które prozą.
+ * Dlatego na kadr wchodzi sama teza: pustego kadru nie wypełniamy zdaniem,
+ * którego nikt nie zatwierdził.
+ */
+function thesisOf(post: Post): string {
+  const isCta = (line: string) =>
+    STARK_CTAS.some((cta) => cta.toLowerCase() === line.toLowerCase());
+  const clean = (value: string) => value.replace(/[*"#]/g, "").trim();
+  const body = (post.caption || "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("#") && !isCta(line))
+    .map(clean)
+    .filter(Boolean);
+  return body[0] || clean(post.title);
+}
+
+/** Krój i tryb koloru bierze markowa geometria warstw (`ideaLayout`/`layerRoles`), nie literał z tego pliku. */
+function rebuiltQuote(post: Post): UniversalLayoutSpec {
+  return structuredSpec("Cytat", "none_solid", { primary: thesisOf(post) });
+}
+
+/** Wszystkie napisy kadru — do alt textu, który platformy czytają jak treść grafiki. */
+function frameTexts(spec: UniversalLayoutSpec): string[] {
+  return spec.textLayers.map((layer) => (layer.text || "").trim()).filter(Boolean);
+}
+
+/**
+ * Kształt pytania pod postem liczymy z kadru, który wyjeżdża z ZIP-a — ta sama
+ * reguła co przy komentarzu przypiętym w studiu. `post.format` trzyma
+ * `spec.layoutName` („Cytat na Czerni"), więc porównanie go z „Cytat" nie było
+ * prawdziwe nigdy i pojedyncze zdanie dostawało pytanie z listy.
+ */
+function frameShape(spec: UniversalLayoutSpec): "list" | "single" {
+  return spec.gridType === "none_solid" || spec.gridType === "studio_wall_3d" ? "single" : "list";
+}
+
+/**
+ * Opis ma JEDEN ogon. `post.caption` buduje `caption.ts`, które samo dokłada
+ * CTA i hashtagi — pakiet dopisywał drugi zestaw `starkHashtags(...)`, więc pod
+ * każdym postem stały dwie linie tagów.
+ */
 function captionFor(post: Post, limit: number, platformLabel: string): string {
   const raw = (post.caption || post.title || "").trim();
-  const hashtags = starkHashtags(raw).join(" ");
-  const body = raw || STARK_CTA;
-  const text = `${body}\n\n${hashtags}`;
+  const lines = raw.split("\n").map((line) => line.trim());
+  const last = [...lines].reverse().find(Boolean) || "";
+  const hasTail = last.startsWith("#");
+  const tail = hasTail ? last : starkHashtags(raw).join(" ");
+  const body = (hasTail ? lines.slice(0, -1).join("\n") : raw).trim();
 
+  const suffix = `\n\n(dopisano dla ${platformLabel})`;
+  const text = `${body}\n\n${tail}`;
   if (text.length <= limit) return text;
-  // Przycięcie NIGDY nie zjada hashtagów: to one niosą zasięg, a opis i tak
+
+  // Przycięcie NIGDY nie zjada ogona: to on niesie zasięg, a opis i tak
   // został ucięty przez limit platformy.
-  const room = Math.max(0, limit - hashtags.length - 4);
-  return `${text.slice(0, room).trimEnd()}\n…\n${hashtags}\n\n(dopisano dla ${platformLabel})`;
+  const room = Math.max(0, limit - tail.length - suffix.length - 4);
+  return `${body.slice(0, room).trimEnd()}\n…\n${tail}${suffix}`;
 }
 
 /**
  * Alt text do wklejenia przy wrzucaniu. Platformy czytają go jako tekst, więc
- * dla kadru, który jest tylko typografią na czerni, to jedyne miejsce obok
- * opisu, gdzie treść grafiki trafia do wyszukiwania.
+ * to jedyne miejsce obok opisu, gdzie treść grafiki trafia do wyszukiwania.
+ * Nie opisujemy kroju ani tła — kadr bywa protokołem na czerni i kostką czterech
+ * ujęć, a alt ma mówić to, co widać.
  */
-function altTextFor(main: string): string {
-  const line = main.replace(/[*"#]/g, "").trim().slice(0, 160);
-  return `White serif line "${line}" on a solid black background, @stark_focus handle bottom left`;
+function altTextFor(lines: string[]): string {
+  const text = lines.join(" — ").replace(/[*"#]/g, "").trim().slice(0, 160);
+  return `Stark Focus typography frame, @stark_focus: ${text}`;
 }
 
 function canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob> {
@@ -96,34 +154,36 @@ export async function buildPlatformPack(posts: Post[]): Promise<PlatformPackResu
   const { default: JSZip } = await import("jszip");
   const zip = new JSZip();
   const skipped: string[] = [];
+  /** Wpisy bez zapisanego kadru — README mówi o nich wprost, zamiast udawać eksport ze studia. */
+  const rebuilt: string[] = [];
   let files = 0;
 
   const working = document.createElement("canvas");
+  // Canvas nie pobiera krojów sam, tylko używa tych już obecnych w
+  // `document.fonts`; bez tego każdy kadr z ZIP-a wychodzi w Arialu.
+  await ensureBrandFonts();
 
   for (const post of posts) {
-    const { main, sub } = frameText(post);
-    if (!main) {
-      skipped.push(post.title || post.id);
+    const { spec, rebuilt: fromText } = frameFor(post);
+    const texts = frameTexts(spec);
+    const thesis = layerById(spec, PRIMARY_LAYER_ID) || texts[0] || "";
+    const label = post.title || post.id;
+    if (!thesis) {
+      skipped.push(label);
       continue;
     }
+    if (fromText) rebuilt.push(label);
 
     const slug = sanitizeFileName(post.title || post.id);
     const folder = zip.folder(`${post.created_date || "bez-daty"}_${slug}`)!;
 
     for (const size of FRAME_SIZES) {
-      drawMinimalBlackQuoteSlide(working, {
-        width: size.width,
-        height: size.height,
-        mainText: main,
-        subText: size.key === "9x16" ? sub : "",
-        align: "left",
-        fontFamily: "cinzel",
-        fontColor: "white",
-      });
+      renderUniversalLayout(working, spec, [], { width: size.width, height: size.height });
       folder.file(`kadr-${size.key}-${size.width}x${size.height}.png`, await canvasToBlob(working));
       files++;
     }
 
+    const alt = altTextFor(texts);
     for (const platform of PLATFORMS) {
       folder.file(
         `opis-${platform.id}.txt`,
@@ -132,7 +192,7 @@ export async function buildPlatformPack(posts: Post[]): Promise<PlatformPackResu
 ${captionFor(post, platform.captionLimit, platform.label)}
 
 --- ALT TEXT (wklej przy publikacji) ---
-${altTextFor(main)}
+${alt}
 `,
       );
       files++;
@@ -140,10 +200,7 @@ ${altTextFor(main)}
 
     // Komentarz przypięty to osobny plik, nie dopisek do opisu: wkleja się go
     // po publikacji, a bez niego dyskusja pod postem zaczyna się od zera.
-    folder.file(
-      "komentarz-przypieity.txt",
-      starkPinned(post.title, [main, sub], "", post.format === "Cytat" ? "single" : "list"),
-    );
+    folder.file("komentarz-przypieity.txt", starkPinned(thesis, texts, "", frameShape(spec)));
     files++;
   }
 
@@ -158,6 +215,17 @@ ${altTextFor(main)}
     ),
     "  komentarz-przypieity.txt — wklej i przypnij zaraz po publikacji;",
     "  to jedyny komentarz, który i tak przeczyta każdy, kto otworzy wątek.",
+    "",
+    "Każdy kadr rysuje ten sam kod co podgląd studia: `spec` zapisany razem z",
+    "postem, więc PNG z archiwum to kadr zatwierdzony sekundę wcześniej,",
+    "a nie zgadywanka z linii opisu.",
+    ...(rebuilt.length === 0
+      ? ["W tym pakiecie każdy wpis ma zapisany kadr."]
+      : [
+          "Te wpisy zapisano przed wprowadzeniem zapisu kadru, więc ich PNG to cytat",
+          "odtworzony z tekstu, a nie kadr ze studia:",
+          ...rebuilt.map((title) => `  - ${title}`),
+        ]),
     "",
     "Kadr 9:16 to grafik do rolek; rolkę wideo pobierasz osobno ze studia.",
     "Każdy opis ma sekcję ALT TEXT — wklej ją przy publikacji; platformy",

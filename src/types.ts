@@ -43,10 +43,13 @@ export interface Post {
   asset: string;
   caption: string;
   created_date: string;
-  scheduled_date?: string | null;
-  scheduled_time?: string;
-  published_date: string | null;
   notes?: string;
+  /**
+   * Kadr, z którego post powstał. Bez niego pakiet na platformy musiał
+   * odgadywać grafikę z linii opisu i rysował protokół jako cytat na czerni,
+   * czyli inny kadr niż ten zatwierdzony w studiu.
+   */
+  spec?: UniversalLayoutSpec;
 }
 
 export interface VaultAsset {
@@ -56,18 +59,6 @@ export interface VaultAsset {
   type: "bg" | "video" | "inspiration";
   created_date: string;
   notes?: string;
-}
-
-export interface CTAPreset {
-  id: string;
-  name: string;
-  cta: string;
-  tags: string;
-}
-
-export interface DynamicDb {
-  formats: string[];
-  cta_presets: CTAPreset[];
 }
 
 export interface TrendItem {
@@ -258,7 +249,6 @@ export interface StarkFocusData {
   streak: number;
   created_at: string | null;
   vault_assets: VaultAsset[];
-  dynamic_db: DynamicDb;
   notificationsEnabled?: boolean;
   saved_trends?: TrendItem[];
   social_handles?: SocialHandles;
