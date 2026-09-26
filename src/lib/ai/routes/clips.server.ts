@@ -51,7 +51,11 @@ export function rankClips(
   speaker: string,
   source: string,
   count: number,
-): { clips: { quote: string; why: string; attribution: string }[]; rejected: number } {
+): {
+  clips: { quote: string; why: string; attribution: string }[];
+  rejected: number;
+  notVerbatim: number;
+} {
   const seen = new Set<string>();
   const clips: { quote: string; why: string; attribution: string }[] = [];
   // Powodów nie wrzucamy do jednego worka: „model nie znalazł cytatu" i
