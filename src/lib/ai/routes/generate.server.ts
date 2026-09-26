@@ -1,9 +1,11 @@
 import type { MiniApp } from "../../mini-express.server";
 import { getGeminiClient, safeJsonParse, callGeminiWithFallback } from "../gemini.server";
 import { asString, asStringArray, sendDegraded } from "../normalize.server";
-import { isPolishCopy, starkCaption, starkHashtags } from "../../caption";
-import { HOOK_CRAFT_PROMPT, auditHook } from "../../hookCraft";
-import { clampText, clampTextList } from "../../limits";
+import { starkCaption, starkHashtags } from "../../caption";
+import { HOOK_CRAFT_PROMPT } from "../../hookCraft";
+import { publishableLine } from "../../prepublish";
+import { clampInt, clampText, clampTextList } from "../../limits";
+import { pick } from "../../random";
 import { hookFingerprint } from "../../similarity";
 
 export function registerGenerateRoutes(app: MiniApp): void {
@@ -118,29 +120,29 @@ ${HOOK_CRAFT_PROMPT}
     "suggestedDuration": ${count === 4 ? 11 : count === 3 ? 9 : count === 2 ? 8 : 7}
   }`;
 
-        // Jedno wywołanie na kliknięcie. Wcześniejszy `catch` powtarzał ten sam
-        // prompt, więc normalna, dłuższa odpowiedź była przerywana po 4,5 s i
-        // płatna drugi raz — a `gemini.server.ts` ma własny budżet i backoff.
+        // Jedno wywołanie na kliknięcie i BEZ własnego limitu czasu w trasie.
+        // Było tu `AbortSignal.timeout(20000)` tworzony raz przed pętlą
+        // fallbacku: po 20 s był już spełniony, więc przerywał NIE TYLKO tę
+        // płatną odpowiedź, ale i wszystkie kolejne modele natychmiast.
+        // Budżet czasu próby należy do `gemini.server.ts`.
         const response = await callGeminiWithFallback(ai, {
           contents: prompt,
           config: {
             temperature: 1.0,
             responseMimeType: "application/json",
-            abortSignal: AbortSignal.timeout(20000),
           },
         });
 
         const rawText = response.text || "";
         const parsed = safeJsonParse(rawText);
         const phrases = asStringArray(parsed?.phrases, count + 2).map((phrase) => phrase.trim());
-        // Instrukcja jest po polsku, więc model potrafi odpowiedzieć po
-        // polsku — a to idzie prosto na kadr. Taki wynik jest błędem, nie
-        // wariantem: spadam na bank treści, który jest po angielsku.
-        if (isPolishCopy(rawText)) {
-          console.warn("Ghostwriter oddał materiał po polsku — używam banku treści.");
-        } else if (
+        // Miara jest jedna: `publishableLine` (polszczyzna + klisza + długość).
+        // Wcześniejszy test `isPolishCopy(całej odpowiedzi)` odrzucał płatny
+        // materiał tylko dlatego, że model dopisał polskie zdanie w opisie —
+        // opisu i tak dotyczy inna reguła, a na kadr idą wyłącznie frazy.
+        if (
           phrases.length === count &&
-          phrases.every((phrase) => auditHook(phrase).ok) &&
+          phrases.every((phrase) => publishableLine(phrase)) &&
           // Anty-powtórka jest jedna: to, co już wyszło na konto, nie wraca
           // tylko dlatego, że model akurat na to trafił.
           phrases.every((phrase) => !taken.has(hookFingerprint(phrase)))
@@ -152,26 +154,27 @@ ${HOOK_CRAFT_PROMPT}
             "emerald_abyss",
             "carbon_aura",
           ];
-          const randomTheme = fallbackThemes[Math.floor(Math.random() * fallbackThemes.length)];
+          const randomTheme = pick(fallbackThemes);
+          const defaultDuration = count === 4 ? 11 : count === 3 ? 9 : count === 2 ? 8 : 7;
           const hook = phrases[0];
           // Bez zdania od modelu nie dokładamy mu z głowy ani tytułu, ani
           // opisu: stałe „Execute in total silence…" i „Marmurowy Posąg"
           // wracają pod każdą rolką, czyli tym, czego marka ma pełne konto.
+          // Tak samo z uzasadnieniem tła — nasze zdanie z pliku byłoby
+          // tym samym stałym tekstem pod każdą-roleczką.
           return res.json({
             title: asString(parsed?.title).slice(0, 60) || hook.slice(0, 60),
             phrases,
             captionShort: starkCaption(hook, asString(parsed?.captionShort)),
             captionDeep: starkCaption(hook, asString(parsed?.captionDeep)),
-            // Hashtagi liczymy z fraz rolki — nigdy od modelu.
+            // Hashtagi liczymy z fraz rolki — nigdy ze głowy modelu.
             hashtags: starkHashtags(phrases.join(" ")),
             suggestedTheme: asString(parsed?.suggestedTheme) || randomTheme,
-            suggestedBackground: asString(parsed?.suggestedBackground),
-            backgroundRationale:
-              asString(parsed?.backgroundRationale) ||
-              "Głęboka czerń i chłodny marmur skupiają wzrok widza wyłącznie na surowym tekście dyscypliny.",
-            suggestedDuration:
-              parsed?.suggestedDuration ||
-              (count === 4 ? 11 : count === 3 ? 9 : count === 2 ? 8 : 7),
+            suggestedBackground: asString(parsed?.suggestedBackground).slice(0, 120),
+            backgroundRationale: asString(parsed?.backgroundRationale).slice(0, 240),
+            // Model potrafi oddać `0`, `1e9` albo stringa; studio i tak
+            // przyciąga do swoich kroków czasowych, ale przez sieć ma iść liczba.
+            suggestedDuration: clampInt(parsed?.suggestedDuration, 5, 90, defaultDuration),
             content: JSON.stringify(parsed),
           });
         }
