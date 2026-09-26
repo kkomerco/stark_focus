@@ -27,6 +27,14 @@ const RISKY_COPY: { pattern: RegExp; replacement: string }[] = [
   { pattern: /\bhurt yourself\b/gi, replacement: "work against yourself" },
   { pattern: /\bno reason to live\b/gi, replacement: "no ground to stand on" },
   { pattern: /\brot\b/gi, replacement: "fade" },
+  // Krew i okaleczenie: „pay the floor in blood" przeszło dziś filtr i weszło
+  // na kadr. Platforma czyta to jak treść samobójczą, nie jak metaforę dyscypliny.
+  { pattern: /\bblood\b/gi, replacement: "sweat" },
+  { pattern: /\bbloody\b/gi, replacement: "plain" },
+  { pattern: /\bbleeding\b/gi, replacement: "burning" },
+  { pattern: /\bbleeds\b/gi, replacement: "burns" },
+  { pattern: /\bbleed\b/gi, replacement: "burn" },
+  { pattern: /\bcorpse\b/gi, replacement: "shell" },
   // Pojedyncze wyrazy śmiertelne: „memento mori" w prompcie Radaru prowokuje
   // model do nagiego „die"/„dead", których powyższe frazy nie łapią. Reguły są
   // na końcu, więc wcześniejsze, dłuższe zwroty wygrywają, a „god / to die for"
