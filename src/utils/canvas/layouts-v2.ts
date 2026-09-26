@@ -119,13 +119,19 @@ export function drawProtocolListSlide(
   const headline = getFontFamilySpec(options.headlineFont || "cinzel");
   const body = getFontFamilySpec(options.bodyFont || "sans");
 
-  // Teza: Cinzel, duży ale z powietrzem — agresywnie, bez przesady.
-  const statementSize = Math.round(width * 0.072);
-  ctx.font = `700 ${statementSize}px ${headline}`;
-  const statementLines = wrapTextLines(ctx, stripHighlightSyntax(options.statement), usable).slice(
-    0,
-    4,
+  // Teza: duza, ale z powietrzem. `fitLines` dobija rozmiar do liczby linii,
+  // bo wczesniejsze `slice(0, 4)` cichutko gubilo ogon dlugiego zdania —
+  // czytelnik dostawal polowe tezy i nic mu o tym nie mowilo.
+  const statement = fitLines(
+    ctx,
+    stripHighlightSyntax(options.statement),
+    usable,
+    5,
+    (size) => `700 ${size}px ${headline}`,
+    Math.round(width * 0.072),
   );
+  const statementSize = statement.size;
+  const statementLines = statement.lines;
 
   // Kroki z crimson numerem. Liczba jest tu kotwicą wzrokową.
   const stepSize = Math.round(width * 0.036);

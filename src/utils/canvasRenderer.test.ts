@@ -146,18 +146,24 @@ describe("renderUniversalLayout", () => {
     ["koszt", COST],
     ["kolaż", COLLAGE],
     ["cytat", QUOTE],
-  ]) {
+  ] as Array<[string, UniversalLayoutSpec]>) {
     it(`${name}: kazdy napis z textLayers trafia na kadr`, () => {
-      const drawn = render(spec).map((entry) => entry.text);
+      const all = render(spec)
+        .map((entry) => entry.text)
+        .join(" ")
+        .toLowerCase();
       for (const layer of spec.textLayers) {
         const text = (layer.text ?? "").trim();
         if (!text) continue;
         const words = text.split(/\s+/);
-        const found = drawn.some((line) => {
-          const flat = line.split(/\s+/).join(" ");
-          return flat.includes(words[0]) || words[0].length > 12;
-        });
-        assert.ok(found, `brak na kadrze: „${text}"`);
+        // Pierwsze i ostatnie slowo wiersza: zgubiony lub uciety ogon widac
+        // od razu, a lamania linii nie daja falszywego przejścia.
+        const first = words[0].toLowerCase();
+        const last = words[words.length - 1].toLowerCase();
+        assert.ok(
+          all.includes(first) && all.includes(last),
+          `brak na kadrze: „${text}" (szukam „${first}" i „${last}")`,
+        );
       }
     });
 
