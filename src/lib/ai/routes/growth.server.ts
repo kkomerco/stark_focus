@@ -36,10 +36,81 @@ const ROW_MAX_WORDS = 16;
 /** Etykiety wariantów — trasa i UI rozpoznają eksperyment wyłącznie po nich. */
 const AB_LABELS = ["A", "B"] as const;
 
-/** Data publikacji wariantu: albo YYYY-MM-DD, albo pustka — nie „dzisiaj". */
-function asDate(value: unknown): string {
-  const raw = clampText(value, 10);
-  return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : "";
+/**
+ * Znacznik publikacji wariantu: `YYYY-MM-DDTHH:MM`, czyli to, co oddaje input
+ * `datetime-local`. Sama data bez godziny odpada — odstęp liczony od północy
+ * byłby liczbą wyssaną z sufitu, bo dwa posty z tego samego dnia mogą dzielić
+ * pół doby.
+ */
+const PUBLISH_STAMP = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::\d{2})?$/;
+
+/**
+ * Ile minut może dzielić dwie publikacje, żeby czas nie był drugą zmienną
+ * eksperymentu. Pierwsza fala rozdziału na koncie poniżej 10 tys. obserwujących
+ * trwa około godziny: powyżej tego progu jeden wariant trafia w szczyt
+ * aktywności odbiorców, a drugi w dolinę, i to waży częściej niż pierwsze
+ * zdanie. Ten sam próg czyta linijka w `AbModal.tsx` — kliknięcie nie może
+ * obiecywać wniosku, którego trasa i tak nie wystawi.
+ */
+export const AB_PUBLISH_GAP_MAX_MINUTES = 60;
+
+/** Godzina publikacji wariantu albo pustka — nigdy „dziś" ani „około południe". */
+function asPublishedAt(value: unknown): string {
+  const raw = clampText(value, 19);
+  const parts = PUBLISH_STAMP.exec(raw);
+  if (!parts) return "";
+  const month = Number(parts[2]);
+  const day = Number(parts[3]);
+  const hour = Number(parts[4]);
+  const minute = Number(parts[5]);
+  if (month < 1 || month > 12 || day < 1 || day > 31 || hour > 23 || minute > 59) return "";
+  return raw;
+}
+
+/**
+ * Minuty „zegara bez strefy". Liczymy różnicę dwóch znaczników, więc strefa
+ * nie wchodzi do wyniku — a `Date.UTC` trzyma arytmetykę na jednym wierszu.
+ */
+function publishMinutes(raw: string): number {
+  const parts = PUBLISH_STAMP.exec(raw);
+  if (!parts) return 0;
+  return (
+    Date.UTC(
+      Number(parts[1]),
+      Number(parts[2]) - 1,
+      Number(parts[3]),
+      Number(parts[4]),
+      Number(parts[5]),
+    ) / 60_000
+  );
+}
+
+/** `45 min`, `4 h 20 min`, `6 h` — po polsku, bo to lekcja dla właściciela konta. */
+function publishGapLabel(minutes: number): string {
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  if (!hours) return `${rest} min`;
+  return rest ? `${hours} h ${rest} min` : `${hours} h`;
+}
+
+/**
+ * Co czas wyjścia robi z porównaniem: nazwany odstęp albo przyznanie się,
+ * że godziny nie zostały zmierzone. Pusty wers znaczy „czas nie miesza".
+ * Nie zgadujemy luki — brakujące dane mówią o sobie same.
+ */
+function timeConfounder(
+  winner: { label: string; publishedAt: string },
+  loser: { label: string; publishedAt: string },
+): string {
+  const unmeasured = [winner, loser].filter((row) => !row.publishedAt);
+  if (unmeasured.length === 2)
+    return "eksperyment nie jest kontrolowany czasowo: żaden wariant nie ma godziny publikacji";
+  if (unmeasured.length === 1)
+    return `eksperyment nie jest kontrolowany czasowo: wariant ${unmeasured[0].label} nie ma godziny publikacji`;
+  const minutes = Math.abs(publishMinutes(winner.publishedAt) - publishMinutes(loser.publishedAt));
+  return minutes > AB_PUBLISH_GAP_MAX_MINUTES
+    ? `publikacje dzieli ${publishGapLabel(minutes)}, więc sam czas wyjścia jest drugą zmienną`
+    : "";
 }
 
 const PROMPT_TAIL = 30;
@@ -503,9 +574,9 @@ Zwróć WYŁĄCZNIE JSON:
           hook: clampText(r.hook, 160),
           music: clampText(r.music, 80),
           background: clampText(r.background, 80),
-          // Data publikacji wariantu od klienta: bez niej wpis z A/B nie ma się
-          // z czym zestawić w dzienniku i jest drugą rzeczywistością.
-          publishedAt: asDate(r.publishedAt),
+          // Godzina publikacji wariantu od klienta: bez niej porównanie nie ma
+          // do czego przyłożyć czasu wyjścia, a czas bywa ważniejszy od treści.
+          publishedAt: asPublishedAt(r.publishedAt),
         };
       });
 
@@ -551,23 +622,28 @@ Zwróć WYŁĄCZNIE JSON:
         : "brak bazy do porównania";
 
     // Wniosek nie może udowodnić więcej, niż zmierzono. Jeśli warianty różniły
-    // się też muzyką albo tłem, różnica wyniku nie jest zasługą hooka.
+    // się też muzyką albo tłem, różnica wyniku nie jest zasługą hooka. Czas
+    // publikacji wchodzi na tę samą listę: to ta sama przeszkoda, tylko liczona
+    // w minutach, więc lekcja buduje się jedną ścieżką.
     const otherChanges = [
-      winner.music && loser.music && winner.music !== loser.music ? "muzyka" : "",
-      winner.background && loser.background && winner.background !== loser.background ? "tło" : "",
+      winner.music && loser.music && winner.music !== loser.music ? "różniła się muzyka" : "",
+      winner.background && loser.background && winner.background !== loser.background
+        ? "różniło się tło"
+        : "",
+      timeConfounder(winner, loser),
     ].filter(Boolean);
 
     let lesson =
       otherChanges.length > 0
-        ? `Wariant ${winner.label} miał engagement o ${gap} wyższy od ${loser.label}. Nie da się tego przypisać samemu hookowi — różniły się także: ${otherChanges.join(", ")}. Powtórz eksperyment z jednym zmienionym elementem, jeśli chcesz znać cenę hooka.`
-        : `Wariant ${winner.label} miał engagement o ${gap} wyższy od ${loser.label} przy tym samym tle i muzyce, więc różnicę robi hook: "${winner.hook}".`;
+        ? `Wariant ${winner.label} miał engagement o ${gap} wyższy od ${loser.label}. Nie da się tego przypisać samemu hookowi — ${otherChanges.join("; ")}. Powtórz eksperyment tak, żeby hook był jedyną różnicą: ta sama muzyka, to samo tło i publikacja w tej samej minucie.`
+        : `Wariant ${winner.label} miał engagement o ${gap} wyższy od ${loser.label} przy tym samym tle, muzyce i godzinie publikacji, więc różnicę robi hook: "${winner.hook}".`;
 
     if (ai) {
       try {
         const prompt = `Eksperyment A/B hooków dla marki @stark_focus (dark motivation).
-Wyniki (hook, muzyka i tło każdego wariantu): ${JSON.stringify(scored)}.
+Wyniki (hook, muzyka, tło i godzina publikacji każdego wariantu): ${JSON.stringify(scored)}.
 Zwycięzca: wariant ${winner.label} (engagement ${(winner.engagement * 100).toFixed(1)}%).
-${otherChanges.length > 0 ? `UWAGA: warianty różniły się także (${otherChanges.join(", ")}), więc NIE przypisuj wyniku samemu hookowi — nazwij, czego eksperyment nie rozstrzyga.` : "Hook był jedyną różnicą, więc możesz wskazać go jako przyczynę."}
+${otherChanges.length > 0 ? `UWAGA: ${otherChanges.join("; ")}, więc NIE przypisuj wyniku samemu hookowi — nazwij, czego eksperyment nie rozstrzyga.` : "Hook był jedyną różnicą, więc możesz wskazać go jako przyczynę."}
 W 2-3 zdaniach po polsku wyciągnij LEKCJĘ: co faktycznie zmierzono i jak to stosować w kolejnych generacjach. Bez lania wody i bez wniosków, których te dane nie niosą.`;
         const response = await callGeminiWithFallback(ai, {
           contents: prompt,

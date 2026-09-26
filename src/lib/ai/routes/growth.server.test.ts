@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { createApp } from "../../mini-express.server";
-import { craftVariants, craftWeek, createCraft, registerGrowthRoutes } from "./growth.server";
+import {
+  AB_PUBLISH_GAP_MAX_MINUTES,
+  craftVariants,
+  craftWeek,
+  createCraft,
+  registerGrowthRoutes,
+} from "./growth.server";
 import { STARK_CTAS } from "../../caption";
 import { hookFingerprint } from "../../similarity";
 import { MIN_AB_VIEWS } from "../../published";
@@ -127,7 +133,18 @@ describe("POST /api/ai/ab-variants", () => {
 });
 
 describe("POST /api/ai/ab-conclusion", () => {
-  const row = (label: "A" | "B", views: number, likes: number) => ({
+  /**
+   * `at(minuta doby)` trzyma oba warianty w tej SAMEJ minucie publikacji, dopóki
+   * test nie sprawdza czasu: inaczej każda lekcja dostawałaby przeszkodę
+   * czasową i reszta asercji nie mówiłaby nic o tym, co testuje.
+   */
+  const at = (minuteOfDay: number) =>
+    `2026-09-20T${String(Math.floor(minuteOfDay / 60)).padStart(2, "0")}:${String(
+      minuteOfDay % 60,
+    ).padStart(2, "0")}`;
+  const SAME_MOMENT = at(8 * 60);
+
+  const row = (label: "A" | "B", views: number, likes: number, publishedAt = SAME_MOMENT) => ({
     label,
     views,
     likes,
@@ -135,7 +152,7 @@ describe("POST /api/ai/ab-conclusion", () => {
     shares: 0,
     saves: 0,
     hook: label === "A" ? "Rust works while you sleep." : "Comfort is a cage with the door open.",
-    publishedAt: "2026-09-20",
+    publishedAt,
   });
 
   it("odmowa nie ma zwycięzcy i nazywa, ile wyświetleń brakuje", async () => {
@@ -192,6 +209,88 @@ describe("POST /api/ai/ab-conclusion", () => {
 
     assert.equal(payload.winner, "A");
     assert.match(payload.lesson, /nie da się tego przypisać samemu hookowi/i);
+  });
+
+  it("odstęp publikacji ponad próg nie pozwala przypisać wyniku hookowi", async () => {
+    const { payload } = await post("/api/ai/ab-conclusion", {
+      results: [row("A", 400, 40, at(8 * 60)), row("B", 400, 4, at(20 * 60))],
+    });
+
+    assert.equal(
+      payload.winner,
+      "A",
+      "liczby zostają: wyższy engagement to fakt i przy confoundzie",
+    );
+    assert.match(payload.lesson, /miał engagement o .* wyższy/, "przeszkoda nie wymazuje pomiaru");
+    assert.match(payload.lesson, /nie da się tego przypisać samemu hookowi/i);
+    assert.match(
+      payload.lesson,
+      /publikacje dzieli 12 h/,
+      "czas musi być nazwany w minutach, nie ogólnikiem",
+    );
+    assert.match(
+      payload.lesson,
+      /w tej samej minucie/,
+      "lekcja ma mówić, co czyni porównanie ważnym",
+    );
+  });
+
+  it("odstęp w progu zostawia hooka jedyną różnicą", async () => {
+    const inside = await post("/api/ai/ab-conclusion", {
+      results: [row("A", 400, 40, at(8 * 60)), row("B", 400, 4, at(8 * 60 + 40))],
+    });
+    assert.equal(inside.payload.winner, "A");
+    assert.match(inside.payload.lesson, /różnicę robi hook/);
+    assert.doesNotMatch(inside.payload.lesson, /nie da się tego przypisać/i);
+
+    const edge = await post("/api/ai/ab-conclusion", {
+      results: [row("A", 400, 40, at(0)), row("B", 400, 4, at(AB_PUBLISH_GAP_MAX_MINUTES))],
+    });
+    assert.doesNotMatch(edge.payload.lesson, /nie da się tego przypisać/i, "próg liczymy włącznie");
+
+    const justOver = await post("/api/ai/ab-conclusion", {
+      results: [row("A", 400, 40, at(0)), row("B", 400, 4, at(AB_PUBLISH_GAP_MAX_MINUTES + 1))],
+    });
+    assert.match(justOver.payload.lesson, /nie da się tego przypisać samemu hookowi/i);
+  });
+
+  it("dobę liczymy w minutach, nie w samych datach", async () => {
+    // 23:50 i 00:10 nazajutrz dzielą dwadzieścia minut — „inny dzień" nie może
+    // sam z siebie brzmieć jak osobna zmienna eksperymentu.
+    const { payload } = await post("/api/ai/ab-conclusion", {
+      results: [row("A", 400, 40, "2026-09-20T23:50"), row("B", 400, 4, "2026-09-21T00:10")],
+    });
+
+    assert.doesNotMatch(payload.lesson, /nie da się tego przypisać/i);
+    assert.match(payload.lesson, /różnicę robi hook/);
+  });
+
+  it("bez godziny nie zmyślamy odstępu — eksperyment nie jest kontrolowany czasowo", async () => {
+    const oneSided = await post("/api/ai/ab-conclusion", {
+      results: [row("A", 400, 40, at(8 * 60)), row("B", 400, 4, "")],
+    });
+
+    assert.equal(oneSided.payload.winner, "A", "brak godziny nie unieważnia liczb");
+    assert.match(oneSided.payload.lesson, /eksperyment nie jest kontrolowany czasowo/);
+    assert.match(oneSided.payload.lesson, /wariant B nie ma godziny publikacji/);
+    assert.equal(oneSided.payload.scored[1].publishedAt, "", "pusty znacznik wraca pusty");
+    assert.doesNotMatch(
+      oneSided.payload.lesson,
+      /dzieli \d/,
+      "jedna strona bez zegara nie może udawać zmierzonego odstępu",
+    );
+
+    for (const junk of ["2026-09-20", "2026-09-20T25:61", `2026-09-20T08:00${"x".repeat(40)}`]) {
+      const { payload } = await post("/api/ai/ab-conclusion", {
+        results: [row("A", 400, 40, junk), row("B", 400, 4, junk)],
+      });
+      assert.match(
+        payload.lesson,
+        /żaden wariant nie ma godziny publikacji/,
+        `kształt spoza inputa datetime-local odpada: ${junk}`,
+      );
+      assert.doesNotMatch(payload.lesson, /dzieli \d/, `znacznika nie da się naprawić: ${junk}`);
+    }
   });
 
   it("brak obu wariantów to błąd, nie pusty wniosek", async () => {

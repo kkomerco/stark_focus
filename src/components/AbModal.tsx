@@ -76,8 +76,75 @@ const textList = (value: unknown): string[] =>
   Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 const textOf = (value: unknown): string => (typeof value === "string" ? value : "");
 
-const isDate = (value: unknown): value is string =>
-  typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
+/**
+ * Ile minut może dzielić dwie publikacje, żeby czas nie był drugą zmienną
+ * eksperymentu. Ten sam próg liczy trasa `ab-conclusion`
+ * (`AB_PUBLISH_GAP_MAX_MINUTES` w `growth.server.ts`) — linijka pod inputami
+ * nie może obiecywać wniosku, którego serwer i tak nie wystawi. Zmień jeden,
+ * zmień drugi.
+ */
+const AB_PUBLISH_GAP_MAX_MINUTES = 60;
+
+/** Znacznik z inputa `datetime-local`: data i godzina. Bez godziny nie ma czego mierzyć. */
+const STAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+const isStamp = (value: unknown): value is string => typeof value === "string" && STAMP.test(value);
+
+/** Input nigdy nie dostaje `null` ani kształtu spoza `datetime-local`. */
+const stampOf = (value: unknown): string => (isStamp(value) ? value : "");
+
+/** Dziennik publikacji liczy się dniem, nie minutą — stąd sam przedrostek daty. */
+const dateOf = (value: unknown): string => (isStamp(value) ? value.slice(0, 10) : "");
+
+/** Minuty „zegara bez strefy": różnica dwóch znaczników, więc strefa nie wchodzi. */
+const stampMinutes = (stamp: string): number =>
+  Date.UTC(
+    Number(stamp.slice(0, 4)),
+    Number(stamp.slice(5, 7)) - 1,
+    Number(stamp.slice(8, 10)),
+    Number(stamp.slice(11, 13)),
+    Number(stamp.slice(14, 16)),
+  ) / 60_000;
+
+/** `45 min`, `4 h 20 min`, `6 h` — ta sama miara, którą trasa wkłada do lekcji. */
+const gapLabel = (minutes: number): string => {
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  if (!hours) return `${rest} min`;
+  return rest ? `${hours} h ${rest} min` : `${hours} h`;
+};
+
+/**
+ * Zdanie pod inputami godziny: właściciel konta czyta je raz i sam decyduje,
+ * czy puszcza oba posty razem. Nic nie blokuje przycisku — kontrola jest
+ * doradcza, ale musi mówić to samo co trasa `ab-conclusion`, bo kliknięcie
+ * nie może obiecywać wniosku, którego serwer i tak nie wystawi.
+ * `confounded` znaczy to samo co lista przeszkód w trasie: wynik nie jest
+ * zasługą hooka, bo czas albo nie dzielił wariantów zgodnie z progiem, albo
+ * w ogóle nie został zmierzony.
+ */
+const publishTimeLine = (variants: AbVariant[]): { line: string; confounded: boolean } => {
+  const pair = variants.slice(0, 2);
+  if (pair.length < 2) return { line: "", confounded: false };
+  const stamps = pair.map((v) => stampOf(v.publishedAt));
+  const missing = pair.filter((v) => !stampOf(v.publishedAt)).map((v) => textOf(v.label) || "?");
+  if (missing.length > 0) {
+    const who = missing.length === 2 ? "żaden wariant" : `wariant ${missing[0]}`;
+    return {
+      line: `Eksperyment nie jest kontrolowany czasowo: ${who} nie ma godziny publikacji, więc nie da się zmierzyć odstępu między postami.`,
+      confounded: true,
+    };
+  }
+  const gap = Math.abs(stampMinutes(stamps[0]) - stampMinutes(stamps[1]));
+  return gap > AB_PUBLISH_GAP_MAX_MINUTES
+    ? {
+        line: `Publikacje dzieli ${gapLabel(gap)}, czyli więcej niż ${AB_PUBLISH_GAP_MAX_MINUTES} min — przy tej różnicy wyniku nie da się przypisać samemu hookowi. Puść oba posty w tej samej minucie.`,
+        confounded: true,
+      }
+    : {
+        line: `Publikacje dzieli ${gapLabel(gap)} — mieści się w ${AB_PUBLISH_GAP_MAX_MINUTES} min, więc czas nie miesza w porównaniu.`,
+        confounded: false,
+      };
+};
 
 export const AbModal: React.FC<AbModalProps> = ({
   isOpen,
@@ -156,8 +223,10 @@ export const AbModal: React.FC<AbModalProps> = ({
     patch({ variants: variants.map((v, i) => (i === idx ? { ...v, [field]: value } : v)) });
 
   /**
-   * Data publikacji wariantu wpisuje właściciel konta. Bez niej wynik A/B nie
-   * ma się do czego przypiąć w dzienniku i pozostaje drugą rzeczywistością.
+   * Godzina publikacji wariantu wpisuje właściciel konta. Bez niej wynik A/B nie
+   * ma się do czego przypiąć w dzienniku i pozostaje drugą rzeczywistością,
+   * a porównanie nie wie, czy oba posty w ogóle stanęły w tej samej fali
+   * rozdziału.
    */
   const setPublishedAt = (idx: number, value: string) =>
     patch({
@@ -168,6 +237,10 @@ export const AbModal: React.FC<AbModalProps> = ({
   // obiecywać rozstrzygnięcia, którego serwer i tak odmówi.
   const short = results.filter((r) => r.views < MIN_AB_VIEWS);
   const canConclude = results.length >= 2 && short.length === 0;
+
+  // Odstęp publikacji liczony ZANIM właściciel konta kliknie przycisk: czyta
+  // go raz i decyduje sam, a nic poniżej nie blokuje kliknięcia.
+  const publishCheck = publishTimeLine(variants);
 
   const conclude = async () => {
     if (!canConclude) return;
@@ -190,6 +263,8 @@ export const AbModal: React.FC<AbModalProps> = ({
             hook: variants[i]?.hook || "",
             music: variants[i]?.music || "",
             background: variants[i]?.background || "",
+            // Znacznik z `datetime-local` jedzie w całości: trasa liczy z niego
+            // odstęp publikacji, a sama data bez godziny nic nie mierzy.
             publishedAt: variants[i]?.publishedAt || "",
           })),
         }),
@@ -215,9 +290,9 @@ export const AbModal: React.FC<AbModalProps> = ({
           const r = results.find((x) => x.label === v.label);
           return {
             ...v,
-            // Data publikacji jest jego, nie licznika: `now()` sprawiał, że każdy
-            // eksperyment wyglądał jak opublikowany w chwili zamknięcia.
-            publishedAt: isDate(v.publishedAt) ? v.publishedAt : null,
+            // Godzina publikacji jest jego, nie licznika: `now()` sprawiał, że
+            // każdy eksperyment wyglądał jak opublikowany w chwili zamknięcia.
+            publishedAt: isStamp(v.publishedAt) ? v.publishedAt : null,
             metrics: {
               views: r?.views || 0,
               likes: r?.likes || 0,
@@ -265,11 +340,14 @@ export const AbModal: React.FC<AbModalProps> = ({
   const saveBothToLedger = () => {
     const entries: PublishedItem[] = [];
     for (const v of variants) {
-      if (!isDate(v.publishedAt) || !v.hook) continue;
+      const postedAt = dateOf(v.publishedAt);
+      if (!postedAt || !v.hook) continue;
       const r = results.find((x) => x.label === v.label);
       entries.push({
         id: `${experimentId}-${v.label}`,
-        postedAt: v.publishedAt,
+        // Dziennik liczy się dniem: godzina jest na potrzeby porównania A/B,
+        // a klucz wpisu (`data|myśl`) nie może zależeć od minuty wyjścia.
+        postedAt,
         // A/B to zawsze dwie wersje tej samej rolki; konto wskazuje w polu wyżej.
         platform: draft.platform ?? "instagram",
         kind: "reel",
@@ -288,7 +366,9 @@ export const AbModal: React.FC<AbModalProps> = ({
       });
     }
     if (entries.length === 0) {
-      setNotice("Podaj datę publikacji obu wariantów — bez niej wpis nie ma czym być w dzienniku.");
+      setNotice(
+        "Podaj datę i godzinę publikacji obu wariantów — bez niej wpis nie ma czym być w dzienniku.",
+      );
       return;
     }
     onUpdateData((prev) => ({
@@ -515,24 +595,33 @@ export const AbModal: React.FC<AbModalProps> = ({
                     />
                   </div>
                   <div className="flex flex-wrap items-center gap-2 pl-5">
-                    <span className={LABEL}>Data publikacji wariantu</span>
+                    <span className={LABEL}>Publikacja wariantu (data i godzina)</span>
                     <input
-                      type="date"
-                      value={isDate(variants[idx]?.publishedAt) ? variants[idx].publishedAt : ""}
+                      type="datetime-local"
+                      value={stampOf(variants[idx]?.publishedAt)}
                       onChange={(e) => setPublishedAt(idx, e.target.value)}
-                      className={FIELD}
+                      className={`${FIELD} w-40`}
                     />
                     <span className="text-[9px] font-mono text-slate-500">
                       {ledgerFingerprints.has(hookFingerprint(textOf(variants[idx]?.hook)))
                         ? "ta myśl już jest w dzienniku"
-                        : isDate(variants[idx]?.publishedAt)
+                        : dateOf(variants[idx]?.publishedAt)
                           ? "gotowe do zapisu w dzienniku"
-                          : "bez daty nie ma wpisu w dzienniku"}
+                          : "bez daty i godziny nie ma wpisu w dzienniku"}
                     </span>
                   </div>
                 </div>
               ))}
             </div>
+            {publishCheck.line && (
+              <p
+                className={`text-[9px] font-mono ${
+                  publishCheck.confounded ? "text-rose-300" : "text-slate-500"
+                }`}
+              >
+                {publishCheck.line}
+              </p>
+            )}
             <button
               type="button"
               onClick={conclude}
