@@ -176,6 +176,20 @@ describe("POST /api/ai/scan-trends", () => {
       "to, co już poszło, nie wraca z banku",
     );
   });
+
+  it("wątek nie jedzie do UI z procentem z głowy", async () => {
+    const { payload } = await post("/api/ai/scan-trends", { niche: "stoic discipline" });
+    const trends = Array.isArray(payload.trends) ? payload.trends : [];
+    assert.ok(trends.length > 0, "bez klucza bank ma z czego zbudować skan");
+    for (const trend of trends) {
+      const card = (trend ?? {}) as Record<string, unknown>;
+      assert.equal(
+        "estimated_virality" in card,
+        false,
+        "ocena szans na viral nie ma oparcia w dzienniku, więc nie wyjeżdża z trasy",
+      );
+    }
+  });
 });
 
 describe("POST /api/ai/angle-matrix", () => {

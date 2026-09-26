@@ -1,17 +1,7 @@
 // DeconstructViralModal.tsx — Analiza wzorca: wklej link LUB zrzut ekranu posta,
 // AI rozbiera go na czynniki i oddaje przepis, który da się otworzyć w studio.
 import React, { useRef, useState } from "react";
-import {
-  Check,
-  Copy,
-  Film,
-  Image as ImageIcon,
-  Link2,
-  Loader2,
-  Sparkles,
-  TrendingUp,
-  X,
-} from "lucide-react";
+import { Check, Copy, Film, Image as ImageIcon, Link2, Loader2, Sparkles, X } from "lucide-react";
 import {
   DeconstructViralResponse,
   ReelHandoff,
@@ -357,13 +347,7 @@ export const DeconstructViralModal: React.FC<DeconstructViralModalProps> = ({
                       key={textOf(v.id) || hook}
                       className="p-3 bg-[#141824] border border-[#2C354B] rounded-lg space-y-2"
                     >
-                      <div className="flex items-start justify-between gap-3">
-                        <p className="text-sm font-mono font-black text-white flex-1">{hook}</p>
-                        <span className="text-[9px] font-mono px-2 py-0.5 rounded font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 whitespace-nowrap flex items-center gap-1">
-                          <TrendingUp className="w-3 h-3" />
-                          {v.viralityScore}%
-                        </span>
-                      </div>
+                      <p className="text-sm font-mono font-black text-white">{hook}</p>
                       <p className="text-[10px] font-mono text-zinc-200">{textOf(v.angle)}</p>
                       <div className="space-y-0.5 pl-2 border-l border-[#2C354B]">
                         {phrases.map((p, i) => (

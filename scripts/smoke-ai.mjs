@@ -125,9 +125,7 @@ function cleanup(code) {
   console.log("  structure:", (dec.json.deconstruction?.structure || []).join(" -> "));
   console.log("  triggers:", (dec.json.deconstruction?.psychologicalTriggers || []).join(", "));
   console.log("  variants:", (dec.json.starkVariants || []).length);
-  (dec.json.starkVariants || []).forEach((v) =>
-    console.log(`    - ${v.hook} (${v.viralityScore}%)`),
-  );
+  (dec.json.starkVariants || []).forEach((v) => console.log(`    - ${v.hook}`));
 
   check(dec.status === 200, `deconstruct-viral: HTTP ${dec.status}`);
   check(

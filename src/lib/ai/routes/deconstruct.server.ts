@@ -109,7 +109,9 @@ export function registerDeconstructRoutes(app: MiniApp): void {
     }
 
     if (!ai) {
-      return res.json({
+      // Bank bez klucza: oznaczony, żeby nie udawał odpowiedzi modelu i nie
+      // przeszedł do UI jako zdekodowany hit.
+      return sendDegraded(res, {
         source: "offline",
         platform,
         original: {
@@ -137,7 +139,6 @@ export function registerDeconstructRoutes(app: MiniApp): void {
               "Every scroll is a nail in your potential.",
               "Close the app. Open your future.",
             ],
-            viralityScore: 94,
           },
           {
             id: `variant-${dynamicSeed}-2`,
@@ -148,7 +149,6 @@ export function registerDeconstructRoutes(app: MiniApp): void {
               "Let them underestimate you.",
               "Your results will be the loudest answer.",
             ],
-            viralityScore: 92,
           },
         ],
       });
@@ -179,7 +179,7 @@ ZADANIE 1 — DEKONSTRUKCJA (po polsku, dla autora):
 hookType, hookText (cytat z oryginału, 1:1), structure, psychologicalTriggers (3), whyItWorks, visualStyle, audioStrategy
 
 ZADANIE 2 — 3 WARIANTY @stark_focus (NOWA treść, TEN SAM wzorzec psychologiczny):
-hook (max 10 słów, PO ANGIELSKU), angle, phrases [hook, rozwinięcie, puenta] — wszystko po angielsku, viralityScore 90-99
+hook (max 10 słów, PO ANGIELSKU), angle, phrases [hook, rozwinięcie, puenta] — wszystko po angielsku
 
 ZADANIE 3 — 3 RECEPTURY (blueprint): to, co z oryginału da się u nas odtworzyć kadr po kadrze.
 Nasz słownik układów: ${OUR_LAYOUTS.join(", ")}.
@@ -198,7 +198,7 @@ ZASADY RECEPTUR:
 Zwróć WYŁĄCZNIE JSON:
 {
   "deconstruction": { "hookType": "", "hookText": "", "structure": [], "psychologicalTriggers": [], "whyItWorks": "", "visualStyle": "", "audioStrategy": "" },
-  "starkVariants": [{ "hook": "", "angle": "", "phrases": [], "viralityScore": 92 }],
+  "starkVariants": [{ "hook": "", "angle": "", "phrases": [] }],
   "blueprints": [{
     "gridType": "${OUR_LAYOUTS.join("|")}",
     "scene": "wall|neon|billboard albo puste",
@@ -246,7 +246,6 @@ Zwróć WYŁĄCZNIE JSON:
               .trim(),
             angle: String(v.angle || "Stoic pattern"),
             phrases: Array.isArray(v.phrases) ? v.phrases.slice(0, 4) : [v.hook],
-            viralityScore: typeof v.viralityScore === "number" ? v.viralityScore : 92,
           })),
           blueprints: asArray(parsed.blueprints)
             .map((item, idx) => {

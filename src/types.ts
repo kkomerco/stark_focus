@@ -69,7 +69,6 @@ export interface TrendItem {
   suggested_format: string;
   viral_hooks: string[];
   core_message: string;
-  estimated_virality: string;
   bingPrompt?: string;
   /** Gotowy zestaw po angielsku. `title` i `core_message` są notatką po polsku. */
   copy_draft?: { hook?: string; supportingText?: string; caption?: string; hashtags?: string[] };
@@ -281,7 +280,6 @@ export interface IdeaItem {
   caption: string;
   hashtags: string[];
   theme: string;
-  viralityScore: number;
   /** Układ wizualny wybrany przez model — bez niego każdy pomysł lądowałby jako cytat. */
   layout?: "quote" | "protocol_list" | "cost_vs_reward" | "studio_wall_3d" | "grid_2x2";
   structure?: IdeaStructure;
@@ -312,7 +310,6 @@ export interface StarkVariant {
   hook: string;
   angle: string;
   phrases: string[];
-  viralityScore: number;
 }
 
 export interface DeconstructViralResponse {

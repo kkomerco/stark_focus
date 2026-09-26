@@ -211,7 +211,6 @@ function clampDuration(value: unknown): number {
 interface BankTrend {
   title: string;
   suggested_format: string;
-  estimated_virality: string;
   source_context: string;
   audience_pain: string;
   viral_hooks: string[];
@@ -229,7 +228,6 @@ const BANK_TRENDS: BankTrend[] = [
   {
     title: "The Cost of Comfort",
     suggested_format: "Rolka 7-Sekundowa (Short Reel)",
-    estimated_virality: "97%",
     source_context: "TikTok Viral Sound FYP",
     audience_pain: "Poczucie marnowania potencjału i ucieczka w scrollowanie",
     viral_hooks: [
@@ -254,7 +252,6 @@ const BANK_TRENDS: BankTrend[] = [
   {
     title: "Execute In Total Silence",
     suggested_format: "3D Wall Letters / Brutalist Quote",
-    estimated_virality: "94%",
     source_context: "IG Reels Dark Aesthetic",
     audience_pain: "Mówienie o swoich planach zamiast ich bezwzględnej realizacji",
     viral_hooks: [
@@ -278,7 +275,6 @@ const BANK_TRENDS: BankTrend[] = [
   {
     title: "The Solitude Protocol",
     suggested_format: "Karuzela 5-Slajdowa (IG Slides)",
-    estimated_virality: "95%",
     source_context: "Twitter/X Viral Thread & IG Carousel",
     audience_pain: "Lęk przed samotnością i uleganie presji otoczenia",
     viral_hooks: [
@@ -607,7 +603,6 @@ function bankTrends(craft: Craft): Record<string, unknown>[] {
       id: `trend-${stamp}-${idx + 1}`,
       title: noteOf(trend.title, 120),
       suggested_format: noteOf(trend.suggested_format, 80),
-      estimated_virality: noteOf(trend.estimated_virality, 12),
       source_context: noteOf(trend.source_context, 200),
       audience_pain: noteOf(trend.audience_pain, 200),
       core_message: noteOf(trend.core_message, 400),
@@ -669,7 +664,7 @@ export function registerTrendsRoutes(app: MiniApp): void {
   Z własnej pamięci o tej niszy podaj 3 wątki, które NAJCZĘŚCIEJ powtarzają się u dużych
   nadawców, wraz z hookami 0-3s. Nie wymyślaj, że coś sprawdziłeś w sieci — "source_context"
   ma mówić, u kogo i w jakiej formie ten wątek chodzi (np. "powtarza się u kont 100k+ w
-  formatie mówiącej głowy"). "estimated_virality" to uczciwy zgadywany przedział, nie pomiar.
+  formatie mówiącej głowy"). Nie oceniaj szans na zasięg — procentu z głowy nie pokazujemy.
 
   ${HOOK_CRAFT_PROMPT}
   ${excludeBlock(exclude)}
@@ -680,7 +675,6 @@ export function registerTrendsRoutes(app: MiniApp): void {
         "id": "trend-1",
         "title": "Tytuł trendu po angielsku",
         "suggested_format": "Rolka 7-Sekundowa" | "3D Wall Letters" | "Karuzela 5-Slajdowa",
-        "estimated_virality": "96%",
         "source_context": "U kogo i w jakiej formie ten wątek się powtarza",
         "audience_pain": "Dokładna frustracja widza po polsku",
         "viral_hooks": ["Hook 1 (EN)", "Hook 2 (EN)", "Hook 3 (EN)"],
@@ -714,7 +708,6 @@ export function registerTrendsRoutes(app: MiniApp): void {
             id: noteOf(card.id, 60) || `trend-${Date.now()}-${idx}`,
             title: noteOf(card.title, 120),
             suggested_format: noteOf(card.suggested_format, 80),
-            estimated_virality: noteOf(card.estimated_virality, 12),
             source_context: noteOf(card.source_context, 200),
             audience_pain: noteOf(card.audience_pain, 200),
             core_message: noteOf(card.core_message, 400),

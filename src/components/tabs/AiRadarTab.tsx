@@ -24,8 +24,8 @@ import {
 } from "lucide-react";
 import { Post, ReelHandoff, StarkFocusData, TrendItem } from "../../types";
 import { usedHookFingerprints } from "../../lib/usedContent";
-import { topPublishedHooks } from "../../lib/published";
-import { formatStarkCaption } from "../../lib/caption";
+import { topPublishedHooks, MIN_SAMPLE } from "../../lib/published";
+import { formatStarkCaption, starkCaption } from "../../lib/caption";
 import { nextEdition } from "../../lib/series";
 import { CarouselStudioModal } from "../CarouselStudioModal";
 
@@ -383,7 +383,9 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
       platform: "Instagram",
       format: trend.suggested_format || "Rolka 7-Sekundowa (Short Reel)",
       asset: "AI_RADAR_" + trend.id,
-      caption: `${primaryHook}\n\n${trend.core_message || ""}\n\nSave this reminder. Execute in silence.\n\n#stoicism #discipline #mindset #starkfocus`,
+      // Ogon bierze się z `caption.ts`: własne wezwanie i stała lista tagów
+      // sprawiłyby, że post z Radaru wygląda inaczej niż ten ze studia.
+      caption: starkCaption(primaryHook, trend.core_message || ""),
       created_date: new Date().toISOString().split("T")[0],
       notes: `Wywiad Trendu: ${trend.source_context || "Sieć"}. Ból widza: ${trend.audience_pain || "N/A"}`,
     };
@@ -701,8 +703,9 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
             </h3>
             <p className="text-[10px] font-mono text-neutral-500 leading-relaxed -mt-1">
               Model układa tu wzorce, które widuje u dużych nadawców w tej niszy: motyw, ból
-              odbiorcy i hooki 0-3 s. To propozycja do napisania, nie pomiar z sieci — procent to
-              szacunek modelu, nie zasięg.
+              odbiorcy i hooki 0-3 s. To propozycja do napisania, nie pomiar z sieci. O tym, co u
+              nas działa, nie orzekamy procentem z głowy — rozstrzyga dziennik publikacji, i to
+              dopiero po {MIN_SAMPLE} zmierzonych wpisach w tym samym układzie.
             </p>
 
             <div className="space-y-3">
@@ -711,14 +714,9 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                   key={trend.id || idx}
                   className="p-4 bg-[#0E0E0E] border border-[rgba(255,255,255,0.1)] hover:border-white/20 rounded-lg space-y-2.5 transition-all"
                 >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-mono font-bold text-white uppercase">
-                      #{idx + 1} {trend.title}
-                    </span>
-                    <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-                      Szacunek modelu: {trend.estimated_virality || "—"}
-                    </span>
-                  </div>
+                  <p className="text-xs font-mono font-bold text-white uppercase">
+                    #{idx + 1} {trend.title}
+                  </p>
 
                   <div className="grid gap-1.5 text-[10px] font-mono">
                     {trend.source_context && (
