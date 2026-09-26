@@ -182,11 +182,20 @@ ${HOOK_CRAFT_PROMPT}
 
     // Fallback: Niezwykle bogata Matryca Niepowtarzalnych Idei (Zero duplikatów)
     const matrixItem = getRandomUniqueFormula(targetFormat, category, excludeTitles);
+    // Bank ma własny ogon wklejony w każdy opis („Save this reminder. Follow
+    // @stark_focus.", listy zasad). To ta sama stała treść, którą wycinaliśmy
+    // z tras — ogon należy do `caption.ts`, nie do pliku z danymi.
+    const bankHook = matrixItem.phrases[0] || matrixItem.title;
+    const bankShort = starkCaption(bankHook, asString(matrixItem.captionShort));
+    const bankDeep = starkCaption(
+      bankHook,
+      asString(matrixItem.captionDeep || matrixItem.captionShort),
+    );
     const result = {
       title: matrixItem.title,
       phrases: matrixItem.phrases,
-      captionShort: matrixItem.captionShort,
-      captionDeep: matrixItem.captionDeep,
+      captionShort: bankShort,
+      captionDeep: bankDeep,
       hashtags: starkHashtags(matrixItem.phrases.join(" ")),
       suggestedTheme: matrixItem.suggestedTheme,
       suggestedDuration: matrixItem.suggestedDuration,
@@ -195,8 +204,8 @@ ${HOOK_CRAFT_PROMPT}
       content: JSON.stringify({
         title: matrixItem.title,
         phrases: matrixItem.phrases,
-        captionShort: matrixItem.captionShort,
-        captionDeep: matrixItem.captionDeep,
+        captionShort: bankShort,
+        captionDeep: bankDeep,
         hashtags: starkHashtags(matrixItem.phrases.join(" ")),
         suggestedBackground: matrixItem.suggestedBackground,
         backgroundRationale: matrixItem.backgroundRationale,

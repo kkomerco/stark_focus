@@ -194,6 +194,17 @@ export function formatStarkCaption(
   );
 }
 
+/**
+ * Pole hashtagów żyje obok opisu i dokleja się je raz, przy kopiowaniu.
+ * Bez tego caption od modelu, z szablonu i z banku kończył się swoją listą
+ * tagów, a stopka doklejała drugą — pod rolką lądowały dwa identyczne rzędy.
+ */
+export function stripHashtagTail(caption: string): string {
+  const lines = caption.split(/\r?\n/);
+  while (lines.length > 0 && /^\s*(?:#\S+\s*)+$/.test(lines[lines.length - 1])) lines.pop();
+  return lines.join("\n").trimEnd();
+}
+
 /** Polska nie myli się z angielskim: te znaki i słowa nie występują w nim nigdy. */
 const POLISH_DIACRITICS = /[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/;
 const POLISH_WORDS =

@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import JSZip from "jszip";
 import { Post, ReelHandoff, VaultAsset } from "../types";
-import { starkCaption, starkCta, starkHashtags } from "../lib/caption";
+import { starkCaption, starkCta, starkHashtags, stripHashtagTail } from "../lib/caption";
 import { BRAND_ACCENT } from "../utils/starkBrandTheme";
 import { REEL_SAFE, bandCenter, safeBand } from "../utils/safeZones";
 import { beatTimesFrom, renderReelBed } from "../utils/reelAudio";
@@ -312,7 +312,7 @@ export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
 
   // Ready-to-copy Caption & Hashtags — twardy default tylko na zimny start bez pakietu
   const [caption, setCaption] = useState<string>(
-    initialReel ? initialTpl.captionShort || DEFAULT_CAPTION : DEFAULT_CAPTION,
+    initialReel ? stripHashtagTail(initialTpl.captionShort) || DEFAULT_CAPTION : DEFAULT_CAPTION,
   );
   const [hashtags, setHashtags] = useState<string[]>(
     initialReel && initialTpl.hashtags.length > 0 ? initialTpl.hashtags : DEFAULT_HASHTAGS,
@@ -334,7 +334,7 @@ export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
     // Motyw idzie za wybranym ujęciem, nie za bazą szablonu — dobór tła
     // zrobił `pickTemplate` na treści pakietu i oba pola muszą się zgadzać.
     setSelectedTheme(nextTemplate.suggestedTheme);
-    setCaption(nextTemplate.captionShort);
+    setCaption(stripHashtagTail(nextTemplate.captionShort));
     setHashtags(starkHashtags(nextPhrases.join(" ")));
     timeRef.current = 0;
     setCurrentTime(0);
@@ -530,9 +530,9 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
   const handleCaptionStyleToggle = (style: "short" | "deep") => {
     setCaptionStyle(style);
     if (style === "short") {
-      setCaption(activeTemplate.captionShort);
+      setCaption(stripHashtagTail(activeTemplate.captionShort));
     } else {
-      setCaption(activeTemplate.captionDeep);
+      setCaption(stripHashtagTail(activeTemplate.captionDeep));
     }
   };
 
@@ -660,7 +660,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
           };
 
           setActiveTemplate(dynamicTpl);
-          setCaption(captionStyle === "deep" ? deepC : shortC);
+          setCaption(stripHashtagTail(captionStyle === "deep" ? deepC : shortC));
           setHashtags(starkHashtags(dynamicTpl.phrases.join(" ")));
           setSelectedTheme(nextTheme);
           timeRef.current = 0;
@@ -696,7 +696,9 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
 
     setActiveTemplate(formula);
     setPhrases(fallbackPhrases);
-    setCaption(captionStyle === "deep" ? formula.captionDeep : formula.captionShort);
+    setCaption(
+      stripHashtagTail(captionStyle === "deep" ? formula.captionDeep : formula.captionShort),
+    );
     setHashtags(starkHashtags(fallbackPhrases.join(" ")));
     setSelectedTheme(formula.suggestedTheme);
     timeRef.current = 0;

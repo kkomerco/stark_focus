@@ -7,6 +7,7 @@ import {
   starkCaption,
   starkCta,
   starkShortCaption,
+  stripHashtagTail,
   starkHashtags,
 } from "./caption";
 
@@ -140,6 +141,21 @@ describe("starkShortCaption", () => {
     assert.ok(!echo.toLowerCase().includes("silence cannot be misquoted"), echo);
     const polish = starkShortCaption("Do the work.", "To jest rozwinięcie tematu.");
     assert.ok(!/[ąćęłńóśźż]/i.test(polish), polish);
+  });
+});
+
+describe("stripHashtagTail", () => {
+  it("sciaga liste tagow z opisu, kiedy hashtagi ida osobnym polem", () => {
+    const caption = starkCaption("Do the work in the dark.", "The room is quiet by six.");
+    assert.ok(caption.includes("#starkfocus"), caption);
+    const bare = stripHashtagTail(caption);
+    assert.ok(!bare.includes("#"), bare);
+    assert.ok(bare.includes("The room is quiet by six."), bare);
+  });
+
+  it("nie tnie opisu, ktory konczy sie zdaniem, nie lista", () => {
+    const text = "Do the work.\n\nNobody is coming to save you.";
+    assert.equal(stripHashtagTail(text), text);
   });
 });
 
