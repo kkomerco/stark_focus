@@ -25,12 +25,20 @@ export function normalizeQuote(text: string): string {
 }
 
 /**
- * Czy to zdanie naprawdę padło? Pozwalamy na skrócenie myślnikami i na
- * pominięcie wielokropka w środku, ale nie na przeredagowanie ani jednego słowa.
+ * Czy to zdanie naprawdę padło? Wolno pominąć środek (wielokropek, nawias),
+ * ale kawałki muszą leżeć w transkrypcie w tej samej kolejności, nie nachodzić
+ * na siebie i zgadzać się całymi słowami.
+ *
+ * Wcześniejsza wersja pytała tylko „czy każdy kawałek gdzieś tu jest" — więc
+ * „you are not tired… discipline is a feeling" przechodziło, kiedy oba urywki
+ * padły w różnych miejscach rozmowy, a „build the" udawało cytat ze słowa
+ * „build there". Zdanie złożone z dwóch przypadkowych fragmentów i podpisane
+ * żywą osobą to dokładnie ten błąd, którego konto nie przeżyje.
  */
 export function isVerbatim(quote: string, transcript: string): boolean {
-  const haystack = normalizeQuote(transcript);
-  if (!haystack || !quote) return false;
+  const flat = normalizeQuote(transcript);
+  if (!flat || !quote) return false;
+  const haystack = ` ${flat} `;
 
   const pieces = quote
     .split(/\s*(?:\.\.\.|…|\[|\]|—|–)\s*/)
@@ -38,7 +46,14 @@ export function isVerbatim(quote: string, transcript: string): boolean {
     .filter((piece) => piece.length > 0);
   if (pieces.length === 0) return false;
 
-  return pieces.every((piece) => haystack.includes(piece));
+  let cursor = 0;
+  for (const piece of pieces) {
+    const needle = ` ${piece} `;
+    const at = haystack.indexOf(needle, cursor);
+    if (at < 0) return false;
+    cursor = at + needle.length - 1;
+  }
+  return true;
 }
 
 /** Podpis pod cytatem: najpierw czyje jest, potem skąd. Bez tego to kradzież. */

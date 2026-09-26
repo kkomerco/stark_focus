@@ -54,12 +54,23 @@ export function rankClips(
 ): { clips: { quote: string; why: string; attribution: string }[]; rejected: number } {
   const seen = new Set<string>();
   const clips: { quote: string; why: string; attribution: string }[] = [];
+  // Powodów nie wrzucamy do jednego worka: „model nie znalazł cytatu" i
+  // „cytat jest za długi" to dla autora dwie różne informacje.
+  let notVerbatim = 0;
   let rejected = 0;
 
   for (const entry of asArray(raw).map((item) => (item ?? {}) as Record<string, unknown>)) {
     const quote = asString(entry.quote).replace(/["”“]/g, "").trim();
+    if (!quote || isPolishCopy(quote)) {
+      rejected++;
+      continue;
+    }
     // Tu zapada wyrok: jeśli nie ma tego w transkrypcie, to nie jest cytat.
-    if (!quote || !clipFits(quote) || isPolishCopy(quote) || !isVerbatim(quote, transcript)) {
+    if (!isVerbatim(quote, transcript)) {
+      notVerbatim++;
+      continue;
+    }
+    if (!clipFits(quote)) {
       rejected++;
       continue;
     }
@@ -77,7 +88,7 @@ export function rankClips(
     if (clips.length >= count) break;
   }
 
-  return { clips, rejected };
+  return { clips, rejected, notVerbatim };
 }
 
 export function registerClipRoutes(app: MiniApp): void {
@@ -94,6 +105,16 @@ export function registerClipRoutes(app: MiniApp): void {
         notice: "Transkrypt jest za krótki, żeby cokolwiek z niego wynikało.",
       });
     }
+    // Pytamy o to PRZED modelem: cytat bez mówcy i tak nie mógłby wyjść,
+    // a każde pytanie to płatne zapytanie z dziennej kasetki.
+    if (!attributionLine(speaker, source)) {
+      return res.json({
+        clips: [],
+        rejected: 0,
+        notice:
+          "Bez podpisu, czyje to zdanie, nie wypuszczamy cytatu — cytat bez źródła to kradzież, a nie treść.",
+      });
+    }
     if (!getGeminiClient()) {
       return sendDegraded(res, {
         clips: [],
@@ -107,16 +128,29 @@ export function registerClipRoutes(app: MiniApp): void {
         contents: buildClipPrompt(transcript.slice(0, TRANSCRIPT_MAX), OVERGENERATE),
         temperature: 0.4,
       });
-      const { clips, rejected } = rankClips(parsed?.clips, transcript, speaker, source, count);
+      const { clips, rejected, notVerbatim } = rankClips(
+        parsed?.clips,
+        transcript,
+        speaker,
+        source,
+        count,
+      );
 
       if (clips.length === 0) {
+        // Nazwij przyczynę, którą naprawdę zmierzono — „żaden nie padł" przy
+        // pięciu za długich zdaniach byłoby nieprawdą.
+        const reason =
+          notVerbatim > 0
+            ? `Model wskazał ${notVerbatim} fragmentów, których nie ma słowo w słowo w transkrypcie. Dobrze: nie wypuszczamy zdania, które nie padło.`
+            : `Każdy z ${rejected} fragmentów był w transkrypcie, ale żaden nie nadaje się na kadr (3-14 słów).`;
         return res.json({
           clips: [],
           rejected,
-          notice: `Model wskazał ${rejected} fragmentów i żaden nie występuje słowo w słowo w transkrypcie. To dobra wiadomość: nie wypuścimy cytatu, który nie padł.`,
+          notVerbatim,
+          notice: reason,
         });
       }
-      return res.json({ clips, rejected });
+      return res.json({ clips, rejected, notVerbatim });
     } catch (error) {
       console.error("Błąd wydobywania cytatów:", error);
       return sendDegraded(res, {

@@ -31,6 +31,21 @@ describe("isVerbatim", () => {
     );
   });
 
+  it("nie skleja zdania z fragmentów z różnych miejsc rozmowy", () => {
+    // Osobno oba urywki padły. Razem nie tworzyły nigdy zdania — a to dokładnie
+    // ten wypadek, w którym publikujemy cytat, którego nie było.
+    assert.equal(isVerbatim("you want now ... the grind doesn't care", TRANSCRIPT), true);
+    assert.equal(isVerbatim("the grind doesn't care ... you want now", TRANSCRIPT), false);
+    assert.equal(isVerbatim("Nobody can. Discipline is a feeling.", TRANSCRIPT), false);
+  });
+
+  it("fragment musi być całym słowem, nie początkiem innego", () => {
+    const said = "They chose to build there, together.";
+    assert.equal(isVerbatim("build there", said), true);
+    assert.equal(isVerbatim("build the", said), false);
+    assert.equal(isVerbatim("there togeth", said), false);
+  });
+
   it("pusty transkrypt nie daje żadnego cytatu", () => {
     assert.equal(isVerbatim("Nobody can.", ""), false);
   });
