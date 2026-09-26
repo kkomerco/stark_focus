@@ -94,9 +94,16 @@ const HASHTAG_TOPICS: { match: RegExp; tags: readonly [string, string] }[] = [
     tags: ["#solitude", "#selfreflection"],
   },
   {
+    match: /\b(end|death|die|died|dead|gone|mori|grave|tomb|last breath|final day|finite)\b/gi,
+    tags: ["#mementomori", "#presence"],
+  },
+  {
+    // Osobna pula od śmiertelnej: „day/hour/year" to w tej niszy prawie każde
+    // zdanie, a wspólne reguły sprawiały, że #mementomori lądował pod
+    // postsami o budziku i o pralni.
     match:
-      /\b(time|times|year|years|day|days|hour|hours|minute|minutes|clock|calendar|summer|summers|winter|end|death|die|died|dead|gone|mori|finite|budget|count)\b/gi,
-    tags: ["#mementomori", "#perspective"],
+      /\b(time|times|year|years|day|days|hour|hours|minute|minutes|clock|calendar|budget|count)\b/gi,
+    tags: ["#timemanagement", "#perspective"],
   },
   {
     match: /\b(pain|hard|hurt|loss|lost|failure|fall|suffer|friction|sacrifice)\b/gi,

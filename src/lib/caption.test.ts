@@ -6,6 +6,7 @@ import {
   isPolishCopy,
   starkCaption,
   starkCta,
+  starkShortCaption,
   starkHashtags,
 } from "./caption";
 
@@ -84,9 +85,14 @@ describe("starkHashtags", () => {
   it("zbiera tagi z tematu posta, a nie ze stalej listy", () => {
     const silence = starkHashtags("Silence cannot be misquoted.");
     const time = starkHashtags("Maybe forty more summers. That is the whole budget.");
+    const death = starkHashtags("Remember you will die, then set the alarm.");
 
     assert.ok(silence.includes("#silence") || silence.includes("#quietconfidence"));
-    assert.ok(time.includes("#mementomori") || time.includes("#perspective"));
+    assert.ok(time.includes("#timemanagement") || time.includes("#perspective"));
+    // Śmiertelna pula nie może już łapać każdego „day/hour" w niszy — dawniej
+    // #mementomori schodził pod post o budziku.
+    assert.ok(death.includes("#mementomori"));
+    assert.ok(!time.includes("#mementomori"));
     assert.notDeepEqual(silence, time);
   });
 
@@ -105,6 +111,35 @@ describe("starkHashtags", () => {
 
   it("bez trafienia w temat idzie w pewniakow marki", () => {
     assert.deepEqual(starkHashtags("xyz abc"), ["#stoicism", "#discipline", "#starkfocus"]);
+  });
+
+  it("smiertelna pula nie lyka kazdego dnia w niszy", () => {
+    const alarm = starkHashtags("You set the alarm at four. Forty hours a week say otherwise.");
+    assert.ok(!alarm.includes("#mementomori"), alarm.join(" "));
+  });
+});
+
+describe("starkShortCaption", () => {
+  it("pod cytatem stoi jedno zdanie, nie wyklad", () => {
+    const caption = starkShortCaption(
+      "You get one hour back a day.",
+      "The hour is not lost. It is spent before your feet touch the floor. Then the whole day goes with it.",
+    );
+    assert.equal(
+      caption
+        .split("\n\n")[0]
+        .split(/[.!?]\s/)
+        .filter(Boolean).length,
+      1,
+    );
+    assert.ok(caption.includes("#starkfocus"));
+  });
+
+  it("nie powtarza tezy kadru i nie bierze zdania po polsku", () => {
+    const echo = starkShortCaption("Silence cannot be misquoted.", "Silence cannot be misquoted.");
+    assert.ok(!echo.toLowerCase().includes("silence cannot be misquoted"), echo);
+    const polish = starkShortCaption("Do the work.", "To jest rozwinięcie tematu.");
+    assert.ok(!/[ąćęłńóśźż]/i.test(polish), polish);
   });
 });
 
