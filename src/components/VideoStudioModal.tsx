@@ -239,9 +239,11 @@ export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
     initialReel ? formatForPhraseCount(resolvePhrases(initialReel).length) : "viral_loop_6s",
   );
   const [duration, setDuration] = useState<ReelDuration>(
-    () => asReelDuration(initialReel?.duration) || 7,
+    () => asReelDuration(initialReel?.duration) || asReelDuration(savedPreset?.duration) || 7,
   );
-  const [fontFamily, setFontFamily] = useState<FontFamily>("cormorant");
+  const [fontFamily, setFontFamily] = useState<FontFamily>(
+    () => (savedPreset?.fontFamily as FontFamily) || "cormorant",
+  );
   const pacingMode: PacingMode = "climax_hold";
   const fontSize: number = 64;
   const textCase: "natural" | "uppercase" = "natural";
@@ -256,7 +258,9 @@ export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
       initialTpl.suggestedTheme ||
       "obsidian_void",
   );
-  const [captionStyle, setCaptionStyle] = useState<"short" | "deep">("deep");
+  const [captionStyle, setCaptionStyle] = useState<"short" | "deep">(
+    () => (savedPreset?.captionStyle as "short" | "deep") || "deep",
+  );
 
   // Custom Background State (Image or Video)
   const [customBgType, setCustomBgType] = useState<"none" | "image" | "video">("none");
@@ -529,17 +533,10 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
 
   // Save Current Setup as User's Default
   const handleSaveAsDefault = () => {
-    const preset = {
-      duration,
-      pacingMode,
-      selectedTheme,
-      fontFamily,
-      fontSize,
-      textCase,
-      highlightStyle,
-      verticalPos,
-      captionStyle,
-    };
+    // Zapisujemy tylko to, co studio naprawdę umie odtworzyć. Wcześniej
+    // lądowało tu dziewięć pól, z których pięć to stałe — przycisk obiecywał
+    // „mój styl", a przywracał motyw.
+    const preset = { duration, selectedTheme, fontFamily, captionStyle };
     try {
       localStorage.setItem(PRESET_STORAGE_KEY, JSON.stringify(preset));
       setToastMessage("Zapisano Twój domyślny styl rolek.");
@@ -559,7 +556,9 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6000);
+      // Serwer ma własny budżet 20 s na próbę; wcześniejszy abort klienta
+      // przerywał połączenie, którego model już nie zwróci, a request był płatny.
+      const timeoutId = setTimeout(() => controller.abort(), 25000);
 
       const res = await fetch("/api/ghostwrite", {
         method: "POST",
@@ -620,9 +619,14 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
 
           // Bez zdania od modelu opis to teza + CTA, a nie wymyślone pod
           // rolka „zasady" — te same trzy wiersze znało każde konto.
-          const modelLine = String(parsedData.captionDeep || parsedData.captionShort || "");
-          const deepC = starkCaption(finalPhrases[0], modelLine);
-          const shortC = deepC;
+          const hook = finalPhrases[0];
+          // Krótki i głębszy muszą się różnić treścią, nie tylko wysokością
+          // pola — inaczej przełącznik kłamie.
+          const shortC = starkCaption(hook, String(parsedData.captionShort || ""));
+          const deepC = starkCaption(
+            hook,
+            String(parsedData.captionDeep || parsedData.captionShort || ""),
+          );
 
           const validThemes: VisualTheme[] = [
             "obsidian_void",
@@ -1688,7 +1692,10 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                         }
                       } else if (fmt.id === "hook_payoff_5s") {
                         if (phrases.length === 1) {
-                          setPhrases([phrases[0], "You just stopped feeding their noise."]);
+                          // Pusty drugi takt do uzupełnienia, nie zdanie z
+                          // banku: „You just stopped feeding their noise"
+                          // lądowało w każdej rolce, której nie dopisał model.
+                          setPhrases([phrases[0], ""]);
                         } else if (phrases.length > 2) {
                           setPhrases([phrases[0], phrases[phrases.length - 1]]);
                         }
@@ -1913,7 +1920,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                   <button
                     type="button"
                     onClick={() => {
-                      setPhrases([...phrases, "Reclaim your inner sovereignty."]);
+                      setPhrases([...phrases, ""]);
                       timeRef.current = 0;
                     }}
                     className="px-2 py-0.5 rounded bg-[#181818] hover:bg-white hover:text-black text-neutral-300 text-[10px] font-mono border border-white/10 transition-all cursor-pointer"
