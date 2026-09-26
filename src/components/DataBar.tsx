@@ -3,6 +3,7 @@ import { Download, Package, Upload } from "lucide-react";
 import { StarkFocusData } from "../types";
 import { importStoredData, serializeBackup } from "../utils/storage";
 import { buildPlatformPack } from "../utils/platformPack";
+import { filterUnpublished } from "../lib/published";
 
 /**
  * Rzecz aplikacyjna, nie redakcyjna: kopia danych i gotowy pakiet na
@@ -25,7 +26,12 @@ export const DataBar: React.FC<DataBarProps> = ({ data }) => {
   const fileRef = useRef<HTMLInputElement | null>(null);
   // Kolejka to zapisane posty, które jeszcze nie poszły na konto. Planera w
   // aplikacji nie ma, więc nie udajemy, że pakiet bierze z niego pozycje.
-  const queued = data.posts.filter((post) => post && !post.published_date);
+  //
+  // „Poszło na konto" odpowiada JEDYNE źródło prawdy, dziennik publikacji:
+  // `post.published_date` pisało `null` w czterech miejscach i nie ustawiał go
+  // żaden widok, więc licznik „jeszcze nie poszły" nie schodził nawet po
+  // zalogowaniu publikacji. Drugiego pola księgowego nie dodajemy.
+  const queued = filterUnpublished(data.posts, data.published ?? []);
 
   const download = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);

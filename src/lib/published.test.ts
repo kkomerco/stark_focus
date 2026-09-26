@@ -2,13 +2,19 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   MIN_SAMPLE,
+  UNKNOWN_FORMAT,
+  filterUnpublished,
   ledgerVerdict,
   median,
+  normalizeFormat,
   normalizePublished,
+  publicationKey,
   publishedHookFingerprints,
   statsByFormat,
+  suspectedDuplicates,
   topPublishedHooks,
 } from "./published";
+import { hookFingerprint } from "./similarity";
 import type { PublishedItem } from "../types";
 
 function entry(overrides: Partial<PublishedItem> = {}): PublishedItem {
@@ -146,5 +152,134 @@ describe("publishedHookFingerprints", () => {
   it("zwraca odciski tych samych co `hookFingerprint`, więc silniki się nie miną", () => {
     const [fp] = publishedHookFingerprints([entry()]);
     assert.ok(fp.length >= 8);
+  });
+});
+
+describe("enough — próba musi być zmierzona", () => {
+  it("sama liczba wpisów bez liczb nie daje grupy do wniosku", () => {
+    const items = Array.from({ length: MIN_SAMPLE + 2 }, (_, index) =>
+      entry({ id: `p${index}`, postedAt: `2026-09-0${index + 1}` }),
+    );
+    const [stat] = statsByFormat(items);
+
+    assert.equal(stat.count, MIN_SAMPLE + 2);
+    assert.equal(stat.measured.sharesPerK, 0);
+    assert.equal(stat.enough, false, "wpis bez metryki nie jest próbą");
+  });
+
+  it("mediana policzona, ale z jednej próbki to wciąż za mało", () => {
+    const items = [
+      entry({ id: "m1", metrics: { reach: 5000, shares: 50 } }),
+      entry({ id: "m2", postedAt: "2026-09-02" }),
+      entry({ id: "m3", postedAt: "2026-09-01" }),
+    ];
+    const [stat] = statsByFormat(items);
+
+    assert.equal(stat.measured.sharesPerK, 1);
+    assert.equal(stat.medianSharesPerK, 10);
+    assert.equal(stat.enough, false, "jedna zmierzona próbka to nie porównanie");
+  });
+
+  it("odmawia wniosków, gdy wpisy są, ale nikt ich nie zmierzył", () => {
+    const items = Array.from({ length: MIN_SAMPLE }, (_, index) =>
+      entry({ id: `p${index}`, postedAt: `2026-09-0${index + 1}` }),
+    );
+    const verdict = ledgerVerdict(items);
+
+    assert.equal(verdict.conclusive, false, "zero pomiarów to nie wniosek");
+    assert.match(verdict.headline, /Za mało danych/);
+    assert.match(verdict.detail, /ZMIERZONYCH/);
+  });
+});
+
+describe("duplikaty w dzienniku", () => {
+  it("ten sam dzień i ta sama myśl wchodzi do dziennika raz", () => {
+    const items = normalizePublished([
+      entry({ id: "p1" }),
+      entry({ id: "p2" }),
+      entry({ id: "p3" }),
+    ]);
+
+    assert.equal(items.length, 1, "powtórka z delete-and-re-add nie może udawać trzech prób");
+  });
+
+  it("klucz wpisu liczy odcisk myśli, nie surowy napis", () => {
+    const a = publicationKey(entry({ hook: "Rust works while you sleep." }));
+    const b = publicationKey(entry({ hook: "  rust works while you sleep. " }));
+
+    assert.equal(a, b);
+  });
+
+  it("ta sama myśl w innym dniu jest oznaczona do sprawdzenia", () => {
+    const items = normalizePublished([
+      entry({ id: "p1", postedAt: "2026-09-05" }),
+      entry({ id: "p2", postedAt: "2026-09-01", hook: "Rust works while you sleep" }),
+    ]);
+    const flags = suspectedDuplicates(items);
+
+    assert.equal(items.length, 2);
+    assert.equal(flags.size, 1);
+    assert.match(flags.get("p2") ?? "", /2026-09-05/);
+  });
+});
+
+describe("normalizeFormat — zamknięty słownik układów", () => {
+  it("rolka nie bierze układów kadru statycznego i odwrotnie", () => {
+    assert.equal(normalizeFormat("reel", "viral_loop_6s"), "viral_loop_6s");
+    assert.equal(normalizeFormat("reel", "quote"), UNKNOWN_FORMAT);
+    assert.equal(normalizeFormat("carousel", "quote"), "quote");
+    assert.equal(normalizeFormat("carousel", "viral_loop_6s"), UNKNOWN_FORMAT);
+  });
+
+  it("przyjmuje nazwy, które studio już produkuje: gridType i polskie etykiety", () => {
+    assert.equal(normalizeFormat("post", "none_solid"), "quote");
+    assert.equal(normalizeFormat("post", "cost_vs_reward"), "cost");
+    assert.equal(normalizeFormat("post", "GRID 2X2"), "collage");
+    assert.equal(normalizeFormat("post", "studio_wall_3d"), "scene");
+    assert.equal(normalizeFormat("reel", "trzy fazy"), "three_phases");
+  });
+
+  it("wolny tekst z过去 nie rozbija grupy na jednoelementowe próbki", () => {
+    const items = normalizePublished([
+      entry({ id: "c1", kind: "carousel", format: "Karuzela 5 slajdów o poranku" }),
+      entry({ id: "c2", kind: "carousel", postedAt: "2026-09-02", format: "karuzela — 5 slajdów" }),
+    ]);
+
+    assert.deepEqual(
+      items.map((item) => item.format),
+      [UNKNOWN_FORMAT, UNKNOWN_FORMAT],
+    );
+    assert.equal(statsByFormat(items)[0].count, 2, "oba wpisy są w jednej grupie");
+  });
+});
+
+describe("filterUnpublished — kolejka czyta dziennik", () => {
+  const post = (id: string, title: string) => ({ id, title });
+
+  it("post znika z kolejki, gdy jego myśl weszła do dziennika", () => {
+    const published = normalizePublished([entry({ hook: "Rust works while you sleep." })]);
+    const queued = filterUnpublished(
+      [post("a", "Rust works while you sleep."), post("b", "Comfort is a cage.")],
+      published,
+    );
+
+    assert.deepEqual(
+      queued.map((item) => item.id),
+      ["b"],
+    );
+  });
+
+  it("wariant A/B zapisany w dzienniku zdejmuje swój wpis z kolejki po identyfikatorze", () => {
+    const ab = normalizePublished([
+      entry({ hook: "5 AM decides who owns the next 20 years.", sourceId: "ab-1" }),
+    ]);
+    const queued = filterUnpublished(
+      [post("post-1", "5 AM decides who owns the next 20 years."), post("c", "Unrelated.")],
+      ab,
+    );
+
+    assert.equal(queued.length, 1);
+    assert.equal(queued[0].id, "c");
+    assert.equal(hookFingerprint("Unrelated.").length > 0, true);
   });
 });

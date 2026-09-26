@@ -3,13 +3,22 @@
 // ale nie wie, co zostało opublikowane i ile to uciułało.
 import React, { useMemo, useState } from "react";
 import { BarChart3, Plus, Trash2, X } from "lucide-react";
-import { PublishedItem, StarkFocusData } from "../types";
+import { PublishedItem, PublishKind, StarkFocusData } from "../types";
 import {
   HOLD_GOOD_PCT,
   MIN_SAMPLE,
+  UNKNOWN_FORMAT,
+  type ComparedMetric,
+  type FormatStat,
+  enoughFor,
+  formatLabel,
+  formatsForKind,
   ledgerVerdict,
+  normalizeFormat,
   normalizePublished,
+  publicationKey,
   statsByFormat,
+  suspectedDuplicates,
 } from "../lib/published";
 
 interface PublishLedgerModalProps {
@@ -28,18 +37,28 @@ function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-const EMPTY_FORM = {
-  postedAt: today(),
-  platform: "instagram",
-  kind: "reel",
-  hook: "",
-  format: "viral_loop_6s",
-  reach: "",
-  hold3s: "",
-  watchPct: "",
-  shares: "",
-  saves: "",
-};
+/**
+ * Formularz liczony przy otwarciu i przy każdym zmianie gatunku, nie przy
+ * załadowaniu modułu: stała z `today()` zestarzała się razem z kartą
+ * przeglądarki, więc wpis szedł z datą sprzed kilku dni.
+ */
+function emptyForm(kind: PublishKind = "reel") {
+  return {
+    postedAt: today(),
+    platform: "instagram",
+    kind,
+    // Domyślnie pierwszy układ słownika tego gatunku — nigdy id rolki dla karuzeli.
+    format: formatsForKind(kind)[0],
+    hook: "",
+    reach: "",
+    hold3s: "",
+    watchPct: "",
+    shares: "",
+    saves: "",
+  };
+}
+
+type FormState = ReturnType<typeof emptyForm>;
 
 export function PublishLedgerModal({
   isOpen,
@@ -47,10 +66,10 @@ export function PublishLedgerModal({
   data,
   onUpdateData,
 }: PublishLedgerModalProps) {
-  const [form, setForm] = useState({ ...EMPTY_FORM });
+  const [form, setForm] = useState<FormState>(() => emptyForm());
+  const [notice, setNotice] = useState<string | null>(null);
 
-  // Hooki przed wczesnym zwrotem: `if (!isOpen) return null` powyżej useMemo
-  // łamałoby zasady wywoływania hooków.
+  const items = useMemo(() => data.published ?? [], [data.published]);
   const hookChoices = useMemo(
     () =>
       (data.posts ?? [])
@@ -60,15 +79,29 @@ export function PublishLedgerModal({
         .filter(Boolean),
     [data.posts],
   );
+  // Wpis wygląda na powtórzenie innego — normalizator tnie exact duplice, tu
+  // widać te same myśli w dwóch różnych dniach.
+  const duplicates = useMemo(() => suspectedDuplicates(items), [items]);
+  const abExperiments = useMemo(
+    () => new Set((data.ab_experiments ?? []).map((experiment) => experiment.id)),
+    [data.ab_experiments],
+  );
 
   if (!isOpen) return null;
 
-  const items = data.published ?? [];
   const stats = statsByFormat(items);
   const verdict = ledgerVerdict(items);
 
-  const set = (key: keyof typeof EMPTY_FORM, value: string) =>
+  const set = (key: keyof FormState, value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }));
+
+  const setKind = (kind: PublishKind) =>
+    setForm((prev) => {
+      // Układ, którego w nowym gatunku nie ma, nie zostaje jako „nieprzypisany":
+      // wskakuje pierwszy układ tego gatunku, bo on zaraz będzie wybrany.
+      const kept = normalizeFormat(kind, prev.format);
+      return { ...prev, kind, format: kept === UNKNOWN_FORMAT ? formatsForKind(kind)[0] : kept };
+    });
 
   const addEntry = () => {
     const hook = form.hook.trim();
@@ -78,9 +111,9 @@ export function PublishLedgerModal({
       id: `pub-${Date.now()}`,
       postedAt: /^\d{4}-\d{2}-\d{2}$/.test(form.postedAt) ? form.postedAt : today(),
       platform: form.platform as PublishedItem["platform"],
-      kind: form.kind as PublishedItem["kind"],
+      kind: form.kind as PublishKind,
       hook,
-      format: form.format.trim() || "unknown",
+      format: normalizeFormat(form.kind as PublishKind, form.format),
       metrics: {
         reach: numberOrUndefined(form.reach),
         hold3s: numberOrUndefined(form.hold3s),
@@ -91,11 +124,27 @@ export function PublishLedgerModal({
       loggedAt: new Date().toISOString(),
     };
 
+    // Ten sam dzień i ta sama myśl to TA SAMA publikacja. Normalizator i tak ją
+    // wyrzuci, ale bez tego komunikatu zostałby cicho usunięty wpis, a przy
+    // trzech próbach jeden duplikat wystarczy, żeby sfabrykować wniosek.
+    const key = publicationKey(entry);
+    if (items.some((item) => publicationKey(item) === key)) {
+      setNotice(
+        `Wpis z ${entry.postedAt} i tą myślą już jest w dzienniku. Powtórka liczyłaby się jako druga próba w każdej statyce i w każdym prompcie.`,
+      );
+      return;
+    }
+
     onUpdateData((prev) => ({
       ...prev,
       published: normalizePublished([entry, ...(prev.published ?? [])]),
     }));
-    setForm({ ...EMPTY_FORM, postedAt: form.postedAt, platform: form.platform, kind: form.kind });
+    setNotice(
+      entry.metrics?.reach === undefined
+        ? "Dodany wpis nie ma ani jednej liczby — nie wejdzie do żadnej mediany."
+        : null,
+    );
+    setForm({ ...emptyForm(form.kind), postedAt: form.postedAt, platform: form.platform });
   };
 
   const removeEntry = (id: string) =>
@@ -132,8 +181,9 @@ export function PublishLedgerModal({
               <table className="w-full text-[10px] font-mono mt-1">
                 <thead className="text-neutral-500 uppercase">
                   <tr>
-                    <th className="text-left py-1">Format</th>
+                    <th className="text-left py-1">Układ</th>
                     <th className="text-right">Prób</th>
+                    <th className="text-right">Zmierzonych</th>
                     <th className="text-right">Zasięg</th>
                     <th className="text-right">3 s</th>
                     <th className="text-right">Obejrzenie</th>
@@ -144,22 +194,36 @@ export function PublishLedgerModal({
                   {stats.map((stat) => (
                     <tr key={stat.key} className="border-t border-white/5">
                       <td className="py-1">
-                        {stat.key}
+                        {stat.kind} · {formatLabel(stat.kind, stat.format)}
                         {!stat.enough && (
-                          <span className="text-neutral-600"> (za mało: {MIN_SAMPLE})</span>
+                          <span className="text-neutral-600">
+                            {" "}
+                            (za mało zmierzonych: {stat.measured.sharesPerK}/{MIN_SAMPLE})
+                          </span>
                         )}
                       </td>
                       <td className="text-right">{stat.count}</td>
-                      <td className="text-right">{stat.medianReach ?? "—"}</td>
+                      <td className="text-right">
+                        {stat.unmeasured > 0 && (
+                          <span className="text-neutral-600">{stat.unmeasured} bez liczb · </span>
+                        )}
+                        {stat.measured.reach}
+                      </td>
+                      {/* Mediana bez pomiaru to nie zero — puste pole mówi „nie mierzono". */}
+                      <td className="text-right">{cell(stat, "reach", stat.medianReach)}</td>
                       <td
                         className={`text-right ${
-                          (stat.medianHold ?? 100) < HOLD_GOOD_PCT ? "text-rose-400" : ""
+                          (stat.medianHold ?? 100) < HOLD_GOOD_PCT && enoughFor(stat, "hold3s")
+                            ? "text-rose-400"
+                            : ""
                         }`}
                       >
-                        {stat.medianHold ?? "—"}
+                        {cell(stat, "hold3s", stat.medianHold)}
                       </td>
-                      <td className="text-right">{stat.medianWatch ?? "—"}</td>
-                      <td className="text-right">{stat.medianSharesPerK ?? "—"}</td>
+                      <td className="text-right">{cell(stat, "watchPct", stat.medianWatch)}</td>
+                      <td className="text-right">
+                        {cell(stat, "sharesPerK", stat.medianSharesPerK)}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -195,7 +259,7 @@ export function PublishLedgerModal({
                 <span className={LABEL}>Gatunek</span>
                 <select
                   value={form.kind}
-                  onChange={(e) => set("kind", e.target.value)}
+                  onChange={(e) => setKind(e.target.value as PublishKind)}
                   className={FIELD}
                 >
                   <option value="reel">Rolka</option>
@@ -203,15 +267,21 @@ export function PublishLedgerModal({
                   <option value="carousel">Karuzela</option>
                 </select>
               </label>
+              {/* Wolny tekst o układzie rozbijał grupę na jednoelementowe próbki. */}
               <label className="space-y-1">
-                <span className={LABEL}>Format / układ</span>
-                <input
-                  type="text"
+                <span className={LABEL}>Układ</span>
+                <select
                   value={form.format}
                   onChange={(e) => set("format", e.target.value)}
                   className={FIELD}
-                  placeholder="viral_loop_6s"
-                />
+                >
+                  {formatsForKind(form.kind).map((format) => (
+                    <option key={format} value={format}>
+                      {formatLabel(form.kind, format)}
+                    </option>
+                  ))}
+                  <option value={UNKNOWN_FORMAT}>{formatLabel(form.kind, UNKNOWN_FORMAT)}</option>
+                </select>
               </label>
             </div>
 
@@ -263,6 +333,8 @@ export function PublishLedgerModal({
               ))}
             </div>
 
+            {notice && <p className="text-[10px] font-mono text-rose-300">{notice}</p>}
+
             <button
               type="button"
               onClick={addEntry}
@@ -286,11 +358,17 @@ export function PublishLedgerModal({
                 <div className="flex-1 min-w-0">
                   <p className="text-[11px] font-mono text-white truncate">{item.hook}</p>
                   <p className="text-[10px] font-mono text-neutral-500">
-                    {item.postedAt} · {item.platform} · {item.kind}:{item.format}
+                    {item.postedAt} · {item.platform} · {item.kind}:
+                    {formatLabel(item.kind, item.format)}
                     {item.metrics?.reach !== undefined && ` · ${item.metrics.reach} odbiorców`}
                     {item.metrics?.hold3s !== undefined && ` · ${item.metrics.hold3s}% w 3 s`}
                     {item.metrics?.shares !== undefined && ` · ${item.metrics.shares} wysyłek`}
+                    {item.metrics === undefined && " · nie zmierzono"}
+                    {item.sourceId && abExperiments.has(item.sourceId) && " · z eksperymentu A/B"}
                   </p>
+                  {duplicates.has(item.id) && (
+                    <p className="text-[10px] font-mono text-rose-300">{duplicates.get(item.id)}</p>
+                  )}
                 </div>
                 <button
                   type="button"
@@ -307,6 +385,21 @@ export function PublishLedgerModal({
       </div>
     </div>
   );
+}
+
+/**
+ * Komórka tabeli: liczba tylko wtedy, gdy była zmierzona dość licznym
+ * próbkowaniem. `0` i „nie mierzono" to dwie różne prawdy.
+ */
+function cell(stat: FormatStat, metric: ComparedMetric, value: number | null): React.ReactNode {
+  if (value === null) return <span className="text-neutral-600">nie mierzono</span>;
+  if (!enoughFor(stat, metric))
+    return (
+      <span className="text-neutral-500" title={`za mało pomiarów: min. ${MIN_SAMPLE}`}>
+        {value}
+      </span>
+    );
+  return <span className="text-white">{value}</span>;
 }
 
 function numberOrUndefined(value: string): number | undefined {

@@ -9,8 +9,9 @@ import { clampInt, clampText, clampTextList } from "../../limits";
 import { HOOK_CRAFT_PROMPT, auditHook, auditLine } from "../../hookCraft";
 import { hookFingerprint, maxSimilarity, SIMILARITY } from "../../similarity";
 import { softenForPlatform } from "../../platformSafe";
-import { asArray, asString, asStringArray, sendDegraded } from "../normalize.server";
+import { asArray, asString, asStringArray, oneOf, sendDegraded } from "../normalize.server";
 import { isPolishCopy, starkCaption, starkCta, starkHashtags } from "../../caption";
+import { MIN_AB_VIEWS } from "../../published";
 
 /**
  * GROWTH ENGINE — eksperymenty A/B i tygodniowy autopilot.
@@ -23,13 +24,23 @@ import { isPolishCopy, starkCaption, starkCta, starkHashtags } from "../../capti
  * reszta marki: rzemiosło z `hookCraft`, anty-powtórka z `excludeHooks` i CTA
  * wyłącznie z puli `caption.ts`. Wezwania pisane przez model albo z banku
  * („Follow for the 3 AM protocol.") to dokładnie to, czego marka nie robi.
+ *
+ * Próg próby A/B (`MIN_AB_VIEWS`) nie siedzi tutaj, tylko w `published.ts` —
+ * liczy go i ta trasa, i przycisk w UI, żeby kliknięcie nie obiecywało wniosku,
+ * którego serwer i tak odmówi.
  */
-
-/** Minimalna liczba wyświetleń na wariant, żeby w ogóle porównywać engagement. */
-const MIN_AB_VIEWS = 30;
 
 /** Miara wiersza jak w `frames.server`: faza roli jest dłuższa niż teza. */
 const ROW_MAX_WORDS = 16;
+
+/** Etykiety wariantów — trasa i UI rozpoznają eksperyment wyłącznie po nich. */
+const AB_LABELS = ["A", "B"] as const;
+
+/** Data publikacji wariantu: albo YYYY-MM-DD, albo pustka — nie „dzisiaj". */
+function asDate(value: unknown): string {
+  const raw = clampText(value, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : "";
+}
 
 const PROMPT_TAIL = 30;
 const SIMILAR_TAIL = 60;
@@ -483,7 +494,7 @@ Zwróć WYŁĄCZNIE JSON:
         return {
           // Etykieta po pozycji, bo dalsza logika (i UI) rozróżnia warianty
           // wyłącznie po "A" / "B".
-          label: r.label === "A" || r.label === "B" ? asString(r.label) : idx === 0 ? "A" : "B",
+          label: oneOf(r.label, AB_LABELS, idx === 0 ? "A" : "B"),
           views: metric(r.views),
           likes: metric(r.likes),
           comments: metric(r.comments),
@@ -492,6 +503,9 @@ Zwróć WYŁĄCZNIE JSON:
           hook: clampText(r.hook, 160),
           music: clampText(r.music, 80),
           background: clampText(r.background, 80),
+          // Data publikacji wariantu od klienta: bez niej wpis z A/B nie ma się
+          // z czym zestawić w dzienniku i jest drugą rzeczywistością.
+          publishedAt: asDate(r.publishedAt),
         };
       });
 
@@ -507,14 +521,25 @@ Zwróć WYŁĄCZNIE JSON:
     // Lekcja wyciągnięta z 5 wyświetleń to zgadywanka, która wraca potem do
     // promptu generatora jako "udowodniony" wzorzec — poniżej progu nie ma
     // zwycięzcy i mówimy o tym wprost zamiast typować.
-    if (norm.some((r) => r.views < MIN_AB_VIEWS)) {
+    const short = norm.filter((r) => r.views < MIN_AB_VIEWS);
+    if (short.length > 0) {
+      // Brakujące ilości idą w odpowiedzi: UI nie ma z tego robić „wygrał
+      // wariant", tylko powiedzieć, ile jeszcze wyświetleń brakuje co do sztuki.
       return res.json({
         source: "offline" as const,
         status: "insufficient_data" as const,
         experimentId,
         winner: null,
+        minViews: MIN_AB_VIEWS,
+        missing: short.map((r) => ({
+          label: r.label,
+          views: r.views,
+          needs: MIN_AB_VIEWS - r.views,
+        })),
         scored,
-        lesson: `Za mało danych: każdy wariant potrzebuje min. ${MIN_AB_VIEWS} wyświetleń, żeby porównanie engagementu cokolwiek udowodniło.`,
+        lesson: `Bez rozstrzygnięcia: każdy wariant potrzebuje min. ${MIN_AB_VIEWS} wyświetleń, żeby porównanie engagementu cokolwiek udowodniło. ${short
+          .map((r) => `Wariant ${r.label}: ${r.views}, brakuje ${MIN_AB_VIEWS - r.views}.`)
+          .join(" ")}`,
       });
     }
 
@@ -550,15 +575,20 @@ W 2-3 zdaniach po polsku wyciągnij LEKCJĘ: co faktycznie zmierzono i jak to st
         });
         // Lekcja jest po polsku i nie jest materiałem — nie mierzymy jej
         // rzemiosłem hooka, ale nie przepuścimy też pustki.
-        if (response.text && response.text.trim().length > 20) lesson = response.text.trim();
+        const generated = asString(response.text);
+        if (generated.length > 20) lesson = generated;
       } catch {
         /* zostaje lekcja domyślna */
       }
     }
 
+    // `status` i `winner` jadą razem: UI rozgałęzia render po nich, więc nigdy
+    // nie złoży odmowy na linijkę „wygrał wariant".
     return res.json({
-      source: ai ? "ai" : "offline",
+      source: ai ? ("ai" as const) : ("offline" as const),
+      status: "decided" as const,
       experimentId,
+      minViews: MIN_AB_VIEWS,
       winner: winner.label,
       scored,
       lesson,

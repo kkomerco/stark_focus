@@ -4,6 +4,7 @@ import { createApp } from "../../mini-express.server";
 import { craftVariants, craftWeek, createCraft, registerGrowthRoutes } from "./growth.server";
 import { STARK_CTAS } from "../../caption";
 import { hookFingerprint } from "../../similarity";
+import { MIN_AB_VIEWS } from "../../published";
 
 /**
  * Silnik wzrostu bez wywołania modelu: pętla A/B musi oddawać parę ramion z
@@ -122,6 +123,80 @@ describe("POST /api/ai/ab-variants", () => {
     assert.deepEqual(variantsOf(exhausted.payload), []);
     assert.equal(typeof exhausted.payload.notice, "string");
     assert.notEqual(exhausted.payload.notice, "");
+  });
+});
+
+describe("POST /api/ai/ab-conclusion", () => {
+  const row = (label: "A" | "B", views: number, likes: number) => ({
+    label,
+    views,
+    likes,
+    comments: 0,
+    shares: 0,
+    saves: 0,
+    hook: label === "A" ? "Rust works while you sleep." : "Comfort is a cage with the door open.",
+    publishedAt: "2026-09-20",
+  });
+
+  it("odmowa nie ma zwycięzcy i nazywa, ile wyświetleń brakuje", async () => {
+    const { payload } = await post("/api/ai/ab-conclusion", {
+      experimentId: "ab-1",
+      results: [row("A", 1, 10), row("B", 400, 40)],
+    });
+
+    assert.equal(payload.status, "insufficient_data");
+    assert.equal(payload.winner, null, "brak próby nie może wyjechać jako rozstrzygnięcie");
+    assert.equal(payload.missing.length, 1);
+    assert.equal(payload.missing[0].label, "A");
+    assert.equal(payload.missing[0].needs, MIN_AB_VIEWS - 1);
+    assert.match(payload.lesson, /Bez rozstrzygnięcia/);
+    assert.doesNotMatch(payload.lesson, /miał engagement/, "lekcja bez danych nie liczy różnicy");
+  });
+
+  it("próg próby liczy ten sam `MIN_AB_VIEWS` co w interfejsie", async () => {
+    const justUnder = await post("/api/ai/ab-conclusion", {
+      results: [row("A", MIN_AB_VIEWS - 1, 9), row("B", MIN_AB_VIEWS, 1)],
+    });
+    assert.equal(justUnder.payload.winner, null);
+
+    const decided = await post("/api/ai/ab-conclusion", {
+      results: [row("A", MIN_AB_VIEWS, 9), row("B", MIN_AB_VIEWS, 1)],
+    });
+    assert.equal(decided.payload.status, "decided");
+    assert.equal(decided.payload.winner, "A");
+    assert.match(decided.payload.lesson, /Wariant A/);
+  });
+
+  it("liczby od klienta nie wchodzą nieklampowane", async () => {
+    const { payload } = await post("/api/ai/ab-conclusion", {
+      results: [
+        row("A", "-5" as never, "1e9" as never),
+        row("B", "bzdura" as never, 3),
+        ...Array.from({ length: 12 }, () => row("A", 500, 5)),
+      ],
+    });
+
+    assert.equal(payload.scored.length, 8, "lista wyników jest ucięta");
+    assert.equal(payload.scored[0].views, 0, "ujemne wyświetlenia nie ujemnym mianownikiem");
+    assert.equal(Number.isFinite(payload.scored[1].views), true);
+    assert.equal(payload.winner, null, "zero na jednym wariancie to odmowa, nie wniosek");
+  });
+
+  it("gdy warianty różniły się też muzyką, lekcja nie przypisuje wyniku hookowi", async () => {
+    const { payload } = await post("/api/ai/ab-conclusion", {
+      results: [
+        { ...row("A", 400, 40), music: "Obsidian Drone" },
+        { ...row("B", 400, 4), music: "Carbon Pulse" },
+      ],
+    });
+
+    assert.equal(payload.winner, "A");
+    assert.match(payload.lesson, /nie da się tego przypisać samemu hookowi/i);
+  });
+
+  it("brak obu wariantów to błąd, nie pusty wniosek", async () => {
+    const { status } = await post("/api/ai/ab-conclusion", { results: [row("A", 500, 5)] });
+    assert.equal(status, 400);
   });
 });
 

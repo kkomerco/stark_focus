@@ -2,7 +2,21 @@
 // Publikujesz oba, wpisujesz wyniki, AI wyciąga zwycięski wzorzec (pętla uczenia).
 import React, { useState } from "react";
 import { Film, Loader2, Repeat, TrendingUp, X } from "lucide-react";
-import { AbVariant, AbExperiment, ReelHandoff, StarkFocusData } from "../types";
+import {
+  AbVariant,
+  AbExperiment,
+  PublishedItem,
+  PublishPlatform,
+  ReelHandoff,
+  StarkFocusData,
+} from "../types";
+import {
+  MIN_AB_VIEWS,
+  UNKNOWN_FORMAT,
+  normalizePublished,
+  publishedHookFingerprints,
+} from "../lib/published";
+import { hookFingerprint } from "../lib/similarity";
 
 export interface AbResultRow {
   label: "A" | "B";
@@ -14,6 +28,19 @@ export interface AbResultRow {
 }
 
 /**
+ * Odpowiedź trasy `ab-conclusion`. Kształt normalizuje serwer (`status`,
+ * `winner: null`, `missing[]`), więc UI nie musi zgadywać, czy dostał wniosek,
+ * czy odmowę — i nie złoży odmowy na linijkę „wygrał wariant".
+ */
+export interface AbConclusion {
+  status?: string;
+  winner?: string | null;
+  lesson?: string;
+  minViews?: number;
+  missing?: Array<{ label?: string; views?: number; needs?: number }>;
+}
+
+/**
  * Przebieg eksperymentu trzyma rodzic: modal jest renderowany warunkowo, a bez tego
  * wysłanie zwycięzcy do studia kasowało warianty i wpisane wyniki.
  */
@@ -22,7 +49,9 @@ export interface AbDraft {
   variants: AbVariant[];
   experimentId: string;
   results: AbResultRow[];
-  conclusion: { winner?: string; lesson?: string } | null;
+  conclusion: AbConclusion | null;
+  /** Konto, na którym warianty realnie poszły — trzeba je wskazać przy zapisie do dziennika. */
+  platform?: PublishPlatform;
 }
 
 interface AbModalProps {
@@ -38,11 +67,17 @@ interface AbModalProps {
 }
 
 const PANEL = "bg-[#0F121C] border border-[#2C354B] rounded-xl";
+const FIELD =
+  "bg-[#0F121C] border border-[#2C354B] px-2 py-1 font-mono text-[10px] text-white placeholder:text-slate-600 focus:outline-none focus:border-slate-500";
+const LABEL = "text-[9px] font-mono uppercase text-slate-500";
 
 /** Odpowiedź trasy to kształt od modelu — nie mapujemy bez sprawdzenia pola. */
 const textList = (value: unknown): string[] =>
   Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 const textOf = (value: unknown): string => (typeof value === "string" ? value : "");
+
+const isDate = (value: unknown): value is string =>
+  typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
 
 export const AbModal: React.FC<AbModalProps> = ({
   isOpen,
@@ -58,12 +93,14 @@ export const AbModal: React.FC<AbModalProps> = ({
   const [saved, setSaved] = useState(false);
   const [concluding, setConcluding] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const patch = (next: Partial<AbDraft>) => onDraftChange((prev) => ({ ...prev, ...next }));
 
   const startExperiment = async () => {
     setLoading(true);
     setError(null);
+    setNotice(null);
     patch({ conclusion: null });
     setSaved(false);
     try {
@@ -118,9 +155,25 @@ export const AbModal: React.FC<AbModalProps> = ({
   const setProduction = (idx: number, field: "music" | "background", value: string) =>
     patch({ variants: variants.map((v, i) => (i === idx ? { ...v, [field]: value } : v)) });
 
+  /**
+   * Data publikacji wariantu wpisuje właściciel konta. Bez niej wynik A/B nie
+   * ma się do czego przypiąć w dzienniku i pozostaje drugą rzeczywistością.
+   */
+  const setPublishedAt = (idx: number, value: string) =>
+    patch({
+      variants: variants.map((v, i) => (i === idx ? { ...v, publishedAt: value || null } : v)),
+    });
+
+  // Próg próby liczy tu ten sam `MIN_AB_VIEWS` co w trasie: przycisk nie może
+  // obiecywać rozstrzygnięcia, którego serwer i tak odmówi.
+  const short = results.filter((r) => r.views < MIN_AB_VIEWS);
+  const canConclude = results.length >= 2 && short.length === 0;
+
   const conclude = async () => {
-    if (results.length < 2) return;
+    if (!canConclude) return;
     setConcluding(true);
+    setError(null);
+    setNotice(null);
     try {
       const res = await fetch("/api/ai/ab-conclusion", {
         method: "POST",
@@ -137,12 +190,21 @@ export const AbModal: React.FC<AbModalProps> = ({
             hook: variants[i]?.hook || "",
             music: variants[i]?.music || "",
             background: variants[i]?.background || "",
+            publishedAt: variants[i]?.publishedAt || "",
           })),
         }),
       });
       if (!res.ok) throw new Error("HTTP " + res.status);
       const json = await res.json();
       patch({ conclusion: json });
+
+      const winnerLabel = json.winner === "A" || json.winner === "B" ? json.winner : null;
+      // Odmowa nie jest eksperymentem do zapamiętania: zapisalibyśmy ją z
+      // `concludedAt` jak rozstrzygniętą, a potem opowiadali o niej generatorowi.
+      if (!winnerLabel) {
+        setSaved(false);
+        return;
+      }
 
       // ===== PĘTLA UCZENIA: zapisujemy eksperyment, aby wzorzec wracał do generatora =====
       const experiment: AbExperiment = {
@@ -153,10 +215,9 @@ export const AbModal: React.FC<AbModalProps> = ({
           const r = results.find((x) => x.label === v.label);
           return {
             ...v,
-            // Data publikacji jest nasza, nie licznika: wczesniej wpisywaliśmy
-            // tu `now()`, więc każdy eksperyment wyglądał jak opublikowany w
-            // momencie zamknięcia, a to nieprawda.
-            publishedAt: v.publishedAt ?? null,
+            // Data publikacji jest jego, nie licznika: `now()` sprawiał, że każdy
+            // eksperyment wyglądał jak opublikowany w chwili zamknięcia.
+            publishedAt: isDate(v.publishedAt) ? v.publishedAt : null,
             metrics: {
               views: r?.views || 0,
               likes: r?.likes || 0,
@@ -166,7 +227,7 @@ export const AbModal: React.FC<AbModalProps> = ({
             },
           };
         }),
-        winner: json.winner === "A" || json.winner === "B" ? json.winner : null,
+        winner: winnerLabel,
         lesson: String(json.lesson || ""),
         concludedAt: new Date().toISOString(),
       };
@@ -182,9 +243,64 @@ export const AbModal: React.FC<AbModalProps> = ({
     }
   };
 
-  const winnerVariant = conclusion
+  const winnerVariant = conclusion?.winner
     ? variants.find((v) => v.label === conclusion.winner)
     : undefined;
+
+  const published = data.published ?? [];
+  const ledgerFingerprints = new Set(publishedHookFingerprints(published));
+
+  /** Wariant jest w dzienniku, jeśli jego myśl już tam poszła lub wpisał go ten eksperyment. */
+  const inLedger = (v: AbVariant) =>
+    published.some(
+      (item) =>
+        item.sourceId === experimentId || hookFingerprint(item.hook) === hookFingerprint(v.hook),
+    );
+
+  /**
+   * Wynik A/B staje się liczbą z konta dopiero w dzienniku (`data.published`).
+   * Stąd zapis obu wariantów: ten sam `sourceId`, ta sama data publikacji, bez
+   * wymyślonego układu kadru — eksperyment o układ nie pyta.
+   */
+  const saveBothToLedger = () => {
+    const entries: PublishedItem[] = [];
+    for (const v of variants) {
+      if (!isDate(v.publishedAt) || !v.hook) continue;
+      const r = results.find((x) => x.label === v.label);
+      entries.push({
+        id: `${experimentId}-${v.label}`,
+        postedAt: v.publishedAt,
+        // A/B to zawsze dwie wersje tej samej rolki; konto wskazuje w polu wyżej.
+        platform: draft.platform ?? "instagram",
+        kind: "reel",
+        hook: v.hook,
+        format: UNKNOWN_FORMAT,
+        music: v.music || undefined,
+        sourceId: experimentId,
+        metrics: {
+          reach: r?.views ?? 0,
+          likes: r?.likes ?? 0,
+          comments: r?.comments ?? 0,
+          shares: r?.shares ?? 0,
+          saves: r?.saves ?? 0,
+        },
+        loggedAt: new Date().toISOString(),
+      });
+    }
+    if (entries.length === 0) {
+      setNotice("Podaj datę publikacji obu wariantów — bez niej wpis nie ma czym być w dzienniku.");
+      return;
+    }
+    onUpdateData((prev) => ({
+      ...prev,
+      // Ten sam normalizator co reszta dziennika: dedupe po (data, myśl) i słownik
+      // układów, więc podwójne kliknięcie nie doda drugiej takiej samej próby.
+      published: normalizePublished([...entries, ...(prev.published ?? [])]),
+    }));
+    setNotice(
+      `Zapisano ${entries.length} wariantów w dzienniku publikacji. Od tej chwili liczby z A/B liczą się we wszystkich statykach marki.`,
+    );
+  };
 
   /** Wariant A/B nie ma opisu — składamy go z hooka i firmowego CTA tego wariantu. */
   const reelFromVariant = (v: AbVariant): ReelHandoff => {
@@ -200,6 +316,11 @@ export const AbModal: React.FC<AbModalProps> = ({
   };
 
   if (!isOpen) return null;
+
+  // Odmowa to odmowa: bez linijki o zwycięzcy i bez „wzorzec zapisany".
+  const refused = !conclusion?.winner || conclusion?.status === "insufficient_data";
+  const pastExperiments = data.ab_experiments ?? [];
+  const ledgerFilled = variants.length >= 2 && variants.every(inLedger);
 
   return (
     <div className="fixed inset-0 z-60 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
@@ -268,14 +389,14 @@ export const AbModal: React.FC<AbModalProps> = ({
                     value={v.music || ""}
                     onChange={(e) => setProduction(vIdx, "music", e.target.value)}
                     placeholder="Muzyka (tytuł)"
-                    className="bg-[#0F121C] border border-[#2C354B] px-2 py-1 font-mono text-[10px] text-white placeholder:text-slate-600 focus:outline-none focus:border-slate-500"
+                    className={FIELD}
                   />
                   <input
                     type="text"
                     value={v.background || ""}
                     onChange={(e) => setProduction(vIdx, "background", e.target.value)}
                     placeholder="Tło (scena)"
-                    className="bg-[#0F121C] border border-[#2C354B] px-2 py-1 font-mono text-[10px] text-white placeholder:text-slate-600 focus:outline-none focus:border-slate-500"
+                    className={FIELD}
                   />
                 </div>
                 <div className="space-y-0.5 pl-2 border-l border-[#2C354B]">
@@ -298,6 +419,36 @@ export const AbModal: React.FC<AbModalProps> = ({
               </div>
             );
           })}
+
+          {pastExperiments.length > 0 && (
+            <div className="p-3 bg-[#141824] border border-[#2C354B] rounded-lg space-y-2">
+              <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500">
+                Poprzednie eksperymenty ({pastExperiments.length})
+              </h4>
+              {pastExperiments.map((experiment) => {
+                const ledgerRows = (data.published ?? []).filter(
+                  (item) => item.sourceId === experiment.id,
+                ).length;
+                return (
+                  <div key={experiment.id} className="border-t border-white/5 pt-2 space-y-1">
+                    <p className="text-[10px] font-mono text-white truncate">
+                      {experiment.topic || experiment.id}
+                    </p>
+                    <p className="text-[9px] font-mono text-slate-500">
+                      {(experiment.createdAt || "").slice(0, 10)} ·{" "}
+                      {experiment.winner
+                        ? `wygrana: wariant ${experiment.winner}`
+                        : "bez rozstrzygnięcia"}{" "}
+                      · w dzienniku: {ledgerRows}
+                    </p>
+                    {experiment.lesson && (
+                      <p className="text-[10px] font-mono text-slate-400">{experiment.lesson}</p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {variants.length >= 2 && (
@@ -305,58 +456,88 @@ export const AbModal: React.FC<AbModalProps> = ({
             <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500">
               Wyniki (wpisz po publikacji obu wariantów)
             </h4>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={LABEL}>Konto</span>
+              <select
+                value={draft.platform ?? "instagram"}
+                onChange={(e) => patch({ platform: e.target.value as PublishPlatform })}
+                className={FIELD}
+              >
+                <option value="instagram">Instagram</option>
+                <option value="tiktok">TikTok</option>
+                <option value="youtube">YouTube</option>
+              </select>
+            </div>
             <div className="space-y-1.5 text-[10px] font-mono">
               {results.map((r, idx) => (
-                <div key={r.label} className="flex flex-wrap gap-1 items-center">
-                  <span className="text-emerald-300 font-bold w-4">{r.label}</span>
-                  <span className="text-slate-400">Views:</span>
-                  <input
-                    type="number"
-                    min="0"
-                    value={r.views}
-                    onChange={(e) => setMetric(idx, "views", e.target.value)}
-                    className="w-16 bg-[#0F121C] border border-[#2C354B] py-1 text-center font-mono text-white text-[10px]"
-                  />
-                  <span className="text-slate-400">Likes:</span>
-                  <input
-                    type="number"
-                    min="0"
-                    value={r.likes}
-                    onChange={(e) => setMetric(idx, "likes", e.target.value)}
-                    className="w-14 bg-[#0F121C] border border-[#2C354B] py-1 text-center font-mono text-white text-[10px]"
-                  />
-                  <span className="text-slate-400">Koment.:</span>
-                  <input
-                    type="number"
-                    min="0"
-                    value={r.comments}
-                    onChange={(e) => setMetric(idx, "comments", e.target.value)}
-                    className="w-14 bg-[#0F121C] border border-[#2C354B] py-1 text-center font-mono text-white text-[10px]"
-                  />
-                  <span className="text-slate-400">Udost.:</span>
-                  <input
-                    type="number"
-                    min="0"
-                    value={r.shares}
-                    onChange={(e) => setMetric(idx, "shares", e.target.value)}
-                    className="w-14 bg-[#0F121C] border border-[#2C354B] py-1 text-center font-mono text-white text-[10px]"
-                  />
-                  <span className="text-slate-400">Saves:</span>
-                  <input
-                    type="number"
-                    min="0"
-                    value={r.saves}
-                    onChange={(e) => setMetric(idx, "saves", e.target.value)}
-                    className="w-14 bg-[#0F121C] border border-[#2C354B] py-1 text-center font-mono text-white text-[10px]"
-                  />
+                <div key={r.label} className="space-y-1">
+                  <div className="flex flex-wrap gap-1 items-center">
+                    <span className="text-rose-300 font-bold w-4">{r.label}</span>
+                    <span className="text-slate-400">Wyśw.:</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={r.views}
+                      onChange={(e) => setMetric(idx, "views", e.target.value)}
+                      className="w-16 bg-[#0F121C] border border-[#2C354B] py-1 text-center font-mono text-white text-[10px]"
+                    />
+                    <span className="text-slate-400">Lajki:</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={r.likes}
+                      onChange={(e) => setMetric(idx, "likes", e.target.value)}
+                      className="w-14 bg-[#0F121C] border border-[#2C354B] py-1 text-center font-mono text-white text-[10px]"
+                    />
+                    <span className="text-slate-400">Koment.:</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={r.comments}
+                      onChange={(e) => setMetric(idx, "comments", e.target.value)}
+                      className="w-14 bg-[#0F121C] border border-[#2C354B] py-1 text-center font-mono text-white text-[10px]"
+                    />
+                    <span className="text-slate-400">Udost.:</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={r.shares}
+                      onChange={(e) => setMetric(idx, "shares", e.target.value)}
+                      className="w-14 bg-[#0F121C] border border-[#2C354B] py-1 text-center font-mono text-white text-[10px]"
+                    />
+                    <span className="text-slate-400">Zapisy:</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={r.saves}
+                      onChange={(e) => setMetric(idx, "saves", e.target.value)}
+                      className="w-14 bg-[#0F121C] border border-[#2C354B] py-1 text-center font-mono text-white text-[10px]"
+                    />
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 pl-5">
+                    <span className={LABEL}>Data publikacji wariantu</span>
+                    <input
+                      type="date"
+                      value={isDate(variants[idx]?.publishedAt) ? variants[idx].publishedAt : ""}
+                      onChange={(e) => setPublishedAt(idx, e.target.value)}
+                      className={FIELD}
+                    />
+                    <span className="text-[9px] font-mono text-slate-500">
+                      {ledgerFingerprints.has(hookFingerprint(textOf(variants[idx]?.hook)))
+                        ? "ta myśl już jest w dzienniku"
+                        : isDate(variants[idx]?.publishedAt)
+                          ? "gotowe do zapisu w dzienniku"
+                          : "bez daty nie ma wpisu w dzienniku"}
+                    </span>
+                  </div>
                 </div>
               ))}
             </div>
             <button
               type="button"
               onClick={conclude}
-              disabled={concluding || results.some((r) => r.views === 0)}
-              className="w-full py-1.5 rounded bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-[10px] font-mono font-bold text-emerald-300 uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+              disabled={concluding || !canConclude}
+              className="w-full py-1.5 rounded bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-[10px] font-mono font-bold text-rose-300 uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
             >
               {concluding ? (
                 <Loader2 className="w-3 h-3 animate-spin" />
@@ -365,10 +546,43 @@ export const AbModal: React.FC<AbModalProps> = ({
               )}
               Wyciągnij zwycięski wzorzec
             </button>
+            {!canConclude && (
+              <p className="text-[9px] font-mono text-slate-500">
+                {short.length > 0
+                  ? `Każdy wariant potrzebuje co najmniej ${MIN_AB_VIEWS} wyświetleń — brakuje: ${short
+                      .map((r) => `${r.label}: ${MIN_AB_VIEWS - r.views}`)
+                      .join(", ")}. Poniżej tego progu nie ma zwycięzcy, jest zgadywanka.`
+                  : `Eksperyment ma dwie strony: wpisz wyniki obu wariantów, co najmniej ${MIN_AB_VIEWS} wyświetleń na każdy.`}
+              </p>
+            )}
           </div>
         )}
 
-        {conclusion && (
+        {notice && (
+          <div className="p-2 bg-[#141824] border border-[#2C354B] rounded-lg text-[10px] font-mono text-slate-400">
+            {notice}
+          </div>
+        )}
+
+        {conclusion && refused && (
+          <div className="p-3 bg-[#141824] border border-[#2C354B] rounded-lg space-y-2">
+            <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-300">
+              Bez rozstrzygnięcia
+            </p>
+            <p className="text-[11px] font-mono text-slate-300">{conclusion.lesson}</p>
+            {(conclusion.missing ?? []).map((row) => (
+              <p key={textOf(row.label)} className="text-[10px] font-mono text-slate-400">
+                Wariant {textOf(row.label)}: {row.views ?? 0} wyświetleń, brakuje {row.needs ?? 0}.
+              </p>
+            ))}
+            <p className="text-[9px] font-mono text-slate-500">
+              Nic nie poszło do pętli uczenia — wzorzec z jednego pomiaru wracałby potem do
+              generatora jako dowód.
+            </p>
+          </div>
+        )}
+
+        {conclusion && !refused && (
           <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-lg space-y-2">
             <p className="text-[10px] font-mono text-rose-300 flex items-center gap-2">
               <TrendingUp className="w-3 h-3" />
@@ -377,18 +591,30 @@ export const AbModal: React.FC<AbModalProps> = ({
             <p className="text-[11px] font-mono text-slate-300">{conclusion.lesson}</p>
             <p className="text-[9px] font-mono text-slate-500">
               W kolejnych generacjach stosuj więcej tego typu hooków.
-              {saved && "Wzorzec zapisany do pętli uczenia."}
+              {saved && " Wzorzec zapisany do pętli uczenia."}
             </p>
-            {onSendToReel && winnerVariant && (
+            <div className="flex flex-wrap gap-1">
+              {onSendToReel && winnerVariant && (
+                <button
+                  type="button"
+                  onClick={() => onSendToReel(reelFromVariant(winnerVariant))}
+                  className="py-1.5 px-3 rounded bg-white/10 hover:bg-white/20 border border-white/20 text-[11px] font-mono font-bold text-white flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Film className="w-3 h-3" />
+                  Wyślij zwycięzcę do studia rolek
+                </button>
+              )}
               <button
                 type="button"
-                onClick={() => onSendToReel(reelFromVariant(winnerVariant))}
-                className="py-1.5 px-3 rounded bg-white/10 hover:bg-white/20 border border-white/20 text-[11px] font-mono font-bold text-white flex items-center gap-1.5 cursor-pointer"
+                onClick={saveBothToLedger}
+                disabled={ledgerFilled}
+                className="py-1.5 px-3 rounded bg-white/10 hover:bg-white/20 border border-white/20 text-[11px] font-mono font-bold text-white cursor-pointer disabled:opacity-40"
               >
-                <Film className="w-3 h-3" />
-                Wyślij zwycięzcę do studia rolek
+                {ledgerFilled
+                  ? "Warianty są już w dzienniku"
+                  : "Zapisz oba warianty w dzienniku publikacji"}
               </button>
-            )}
+            </div>
           </div>
         )}
       </div>
