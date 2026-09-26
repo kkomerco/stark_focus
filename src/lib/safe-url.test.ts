@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { isSafeUrl } from "./safe-url";
+import { isPrivateAddress, isSafeUrl } from "./safe-url";
 
 describe("safe-url.ts - SSRF Protection (isSafeUrl)", () => {
   describe("Valid Public URLs", () => {
@@ -89,6 +89,33 @@ describe("safe-url.ts - SSRF Protection (isSafeUrl)", () => {
     it("blocks carrier-grade NAT (100.64.0.0/10) and multicast (224.0.0.0+)", () => {
       assert.equal(isSafeUrl("http://100.64.0.1/"), false);
       assert.equal(isSafeUrl("http://224.0.0.1/"), false);
+    });
+  });
+
+  // Host może udawać publiczny, wpisując loopback w innej notacji. `new URL()`
+  // normalizuje formy liczbowe SAM (`2130706433` -> `127.0.0.1`), więc straż
+  // sprawdza already-normalizowany hostname — te testy trzymają tę zależność.
+  describe("Alternatywne notacje adresu", () => {
+    it("dziesiętny, ósemkowy i skrócony loopback to nadal loopback", () => {
+      assert.equal(isSafeUrl("http://2130706433/"), false);
+      assert.equal(isSafeUrl("http://0177.0.0.1/"), false);
+      assert.equal(isSafeUrl("http://0x7f.1/"), false);
+      assert.equal(isSafeUrl("http://127.1/"), false);
+    });
+
+    it("IPv6 zapisany w pełni też jest pętlą lokalną", () => {
+      assert.equal(isSafeUrl("http://[0:0:0:0:0:0:0:1]/"), false);
+    });
+
+    it("ta sama miara dla adresu z DNS: mapped, unique-local, link-local", () => {
+      assert.equal(isPrivateAddress("::ffff:127.0.0.1"), true);
+      assert.equal(isPrivateAddress("::ffff:8.8.8.8"), false);
+      assert.equal(isPrivateAddress("fd12::1"), true);
+      assert.equal(isPrivateAddress("fe80::1"), true);
+      assert.equal(isPrivateAddress("203.0.113.9"), false);
+      // nie do rozpoznania = brak wyjścia do sieci
+      assert.equal(isPrivateAddress("999.1.1.1"), true);
+      assert.equal(isPrivateAddress(""), true);
     });
   });
 });
