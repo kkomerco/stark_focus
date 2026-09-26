@@ -1,5 +1,7 @@
-// AutopilotModal.tsx — Tygodniowy autopilot: 7 paczek (po jednej kategorii na dzień),
-// pakowane do ZIP z folderami PON/WT/... i slotami 12-00/14-00/15-00/18-00.
+// AutopilotModal.tsx — Tygodniowy autopilot: plan na 7 dni (1 zapytanie) plus paczki treści
+// (1 zapytanie na dzień, który sam wybierzesz), pakowane do ZIP z folderami PON/WT/...
+// i slotami 12-00/14-00/15-00/18-00. Koszt kliknięcia stoi w UI, bo na darmowym
+// tierze limitem jest liczba zapytań na dobę, nie tokeny.
 import React, { useEffect, useRef, useState } from "react";
 import { Check, Download, Loader2, Rocket, X } from "lucide-react";
 import { StarkFocusData } from "../types";
@@ -28,6 +30,21 @@ interface DayPack extends DayPlan {
 
 const PANEL = "bg-[#0F121C] border border-[#2C354B] rounded-xl";
 const DAY_PL = ["PON", "WT", "SR", "CZW", "PT", "SB", "ND"];
+/** Dni do wypełnienia: każde paczka dnia to jedno płatne zapytanie, więc nie zakładamy 7. */
+const DAY_CHOICES = [1, 2, 3, 5, 7];
+
+function pluralDays(n: number): string {
+  return n === 1 ? "1 dzień" : `${n} dni`;
+}
+
+/** "1 zapytanie" / "2 zapytania" / "8 zapytań" — UI jest po polsku, odmiana musi się zgadzać. */
+function pluralRequests(n: number): string {
+  if (n === 1) return "1 zapytanie";
+  const tail = n % 10;
+  const tens = n % 100;
+  const few = tail >= 2 && tail <= 4 && (tens < 12 || tens > 14);
+  return few ? `${n} zapytania` : `${n} zapytań`;
+}
 
 interface DayPlan {
   day: string;
@@ -50,8 +67,11 @@ export const AutopilotModal: React.FC<AutopilotModalProps> = ({ isOpen, onClose,
   const [packs, setPacks] = useState<DayPack[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const [days, setDays] = useState(7);
+  // Plan tygodnia to jedno zapytanie, każda paczka dnia to kolejne jedno.
+  const requestCount = 1 + days;
 
-  // Zamknięcie modala odmontowuje komponent - przerwaj 8 zapytań i nie wstawiaj wyników "w pustkę"
+  // Zamknięcie modala odmontowuje komponent - przerwaj zapytania w locie i nie wstawiaj wyników "w pustkę"
   const cancelledRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -65,7 +85,12 @@ export const AutopilotModal: React.FC<AutopilotModalProps> = ({ isOpen, onClose,
   }, [isOpen]);
 
   const fetchDayPlan = async (signal: AbortSignal): Promise<DayPlan[] | null> => {
-    const res = await fetch("/api/ai/weekly-autopilot", { method: "POST", body: "{}", signal });
+    const res = await fetch("/api/ai/weekly-autopilot", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ excludeHooks: usedHookFingerprints(data) }),
+      signal,
+    });
     if (!res.ok) return null;
     const json = await res.json();
     return json.week || null;
@@ -183,21 +208,26 @@ export const AutopilotModal: React.FC<AutopilotModalProps> = ({ isOpen, onClose,
       setStage("Planuję tydzień...");
       const plan = await fetchDayPlan(controller.signal);
       if (cancelledRef.current) return;
-      if (!plan || plan.length !== 7) throw new Error("Nie udało się zaplanować tygodnia.");
+      if (!plan || plan.length < days) throw new Error("Nie udało się zaplanować tygodnia.");
       setWeek(plan);
+      setProgress(Math.round((1 / (1 + days)) * 100));
 
+      const selected = plan.slice(0, days);
       const all: DayPack[] = [];
       // Tydzień nie może powtórzyć tego, co poszło w poprzednich — startujemy
       // od pełnej historii, a nie od pustej listy.
       const takenHooks: string[] = [...usedHookFingerprints(data)];
-      for (let i = 0; i < plan.length; i++) {
-        setStage(`Generuję paczkę na ${DAY_PL[plan[i].dayIndex]} (${i + 1}/7)...`);
-        const pack = await fetchPackForDay(plan[i], i, takenHooks, controller.signal);
+      for (let i = 0; i < selected.length; i++) {
+        setStage(
+          `Generuję paczkę na ${DAY_PL[selected[i].dayIndex]} (${i + 1}/${selected.length})...`,
+        );
+        const pack = await fetchPackForDay(selected[i], i, takenHooks, controller.signal);
         if (cancelledRef.current) return;
         pack.reels.forEach((r) => takenHooks.push(r.hook));
         all.push(pack);
         setPacks([...all]);
-        setProgress(Math.round(((i + 1) / 8) * 100));
+        // Postęp liczymy z liczby zapytań (plan + paczki), nie z liczby dni.
+        setProgress(Math.round(((i + 2) / (1 + days)) * 100));
       }
 
       setStage("Pakuję ZIP...");
@@ -251,11 +281,40 @@ export const AutopilotModal: React.FC<AutopilotModalProps> = ({ isOpen, onClose,
         </div>
 
         <p className="text-[11px] font-mono text-slate-400">
-          Generuje 7 paczek treści (po jednej kategorii na dzień z rotacji) i pakuje je do ZIP z
-          folderami <span className="text-slate-200">PON / WT / SR / CZW / PT / SB / ND</span>{" "}
-          (sloty 12-00, 14-00, 15-00, 18-00). Zip to gotowy materiał do studiów — aplikacja niczego
-          nie trzyma w kolejce za ciebie.
+          Plan przydziela dniom kategorie i formaty (rotacja, nie siedem rolek), a paczki treści
+          schodzą tylko na tyle dni, ile wybierzesz niżej. ZIP ma foldery{" "}
+          <span className="text-slate-200">PON / WT / SR / CZW / PT / SB / ND</span> (sloty 12-00,
+          14-00, 15-00, 18-00). Zip to gotowy materiał do studiów — aplikacja niczego nie trzyma w
+          kolejce za ciebie.
         </p>
+
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+          <div className="w-full sm:w-52 shrink-0">
+            <label
+              htmlFor="autopilot-days"
+              className="text-[10px] font-mono uppercase font-bold text-slate-500 block mb-1"
+            >
+              Dni do wypełnienia:
+            </label>
+            <select
+              id="autopilot-days"
+              value={days}
+              onChange={(e) => setDays(Number(e.target.value))}
+              disabled={planning || packing}
+              className="w-full px-3 py-2 bg-[#141824] border border-[#2C354B] rounded text-xs font-mono text-white focus:outline-none focus:border-rose-500/60 disabled:opacity-50"
+            >
+              {DAY_CHOICES.map((d) => (
+                <option key={d} value={d}>
+                  {pluralDays(d)}
+                </option>
+              ))}
+            </select>
+          </div>
+          <p className="text-[11px] font-mono text-amber-300/90 sm:flex-1">
+            Kliknięcie zużyje {pluralRequests(requestCount)} do modelu: 1 na plan tygodnia i jedno
+            na każdą paczkę dnia. Darmowy tier to około 20 zapytań tekstu na dobę.
+          </p>
+        </div>
 
         {(planning || packing) && (
           <div className="space-y-2">
@@ -317,7 +376,9 @@ export const AutopilotModal: React.FC<AutopilotModalProps> = ({ isOpen, onClose,
             ) : (
               <Download className="w-4 h-4" />
             )}
-            {planning || packing ? "Autopilot pracuje..." : "Wygeneruj tydzień + ZIP"}
+            {planning || packing
+              ? "Autopilot pracuje..."
+              : `Wygeneruj ${days === 7 ? "tydzień" : pluralDays(days)} + ZIP (${pluralRequests(requestCount)})`}
           </button>
         </div>
       </div>

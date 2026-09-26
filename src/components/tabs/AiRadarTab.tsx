@@ -158,14 +158,14 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
   }, []);
 
   useEffect(() => {
+    // Status kontrolki jest darmowy. Formaty wiralowe NIE schodzą na mount: karta
+    // Radaru jest montowana przy każdym przełączeniu zakładki, więc jedno wejście
+    // zabierało jedno z ~20 darmowych zapytań dnia. Trendy startują z localStorage
+    // (`data.saved_trends`), a na formaty naciska się przycisk pod sekcją.
     fetch("/api/ai/status")
       .then((res) => res.json())
       .then((data) => setAiStatus(data))
       .catch((err) => console.warn("AI status check:", err));
-
-    // Załaduj początkowe formaty wiralowe
-    loadViralFormats();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Karuzela z Paczki Dnia wchodzi do studia raz i kasuje się u rodzica
@@ -190,7 +190,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
       const res = await fetch("/api/ai/viral-format-radar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ niche }),
+        body: JSON.stringify({ niche, excludeHooks: usedHookFingerprints(data) }),
       });
       const json = await res.json();
       if (Array.isArray(json.formats)) {
@@ -214,6 +214,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
           niche,
           platform,
           inspirations: [],
+          excludeHooks: usedHookFingerprints(data),
         }),
       });
       const json = await res.json();
@@ -223,10 +224,11 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
           ...prev,
           saved_trends: json.trends,
         }));
-        setScanMessage(json.message || "✓ Zaktualizowano trendy sieciowe i hooki 0-3s.");
+        setScanMessage(json.message || "Zaktualizowano wątki z niszy i hooki 0-3s.");
       }
-      // Odśwież także formaty psychologiczne
-      loadViralFormats();
+      // Wcześniejsze `loadViralFormats()` w tym miejscu dokładało drugie płatne
+      // zapytanie do jednego kliknięcia. Skan nie karmi formatów ani odwrotnie,
+      // więc formaty mają własny przycisk i własne jedno zapytanie.
     } catch (err: any) {
       console.error(err);
       setScanMessage("Wystąpił problem podczas pobierania trendów sieci.");
@@ -242,7 +244,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
       const res = await fetch("/api/ai/angle-matrix", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic: angleTopic }),
+        body: JSON.stringify({ topic: angleTopic, excludeHooks: usedHookFingerprints(data) }),
       });
       const json = await res.json();
       if (Array.isArray(json.angles)) {
@@ -262,7 +264,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
       const res = await fetch("/api/ai/cognitive-friction", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic: frictionTopic }),
+        body: JSON.stringify({ topic: frictionTopic, excludeHooks: usedHookFingerprints(data) }),
       });
       const json = await res.json();
       if (Array.isArray(json.paradoxes)) {
@@ -282,7 +284,10 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
       const res = await fetch("/api/ai/evergreen-recycle", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sourceText }),
+        body: JSON.stringify({
+          sourceText,
+          excludeHooks: usedHookFingerprints(data),
+        }),
       });
       const json = await res.json();
       if (json.reel && json.carousel) {
@@ -546,7 +551,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                   ) : (
                     <>
                       <Search className="w-3.5 h-3.5" />
-                      <span>Skanuj Sieć</span>
+                      <span>Skanuj Sieć · 1 zapytanie</span>
                     </>
                   )}
                 </button>
@@ -580,10 +585,38 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                 <Flame className="w-4 h-4 text-rose-400" />
                 Matryca Sprawdzonych Formatów Wirali (Reels / TikTok Hooks)
               </h3>
-              <span className="text-[10px] font-mono text-neutral-500">
-                Szablony o udowodnionej retencji 0-3s
-              </span>
+              <div className="flex items-center gap-3">
+                <span className="text-[10px] font-mono text-neutral-500">
+                  Szablony o udowodnionej retencji 0-3s
+                </span>
+                <button
+                  onClick={loadViralFormats}
+                  disabled={isLoadingFormats}
+                  className="px-2.5 py-1 rounded bg-[#161616] hover:bg-white hover:text-black border border-[rgba(255,255,255,0.1)] text-[10px] font-mono font-bold uppercase text-neutral-300 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  title="Jedno zapytanie do modelu"
+                >
+                  <RefreshCw className={`w-3 h-3 ${isLoadingFormats ? "animate-spin" : ""}`} />
+                  <span>
+                    {isLoadingFormats
+                      ? "Pobieram..."
+                      : viralFormats.length > 0
+                        ? "Odśwież · 1 zapytanie"
+                        : "Pobierz formaty · 1 zapytanie"}
+                  </span>
+                </button>
+              </div>
             </div>
+
+            {viralFormats.length === 0 && (
+              <div className="p-6 text-center bg-[#0E0E0E] border border-[rgba(255,255,255,0.05)] rounded-lg">
+                <p className="text-xs font-mono text-neutral-400">
+                  Formaty nie ładują się same, żeby wejście na kartę nie ruszało limitu.
+                </p>
+                <p className="text-[10px] font-mono text-neutral-500">
+                  Pobierz je przyciskiem wyżej, gdy będziesz ich potrzebować.
+                </p>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {viralFormats.map((fmt, fIdx) => (
