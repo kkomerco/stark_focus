@@ -32,6 +32,8 @@ import { CarouselStudioModal } from "../CarouselStudioModal";
 interface IncomingCarousel {
   title: string;
   slides: Array<{ headline: string; bodyText: string }>;
+  /** Opis od źródła (paczka dnia, recykler) — bez niego studio same sobie go układa. */
+  caption?: string;
 }
 
 interface AiRadarTabProps {
@@ -157,6 +159,34 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
     });
   }, []);
 
+  /**
+   * Karuzela po eksporcie jest materiałem tak samo jak zapisany kadr, więc wchodzi
+   * do `data.posts` — tam samo, gdzie studio 1:1 odkłada posty. Bez tego wpisu
+   * `nextEdition` oddawał ten sam numer edycji przy każdej karuzeli, a
+   * `usedHookFingerprints` nie miał jej tezy na liście wykluczeń. Drugiego
+   * magazynu na karuzelę nie budujemy.
+   */
+  const handleCarouselSaved = useCallback(
+    (carousel: { hook: string; title: string; caption: string; slideCount: number }) => {
+      const newPost: Post = {
+        id: "post-" + Date.now(),
+        title: carousel.hook || carousel.title,
+        platform: "Instagram",
+        format: `Karuzela ${carousel.slideCount} slajdów (4:5)`,
+        asset: "CAROUSEL_STUDIO",
+        caption: carousel.caption,
+        created_date: new Date().toISOString().split("T")[0],
+        notes: carousel.title ? `Studio karuzeli: ${carousel.title}.` : "Studio karuzeli.",
+      };
+      onUpdateData((prev) => ({
+        ...prev,
+        posts: [newPost, ...prev.posts],
+        xp: prev.xp + 50,
+      }));
+    },
+    [onUpdateData],
+  );
+
   useEffect(() => {
     // Status kontrolki jest darmowy. Formaty wiralowe NIE schodzą na mount: karta
     // Radaru jest montowana przy każdym przełączeniu zakładki, więc jedno wejście
@@ -174,7 +204,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
     setActiveSubModule("recycler");
     setSourceText(incomingCarousel.title);
     setRecycledData({ carousel: incomingCarousel });
-    openCarouselStudio(incomingCarousel);
+    openCarouselStudio(incomingCarousel, incomingCarousel.caption);
     onIncomingCarouselUsed?.();
   }, [incomingCarousel, onIncomingCarouselUsed, openCarouselStudio]);
 
@@ -1100,12 +1130,13 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                 </button>
               </div>
 
-              {/* Format 2: 5-Slajdowa Karuzela */}
+              {/* Format 2: karuzela 4:5 — etykieta nie obiecuje liczby slajdów,
+                  bo poniżej widać tylko te, które naprawdę przyszły */}
               <div className="p-4 bg-[#0E0E0E] border border-[rgba(255,255,255,0.1)] rounded-lg space-y-3">
                 <div className="flex items-center justify-between border-b border-[rgba(255,255,255,0.1)] pb-2">
                   <span className="text-xs font-mono font-bold text-white uppercase flex items-center gap-1.5">
                     <Layers className="w-4 h-4 text-emerald-400" />
-                    2. Karuzela 5 Slajdów
+                    2. Karuzela 4:5
                   </span>
                   <span className="text-[10px] font-mono text-neutral-400">
                     {Array.isArray(recycledData.carousel?.slides)
@@ -1432,6 +1463,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
           caption={carouselStudio.caption}
           handle={data.social_handles?.instagram || "stark_focus"}
           edition={nextEdition(data)}
+          onSave={handleCarouselSaved}
           onClose={() => setCarouselStudio(null)}
         />
       )}

@@ -3,7 +3,7 @@
 // Rodzic montuje modal tylko gdy jest otwarty, więc slajdy normalizujemy raz —
 // przy inicjalizacji stanu.
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { AlertCircle, Layers, Loader2, Download, FileArchive, X } from "lucide-react";
+import { AlertCircle, Download, FileArchive, Layers, Loader2, X } from "lucide-react";
 import {
   drawSlideToCanvas,
   exportAllSlidesAsZip,
@@ -12,16 +12,12 @@ import {
 import type { RenderSlideOptions } from "../utils/canvasRenderer";
 import type { CarouselFontFamily, SlideData, TopHeaderMode, VisualTheme } from "../types";
 import { seriesCaption, seriesLine } from "../lib/series";
+import { formatStarkCaption, stripHashtagTail, starkHashtags } from "../lib/caption";
+import { CAROUSEL_MAX_SLIDES, CAROUSEL_TARGET_SLIDES } from "../lib/carousel";
+import { ensureBrandFonts } from "../utils/fonts";
 
 const SLIDE_W = 1080;
 const SLIDE_H = 1350; // 4:5 — standard karuzeli IG/TikTok
-/**
- * Sufit wzięty z pomiaru, nie z wygody: na kontach poniżej 10k obserwujących
- * karuzele 11-20 slajdów wychodzą w 23,5% przypadków ponad medianę autora,
- * te 2-4 slajdy w 18,0% (Eden, 655 385 karuzeli). Canvasów nie robimy
- * w nieskończoność — 16 to pasmo, które da się jeszcze przejrzeć.
- */
-const MAX_SLIDES = 16;
 const HEADLINE_MAX = 160;
 const BODY_MAX = 700;
 
@@ -48,6 +44,8 @@ const HEADERS: Array<{ id: TopHeaderMode; label: string }> = [
 
 const FIELD =
   "w-full px-2.5 py-1.5 bg-[#050505] border border-[rgba(255,255,255,0.1)] rounded text-[11px] font-mono text-white focus:outline-none focus:border-white";
+const MINI_BTN =
+  "px-1.5 py-1 rounded bg-[#161616] hover:bg-white hover:text-black border border-[rgba(255,255,255,0.1)] text-[9px] font-mono uppercase font-bold text-neutral-300 transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed";
 
 interface CarouselStudioModalProps {
   title: string;
@@ -56,15 +54,37 @@ interface CarouselStudioModalProps {
   handle: string;
   /** Numer edycji w serii — stopka „STARK CODEX 07/52" robi z postów ciało pracy. */
   edition?: number;
+  /**
+   * Eksport karuzeli to skończony materiał, więc wchodzi do `data.posts` jak
+   * zapisany post: bez tego `nextEdition` liczyłby ten sam numer do skutku, a
+   * `usedHookFingerprints` nie miałby czego wykluczyć.
+   */
+  onSave?: (carousel: { hook: string; title: string; caption: string; slideCount: number }) => void;
   onClose: () => void;
 }
 
 const text = (value: unknown, max: number): string =>
   typeof value === "string" ? value.trim().slice(0, max) : "";
 
+/**
+ * Wyróżnienia bywają ciągiem („discipline, silence") albo listą od modelu.
+ * Lista wycięta do `""` znaczyła „ten slajd nie ma wyróżnień" — czyli pole
+ * istniało w odpowiedzi i znikało bez śladu.
+ */
+function highlightList(value: unknown, max: number): string {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => text(item, max))
+      .filter(Boolean)
+      .join(", ")
+      .slice(0, max);
+  }
+  return text(value, max);
+}
+
 /** Slajdy od modelu bywają stringami, nullami albo tablicą niepewną — nie throwujemy. */
 function normalizeSlides(raw: unknown): SlideData[] {
-  const list = Array.isArray(raw) ? raw.slice(0, MAX_SLIDES) : [];
+  const list = Array.isArray(raw) ? raw.slice(0, CAROUSEL_MAX_SLIDES) : [];
   const slides: SlideData[] = [];
 
   for (const entry of list) {
@@ -77,12 +97,12 @@ function normalizeSlides(raw: unknown): SlideData[] {
       continue;
     }
     const slide = entry as Record<string, unknown>;
-    const highlightWords = text(slide.highlightWords, 200);
+    const highlights = highlightList(slide.highlightWords, 200);
     const next: SlideData = {
       headline: text(slide.headline, HEADLINE_MAX),
       bodyText: text(slide.bodyText, BODY_MAX),
     };
-    if (highlightWords) next.highlightWords = highlightWords;
+    if (highlights) next.highlightWords = highlights;
     slides.push(next);
   }
 
@@ -90,23 +110,12 @@ function normalizeSlides(raw: unknown): SlideData[] {
   return slides.length > 0 ? slides : [{ headline: "", bodyText: "" }];
 }
 
-function fontSpecs(fontChoice: CarouselFontFamily): string[] {
-  const family =
-    fontChoice === "cinzel"
-      ? '"Cinzel"'
-      : fontChoice === "cormorant"
-        ? '"Cormorant Garamond"'
-        : fontChoice === "inter"
-          ? '"Inter"'
-          : '"Plus Jakarta Sans"';
-  return [`700 64px ${family}`, `400 32px ${family}`, '500 24px "Space Grotesk"'];
-}
-
-/** Canvas nie pobiera fontów sam — bez tego podgląd i eksport wychodzą w krój awaryjny. */
-async function warmBrandFonts(fontChoice: CarouselFontFamily): Promise<void> {
-  const fonts = (document as Document & { fonts?: FontFaceSet }).fonts;
-  if (!fonts) return;
-  await Promise.all(fontSpecs(fontChoice).map((spec) => fonts.load(spec).catch(() => null)));
+/** „1 slajd" / „2 slajdy" / „12 slajdów" — aplikacja jest po polsku, odmiana musi się zgadzać. */
+function pluralSlides(n: number): string {
+  if (n === 1) return "1 slajd";
+  const tail = n % 10;
+  const tens = n % 100;
+  return tail >= 2 && tail <= 4 && (tens < 12 || tens > 14) ? `${n} slajdy` : `${n} slajdów`;
 }
 
 const slugify = (value: string): string =>
@@ -122,6 +131,7 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
   caption,
   handle,
   edition = 1,
+  onSave,
   onClose,
 }) => {
   const [slides, setSlides] = useState<SlideData[]>(() => normalizeSlides(incomingSlides));
@@ -133,6 +143,8 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
   const [exportError, setExportError] = useState<string | null>(null);
 
   const canvasRefs = useRef<Array<HTMLCanvasElement | null>>([]);
+  // Ten sam ZIP pobrany trzy razy nie może dać trzech wpisów w historii postów.
+  const recordedRef = useRef(false);
 
   const buildOptions = useCallback(
     (index: number): RenderSlideOptions => ({
@@ -156,7 +168,7 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
     let cancelled = false;
     // 150 ms wstrzymania: pełny kadr 1080x1350 rysujemy dopiero gdy user przestanie pisać
     const timer = setTimeout(() => {
-      void warmBrandFonts(fontChoice).then(() => {
+      void ensureBrandFonts().then(() => {
         if (cancelled) return;
         slides.forEach((_, index) => {
           const canvas = canvasRefs.current[index];
@@ -169,7 +181,7 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [slides, buildOptions, fontChoice]);
+  }, [slides, buildOptions]);
 
   const patchSlide = (index: number, field: "headline" | "bodyText", value: string) => {
     const max = field === "headline" ? HEADLINE_MAX : BODY_MAX;
@@ -178,13 +190,32 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
     );
   };
 
+  const addSlide = () =>
+    setSlides((prev) =>
+      prev.length >= CAROUSEL_MAX_SLIDES ? prev : [...prev, { headline: "", bodyText: "" }],
+    );
+
+  const removeSlide = (index: number) =>
+    setSlides((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev));
+
+  const moveSlide = (index: number, delta: number) =>
+    setSlides((prev) => {
+      const target = index + delta;
+      if (target < 0 || target >= prev.length) return prev;
+      const next = [...prev];
+      const tmp = next[index];
+      next[index] = next[target];
+      next[target] = tmp;
+      return next;
+    });
+
   const handleDownloadPng = async (index: number) => {
     const canvas = canvasRefs.current[index];
     if (!canvas) return;
     setBusyPngIndex(index);
     setExportError(null);
     try {
-      await warmBrandFonts(fontChoice);
+      await ensureBrandFonts();
       const blob = await exportSlideToBlob(canvas, buildOptions(index));
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -199,26 +230,44 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
     }
   };
 
+  /**
+   * Opis ZIP-a jest zawsze nasz: gdy źródło dało własny opis, doklejamy numer
+   * edycji i hashtagi z `caption.ts`; gdy nie dał nic, stopkę układamy z tezy
+   * pierwszego slajdu. Dawniej wpadało tu „Slajd 1: …" pisane z etykiet UI,
+   * czyli polski podpis wychodził jako opis angielskiego materiału.
+   */
+  const buildCaptionText = useCallback(
+    (thesis: string): string => {
+      const source = text(caption, 5000);
+      const editionLine = seriesCaption(edition);
+      if (!source) return formatStarkCaption(thesis, [], editionLine);
+      const bare = stripHashtagTail(source);
+      if (!bare) return formatStarkCaption(thesis, [], editionLine);
+      return `${bare}\n\n${editionLine}\n\n${starkHashtags(`${thesis} ${bare}`).join(" ")}`;
+    },
+    [caption, edition],
+  );
+
   const handleDownloadZip = async () => {
     setIsExportingZip(true);
     setExportError(null);
     try {
-      await warmBrandFonts(fontChoice);
-      // Bez opisu od AI i tak pakujemy treść slajdów — ZIP ma być gotowy do publikacji
-      const captionText =
-        text(caption, 5000) ||
-        slides
-          .map((slide, i) => `Slajd ${i + 1}: ${slide.headline}\n${slide.bodyText}`)
-          .join("\n\n");
-      // Numer edycji idzie do opisu, nie tylko na kadr: to on robi z serii
-      // coś, co można zbierać.
+      await ensureBrandFonts();
+      // Teza karuzeli to pierwsze zdanie, które faktycznie jest na kadrach —
+      // bez niego opis nie miałby czego rozwijać.
+      const thesis = slides.find((slide) => slide.headline.trim())?.headline || title;
+      const captionText = buildCaptionText(thesis);
       await exportAllSlidesAsZip(slides, {
         ...buildOptions(0),
         slideNumber: 1,
         totalSlides: slides.length,
-        captionText: `${captionText}\n\n${seriesCaption(edition)}`,
+        captionText,
         zipName: `stark_karuzela_${slugify(title)}_${Date.now()}.zip`,
       });
+      if (!recordedRef.current) {
+        recordedRef.current = true;
+        onSave?.({ hook: thesis, title, caption: captionText, slideCount: slides.length });
+      }
     } catch {
       setExportError("Eksport ZIP nie powiódł się. Spróbuj ponownie.");
     } finally {
@@ -227,6 +276,7 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
   };
 
   const isEmptyCarousel = slides.every((slide) => !slide.headline && !slide.bodyText);
+  const isShort = slides.length < CAROUSEL_TARGET_SLIDES;
 
   return (
     <div className="fixed inset-0 z-60 bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200">
@@ -239,7 +289,7 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
               Studio Karuzeli 4:5
             </h3>
             <p className="text-[11px] font-mono text-neutral-400 mt-1 truncate">
-              {title || "Bez tytułu"} • {slides.length} slajdów • {SLIDE_W}×{SLIDE_H} px
+              {title || "Bez tytułu"} • {pluralSlides(slides.length)} • {SLIDE_W}×{SLIDE_H} px
             </p>
           </div>
           <button
@@ -311,30 +361,66 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
               Slajdy są puste — wpisz nagłówki i treść poniżej, a potem pobierz ZIP.
             </p>
           )}
+          {isShort && (
+            <p className="mb-3 p-2.5 bg-[#161616] border border-[rgba(255,255,255,0.12)] rounded text-[11px] font-mono text-neutral-300">
+              Materiał ma {pluralSlides(slides.length)}, kontrakt karuzeli to{" "}
+              {CAROUSEL_TARGET_SLIDES}+ slajdów. Bank treści (Codex) podaje pięć i nie dorabiamy ich
+              automatycznie — dodaj slajdy ręcznie albo weź karuzelę od modelu.
+            </p>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {slides.map((slide, index) => (
               <div
                 key={index}
                 className="p-3 bg-[#050505] border border-[rgba(255,255,255,0.1)] rounded-lg space-y-2"
               >
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <span className="text-[10px] font-mono font-bold uppercase text-neutral-400">
                     Slajd {index + 1} / {slides.length}
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => handleDownloadPng(index)}
-                    disabled={busyPngIndex !== null}
-                    className="flex items-center gap-1 px-2 py-1 rounded bg-[#161616] hover:bg-white hover:text-black border border-[rgba(255,255,255,0.1)] text-[10px] font-mono uppercase font-bold text-neutral-300 transition-all cursor-pointer disabled:opacity-40"
-                    title={`Pobierz slajd ${index + 1} jako PNG`}
-                  >
-                    {busyPngIndex === index ? (
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                    ) : (
-                      <Download className="w-3 h-3" />
-                    )}
-                    PNG
-                  </button>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => moveSlide(index, -1)}
+                      disabled={index === 0}
+                      className={MINI_BTN}
+                      title="Przesuń slajd wyżej"
+                    >
+                      Góra
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => moveSlide(index, 1)}
+                      disabled={index === slides.length - 1}
+                      className={MINI_BTN}
+                      title="Przesuń slajd niżej"
+                    >
+                      Dół
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeSlide(index)}
+                      disabled={slides.length <= 1}
+                      className={MINI_BTN}
+                      title="Usuń ten slajd"
+                    >
+                      Usuń
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadPng(index)}
+                      disabled={busyPngIndex !== null}
+                      className="flex items-center gap-1 px-2 py-1 rounded bg-[#161616] hover:bg-white hover:text-black border border-[rgba(255,255,255,0.1)] text-[10px] font-mono uppercase font-bold text-neutral-300 transition-all cursor-pointer disabled:opacity-40"
+                      title={`Pobierz slajd ${index + 1} jako PNG`}
+                    >
+                      {busyPngIndex === index ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <Download className="w-3 h-3" />
+                      )}
+                      PNG
+                    </button>
+                  </div>
                 </div>
 
                 <canvas
@@ -380,19 +466,34 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
               </span>
             )}
           </div>
-          <button
-            type="button"
-            onClick={handleDownloadZip}
-            disabled={isExportingZip}
-            className="px-5 py-2 rounded bg-white hover:bg-neutral-200 text-black text-xs font-mono font-bold uppercase tracking-wider transition-all disabled:opacity-50 cursor-pointer flex items-center gap-2"
-          >
-            {isExportingZip ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <FileArchive className="w-4 h-4" />
-            )}
-            <span>{isExportingZip ? "Pakuję slajdy..." : "Pobierz ZIP (4:5)"}</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={addSlide}
+              disabled={slides.length >= CAROUSEL_MAX_SLIDES}
+              className="flex items-center gap-1.5 px-3 py-2 rounded bg-[#161616] hover:bg-white hover:text-black border border-[rgba(255,255,255,0.12)] text-[11px] font-mono uppercase font-bold text-neutral-300 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              title={
+                slides.length >= CAROUSEL_MAX_SLIDES
+                  ? `Sufit karuzeli to ${CAROUSEL_MAX_SLIDES} slajdów`
+                  : "Dodaj pusty slajd na końcu"
+              }
+            >
+              <span>Dodaj slajd</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleDownloadZip}
+              disabled={isExportingZip}
+              className="px-5 py-2 rounded bg-white hover:bg-neutral-200 text-black text-xs font-mono font-bold uppercase tracking-wider transition-all disabled:opacity-50 cursor-pointer flex items-center gap-2"
+            >
+              {isExportingZip ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <FileArchive className="w-4 h-4" />
+              )}
+              <span>{isExportingZip ? "Pakuję slajdy..." : "Pobierz ZIP (4:5)"}</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>

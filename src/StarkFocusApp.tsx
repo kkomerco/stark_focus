@@ -99,10 +99,13 @@ export default function StarkFocusApp() {
     spec?: UniversalLayoutSpec;
   }>({});
   const [reelPreset, setReelPreset] = useState<{ reel: ReelHandoff; bgUrl?: string } | null>(null);
-  // Karuzela z Paczki Dnia czekająca aż Studio Karuzeli (zakładka Trendy) ją przejmie
+  // Karuzela z Paczki Dnia czekająca aż Studio Karuzeli (zakładka Trendy) ją przejmie.
+  // `caption` jedzie razem z treścią: bez niego studio budowało opis z etykiet UI,
+  // czyli polski podpis wychodził jako angielski materiał.
   const [pendingCarousel, setPendingCarousel] = useState<{
     title: string;
     slides: Array<{ headline: string; bodyText: string }>;
+    caption?: string;
   } | null>(null);
 
   // Generatory renderujemy warunkowo — ich efekt żyje w rodzicu, żeby zamknięcie okna
@@ -324,9 +327,9 @@ export default function StarkFocusApp() {
               setDailyPackOpen(false);
               handleSendToReel(reel);
             }}
-            onOpenCarouselStudio={(title, slides) => {
+            onOpenCarouselStudio={(title, slides, caption?: string): void => {
               setDailyPackOpen(false);
-              setPendingCarousel({ title, slides });
+              setPendingCarousel({ title, slides, caption });
               // Studio karuzeli działa w zakładce Trendy i przejmuje paczkę raz przy starcie
               setActiveTab(2);
             }}

@@ -24,6 +24,7 @@ import {
   drawNeonSignSlide,
   drawProtocolListSlide,
 } from "./canvas/layouts-v2";
+import { starkCta } from "../lib/caption";
 import { groupText, layerById, PRIMARY_LAYER_ID } from "./canvas/layerRoles";
 import { MIN_TEXT_PX, floorFor } from "./safeZones";
 
@@ -51,7 +52,7 @@ export interface RenderSlideOptions {
   highlightWords?: string;
   fontChoice?: CarouselFontFamily;
   isContinuous?: boolean; // Ciągłość karuzeli (delikatne łączniki krawędzi)
-  footerSignature?: string; // Stały podpis w stopce (np. "THE UNFORGIVING STANDARD")
+  footerSignature?: string; // Podpis w stopce kadru — numer edycji z `series.ts` ("STARK CODEX 07/52")
   bgStyle?: "flat_fog" | "procedural" | "image"; // Styl tła: płaskie/zamglone bez stałych obiektów
 }
 
@@ -1409,7 +1410,7 @@ export function drawSlideToCanvas(canvas: HTMLCanvasElement, options: RenderSlid
     highlightWords = "",
     fontChoice = "plus_jakarta",
     isContinuous = false,
-    footerSignature = "THE UNFORGIVING STANDARD",
+    footerSignature = "",
     bgStyle = "flat_fog",
   } = options;
 
@@ -1682,22 +1683,12 @@ export function drawSlideToCanvas(canvas: HTMLCanvasElement, options: RenderSlid
   let curY = layout.startY;
   const contentLeftX = 88;
 
-  // 5A. Slide Category / Eyebrow Indicator
-  const eyebrowFontSize = 15;
-  ctx.font = `bold ${eyebrowFontSize}px "Space Grotesk", monospace, sans-serif`;
-  ctx.fillStyle = highlightColor;
-  ctx.fillRect(contentLeftX, curY - 9, 6, 6);
-
+  // 5A. Pas nad nagłówkiem zostaje pusty. Wcześniejsze etykiety („HOOK // THE
+  // UNFORGIVING REALITY”, „RULE 04 // PRINCIPLE”, „CONCLUSION // THE FINAL
+  // DIRECTIVE”) kłamały — slajd nie jest zasadą, a teza nie jest cudzym
+  // zdaniem — i wypalały na kadrze zdanie, którego właściciel marki nie napisał.
+  // Geometrii nie ruszamy: to oddech nad tezą liczony w `computeFittedSlideLayout`.
   ctx.textAlign = "left";
-  const eyebrowLabel =
-    slideNumber === 1
-      ? "HOOK // THE UNFORGIVING REALITY"
-      : slideNumber === totalSlides
-        ? "CONCLUSION // THE FINAL DIRECTIVE"
-        : `RULE ${pad(slideNumber)} // PRINCIPLE`;
-  ctx.fillText(eyebrowLabel, contentLeftX + 16, curY);
-
-  // Bezpieczny odstęp przed nagłówkiem, zapobiegający nakładaniu się liter
   curY += layout.headlineFontSize + 14;
 
   // 5B. Headline z obsługą Enter i wyróżnianiem słów
@@ -1779,38 +1770,29 @@ export function drawSlideToCanvas(canvas: HTMLCanvasElement, options: RenderSlid
     ctx.fillText(`@${cleanHandle}`, contentLeftX, footerY + 6);
   }
 
-  // 6B. Prawa strona stopki: Interaktywny przycisk akcji (Pill badge)
-  if (slideNumber === totalSlides) {
-    const badgeW = 186;
-    const badgeH = 40;
-    const badgeX = width - 74 - badgeW;
-    const badgeY = footerY - 18;
-    drawPill(ctx, badgeX, badgeY, badgeW, badgeH, 8, highlightColor, undefined);
-
+  // 6B. Prawa strona stopki. Albo numer edycji (`footerSignature` z `series.ts`
+  // — był destructured i nigdy nierysowany, więc znikał z każdego slajda), albo
+  // na ostatnim kadrze zamykające wezwanie z puli marki (`starkCta`). Jedno
+  // obok drugiego nie zmieści się na wiersz, a dawniej stał tu napis
+  // „SAVE THIS POST ⚑” i „SWIPE ➔” na każdym wcześniejszym: dwa znaki, których
+  // w krojach marki nie ma, i zdanie bez autora.
+  const closingCta = slideNumber === totalSlides ? starkCta(`${headline} ${bodyText}`) : "";
+  if (closingCta) {
     ctx.font = 'bold 13px "Space Grotesk", monospace, sans-serif';
+    const badgeW = Math.min(
+      Math.round(ctx.measureText(closingCta).width) + 40,
+      Math.max(0, width - 74 - contentLeftX),
+    );
+    const badgeH = 40;
+    drawPill(ctx, width - 74 - badgeW, footerY + 6 - badgeH / 2, badgeW, badgeH, 8, highlightColor);
     ctx.fillStyle = "#080C14";
     ctx.textAlign = "center";
-    ctx.fillText("SAVE THIS POST ⚑", badgeX + badgeW / 2, footerY + 6);
-  } else {
-    const badgeW = 116;
-    const badgeH = 38;
-    const badgeX = width - 74 - badgeW;
-    const badgeY = footerY - 17;
-    drawPill(
-      ctx,
-      badgeX,
-      badgeY,
-      badgeW,
-      badgeH,
-      8,
-      "rgba(255, 255, 255, 0.04)",
-      "rgba(255, 255, 255, 0.18)",
-    );
-
-    ctx.font = 'bold 13px "Space Grotesk", monospace, sans-serif';
-    ctx.fillStyle = "#FFFFFF";
-    ctx.textAlign = "center";
-    ctx.fillText("SWIPE ➔", badgeX + badgeW / 2, footerY + 6);
+    ctx.fillText(closingCta, width - 74 - badgeW / 2, footerY + 11);
+  } else if (footerSignature) {
+    ctx.font = 'bold 14px "Space Grotesk", monospace, sans-serif';
+    ctx.fillStyle = "#94A3B8";
+    ctx.textAlign = "right";
+    ctx.fillText(footerSignature, width - 74, footerY + 5);
   }
 }
 
@@ -1839,7 +1821,10 @@ export async function exportAllSlidesAsZip(slides: SlideData[], options: any) {
       headline: slides[i].headline,
       bodyText: slides[i].bodyText,
       textOffsetY: slides[i].textOffsetY ?? options.textOffsetY,
-      highlightWords: slides[i].highlightWords ?? options.highlightWords,
+      // Bez wyróżnień slajdu: dawniej `?? options.highlightWords` przenosił
+      // słowa z pierwszego slajda na całą resztę, więc ZIP podświetlał zdania,
+      // których dany kadr w ogóle nie ma.
+      highlightWords: slides[i].highlightWords ?? "",
     });
     zip.file(`slide_${i + 1}.png`, blob);
   }

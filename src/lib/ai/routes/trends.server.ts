@@ -9,6 +9,7 @@ import {
   sendDegraded,
 } from "../normalize.server";
 import { clampText, clampTextList } from "../../limits";
+import { CAROUSEL_MAX_SLIDES, CAROUSEL_TARGET_SLIDES } from "../../carousel";
 import { formatStarkCaption, isPolishCopy, starkCaption, starkHashtags } from "../../caption";
 import { HOOK_CRAFT_PROMPT, auditHook, auditLine } from "../../hookCraft";
 import { hookFingerprint, maxSimilarity, SIMILARITY } from "../../similarity";
@@ -942,7 +943,7 @@ export function registerTrendsRoutes(app: MiniApp): void {
 
   I natychmiast zremiksuj ją na 4 gotowe formaty STARK:
   1. reel: rolka wideo [hook 0-3s, 3 precyzyjne fazy po angielsku, suggestedTheme: "obsidian_void"|"carbon_aura"|"crimson_eclipse"]
-  2. carousel: karuzela 12 slajdów (headline: 2-4 słowa ALL CAPS, bodyText: 2-3 zdania (25-40 słów), highlightWords). Slajd 1 to teza, slajdy 2-10 po jednej myśli każdy, slajd 11 cena za brak zmiany, slajd 12 zdanie do zapisania. Krótkie karuzele (2-4 slajdy) wychodzą ponad medianę autora rzadziej niż długie: 18,0% vs 23,5% na kontach poniżej 10k (Eden, 655 385 karuzeli).
+  2. carousel: karuzela ${CAROUSEL_TARGET_SLIDES} slajdów (headline: 2-4 słowa ALL CAPS, bodyText: 2-3 zdania (25-40 słów), highlightWords). Slajd 1 to teza, slajdy 2-${CAROUSEL_TARGET_SLIDES - 2} po jednej myśli każdy, slajd ${CAROUSEL_TARGET_SLIDES - 1} cena za brak zmiany, slajd ${CAROUSEL_TARGET_SLIDES} zdanie do zapisania. Krótkie karuzele (2-4 slajdy) wychodzą ponad medianę autora rzadziej niż długie: 18,0% vs 23,5% na kontach poniżej 10k (Eden, 655 385 karuzeli).
   3. manifesto: 1 bezkompromisowe zdanie podsumowujące sedno
   4. caption: 2-3 zdania po angielsku rozwijające myśl, bez hashtagów i bez CTA — ogon doklejamy u siebie
 
@@ -977,7 +978,11 @@ export function registerTrendsRoutes(app: MiniApp): void {
       const reelHook = craftLine(reel.hook, craft, "hook");
       const reelPhrases = craftLines(reel.phrases, craft, "line");
       const manifesto = craftLine(parsed?.manifesto, craft, "hook");
+      // Sufit kontraktu (`carousel.ts`) liczy się TU, nie w studiu: model, który
+      // odda czterdzieści slajdów, nie może dostać czterdziestu auditów i
+      // czterdziestu canvasów, a studio nie ma już własnej liczby.
       const slides = asArray(carousel.slides)
+        .slice(0, CAROUSEL_MAX_SLIDES)
         .map((slide) => {
           const item = (slide ?? {}) as Record<string, unknown>;
           // `headline` to 2-4 słowa: miara wiersza, bo hook żąda trzech słów i
