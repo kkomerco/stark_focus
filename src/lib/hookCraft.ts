@@ -102,6 +102,12 @@ export interface HookAudit {
  * dwóch dłuższych wyrazów, stąd lista tych, które rymują się ze wszystkim:
  * „what/that", „with/kit" — powtarzanie ich to nie rym, to angielszczyzna.
  */
+/**
+ * Końcówki, które gramatyka dokleja sama. Dwa słowa na „-ing" to nie rym,
+ * tylko angielski czas w dwóch miejscach zdania.
+ */
+const INFLECTION_TAILS = new Set(["ing", "ers", "est", "ies", "ied", "ion"]);
+
 const RHYME_STOP = new Set([
   "what",
   "that",
@@ -129,6 +135,9 @@ function hasRhyme(text: string): boolean {
   for (const word of text.toLowerCase().match(/[a-z]{4,}/g) ?? []) {
     if (RHYME_STOP.has(word)) continue;
     const tail = word.slice(-3);
+    // „losing / breathing" to ten sam końcie gramatyczny, nie rym — bez tego
+    // filtra każde -ing w dwóch słowach wywracało cały kadr.
+    if (INFLECTION_TAILS.has(tail)) continue;
     const prior = seen.get(tail);
     if (prior && prior !== word) return true;
     if (!prior) seen.set(tail, word);

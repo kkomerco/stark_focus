@@ -82,7 +82,7 @@ ${format.fields
 
 /** Reguła dopisana tylko tam, gdzie układ rysuje wiersze parami. */
 const PAIRING_RULE: Record<string, string> = {
-  cost: 'ZASADA PAR: „forfeit[0]" jest bezposlednia konsekwencja „cost[0]", „forfeit[1]" konsekwencja „cost[1]" itd. Ten sam rzad to ta sama scena i ten sam rekwizyt — nie dwie niezalezne listy straconych rzeczy.',
+  cost: 'ZASADA PAR: „forfeit[0]" jest bezposlednia konsekwencja „cost[0]", „forfeit[1]" konsekwencja „cost[1]" itd. Ten sam rzad to ta sama scena i ten sam rekwizyt — nie dwie niezalezne listy straconych rzeczy. Trzy rzedy to trzy ROZNE decyzje: zadne dwa wiersze nie moga zaczynac sie od tego samego slowa.',
 };
 
 /** Zdanie z kadru nie może wrócić w opisie — inaczej opis jest powtórką podglądu. */

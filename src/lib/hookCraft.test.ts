@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { auditHook, isAiSlop, HOOK_ARCHETYPES } from "./hookCraft";
+import { auditHook, auditLine, isAiSlop, HOOK_ARCHETYPES } from "./hookCraft";
 import { buildHookPrompt, rankHookCandidates } from "./ai/routes/hooks.server";
 
 describe("auditHook", () => {
@@ -30,6 +30,12 @@ describe("auditHook", () => {
   it("wyłapuje rym i pompa", () => {
     assert.equal(isAiSlop("Stand tall and never fall."), true);
     assert.equal(isAiSlop("You are the citadel of your own fate."), true);
+  });
+
+  it("dwa -ing to angielski, nie rym", () => {
+    // Fałsz tego testu wywracał cały kadr kosztów: sześć wariantów, zero
+    // przyjętych, bo „losing / breathing" brało się za rym.
+    assert.equal(auditLine("Losing the chapters you meant to read while breathing").ok, true);
   });
 });
 
