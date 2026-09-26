@@ -723,20 +723,25 @@ export function draw4GridCollageSlide(
 
   // Kadry u góry górnych ćwiartek i na dole dolnych: pas tezy idzie środkiem
   // kadru, więc tekst przyklejony do górnej krawędzi dolnych pól wpadał pod niego.
-  const pad = Math.round(width * 0.055);
+  // Wciecie kadrowe jest to samo co w kazdym innym ukladzie (9%); sciana
+  // wewnetrzna dostaje polowe, bo srodek kadru i tak dzieli czarna linia.
+  const pad = Math.round(width * 0.09);
+  const gutter = Math.round(pad / 2);
   const lineHeight = Math.round(width * 0.042 * textScale);
+  const columnWidth = halfW - gutter - pad;
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
   quadrants.forEach((q, idx) => {
     const line = (lines[idx] ?? "").trim();
     if (!line) return;
+    const textX = q.x === 0 ? pad : q.x + gutter;
     ctx.font = `500 ${lineHeight}px ${getFontFamilySpec("sans")}`;
-    const rows = wrapTextLines(ctx, line, halfW - pad * 2).slice(0, 3);
+    const rows = wrapTextLines(ctx, line, columnWidth).slice(0, 3);
     const blockTop =
       idx < 2 ? q.y + pad + lineHeight : q.y + halfH - pad - rows.length * lineHeight * 1.3;
     rows.forEach((row, rowIdx) => {
       ctx.fillStyle = ink;
-      ctx.fillText(row, q.x + pad, blockTop + rowIdx * lineHeight * 1.3);
+      ctx.fillText(row, textX, blockTop + rowIdx * lineHeight * 1.3);
     });
   });
 
