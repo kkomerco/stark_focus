@@ -29,6 +29,7 @@ import { starkCaption, starkCta, starkHashtags } from "../lib/caption";
 import { BRAND_ACCENT } from "../utils/starkBrandTheme";
 import { REEL_SAFE, bandCenter, safeBand } from "../utils/safeZones";
 import { beatTimesFrom, renderReelBed } from "../utils/reelAudio";
+import { exactExportSupported, exportReelExact } from "../utils/reelExport";
 import { reelChecklist } from "../lib/prepublish";
 import {
   easedReveal,
@@ -89,6 +90,10 @@ export type ViralReelFormat =
   | "five_beats_20s";
 
 const PRESET_STORAGE_KEY = "stark_reel_default_preset_v2";
+
+/** Kadr rolki jest jeden i stały: Full HD w pionie. */
+const REEL_WIDTH = 1080;
+const REEL_HEIGHT = 1920;
 
 const DEFAULT_PHRASES = ["Walk like a king, or walk like you don't care who the king is."];
 
@@ -1204,21 +1209,97 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
     };
   }, [duration, renderFrame]);
 
-  // Export rolki: nagranie z canvasu 1080x1920 w 30 FPS (mp4 albo webm, zależnie od
-  // przeglądarki) — zegarmistrzowski czas 1:1, bez podwajania, z proceduralnym bedem
+  const downloadBlob = (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    // Synchroniczne revoke() kasuje pobieranie w Firefox/Safari — pobieranie
+    // startuje asynchronicznie i potrzebuje adresu jeszcze przez chwilę.
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  };
+
+  /**
+   * Ścieżka pierwszego wyboru: klatka po klatce przez WebCodecs. Licznik
+   * klatek jest nasz, więc plik ma dokładnie `duration` sekund, a przy
+   * zamrożonej karcie nie zamienia się w jedną stojącą klatkę.
+   */
   const handleExportVideo = async () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
-    // `duration` bywa podsunięty przez AI ("8s", 999, NaN). Gdy nie jest liczbą,
-    // warunek końcowy pętli poniżej nigdy nie zachodzi, a MediaRecorder nagrywa
-    // w nieskończoność i dokłada chunki do pamięci.
-    const totalDur = Number(duration);
-    if (!Number.isFinite(totalDur) || totalDur < 1 || totalDur > 60) {
-      setToastMessage("Czas trwania rolki jest poza zakresem 1-60 s — nie ma czego nagrać.");
-      setTimeout(() => setToastMessage(null), 3500);
+    if (!exactExportSupported()) {
+      await exportReelWithRecorder();
       return;
     }
+
+    const totalDur = reelDurationOrWarn();
+    if (totalDur === null) return;
+
+    isExportingRef.current = true;
+    setIsExporting(true);
+    setExportProgress(0);
+    setIsPlaying(false);
+
+    try {
+      const bed = reelAudioEnabled
+        ? await renderReelBed({
+            durationSec: totalDur,
+            beatTimes: beatTimesFrom(getPhraseTimeline(phrases, totalDur, pacingMode)),
+          })
+        : null;
+
+      const blob = await exportReelExact({
+        canvas,
+        width: REEL_WIDTH,
+        height: REEL_HEIGHT,
+        durationSec: totalDur,
+        drawFrame: renderFrame,
+        audio: bed,
+        onProgress: setExportProgress,
+      });
+
+      isExportingRef.current = false;
+      setIsExporting(false);
+      setIsPlaying(true);
+      downloadBlob(
+        blob,
+        `stark_reel_${REEL_WIDTH}x${REEL_HEIGHT}_${totalDur}s_${selectedTheme}_${Date.now()}.mp4`,
+      );
+      setToastMessage(`Rolka pobrana klatka po klatce — ${totalDur}.00 s w 30 fps.`);
+      setTimeout(() => setToastMessage(null), 3000);
+    } catch (err) {
+      // Enkoder H.264 nie istnieje w każdej przeglądarce. Zamiast zostawiać
+      // użytkownika z błędem, wracamy na nagrywanie czasu rzeczywistego —
+      // gorszy plik, ale plik.
+      console.error("Eksport klatka-po-klatce nie wyszedł, wracam na MediaRecorder:", err);
+      isExportingRef.current = false;
+      setIsExporting(false);
+      await exportReelWithRecorder();
+    }
+  };
+
+  /** Sprawdzenie czasu trwania wspólnego dla obu ścieżek eksportu. */
+  const reelDurationOrWarn = (): number | null => {
+    // `duration` bywa podsunięty przez AI ("8s", 999, NaN). Gdy nie jest liczbą,
+    // warunek końcowy pętli poniżej nigdy nie zachodzi, a plik rósłby w nieskończoność.
+    const totalDur = Number(duration);
+    if (Number.isFinite(totalDur) && totalDur >= 1 && totalDur <= 60) return totalDur;
+    setToastMessage("Czas trwania rolki jest poza zakresem 1-60 s — nie ma czego nagrać.");
+    setTimeout(() => setToastMessage(null), 3500);
+    return null;
+  };
+
+  // Export rolki: nagranie z canvasu 1080x1920 w 30 FPS (mp4 albo webm, zależnie od
+  // przeglądarki) — ścieżka zapasowa, gdy przeglądarka nie ma enkodera H.264
+  const exportReelWithRecorder = async () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const totalDur = reelDurationOrWarn();
+    if (totalDur === null) return;
 
     isExportingRef.current = true;
     setIsExporting(true);
@@ -1606,7 +1687,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                   <span className="px-2 py-0.5 rounded bg-white text-black text-[9px] font-mono font-black uppercase tracking-wider">
                     {duration}.0s •{" "}
                     {reelFormat === "viral_loop_6s"
-                      ? "Pętla 200% Retencji"
+                      ? "Pętla bez szwu"
                       : reelFormat === "hook_payoff_5s"
                         ? "Wstrząs & Puenta"
                         : reelFormat === "dynamic_broll_cut"
@@ -1646,7 +1727,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                   id: "viral_loop_6s" as ViralReelFormat,
                   dur: 6 as ReelDuration,
                   name: "Pętla 6s",
-                  badge: "200%+ Retencji",
+                  badge: "pętla bez szwu",
                   desc: "1 Zdanie w pętli",
                 },
                 {
@@ -1935,7 +2016,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                 </label>
                 <span className="text-[9px] font-mono text-emerald-400 block mt-0.5">
                   {phrases.length === 1
-                    ? "1 zdanie w pętli 6s — widz czyta 2 razy, co daje 200% watch-time"
+                    ? "1 zdanie w pętli 6s — widz doczytuje je do końca"
                     : phrases.length === 2
                       ? "2 szybkie takty: Hook (0-2s) ➔ Puenta (2-5s)"
                       : "Klasyczna narracja: Hook ➔ Zasada ➔ Puenta"}
@@ -1979,7 +2060,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-neutral-200">
                         {phrases.length === 1
-                          ? "Główny Cytat (Pętla Retencji)"
+                          ? "Główny Cytat (pętla)"
                           : phrases.length === 2
                             ? idx === 0
                               ? "Takt 1: Hook (Wstrząs & Prowokacja)"
