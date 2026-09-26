@@ -301,14 +301,27 @@ export const DeconstructViralModal: React.FC<DeconstructViralModalProps> = ({
                   Dekonstrukcja wzorca
                 </h4>
                 <div className="space-y-1.5 text-[11px] font-mono">
-                  <p>
-                    <span className="text-slate-500">Typ hooka:</span>{" "}
-                    <span className="text-white">{textOf(deconstruction?.hookType)}</span>
-                  </p>
-                  <p>
-                    <span className="text-slate-500">Hook:</span>{" "}
-                    <span className="text-rose-300">{textOf(deconstruction?.hookText)}</span>
-                  </p>
+                  {textOf(deconstruction?.hookType) && (
+                    <p>
+                      <span className="text-slate-500">Typ hooka:</span>{" "}
+                      <span className="text-white">{textOf(deconstruction?.hookType)}</span>
+                    </p>
+                  )}
+                  {textOf(deconstruction?.hookText) ? (
+                    <p>
+                      <span className="text-slate-500">Z kadru:</span>{" "}
+                      <span className="text-rose-300">„{textOf(deconstruction?.hookText)}”</span>{" "}
+                      {textOf(deconstruction?.attribution) && (
+                        <span className="text-slate-500">
+                          — {textOf(deconstruction?.attribution)}
+                        </span>
+                      )}
+                    </p>
+                  ) : (
+                    <p className="text-slate-500">
+                      Cudzego zdania nie przepisujemy — nie było go widać na załączonym kadrze.
+                    </p>
+                  )}
                   <p>
                     <span className="text-slate-500">Struktura:</span>{" "}
                     <span className="text-slate-300">

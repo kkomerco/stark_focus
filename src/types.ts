@@ -297,7 +297,10 @@ export interface IdeaStreamResponse {
 // ===== Deconstruct Viral (analiza rynku z linków) =====
 export interface ViralDeconstruction {
   hookType: string;
+  /** Cudze zdanie przepisane z kadru. Puste, gdy nie było czego przepisać. */
   hookText: string;
+  /** Podpis pod cytatem: czyje jest i skąd. Bez tego to kradzież. */
+  attribution: string;
   structure: string[];
   psychologicalTriggers: string[];
   whyItWorks: string;
