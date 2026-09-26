@@ -649,18 +649,27 @@ export function draw4GridCollageSlide(
   options: {
     width?: number;
     height?: number;
+    /** Teza — pas przez środek kadru. */
     centerText: string;
+    /** Cztery kadry z tego samego tematu; każdy w swoim kwadrancie. */
+    lines?: string[];
     images: (CanvasImageSource | null)[];
     handle?: string;
     fontColor?: "white" | "black";
+    fontFamily?: string;
+    textScale?: number;
   },
 ) {
   const {
     width = 1080,
     height = 1920,
-    centerText = "This winter",
+    centerText = "",
+    lines = [],
     images = [null, null, null, null],
+    handle = "",
     fontColor = "white",
+    fontFamily = "cinzel",
+    textScale = 1,
   } = options;
 
   canvas.width = width;
@@ -670,35 +679,65 @@ export function draw4GridCollageSlide(
 
   const halfW = width / 2;
   const halfH = height / 2;
+  const ink = fontColor === "black" ? "#0A0A0A" : "#F3F0EA";
+  const sign = () => {
+    if (!handle) return;
+    ctx.font = "500 22px monospace";
+    ctx.fillStyle = "rgba(243,240,234,0.5)";
+    ctx.fillText(`@${handle.replace("@", "")}`, Math.round(width * 0.09), height - 60);
+  };
 
   const quadrants = [
-    { x: 0, y: 0, w: halfW, h: halfH },
-    { x: halfW, y: 0, w: halfW, h: halfH },
-    { x: 0, y: halfH, w: halfW, h: halfH },
-    { x: halfW, y: halfH, w: halfW, h: halfH },
+    { x: 0, y: 0 },
+    { x: halfW, y: 0 },
+    { x: 0, y: halfH },
+    { x: halfW, y: halfH },
   ];
 
   quadrants.forEach((q, idx) => {
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(q.x, q.y, q.w, q.h);
-    ctx.clip();
-
     const img = images[idx];
-    if (img && (img as any).complete !== false) {
+    if (img && (img as { complete?: boolean }).complete !== false) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(q.x, q.y, halfW, halfH);
+      ctx.clip();
       try {
-        drawImageCover(ctx, img, q.x, q.y, q.w, q.h);
-        ctx.fillStyle = "rgba(0, 0, 0, 0.15)";
-        ctx.fillRect(q.x, q.y, q.w, q.h);
+        drawImageCover(ctx, img, q.x, q.y, halfW, halfH);
+        ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
+        ctx.fillRect(q.x, q.y, halfW, halfH);
       } catch {
-        ctx.fillStyle = "#0F1420";
-        ctx.fillRect(q.x, q.y, q.w, q.h);
+        ctx.fillStyle = "#090D16";
+        ctx.fillRect(q.x, q.y, halfW, halfH);
       }
+      ctx.restore();
     } else {
-      ctx.fillStyle = "#090D16";
-      ctx.fillRect(q.x, q.y, q.w, q.h);
+      // Pusty kwadrans to nie pole do uzupełnienia: ciemna płyta z hairline
+      // trzyma siatkę, dopóki właściciel marki nie wrzuci zdjęć.
+      ctx.fillStyle = idx % 2 ? "#0A0C10" : "#0E1116";
+      ctx.fillRect(q.x, q.y, halfW, halfH);
+      ctx.strokeStyle = "rgba(243,240,234,0.08)";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(q.x + 24, q.y + 24, halfW - 48, halfH - 48);
     }
-    ctx.restore();
+  });
+
+  // Kadry u góry górnych ćwiartek i na dole dolnych: pas tezy idzie środkiem
+  // kadru, więc tekst przyklejony do górnej krawędzi dolnych pól wpadał pod niego.
+  const pad = Math.round(width * 0.055);
+  const lineHeight = Math.round(width * 0.042 * textScale);
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
+  quadrants.forEach((q, idx) => {
+    const line = (lines[idx] ?? "").trim();
+    if (!line) return;
+    ctx.font = `500 ${lineHeight}px ${getFontFamilySpec("sans")}`;
+    const rows = wrapTextLines(ctx, line, halfW - pad * 2).slice(0, 3);
+    const blockTop =
+      idx < 2 ? q.y + pad + lineHeight : q.y + halfH - pad - rows.length * lineHeight * 1.3;
+    rows.forEach((row, rowIdx) => {
+      ctx.fillStyle = ink;
+      ctx.fillText(row, q.x + pad, blockTop + rowIdx * lineHeight * 1.3);
+    });
   });
 
   // Czarne linie dzielące siatkę (10px)
@@ -708,27 +747,48 @@ export function draw4GridCollageSlide(
   ctx.moveTo(halfW, 0);
   ctx.lineTo(halfW, height);
   ctx.stroke();
-
   ctx.beginPath();
   ctx.moveTo(0, halfH);
   ctx.lineTo(width, halfH);
   ctx.stroke();
 
-  // Centralny napis szeryfowy z obrysem
-  const fontSize = 76;
-  ctx.font = `700 ${fontSize}px Georgia, "Times New Roman", serif`;
+  if (!centerText.trim()) {
+    sign();
+    return;
+  }
+
+  // Teza przez cały kadr: `fitLines` dobija rozmiar do szerokości, bo stałe
+  // 76 px wypychało jedno zdanie za obie krawędzie.
+  const usable = width - pad * 2;
+  const fitted = fitLines(
+    ctx,
+    centerText,
+    usable,
+    3,
+    (size) => `700 ${size}px ${getFontFamilySpec(fontFamily)}`,
+    Math.round(width * 0.082 * textScale),
+  );
+
+  const blockHeight = fitted.lines.length * fitted.size * 1.22;
+  const scrimTop = halfH - blockHeight / 2 - fitted.size * 0.5;
+  ctx.fillStyle = "rgba(5,5,5,0.82)";
+  ctx.fillRect(0, scrimTop, width, blockHeight + fitted.size);
+
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
+  ctx.font = `700 ${fitted.size}px ${getFontFamilySpec(fontFamily)}`;
+  ctx.fillStyle = ink;
+  fitted.lines.forEach((row, rowIdx) => {
+    ctx.fillText(
+      row,
+      width / 2,
+      halfH - blockHeight / 2 + fitted.size * 0.62 + rowIdx * fitted.size * 1.22,
+    );
+  });
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
 
-  const isBlackFont = fontColor === "black";
-  const textY = halfH;
-  ctx.strokeStyle = isBlackFont ? "#FFFFFF" : "#000000";
-  ctx.lineWidth = 14;
-  ctx.lineJoin = "round";
-  ctx.strokeText(centerText, width / 2, textY);
-
-  ctx.fillStyle = isBlackFont ? "#000000" : "#FFFFFF";
-  ctx.fillText(centerText, width / 2, textY);
+  sign();
 }
 
 // =========================================================================
@@ -754,7 +814,7 @@ export function drawMinimalBlackQuoteSlide(
   const {
     width = 1080,
     height = 1920,
-    mainText = "Silence cannot be misquoted.",
+    mainText = "",
     subText = "",
     align = "left",
     fontFamily = "sans",
@@ -887,74 +947,6 @@ export function drawMinimalBlackQuoteSlide(
   ctx.fillText(`@${cleanHandle}`, drawX, height - 120);
 }
 
-/**
- * Tło awaryjne, gdy model obrazów milczy (limit, brak klucza, awaria).
- * Wcześniejszą odpowiedzią był komunikat o rozliczeniach — użytkownik zostawał
- * z pustym kadrem i wykładem. Tu dostaje scenę marki: obsydian, światło z góry
- * i ziarno, bez cudzego zdjęcia.
- */
-export function drawSceneBackdrop(
-  canvas: HTMLCanvasElement,
-  width = 1080,
-  height = 1920,
-  seed = 1,
-) {
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return;
-
-  const base = ctx.createLinearGradient(0, 0, 0, height);
-  base.addColorStop(0, "#101114");
-  base.addColorStop(0.55, "#08090B");
-  base.addColorStop(1, "#030304");
-  ctx.fillStyle = base;
-  ctx.fillRect(0, 0, width, height);
-
-  // Światło padające z góry — przesuwane seedem, żeby kolejne kadry nie
-  // wyglądały jak ten sam plik.
-  const lightX = width * (0.3 + ((seed * 37) % 40) / 100);
-  const glow = ctx.createRadialGradient(
-    lightX,
-    height * 0.12,
-    40,
-    lightX,
-    height * 0.12,
-    height * 0.7,
-  );
-  glow.addColorStop(0, "rgba(243,240,234,0.10)");
-  glow.addColorStop(0.5, "rgba(243,240,234,0.03)");
-  glow.addColorStop(1, "rgba(0,0,0,0)");
-  ctx.fillStyle = glow;
-  ctx.fillRect(0, 0, width, height);
-
-  // Ziarno. Prosty LCG, żeby nie ciągnąć generatora liczb losowych dla tekstury.
-  let state = (seed * 2654435761) >>> 0;
-  const grain = ctx.createImageData(width, height);
-  for (let i = 0; i < width * height; i++) {
-    state = (state * 1664525 + 1013904223) >>> 0;
-    const v = 118 + (state % 22);
-    grain.data[i * 4] = v;
-    grain.data[i * 4 + 1] = v;
-    grain.data[i * 4 + 2] = v;
-    grain.data[i * 4 + 3] = 14;
-  }
-  ctx.putImageData(grain, 0, 0);
-
-  const vignette = ctx.createRadialGradient(
-    width / 2,
-    height / 2,
-    Math.min(width, height) * 0.25,
-    width / 2,
-    height / 2,
-    Math.max(width, height) * 0.75,
-  );
-  vignette.addColorStop(0, "rgba(0,0,0,0)");
-  vignette.addColorStop(1, "rgba(0,0,0,0.55)");
-  ctx.fillStyle = vignette;
-  ctx.fillRect(0, 0, width, height);
-}
-
 // =========================================================================
 // UNIWERSALNY ROUTER RENDEROWANIA UKŁADÓW
 // =========================================================================
@@ -1055,8 +1047,9 @@ function drawLayeredTextSlide(
 }
 
 /** Pierwsza warstwa tekstu z zachowaniem sensownej wartości, gdy jej brak. */
+/** Pusty wers to pusty kadr. Zdanie z biblioteki pod nie wszyte wyglądało jak treść, której nikt nie napisał. */
 function l1Fallback(spec: UniversalLayoutSpec): string {
-  return spec.textLayers[0]?.text?.trim() || "Silence cannot be misquoted.";
+  return spec.textLayers[0]?.text?.trim() ?? "";
 }
 
 export function renderUniversalLayout(
@@ -1088,16 +1081,18 @@ export function renderUniversalLayout(
       ? "black"
       : "white");
 
-  // Format 1: Kolaż 4 Kadrów
+  // Format 1: Kolaż 4 Kadrów — teza przez środek, każdy kadr w swojej ćwiartce.
   if (spec.gridType === "grid_2x2") {
-    const centerText = spec.textLayers[0]?.text || "This winter";
     draw4GridCollageSlide(canvas, {
       width,
       height,
-      centerText,
+      centerText: layerById(spec, PRIMARY_LAYER_ID) || "",
+      lines: groupText(spec, "step"),
       images,
       handle,
       fontColor,
+      fontFamily: spec.fontFamilyCustom || fontFamily,
+      textScale,
     });
     return;
   }
@@ -1140,7 +1135,7 @@ export function renderUniversalLayout(
       .flatMap((layer) => String(layer.text || "").split(/\r?\n/))
       .map((line) => line.trim())
       .filter(Boolean);
-    const textLines = lines.length > 0 ? lines : ["Silence cannot be misquoted."];
+    const textLines = lines;
     const scene = spec.layoutData?.scene || "wall";
 
     if (scene === "neon") {
@@ -1183,7 +1178,7 @@ export function renderUniversalLayout(
   }
 
   // Format 4: Domyślny, nieskazitelny Cytat na Czerni (9:16)
-  const l1 = spec.textLayers[0]?.text?.trim() || "Silence cannot be misquoted.";
+  const l1 = spec.textLayers[0]?.text?.trim() ?? "";
   // Subtext jest uwzględniany TYLKO jeśli użytkownik celowo dodał 2. warstwę z tekstem
   const l2 = spec.textLayers.length > 1 ? spec.textLayers[1]?.text?.trim() || "" : "";
   const mainText =

@@ -28,10 +28,10 @@ import {
   Package,
 } from "lucide-react";
 import { UniversalLayoutSpec, UniversalTextLayer } from "../types";
-import { renderUniversalLayout, drawMinimalBlackQuoteSlide } from "../utils/canvasRenderer";
+import { renderUniversalLayout } from "../utils/canvasRenderer";
 import { StructuredContent, structuredSpec } from "../utils/ideaLayout";
 import { FrameFormat, formatByGrid } from "../lib/formats";
-import { groupText, nextLayerId, PRIMARY_LAYER_ID } from "../utils/canvas/layerRoles";
+import { groupText, layerById, nextLayerId, PRIMARY_LAYER_ID } from "../utils/canvas/layerRoles";
 
 interface InspirationStudioProps {
   onSaveToPipeline?: (post: any) => void;
@@ -45,12 +45,6 @@ interface InspirationStudioProps {
   usedHooks?: string[];
   /** Nasze zdania o najlepszym wyniku — wzorzec rytmu dla modelu. */
   exemplarHooks?: string[];
-}
-
-export interface StoicSaying {
-  main: string;
-  sub?: string;
-  caption?: string;
 }
 
 /** Nazwy figur zwracanych przez `/api/ai/hooks` — w UI po polsku, w materiale po angielsku. */
@@ -76,6 +70,31 @@ export interface BatchPostItem {
   caption: string;
   template?: "none_solid";
   fontColor?: "white" | "black";
+}
+
+/**
+ * Kadr pozycji z serii: geometria, krój i skala aktualnego kadru, tekst tej
+ * pozycji. ZIP i pojedyncze PNG mają być tym, co widać w podglądzie — dawna
+ * ścieżka wołała własny renderer z własną skalą, więc archiwum rozjeżdżało się
+ * z kadrem zatwierdzonym sekundę wcześniej.
+ */
+function specForBatchItem(item: BatchPostItem, base: UniversalLayoutSpec): UniversalLayoutSpec {
+  const template = base.textLayers[0];
+  if (!template) return base;
+  const lines = [item.sayingMain, item.sayingSub ?? ""].map((line) => line.trim()).filter(Boolean);
+  return {
+    ...base,
+    layoutName: "Cytat",
+    gridType: "none_solid",
+    slotCount: 0,
+    slotLabels: [],
+    textLayers: lines.map((line, index) => ({
+      ...template,
+      id: index === 0 ? "t1" : `sub${index + 1}`,
+      text: line,
+    })),
+    caption: item.caption,
+  };
 }
 
 // Bogata biblioteka krojów pisma Stark Focus (wyłącznie wybrane kroje)
@@ -113,44 +132,26 @@ const SPEC_BLACK_QUOTE: UniversalLayoutSpec = {
       posX: 0.12,
     },
   ],
-  caption:
-    "SILENCE CANNOT BE MISQUOTED.\n\nLet your standards speak for you in silence. Execute without announcing it.\n\nSave this reminder. Follow @stark_focus.\n\n#stoicism #discipline #mindset #focus #starkfocus",
+  caption: formatStarkCaption("Silence cannot be misquoted."),
   detectedAudio: "Czysty dźwięk",
 };
 
+/** Kolaż przez `structuredSpec`, żeby preset pokazywał dokładnie tę geometrię,
+ * którą rysuje generator: wybrany format i wygenerowany kadr nie mogą się różnić
+ * układem. */
 const SPEC_COLLAGE_4: UniversalLayoutSpec = {
-  layoutName: "Kolaż 4 Kadrów",
-  gridType: "grid_2x2",
-  backgroundColor: "#000000",
-  dividerWidth: 8,
-  dividerColor: "#000000",
+  ...structuredSpec("Kolaż 4 Kadrów", "grid_2x2", {
+    primary: "This winter, disappear into obsession.",
+    steps: [
+      "The alarm nobody sees.",
+      "The first set, alone.",
+      "The cold kettle.",
+      "The drive back, again.",
+    ],
+  }),
   slotCount: 4,
   slotLabels: ["Kadr 1", "Kadr 2", "Kadr 3", "Kadr 4"],
-  textEffect: "outline",
-  fontFamilyCustom: "serif",
-  fontColorMode: "white",
-  textLayers: [
-    {
-      id: "t1",
-      text: "This winter",
-      fontFamily: "serif",
-      fontSize: 76,
-      fontWeight: "bold",
-      fontStyle: "italic",
-      casing: "preserve",
-      color: "#FFFFFF",
-      strokeColor: "#000000",
-      strokeWidth: 14,
-      align: "center",
-      posY: 0.5,
-    },
-  ],
-  caption: formatStarkCaption("This winter, disappear into obsession.", [
-    "Nobody is coming to save your potential.",
-    "Private victories build permanent foundations.",
-    "Let the results make the noise.",
-  ]),
-  detectedAudio: "Oryginalny dźwięk",
+  fontFamilyCustom: "cinzel",
 };
 
 /**
@@ -321,8 +322,6 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
   const [sayingTopic, setSayingTopic] = useState(
     "Dyscyplina stoicka, milczenie, wysokie standardy",
   );
-  // Tryb cytatu: pojedyncza linijka (~5 słów), dwa krótkie wersy po 1 linii lub auto
-  const [quoteStyleMode, setQuoteStyleMode] = useState<"single" | "two_lines" | "auto">("single");
 
   // Aktywna specyfikacja układu (domyślnie: czysty minimalistyczny cytat na czerni 9:16)
   const [spec, setSpec] = useState<UniversalLayoutSpec>(SPEC_BLACK_QUOTE);
@@ -458,62 +457,6 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
     });
   }, [spec, loadedImages, dimensions.width, dimensions.height, fontFamily, textScale, userHandle]);
 
-  // Zastosowanie wybranego powiedzonka na kadrze (1 uderzające zdanie LUB 2 ultra-krótkie wersy)
-  const handleApplySaying = (saying: StoicSaying) => {
-    const cleanMain = saying.main.trim();
-    const cleanSub = (saying.sub || "").trim();
-    const hasSub = cleanSub.length > 0;
-
-    setSpec((prev) => ({
-      ...prev,
-      textLayers: hasSub
-        ? [
-            {
-              id: "t1",
-              text: cleanMain,
-              fontFamily: prev.fontFamilyCustom || "sans",
-              fontSize: 68,
-              fontWeight: "bold",
-              fontStyle: "normal",
-              casing: "preserve",
-              color: "#FFFFFF",
-              align: "left",
-              posY: 0.42,
-              posX: 0.12,
-            },
-            {
-              id: "t2",
-              text: cleanSub,
-              fontFamily: prev.fontFamilyCustom || "sans",
-              fontSize: 42,
-              fontWeight: "normal",
-              fontStyle: "normal",
-              casing: "preserve",
-              color: "rgba(255, 255, 255, 0.72)",
-              align: "left",
-              posY: 0.5,
-              posX: 0.12,
-            },
-          ]
-        : [
-            {
-              id: "t1",
-              text: cleanMain,
-              fontFamily: prev.fontFamilyCustom || "sans",
-              fontSize: 82,
-              fontWeight: "bold",
-              fontStyle: "normal",
-              casing: "preserve",
-              color: "#FFFFFF",
-              align: "left",
-              posY: 0.46,
-              posX: 0.12,
-            },
-          ],
-      caption: starkCaption(cleanMain, saying.caption || ""),
-    }));
-  };
-
   /**
    * Studio nie prosi modelu o jedną odpowiedź, tylko o kilka, i pokazuje je do
    * wyboru. Limitem jest liczba zapytań na dobę, nie tokeny. Model dostaje
@@ -637,7 +580,7 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
         ...prev.textLayers,
         {
           id: newId,
-          text: "New line",
+          text: "",
           fontFamily: prev.textLayers[0]?.fontFamily || "sans",
           fontSize: prev.textLayers[0]?.fontSize || 62,
           fontWeight: "black",
@@ -792,17 +735,15 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
   // Bezpośrednie pobranie jednego posta z serii jako PNG (czysta biel na czerni 9:16)
   const handleDownloadSingleBatchPost = async (item: BatchPostItem) => {
     const offscreen = document.createElement("canvas");
-    offscreen.width = 1080;
-    offscreen.height = 1920;
-    drawMinimalBlackQuoteSlide(offscreen, {
-      width: 1080,
-      height: 1920,
-      mainText: item.sayingMain,
-      subText: item.sayingSub,
-      fontFamily: spec.fontFamilyCustom || "sans",
-      textScale: 1.0,
-      fontColor: "white",
+    offscreen.width = dimensions.width;
+    offscreen.height = dimensions.height;
+    renderUniversalLayout(offscreen, specForBatchItem(item, spec), [], {
+      width: dimensions.width,
+      height: dimensions.height,
+      fontFamily: spec.fontFamilyCustom || fontFamily,
+      textScale,
       handle: userHandle,
+      fontColor: "white",
     });
     const link = document.createElement("a");
     link.download = `stark_${item.pillar.toLowerCase().replace(/[^a-z0-9]/gi, "_")}_9x16.png`;
@@ -819,17 +760,15 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
       for (let i = 0; i < batchPosts.length; i++) {
         const item = batchPosts[i];
         const offscreen = document.createElement("canvas");
-        offscreen.width = 1080;
-        offscreen.height = 1920;
-        drawMinimalBlackQuoteSlide(offscreen, {
-          width: 1080,
-          height: 1920,
-          mainText: item.sayingMain,
-          subText: item.sayingSub,
-          fontFamily: spec.fontFamilyCustom || "sans",
-          textScale: 1.0,
-          fontColor: "white",
+        offscreen.width = dimensions.width;
+        offscreen.height = dimensions.height;
+        renderUniversalLayout(offscreen, specForBatchItem(item, spec), [], {
+          width: dimensions.width,
+          height: dimensions.height,
+          fontFamily: spec.fontFamilyCustom || fontFamily,
+          textScale,
           handle: userHandle,
+          fontColor: "white",
         });
         const dataUrl = offscreen.toDataURL("image/png");
         const base64 = dataUrl.split(",")[1];
@@ -893,7 +832,22 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
               key={option.gridType}
               type="button"
               onClick={() => {
-                setSpec(option.spec);
+                // Format zmienia geometrię, nie to, co właściciel marki napisał:
+                // wcześniej kliknięcie przywracało przykładowe zdanie presetu.
+                setSpec((prev) => {
+                  const thesis =
+                    layerById(prev, PRIMARY_LAYER_ID) || prev.textLayers[0]?.text?.trim() || "";
+                  const next = { ...option.spec };
+                  if (thesis) {
+                    next.textLayers = next.textLayers.map((layer, index) =>
+                      index === 0 ? { ...layer, text: thesis } : layer,
+                    );
+                  }
+                  next.fontFamilyCustom = prev.fontFamilyCustom;
+                  next.backgroundColor = prev.backgroundColor;
+                  return next;
+                });
+                setPinnedQuestion("");
                 setSlotImages(option.gridType === "grid_2x2" ? [null, null, null, null] : []);
               }}
               className={`px-3 py-1.5 rounded text-xs font-mono font-bold cursor-pointer transition-colors shrink-0 ${
@@ -1084,91 +1038,6 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
                 {activeFormat?.shape ?? "Jedno zdanie na kadr"}
               </span>
             </div>
-
-            {/* Wybór formatu cytatu: 1 zdanie (~5 słów) vs 2 krótkie wersy po 1 linii */}
-            {spec.gridType === "none_solid" && (
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-mono text-neutral-400 uppercase block">
-                  Układ Cytatu:
-                </label>
-                <div className="grid grid-cols-3 gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setQuoteStyleMode("single");
-                      if (spec.textLayers.length > 1) {
-                        setSpec((prev) => ({
-                          ...prev,
-                          textLayers: [
-                            {
-                              ...prev.textLayers[0],
-                              fontSize: 82,
-                              posY: 0.46,
-                            },
-                          ],
-                        }));
-                      }
-                    }}
-                    className={`py-2 px-2 rounded-lg text-[11px] font-mono font-bold transition-all cursor-pointer text-center ${
-                      quoteStyleMode === "single" || spec.textLayers.length === 1
-                        ? "bg-white text-black shadow-sm"
-                        : "bg-[#080808] border border-white/10 text-neutral-400 hover:text-white"
-                    }`}
-                  >
-                    1 zdanie (~5 słów)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setQuoteStyleMode("two_lines");
-                      if (spec.textLayers.length === 1) {
-                        setSpec((prev) => ({
-                          ...prev,
-                          textLayers: [
-                            {
-                              ...prev.textLayers[0],
-                              fontSize: 68,
-                              posY: 0.42,
-                            },
-                            {
-                              id: "t2",
-                              text: "standards remain.",
-                              fontFamily: prev.fontFamilyCustom || "sans",
-                              fontSize: 42,
-                              fontWeight: "normal",
-                              fontStyle: "normal",
-                              casing: "preserve",
-                              color: "rgba(255, 255, 255, 0.72)",
-                              align: "left",
-                              posY: 0.5,
-                              posX: 0.12,
-                            },
-                          ],
-                        }));
-                      }
-                    }}
-                    className={`py-2 px-2 rounded-lg text-[11px] font-mono font-bold transition-all cursor-pointer text-center ${
-                      quoteStyleMode === "two_lines" && spec.textLayers.length > 1
-                        ? "bg-white text-black shadow-sm"
-                        : "bg-[#080808] border border-white/10 text-neutral-400 hover:text-white"
-                    }`}
-                  >
-                    2 wersy (po 1 linii)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setQuoteStyleMode("auto")}
-                    className={`py-2 px-2 rounded-lg text-[11px] font-mono font-bold transition-all cursor-pointer text-center ${
-                      quoteStyleMode === "auto"
-                        ? "bg-white text-black shadow-sm"
-                        : "bg-[#080808] border border-white/10 text-neutral-400 hover:text-white"
-                    }`}
-                  >
-                    Auto / AI Mix
-                  </button>
-                </div>
-              </div>
-            )}
 
             {/* Temat / Prompt do generatora */}
             <div className="space-y-1.5">
@@ -1467,7 +1336,8 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
                     GENERATOR MASOWY POSTÓW // WYSOKA RÓŻNORODNOŚĆ IDEI
                   </h3>
                   <p className="text-[11px] font-mono text-neutral-400 mt-0.5">
-                    10 unikalnych filarów stoickich • Zero powtarzalności • Format 3D Studio Wall
+                    10 filarów stoickich w jednym kliknięciu • kadry rysowane tym samym kodem co
+                    podgląd
                   </p>
                 </div>
               </div>

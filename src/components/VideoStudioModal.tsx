@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import JSZip from "jszip";
 import { Post, ReelHandoff, VaultAsset } from "../types";
-import { STARK_CTA, starkHashtags } from "../lib/caption";
+import { starkCaption, starkCta, starkHashtags } from "../lib/caption";
 import { BRAND_ACCENT } from "../utils/starkBrandTheme";
 import { REEL_SAFE, bandCenter, safeBand } from "../utils/safeZones";
 import { beatTimesFrom, renderReelBed } from "../utils/reelAudio";
@@ -92,8 +92,9 @@ const PRESET_STORAGE_KEY = "stark_reel_default_preset_v2";
 
 const DEFAULT_PHRASES = ["Walk like a king, or walk like you don't care who the king is."];
 
-const DEFAULT_CAPTION =
-  "WALK LIKE A KING.\n\nOr walk like you don't care who the king is.\n\n3 rules of sovereign posture:\n1. Never seek validation from spectators.\n2. Hold your standards in absolute silence.\n3. Reclaim your inner territory.\n\nSave this reminder. Follow @stark_focus.";
+// Startowy opis to teza + nasze wezwanie, nie napisane tu „zasady". Stały
+// trójwers pod rolką sprawiał, że każda zimna karta miała identyczny opis.
+const DEFAULT_CAPTION = `${DEFAULT_PHRASES[0].toUpperCase()}\n\n${starkCta(DEFAULT_PHRASES[0])}`;
 
 // Hashtagi liczą się z treści rolki, nie ze stałej listy: Meta ucina ich
 // pięć, a sztywny ogon sprawiał, że każdy post miał identyczną stopkę.
@@ -171,7 +172,7 @@ function resolveCaption(reel: ReelHandoff | undefined, matched: ReelTemplate | n
   if (matched && asText(matched.captionShort)) return matched.captionShort;
   // Generator bez opisu: dokładamy choćby kadry i firmowe CTA — twardy default
   // wchodzi wyłącznie na zimny start studia.
-  return `${resolvePhrases(reel).join("\n")}\n\n${STARK_CTA}`;
+  return `${resolvePhrases(reel).join("\n")}\n\n${starkCta(reel.hook || "")}`;
 }
 
 /** Format z liczby kadrów — jedna miara dla pakietu i dla generatora. */
@@ -381,6 +382,9 @@ export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
     const canvas = canvasRef.current;
     if (!canvas) return;
     setIsExportingZip(true);
+    // Podgląd prowadzących rysuje po polsku — bez tego flaga eksportu
+    // „GÓRNY PASEK PLATFORMY" wypalał się na PNG-u idącym na Instagram.
+    isExportingRef.current = true;
     setToastMessage("Pakowanie zestawu ZIP (2 klatki PNG + opis)...");
 
     try {
@@ -438,13 +442,14 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      setToastMessage("✓ Pakiet ZIP został pobrany!");
+      setToastMessage("Pakiet ZIP pobrany.");
       setTimeout(() => setToastMessage(null), 3000);
     } catch (err) {
       console.error("ZIP export error:", err);
       setToastMessage("Błąd eksportu pakietu ZIP.");
       setTimeout(() => setToastMessage(null), 3000);
     } finally {
+      isExportingRef.current = false;
       setIsExportingZip(false);
       setIsPlaying(true);
     }
@@ -474,7 +479,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
         setToastMessage(
           vid.videoWidth < 720 || vid.videoHeight < 1280
             ? `Uwaga: wideo ma ${vid.videoWidth}x${vid.videoHeight} — na kadrze 1080x1920 będzie miękkie.`
-            : "✓ Załadowano własne tło wideo!",
+            : "Własne tło wideo załadowane.",
         );
       };
     } else if (file.type.startsWith("image/")) {
@@ -489,7 +494,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
         setToastMessage(
           img.naturalWidth < 720 || img.naturalHeight < 1280
             ? `Uwaga: tło ma ${img.naturalWidth}x${img.naturalHeight}, a kadr ma 1080x1920 — będzie rozciągnięte.`
-            : "✓ Załadowano własne tło graficzne!",
+            : "Własne tło graficzne załadowane.",
         );
       };
     }
@@ -537,7 +542,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
     };
     try {
       localStorage.setItem(PRESET_STORAGE_KEY, JSON.stringify(preset));
-      setToastMessage("✓ Zapisano Twój domyślny styl rolek!");
+      setToastMessage("Zapisano Twój domyślny styl rolek.");
       setTimeout(() => setToastMessage(null), 3000);
     } catch {
       // ignore
@@ -601,8 +606,11 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
 
           setPhrases(finalPhrases);
 
-          if (parsedData.duration) {
-            setDuration(parsedData.duration as ReelDuration);
+          // Trasa oddaje `suggestedDuration`; `duration` w odpowiedzi nie
+          // istnieje, więc każdy modelowy czas wypadał w sztywną gałąź.
+          const suggested = asReelDuration(parsedData.suggestedDuration);
+          if (suggested) {
+            setDuration(suggested);
           } else {
             if (reelFormat === "viral_loop_6s") setDuration(6);
             else if (reelFormat === "hook_payoff_5s") setDuration(5);
@@ -610,13 +618,11 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
             else setDuration(9);
           }
 
-          const shortC =
-            parsedData.captionShort ||
-            parsedData.caption ||
-            "Walk like a king, or walk like you don't care who the king is. Read caption.";
-          const deepC =
-            parsedData.captionDeep ||
-            `${shortC}\n\n3 sovereign rules for your day:\n1. Never negotiate with weakness.\n2. Execute in complete silence.\n3. Reclaim your internal sovereignty.\n\nSave this reel. Follow @stark_focus.`;
+          // Bez zdania od modelu opis to teza + CTA, a nie wymyślone pod
+          // rolka „zasady" — te same trzy wiersze znało każde konto.
+          const modelLine = String(parsedData.captionDeep || parsedData.captionShort || "");
+          const deepC = starkCaption(finalPhrases[0], modelLine);
+          const shortC = deepC;
 
           const validThemes: VisualTheme[] = [
             "obsidian_void",
@@ -651,7 +657,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
           timeRef.current = 0;
           setCurrentTime(0);
 
-          setToastMessage(`✓ Wygenerowano unikalną rolkę: "${freshTitle}"!`);
+          setToastMessage(`Rolka „${freshTitle}" — ${finalPhrases.length} kadrów.`);
           setTimeout(() => setToastMessage(null), 2800);
           setIsGeneratingAi(false);
           return;
@@ -687,7 +693,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
     timeRef.current = 0;
     setCurrentTime(0);
 
-    setToastMessage(`✓ Wygenerowano unikalny pomysł: "${formula.title}"!`);
+    setToastMessage(`Model nie odpowiedział — kadr z lokalnego banku treści: „${formula.title}".`);
     setTimeout(() => setToastMessage(null), 2800);
     setIsGeneratingAi(false);
   };
@@ -696,7 +702,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
   const handleCopyCaption = () => {
     const fullText = `${phrases.join("\n")}\n\n${caption}\n\n${hashtags.join(" ")}`;
     navigator.clipboard.writeText(fullText);
-    setToastMessage("✓ Skopiowano opis ze znacznikami do schowka!");
+    setToastMessage("Opis ze znacznikami w schowku.");
     setTimeout(() => setToastMessage(null), 2500);
   };
 
@@ -1323,7 +1329,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
         isExportingRef.current = false;
         setIsExporting(false);
         setIsPlaying(true);
-        setToastMessage(`✓ Rolka 1080x1920 pobrana! Dokładny czas trwania: ${totalDur}.00s`);
+        setToastMessage(`Rolka 1080x1920 pobrana — ${totalDur}.00s.`);
         setTimeout(() => setToastMessage(null), 3000);
       };
 
@@ -1390,7 +1396,12 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
   const handleExportPng = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    // Kadr jest rysowany dopiero tu i teraz — inaczej schodzi ostatnia klatka
+    // podglądu, razem z polskimi prowadzącymi.
+    isExportingRef.current = true;
+    renderFrame(timeRef.current);
     const url = canvas.toDataURL("image/png");
+    isExportingRef.current = false;
     const a = document.createElement("a");
     a.href = url;
     a.download = `stark_reel_frame_1080x1920_${Date.now()}.png`;
@@ -1830,7 +1841,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                             suggestedTheme: randScene.theme,
                           }));
                           setSelectedTheme(randScene.theme);
-                          setToastMessage(` Wylosowano nowe ujęcie: ${randScene.name}`);
+                          setToastMessage(`Nowe ujęcie w tle: ${randScene.name}`);
                           setTimeout(() => setToastMessage(null), 2500);
                         }}
                         className="px-2 py-1 rounded bg-[#202020] hover:bg-white hover:text-black text-neutral-300 text-[10px] font-mono font-bold border border-white/10 transition-all flex items-center gap-1 cursor-pointer"
@@ -1838,30 +1849,6 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                       >
                         <Sparkles className="w-3 h-3 text-rose-400" />
                         <span>Losuj inne (100+)</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          // `writeText` odpalony bez czekania i bez kopii
-                          // zapasowej udawał sukces, kiedy karta straciła fokus
-                          // albo clipboard nie był dostępny — nic nie wpadało
-                          // do schowka, a użytkownik widział „✓ skopiowano".
-                          try {
-                            await navigator.clipboard.writeText(activePrompt);
-                            setToastMessage("✓ Skopiowano prompt tła (9:16).");
-                          } catch {
-                            setToastMessage(
-                              "Nie udało się skopiować — prompt jest pod przyciskiem, zaznacz go ręcznie.",
-                            );
-                          }
-                          setTimeout(() => setToastMessage(null), 2500);
-                        }}
-                        className="px-2.5 py-1 rounded bg-[#202020] hover:bg-rose-400 hover:text-black text-rose-200 text-[10px] font-mono font-bold border border-rose-500/30 hover:border-rose-400 transition-all flex items-center gap-1.5 cursor-pointer"
-                        title="Skopiuj gotowy prompt do wygenerowania tego tła w Bing Image Creator / Midjourney"
-                      >
-                        <Copy className="w-3 h-3" />
-                        <span>Kopiuj prompt AI tła (9:16)</span>
                       </button>
                     </div>
                   </div>
