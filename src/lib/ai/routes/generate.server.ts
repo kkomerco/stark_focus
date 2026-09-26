@@ -1,21 +1,30 @@
 import type { MiniApp } from "../../mini-express.server";
 import { getGeminiClient, safeJsonParse, callGeminiWithFallback } from "../gemini.server";
-import { formatStarkCaption, isPolishCopy, starkHashtags } from "../../caption";
+import { asString, asStringArray, sendDegraded } from "../normalize.server";
+import { isPolishCopy, starkCaption, starkHashtags } from "../../caption";
 import { HOOK_CRAFT_PROMPT, auditHook } from "../../hookCraft";
+import { clampText, clampTextList } from "../../limits";
+import { hookFingerprint } from "../../similarity";
 
 export function registerGenerateRoutes(app: MiniApp): void {
   // GHOSTWRITE (STUDIO WIDEO - Powiązane logicznie narracje stoickie z zerową powtarzalnością)
   app.post("/api/ghostwrite", async (req, res) => {
-    const {
-      topic = "Ruthless stoic discipline, solitude, high-leverage focus, modern dark philosophy",
-      format = "four_phrases",
-      category = "all",
-      excludeTitles = [],
-    } = req.body || {};
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    // Każdy parametr z klienta idzie przez clamp: za każdy znak w prompcie
+    // płaci się z dziennej kasetki darmowego tieru.
+    const topic = clampText(body.topic, 300, "stoic discipline and quiet standards");
+    const category = clampText(body.category, 40, "all");
+    const excludeTitles = clampTextList(body.excludeTitles);
+    // Klient wysyła odciski, nie zdania — to ta sama miara po obu stronach.
+    const excludeHooks = clampTextList(body.excludeHooks);
+    // Odcisk to znormalizowany tekst, więc policzenie go drugi raz nic nie
+    // zmienia — można zestawiać wprost z tym, co zwróci model.
+    const taken = new Set(excludeHooks);
 
     // Import matrycy zapasowej dla 100% gwarancji niepowtarzalności nawet przy offline / limitach quota
     const { getRandomUniqueFormula } = await import("../../../data/ideaMatrix");
 
+    const format = clampText(body.format, 24, "four_phrases");
     const targetFormat =
       format === "single_quote" ||
       format === "two_phases" ||
@@ -44,6 +53,14 @@ export function registerGenerateRoutes(app: MiniApp): void {
   FORMAT REQUIREMENT: Exactly ${count} phrase(s) for format "${targetFormat}".
   TOPIC / ANGLE: ${topic}
   CATEGORY: ${category}
+  ${
+    excludeHooks.length
+      ? `JUŻ OPUBLIKOWANE — nie powtarzaj tych linii ani ich mutacji:\n${excludeHooks
+          .slice(0, 30)
+          .map((line) => `- ${line}`)
+          .join("\n")}\n`
+      : ""
+  }
 
   CRITICAL RULES FOR PHRASE LENGTH & READABILITY:
   - Every phrase MUST be ULTRA-SHORT: strictly 3 to 7 words maximum per phrase!
@@ -101,39 +118,32 @@ ${HOOK_CRAFT_PROMPT}
     "suggestedDuration": ${count === 4 ? 11 : count === 3 ? 9 : count === 2 ? 8 : 7}
   }`;
 
-        let response;
-        try {
-          response = await callGeminiWithFallback(ai, {
-            contents: prompt,
-            config: {
-              temperature: 1.0,
-              responseMimeType: "application/json",
-              abortSignal: AbortSignal.timeout(4500),
-            },
-          });
-        } catch {
-          response = await callGeminiWithFallback(ai, {
-            contents: prompt,
-            config: {
-              temperature: 1.0,
-              responseMimeType: "application/json",
-              abortSignal: AbortSignal.timeout(4500),
-            },
-          });
-        }
+        // Jedno wywołanie na kliknięcie. Wcześniejszy `catch` powtarzał ten sam
+        // prompt, więc normalna, dłuższa odpowiedź była przerywana po 4,5 s i
+        // płatna drugi raz — a `gemini.server.ts` ma własny budżet i backoff.
+        const response = await callGeminiWithFallback(ai, {
+          contents: prompt,
+          config: {
+            temperature: 1.0,
+            responseMimeType: "application/json",
+            abortSignal: AbortSignal.timeout(20000),
+          },
+        });
 
         const rawText = response.text || "";
         const parsed = safeJsonParse(rawText);
+        const phrases = asStringArray(parsed?.phrases, count + 2).map((phrase) => phrase.trim());
         // Instrukcja jest po polsku, więc model potrafi odpowiedzieć po
         // polsku — a to idzie prosto na kadr. Taki wynik jest błędem, nie
         // wariantem: spadam na bank treści, który jest po angielsku.
         if (isPolishCopy(rawText)) {
           console.warn("Ghostwriter oddał materiał po polsku — używam banku treści.");
         } else if (
-          parsed &&
-          Array.isArray(parsed.phrases) &&
-          parsed.phrases.length === count &&
-          parsed.phrases.every((phrase: unknown) => auditHook(String(phrase)).ok)
+          phrases.length === count &&
+          phrases.every((phrase) => auditHook(phrase).ok) &&
+          // Anty-powtórka jest jedna: to, co już wyszło na konto, nie wraca
+          // tylko dlatego, że model akurat na to trafił.
+          phrases.every((phrase) => !taken.has(hookFingerprint(phrase)))
         ) {
           const fallbackThemes = [
             "obsidian_void",
@@ -143,22 +153,24 @@ ${HOOK_CRAFT_PROMPT}
             "carbon_aura",
           ];
           const randomTheme = fallbackThemes[Math.floor(Math.random() * fallbackThemes.length)];
+          const hook = phrases[0];
+          // Bez zdania od modelu nie dokładamy mu z głowy ani tytułu, ani
+          // opisu: stałe „Execute in total silence…" i „Marmurowy Posąg"
+          // wracają pod każdą rolką, czyli tym, czego marka ma pełne konto.
           return res.json({
-            title: parsed.title || "Stoic Sovereign Protocol",
-            phrases: parsed.phrases,
-            captionShort: parsed.captionShort || "Execute in total silence. Save this reminder.",
-            captionDeep:
-              parsed.captionDeep ||
-              formatStarkCaption("Most men lose self-respect in small private compromises."),
+            title: asString(parsed?.title).slice(0, 60) || hook.slice(0, 60),
+            phrases,
+            captionShort: starkCaption(hook, asString(parsed?.captionShort)),
+            captionDeep: starkCaption(hook, asString(parsed?.captionDeep)),
             // Hashtagi liczymy z fraz rolki — nigdy od modelu.
-            hashtags: starkHashtags(Array.isArray(parsed.phrases) ? parsed.phrases.join(" ") : ""),
-            suggestedTheme: parsed.suggestedTheme || randomTheme,
-            suggestedBackground: parsed.suggestedBackground || "Marmurowy Posąg Stoika w Cieniu",
+            hashtags: starkHashtags(phrases.join(" ")),
+            suggestedTheme: asString(parsed?.suggestedTheme) || randomTheme,
+            suggestedBackground: asString(parsed?.suggestedBackground),
             backgroundRationale:
-              parsed.backgroundRationale ||
+              asString(parsed?.backgroundRationale) ||
               "Głęboka czerń i chłodny marmur skupiają wzrok widza wyłącznie na surowym tekście dyscypliny.",
             suggestedDuration:
-              parsed.suggestedDuration ||
+              parsed?.suggestedDuration ||
               (count === 4 ? 11 : count === 3 ? 9 : count === 2 ? 8 : 7),
             content: JSON.stringify(parsed),
           });
@@ -191,6 +203,8 @@ ${HOOK_CRAFT_PROMPT}
       }),
     };
 
-    return res.json(result);
+    // Bank treści musi być oznaczony: bez tego rolka z matrycy udawałaby
+    // odpowiedź modelu i wchodziła do historii jako wygenerowana.
+    return sendDegraded(res, result);
   });
 }
