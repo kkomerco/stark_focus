@@ -24,32 +24,41 @@ export const STARK_CTAS: readonly string[] = [
 export const STARK_CTA = STARK_CTAS[0];
 
 /**
- * Pytanie do przypiętego komentarza.
- *
- * Komentarze są jedyną walutą, którą konto poniżej 10k obserwujących może
- * wygenerować bez zasięgu: algorytm czyta je jako sygnał, a widz, który
- * odpowiedział jednym zdaniem, wraca na post częściej niż ten, co tylko
- * scrollnął. Pytanie ma być konkretne i jedno — „what do you think?" nie
- * odpowiada nikt.
+ * Pytania pogrupowane po kształcie materiału. Jedna uniwersalna lista dawała
+ * „which number hits closest?" pod cytatem bez ani jednej liczby — pytający
+ * wyglądał jak generator, a widz nie miał czego odpowiadać.
  */
-export const STARK_QUESTIONS: readonly string[] = [
-  "Which of these did you do this week?",
-  "What changes if you do the first one tomorrow at the same hour?",
-  "Which line is the one you keep avoiding?",
-  "What is the version of this you keep postponing?",
-  "Which number hits closest?",
-];
+const STARK_QUESTIONS: Record<"list" | "single", readonly string[]> = {
+  list: [
+    "Which of these did you do this week?",
+    "What changes if you do the first one tomorrow at the same hour?",
+    "Which line is the one you keep avoiding?",
+    "Which step breaks first when you are tired?",
+  ],
+  single: [
+    "What is the version of this you keep postponing?",
+    "Which sentence did you read twice?",
+    "Who is this about — and will you say it to them tomorrow?",
+    "What did you trade for staying comfortable?",
+  ],
+};
 
 /**
  * Treść przypięta pod postem: pierwsze zdanie materiału (kontekst, nie
- * powtórka opisu) plus jedno pytanie. Rotacja po treści, nie po losie —
- * ten sam post daje ten sam komentarz.
+ * powtórka opisu) plus jedno pytanie. Pytanie pisze model, kiedy je ma —
+ * bez niego rotujemy po puli dobranej do kształtu kadru.
  */
-export function starkPinned(hook: string, lines: readonly string[] = []): string {
+export function starkPinned(
+  hook: string,
+  lines: readonly string[] = [],
+  question = "",
+  shape: "list" | "single" = "single",
+): string {
   const clean = (value: string) => value.replace(/[*#"]/g, "").trim();
   const first = lines.map(clean).find(Boolean) ?? clean(hook);
-  const question = STARK_QUESTIONS[hashKey(`${hook}|${first}`) % STARK_QUESTIONS.length];
-  return `${clean(first)}\n\n${question}`;
+  const pool = STARK_QUESTIONS[shape];
+  const ask = clean(question) || pool[hashKey(`${hook}|${first}`) % pool.length];
+  return [clean(first), ask].filter(Boolean).join("\n\n");
 }
 
 const BRAND_HASHTAG = "#starkfocus";
@@ -185,6 +194,22 @@ const POLISH_WORDS =
 
 export function isPolishCopy(text: string): boolean {
   return POLISH_DIACRITICS.test(text) || POLISH_WORDS.test(text);
+}
+
+/**
+ * Pod jednym zdaniem na czerni nie ma czego rozpisywać na pięć akapitów.
+ * `line` to jedno zdanie od modelu (albo pierwsze zdanie tego, co dał), a
+ * teza zostaje na kadrze — dlatego tu jej nie powtarzamy.
+ */
+export function starkShortCaption(hook: string, line = ""): string {
+  const sentence = line
+    .split(/(?<=[.!?])\s+/)
+    .map((part) => part.replace(/[*#"]/g, "").trim())
+    .find((part) => part && !isPolishCopy(part) && !/^#|@/.test(part));
+  const body = sentence && sentence.toLowerCase() !== hook.toLowerCase().trim() ? sentence : "";
+  return [body, starkCta(`${hook} ${body}`), starkHashtags(`${hook} ${body}`).join(" ")]
+    .filter(Boolean)
+    .join("\n\n");
 }
 
 /**

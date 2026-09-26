@@ -140,7 +140,10 @@ ${altTextFor(main)}
 
     // Komentarz przypięty to osobny plik, nie dopisek do opisu: wkleja się go
     // po publikacji, a bez niego dyskusja pod postem zaczyna się od zera.
-    folder.file("komentarz-przypieity.txt", starkPinned(post.title, [main, sub]));
+    folder.file(
+      "komentarz-przypieity.txt",
+      starkPinned(post.title, [main, sub], "", post.format === "Cytat" ? "single" : "list"),
+    );
     files++;
   }
 

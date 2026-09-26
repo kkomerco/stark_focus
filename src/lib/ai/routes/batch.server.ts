@@ -112,11 +112,7 @@ export function buildBatchFallback() {
     pillarId: p.id,
     sayingMain: p.hook,
     sayingSub: p.sub,
-    caption: formatStarkCaption(p.hook, [
-      "Hold your standards without debate.",
-      "Execute especially in private.",
-      "Reclaim your sovereignty.",
-    ]),
+    caption: formatStarkCaption(p.hook),
     template: "none_solid" as const,
     fontColor: "white" as const,
   }));

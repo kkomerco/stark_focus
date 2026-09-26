@@ -47,15 +47,13 @@ const listOf = <T,>(value: unknown): T[] => (Array.isArray(value) ? (value as T[
 /** Które układy z przepisu da się złożyć z samych warstw tekstu. */
 function specFromBlueprint(bp: ViralBlueprint): UniversalLayoutSpec {
   const name =
-    bp.gridType === "concept_diagram"
-      ? "Diagram"
-      : bp.gridType === "protocol_list"
-        ? "Protokół"
-        : bp.gridType === "cost_vs_reward"
-          ? "Koszt i utrata"
-          : bp.gridType === "studio_wall_3d"
-            ? "Napis w scenie"
-            : "Cytat na Czerni";
+    bp.gridType === "protocol_list"
+      ? "Protokół"
+      : bp.gridType === "cost_vs_reward"
+        ? "Koszt i utrata"
+        : bp.gridType === "studio_wall_3d"
+          ? "Napis w scenie"
+          : "Cytat na Czerni";
   return structuredSpec(
     name,
     bp.gridType,
@@ -64,11 +62,7 @@ function specFromBlueprint(bp: ViralBlueprint): UniversalLayoutSpec {
       closing: bp.subline,
       steps: bp.steps,
     },
-    bp.gridType === "concept_diagram"
-      ? { diagram: bp.diagram ?? "chart" }
-      : bp.gridType === "studio_wall_3d"
-        ? { scene: bp.scene ?? "wall" }
-        : {},
+    bp.gridType === "studio_wall_3d" ? { scene: bp.scene ?? "wall" } : {},
   );
 }
 
@@ -237,7 +231,6 @@ export const DeconstructViralModal: React.FC<DeconstructViralModalProps> = ({
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-[10px] font-mono text-rose-300 uppercase">
                           {bp.gridType}
-                          {bp.gridType === "concept_diagram" ? ` / ${bp.diagram}` : ""}
                         </span>
                         {bp.needsImage && (
                           <span className="text-[9px] font-mono text-slate-500 border border-[#2C354B] px-1.5 py-0.5 rounded">

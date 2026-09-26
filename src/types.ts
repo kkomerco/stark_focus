@@ -140,13 +140,7 @@ export interface UniversalLayoutSpec {
     | "grid_2x2"
     | "studio_wall_3d"
     | "protocol_list"
-    | "cost_vs_reward"
-    | "concept_diagram"
-    /** Kadry liczbowe: dowód zamiast podpisu. */
-    | "life_grid"
-    | "time_audit"
-    /** Kadr z maską — chłopak po prawej, teza po lewej. */
-    | "character_scene";
+    | "cost_vs_reward";
   /**
    * Tryb sceny kadru. Cała treść językowa mieszka w `textLayers`
    * (patrz `canvas/layerRoles.ts`) — nie ma tu miejsca na zdania, bo dopóki
@@ -154,25 +148,6 @@ export interface UniversalLayoutSpec {
    */
   layoutData?: {
     scene?: "wall" | "neon" | "billboard";
-    /** Jaki szkic rysuje układ „diagram + wiersz". */
-    diagram?: "chart" | "scales" | "path" | "split";
-    /**
-     * Zmienny ziarnisty odcisk dla diagramu: ten sam wers, inny szkic. Bez
-     * tego „raz wykorzystałem i już nie mogę" było prawdą — wykres był jeden.
-     */
-    diagramSeed?: string;
-    /**
-     * Liczby napędzające kadry liczbowe. To geometria, nie treść: zdania
-     * i tak mieszkają w `textLayers`, ale bez tych pól siatka nie wie,
-     * ile kwadratów zamalować.
-     */
-    yearsLived?: number;
-    horizonYears?: number;
-    screenHours?: number;
-    sleepHours?: number;
-    workHours?: number;
-    /** Poza maski; puste = poza liczona z treści. */
-    pose?: string;
   };
   backgroundColor: string;
   dividerWidth: number;

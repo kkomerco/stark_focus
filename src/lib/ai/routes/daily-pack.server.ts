@@ -9,8 +9,7 @@ import { clampInt, clampText, LIMITS } from "../../limits";
 import { HOOK_CRAFT_PROMPT, exemplarBlock } from "../../hookCraft";
 import { asArray, asString, asStringArray, oneOf } from "../normalize.server";
 import { publishableLine, publishableLines } from "../../prepublish";
-import { starkCaption } from "../../caption";
-import { STARK_CTA, starkHashtags } from "../../caption";
+import { starkCaption, starkHashtags, starkShortCaption } from "../../caption";
 
 const REEL_THEMES = [
   "obsidian_void",
@@ -91,7 +90,7 @@ function buildOfflinePack(topic: string, reelsCount: number, excludeHooks: strin
 
   const post = {
     headline: rule.hook0to3s,
-    body: `${rule.corePrinciple}\n\n${rule.actionDirective}\n\n${STARK_CTA}\n\n${starkHashtags(rule.corePrinciple).join(" ")}`,
+    body: starkShortCaption(rule.hook0to3s, rule.corePrinciple),
     bingPrompt: getRandomBackgroundScene(pick(REEL_THEMES)).bingPrompt,
   };
 
@@ -161,7 +160,7 @@ ${exemplarBlock(exemplars)}
    - duration: liczba sekund 7-10
    - captionShort: krótki opis po angielsku (max 2 linie, z CTA "Save this")
 2. Karuzela 4:5: title + 12 slajdów {headline, bodyText}. Długość nie jest kaprysem: u kont poniżej 10k obserwujących karuzele 11-20 slajdów wychodzą ponad medianę autora w 23,5% przypadków, te 2-4 slajdy w 18,0% (Eden, 655 385 karuzeli). Rozkład: slajd 1 to teza, nie tytuł; slajdy 2-10 po jednej myśli każdy, z niedomkniętym zdaniem na końcu (to ono każe swipnąć); slajd 11 konkretna cena za brak zmiany; slajd 12 jedno zdanie do zapisania. bodyText to 2-3 zdania po angielsku (25-40 słów): najpierw bolesna obserwacja, potem konkret, na koniec cena za jej brak. Jedno zdanie na slajd nie zatrzymuje czytelnika.
-3. Grafika 1:1: {headline, body, bingPrompt} — bingPrompt po angielsku do generatora obrazów (ciemne, brutalistyczne, minimalistyczne tło, 1:1, bez tekstu, moody lighting)
+3. Grafika 1:1: {headline, body, bingPrompt} — bingPrompt po angielsku do generatora obrazów (ciemne, brutalistyczne, minimalistyczne tło, 1:1, bez tekstu, moody lighting). \`headline\` to jedno zdanie na czarnym kadrze (4-10 słów, PO ANGIELSKU), a \`body\` to JEDNO zdanie po angielsku (max 22 słowa), które dopowiada to, czego nie widać na kadrze. Pod cytatem na czerni nie ma wykładu na pięć linijek — nikt go nie czyta, a kadr zostaje tym samym zdaniem.
 
 Zwróć WYŁĄCZNIE poprawny JSON wg schematu:
 {
@@ -220,7 +219,7 @@ Zwróć WYŁĄCZNIE poprawny JSON wg schematu:
         carousel: { title: asString(parsed.carousel?.title, "Stark Focus Codex"), slides },
         post: {
           headline: postHeadline,
-          body: asString(parsed.post?.body),
+          body: starkShortCaption(postHeadline, asString(parsed.post?.body)),
           bingPrompt: asString(parsed.post?.bingPrompt),
         },
       });

@@ -1,6 +1,5 @@
 import { BRAND_ACCENT } from "../starkBrandTheme";
 import { centeredTop as centeredInBand, safeBand } from "../safeZones";
-import { drawDoodle, type Expression, type Pose } from "../character/rig";
 import {
   drawImageCover,
   fitLines,
@@ -115,10 +114,14 @@ export function drawProtocolListSlide(
 
   const margin = Math.round(width * 0.09);
   const usable = width - margin * 2;
+  // Krój bierze się z wyboru w studiu, nie z naszego domyślnego — bez tego
+  // rozwijana lista czcionek nie zmieniała kadru.
+  const headline = getFontFamilySpec(options.headlineFont || "cinzel");
+  const body = getFontFamilySpec(options.bodyFont || "sans");
 
   // Teza: Cinzel, duży ale z powietrzem — agresywnie, bez przesady.
   const statementSize = Math.round(width * 0.072);
-  ctx.font = `700 ${statementSize}px ${getFontFamilySpec("cinzel")}`;
+  ctx.font = `700 ${statementSize}px ${headline}`;
   const statementLines = wrapTextLines(ctx, stripHighlightSyntax(options.statement), usable).slice(
     0,
     4,
@@ -128,7 +131,7 @@ export function drawProtocolListSlide(
   const stepSize = Math.round(width * 0.036);
   const numberSize = Math.round(width * 0.03);
   const steps = options.steps.slice(0, 4);
-  ctx.font = `500 ${stepSize}px ${getFontFamilySpec("sans")}`;
+  ctx.font = `500 ${stepSize}px ${body}`;
   const stepLineCounts = steps.map((step) =>
     Math.min(
       3,
@@ -148,7 +151,22 @@ export function drawProtocolListSlide(
 
   let y = centeredTop(blockHeight, height);
 
+  // Pieczęć z liczbą — przy tezie, nie w rogu: róg to strefa interfejsu.
+  // Malowana PRZED krokami, bo inaczej „72h" wchodziło w ostatni wiersz listy.
+  if (options.figure) {
+    const figureSize = Math.round(width * 0.13);
+    ctx.textAlign = "right";
+    ctx.font = `700 ${figureSize}px ${headline}`;
+    ctx.fillStyle = "rgba(243,240,234,0.13)";
+    ctx.fillText(options.figure, width - margin, y + blockHeight - stepGap + figureSize * 0.2);
+    ctx.textAlign = "left";
+  }
+
   ctx.fillStyle = INK;
+  // Linia jest łamana pod krój tezy, więc malować ją trzeba tym samym krojem:
+  // po ustawieniu pisma kroków canvas dorysowywał tezę połową rozmiaru, a kadr
+  // zwijał się w wąski słupek przy lewej krawędzi.
+  ctx.font = `700 ${statementSize}px ${headline}`;
   for (const line of statementLines) {
     ctx.fillText(line, margin, y);
     y += statementSize * 1.2;
@@ -161,15 +179,15 @@ export function drawProtocolListSlide(
   steps.forEach((step, index) => {
     // `wrapTextLines` mierzy bieżącym ctx.font — kroki muszą być łamane krojem
     // kroków, inaczej linia liczona pod 32 px wychodzi za margines przy 36 px.
-    ctx.font = `500 ${stepSize}px ${getFontFamilySpec("sans")}`;
+    ctx.font = `500 ${stepSize}px ${body}`;
     const stepLines = wrapTextLines(ctx, stripHighlightSyntax(step), usable - stepSize * 2.4);
     const lineTop = y;
 
-    ctx.font = `800 ${numberSize}px ${getFontFamilySpec("sans")}`;
+    ctx.font = `800 ${numberSize}px ${body}`;
     ctx.fillStyle = accent;
     ctx.fillText(String(index + 1).padStart(2, "0"), margin, lineTop + numberSize);
 
-    ctx.font = `500 ${stepSize}px ${getFontFamilySpec("sans")}`;
+    ctx.font = `500 ${stepSize}px ${body}`;
     ctx.fillStyle = INK;
     stepLines.slice(0, 3).forEach((line, lineIndex) => {
       ctx.fillText(line, margin + stepSize * 2.4, lineTop + stepSize + lineIndex * stepSize * 1.35);
@@ -177,16 +195,6 @@ export function drawProtocolListSlide(
 
     y += Math.min(stepLines.length, 3) * stepSize * 1.35 + stepGap;
   });
-
-  // Pieczęć z liczbą — przy tezie, nie w rogu: róg to strefa interfejsu.
-  if (options.figure) {
-    const figureSize = Math.round(width * 0.13);
-    ctx.textAlign = "right";
-    ctx.font = `700 ${figureSize}px ${getFontFamilySpec("cinzel")}`;
-    ctx.fillStyle = "rgba(243,240,234,0.13)";
-    ctx.fillText(options.figure, width - margin, y - stepGap + figureSize * 0.2);
-    ctx.textAlign = "left";
-  }
 
   footer(ctx, width, height, options.handle);
 }
@@ -217,6 +225,8 @@ export function drawCostVsRewardSlide(
   const gutter = Math.round(width * 0.06);
   const columnWidth = (width - margin * 2 - gutter) / 2;
   const contentWidth = width - margin * 2;
+  const headline = getFontFamilySpec(options.headlineFont || "cinzel");
+  const bodyFont = getFontFamilySpec(options.bodyFont || "sans");
 
   const questionSize = Math.round(width * 0.062);
   const question = fitLines(
@@ -224,7 +234,7 @@ export function drawCostVsRewardSlide(
     stripHighlightSyntax(options.question),
     contentWidth,
     3,
-    (size) => `700 ${size}px ${getFontFamilySpec("cinzel")}`,
+    (size) => `700 ${size}px ${headline}`,
     questionSize,
   );
 
@@ -235,14 +245,14 @@ export function drawCostVsRewardSlide(
         stripHighlightSyntax(options.closing),
         contentWidth,
         2,
-        (size) => `700 ${size}px ${getFontFamilySpec("cinzel")}`,
+        (size) => `700 ${size}px ${headline}`,
         closingSize,
       )
     : null;
 
   const headerSize = Math.round(width * 0.026);
   const bodySize = Math.round(width * 0.034);
-  ctx.font = `500 ${bodySize}px ${getFontFamilySpec("sans")}`;
+  ctx.font = `500 ${bodySize}px ${bodyFont}`;
   // Wysokość wiersza liczona z realnie złamanego tekstu, nie z liczby pozycji.
   const rowLines = (items: string[]) =>
     items.slice(0, 5).map((item) => {
@@ -269,7 +279,7 @@ export function drawCostVsRewardSlide(
     (closing ? closingGap + closingBlock : 0);
 
   let y = centeredTop(blockHeight, height);
-  ctx.font = `700 ${question.size}px ${getFontFamilySpec("cinzel")}`;
+  ctx.font = `700 ${question.size}px ${headline}`;
   ctx.fillStyle = INK;
   for (const line of question.lines) {
     ctx.fillText(line, margin, y);
@@ -282,7 +292,7 @@ export function drawCostVsRewardSlide(
   const rowsTop = y + tableTopGap;
 
   const column = (title: string, items: string[], x: number, highlight: boolean) => {
-    ctx.font = `800 ${headerSize}px ${getFontFamilySpec("sans")}`;
+    ctx.font = `800 ${headerSize}px ${bodyFont}`;
     ctx.fillStyle = highlight ? accent : DIM;
     ctx.fillText(title.toUpperCase(), x, rowsTop - headerSize * 1.5);
     hairline(
@@ -293,7 +303,7 @@ export function drawCostVsRewardSlide(
       highlight ? accent : "rgba(243,240,234,0.2)",
     );
 
-    ctx.font = `500 ${bodySize}px ${getFontFamilySpec("sans")}`;
+    ctx.font = `500 ${bodySize}px ${bodyFont}`;
     items.slice(0, 5).forEach((item, index) => {
       const lines = wrapTextLines(ctx, stripHighlightSyntax(item), columnWidth).slice(0, 3);
       const cellHeight = lines.length * bodySize * 1.3;
@@ -314,7 +324,7 @@ export function drawCostVsRewardSlide(
   column("What it forfeits", options.forfeit, margin + columnWidth + gutter, true);
 
   if (closing) {
-    ctx.font = `700 ${closing.size}px ${getFontFamilySpec("cinzel")}`;
+    ctx.font = `700 ${closing.size}px ${headline}`;
     ctx.fillStyle = accent;
     const closingTop = rowsTop + rowCount * rowSpan + closingGap;
     closing.lines.forEach((line, index) => {
@@ -327,323 +337,6 @@ export function drawCostVsRewardSlide(
 
 export interface SignSlideOptions extends LayoutTheme {
   textLines: string[];
-}
-
-/**
- * Rysunek jest tylko szkicem linii — bez zdjęcia, bez cudzej grafiki, bez
- * generowania obrazów. Dzięki temu kadr da się zrobić dziś, na darmowym tierze,
- * i nikt nie może zarzucić kopiowania.
- */
-export type DiagramKind = "chart" | "scales" | "path" | "split";
-
-export interface ConceptDiagramOptions extends LayoutTheme {
-  /** Wers nad rysunkiem — krótki, wielkimi literami. */
-  line: string;
-  diagram: DiagramKind;
-  /** Jedno zdanie pod rysunkiem; puste = czysty szkic. */
-  caption?: string;
-  /** Ziarno do „Losuj inny szkic" — ten sam wers, inna kompozycja. */
-  seed?: string;
-}
-
-const STROKE = "rgba(243,240,234,0.82)";
-
-/**
- * Generator liczb z odcisku tekstu: ten sam wers daje ten sam szkic (da się
- * go powtórzyć i porównać), inny wers — inny. Diagram nie może być jedną
- * grafiką z biblioteki, bo po jednym użyciu przestaje cokolwiek znaczyć.
- */
-function rngFor(seedText: string) {
-  let state = 2166136261;
-  for (let i = 0; i < seedText.length; i++) {
-    state ^= seedText.charCodeAt(i);
-    state = Math.imul(state, 16777619) >>> 0;
-  }
-  return () => {
-    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
-    return state / 4294967296;
-  };
-}
-
-function polyline(ctx: CanvasRenderingContext2D, points: { x: number; y: number }[]) {
-  ctx.beginPath();
-  points.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)));
-  ctx.stroke();
-}
-
-/**
- * Trzy kształty linii, bo „wykres z dołkiem" po trzech postach przestaje
- * cokolwiek mówić: załamanie i powrót, równe wspinanie się, plateau po którym
- * kreska wreszcie przebija sufit.
- */
-function drawChart(
-  ctx: CanvasRenderingContext2D,
-  cx: number,
-  cy: number,
-  size: number,
-  seed: string,
-) {
-  const next = rngFor(seed);
-  const shape = Math.floor(next() * 3);
-  const points = 5 + Math.floor(next() * 4);
-  const box = { x: cx - size * 0.34, y: cy - size * 0.34, w: size * 0.68, h: size * 0.68 };
-  ctx.strokeRect(box.x, box.y, box.w, box.h);
-
-  const inner = { x: box.x + 10, y: box.y + 10, w: box.w - 20, h: box.h - 20 };
-  const walk = Array.from({ length: points }, (_, i) => {
-    const t = i / (points - 1);
-    const noise = (next() - 0.5) * inner.h * 0.18;
-    const depth = 0.35 + next() * 0.5;
-    let y: number;
-    if (shape === 0) {
-      // Najpierw równo, potem uderzenie w dno i powrót do góry.
-      y =
-        t < 0.45
-          ? inner.y + noise * 0.4
-          : t < 0.7
-            ? inner.y + inner.h * depth
-            : inner.y + inner.h * 0.1;
-    } else if (shape === 1) {
-      y = inner.y + inner.h * (1 - t) * 0.9 + noise;
-    } else {
-      y = t < 0.65 ? inner.y + inner.h * 0.62 + noise * 0.3 : inner.y + inner.h * 0.12;
-    }
-    return { x: inner.x + inner.w * t, y };
-  });
-  polyline(ctx, walk);
-
-  // Kropka na końcu: kadr ma mówić, że linia gdzieś stanęła, a nie że faluje.
-  const last = walk[walk.length - 1];
-  ctx.beginPath();
-  ctx.arc(last.x, last.y, Math.max(3, size * 0.014), 0, Math.PI * 2);
-  ctx.fillStyle = ctx.strokeStyle as string;
-  ctx.fill();
-
-  if (shape === 2) {
-    // Kreska „standard", do której plateau nie doszło — wyznacza ją sufit kadru.
-    ctx.setLineDash([size * 0.03, size * 0.025]);
-    ctx.beginPath();
-    ctx.moveTo(inner.x, inner.y + inner.h * 0.3);
-    ctx.lineTo(inner.x + inner.w, inner.y + inner.h * 0.3);
-    ctx.stroke();
-    ctx.setLineDash([]);
-  }
-}
-
-/** Która szala ciągnie w dół i ile na niej leży — to jest teza kadru. */
-function drawScales(
-  ctx: CanvasRenderingContext2D,
-  cx: number,
-  cy: number,
-  size: number,
-  seed: string,
-) {
-  const next = rngFor(seed);
-  const tilt = (0.06 + next() * 0.1) * (next() > 0.5 ? 1 : -1);
-  const arm = size * (0.3 + next() * 0.08);
-  const top = cy - size * 0.42;
-  const heavyY = cy + size * 0.34;
-
-  ctx.beginPath();
-  ctx.moveTo(cx, top);
-  ctx.lineTo(cx, heavyY);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(cx, top);
-  ctx.lineTo(cx - arm, top + tilt * size);
-  ctx.moveTo(cx, top);
-  ctx.lineTo(cx + arm, top - tilt * size);
-  ctx.stroke();
-
-  [-1, 1].forEach((side) => {
-    const x = cx + arm * side;
-    const y = top + tilt * size * side;
-    const drop = size * (0.14 + next() * 0.06);
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    ctx.lineTo(x - size * 0.13, y + drop);
-    ctx.lineTo(x + size * 0.13, y + drop);
-    ctx.closePath();
-    ctx.stroke();
-    // Ciężar widać po liczbie kresek na szali, nie po opisie.
-    const pips = side * tilt > 0 ? 3 + Math.floor(next() * 3) : 1 + Math.floor(next() * 2);
-    for (let i = 0; i < pips; i++) {
-      const px = x - size * 0.09 + (i * size * 0.18) / Math.max(1, pips - 1);
-      ctx.beginPath();
-      ctx.moveTo(px, y + drop + size * 0.03);
-      ctx.lineTo(px, y + drop + size * 0.075);
-      ctx.stroke();
-    }
-  });
-}
-
-/** Ilu przystanków droga ma i którędy wychodzi ze zdjęcia. */
-function drawPath(
-  ctx: CanvasRenderingContext2D,
-  cx: number,
-  cy: number,
-  size: number,
-  seed: string,
-) {
-  const next = rngFor(seed);
-  const stops = 3 + Math.floor(next() * 3);
-  const drop = next() > 0.5 ? 1 : -1;
-  const pts = Array.from({ length: stops + 2 }, (_, i) => {
-    const t = i / (stops + 1);
-    return {
-      x: cx - size * 0.44 + size * 0.88 * t,
-      y: cy + Math.sin(t * Math.PI * (1 + next())) * size * 0.3 * drop,
-    };
-  });
-
-  ctx.beginPath();
-  ctx.moveTo(pts[0].x, pts[0].y);
-  for (let i = 1; i < pts.length - 1; i++) {
-    const midX = (pts[i].x + pts[i + 1].x) / 2;
-    const midY = (pts[i].y + pts[i + 1].y) / 2;
-    ctx.quadraticCurveTo(pts[i].x, pts[i].y, midX, midY);
-  }
-  ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
-  ctx.stroke();
-
-  const end = pts[pts.length - 1];
-  ctx.beginPath();
-  ctx.moveTo(end.x, end.y);
-  ctx.lineTo(end.x - size * 0.07, end.y - size * 0.02);
-  ctx.moveTo(end.x, end.y);
-  ctx.lineTo(end.x - size * 0.02, end.y + size * 0.07);
-  ctx.stroke();
-
-  // Kropki to dni/rundy — bez nich „ścieżka" jest tylko zawijasem.
-  pts.slice(1, -1).forEach((p) => {
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, Math.max(2.5, size * 0.012), 0, Math.PI * 2);
-    ctx.fillStyle = ctx.strokeStyle as string;
-    ctx.fill();
-  });
-}
-
-/** Podział to nie dwie identyczne połówki: raz jedną stronę wypełnia czas, raz drugą. */
-function drawSplit(
-  ctx: CanvasRenderingContext2D,
-  cx: number,
-  cy: number,
-  size: number,
-  seed: string,
-) {
-  const next = rngFor(seed);
-  const panelW = size * (0.34 + next() * 0.08);
-  const panelH = size * (0.44 + next() * 0.12);
-  const gap = size * 0.04;
-  const left = cx - panelW - gap / 2;
-  const right = cx + gap / 2;
-  const top = cy - panelH / 2;
-  ctx.strokeRect(left, top, panelW, panelH);
-  ctx.strokeRect(right, top, panelW, panelH);
-
-  const busyLeft = next() > 0.6;
-  const marks = 8 + Math.floor(next() * 10);
-  const fill = (x0: number, x1: number, count: number) => {
-    for (let i = 0; i < count; i++) {
-      const px = x0 + next() * (x1 - x0);
-      const py = top + 12 + next() * (panelH - 24);
-      ctx.beginPath();
-      ctx.moveTo(px - 6, py - 6);
-      ctx.lineTo(px + 6, py + 6);
-      ctx.moveTo(px + 6, py - 6);
-      ctx.lineTo(px - 6, py + 6);
-      ctx.stroke();
-    }
-  };
-  fill(left + 8, left + panelW - 8, busyLeft ? marks : 0);
-  fill(right + 8, right + panelW - 8, busyLeft ? 0 : marks);
-
-  // Kreska dzieląca: „tu stałem" oddzielone od „tu jestem".
-  ctx.setLineDash([size * 0.028, size * 0.022]);
-  ctx.beginPath();
-  ctx.moveTo(cx, top - size * 0.03);
-  ctx.lineTo(cx, top + panelH + size * 0.03);
-  ctx.stroke();
-  ctx.setLineDash([]);
-}
-
-/**
- * DIAGRAM + WIERSZ — kadr, w którym rysunek niesie myśl, a nie ją ilustruje.
- * Wers stoi u góry małą kursywą markową, pod nim szkic na kość.
- */
-export function drawConceptDiagramSlide(
-  canvas: HTMLCanvasElement,
-  options: ConceptDiagramOptions,
-): void {
-  const base = prepare(canvas, options);
-  if (!base) return;
-  const { ctx, width, height, accent } = base;
-
-  const margin = Math.round(width * 0.09);
-  const line = options.line.toUpperCase();
-  const lineSize = Math.round(width * 0.036);
-  const fitted = fitLines(
-    ctx,
-    stripHighlightSyntax(line),
-    width - margin * 2,
-    2,
-    (size) => `800 ${size}px ${getFontFamilySpec("sans")}`,
-    lineSize,
-    Math.round(lineSize * 0.7),
-  );
-  const captionSize = Math.round(width * 0.026);
-  const caption = options.caption
-    ? fitLines(
-        ctx,
-        stripHighlightSyntax(options.caption),
-        width - margin * 2,
-        2,
-        (s) => `500 ${s}px ${getFontFamilySpec("sans")}`,
-        captionSize,
-      )
-    : null;
-
-  // Wiersz, szkic i podpis to jeden blok — cały stoi środkiem bezpiecznego
-  // pasa, bo góra i dół kadru to pod TikTokiem teren interfejsu.
-  const size = Math.round(Math.min(width, height) * 0.4);
-  const gap = Math.round(height * 0.05);
-  const lineBlock = fitted.lines.length * fitted.size * 1.4;
-  const captionBlock = caption ? caption.lines.length * caption.size * 1.4 : 0;
-  const blockHeight = lineBlock + gap + size + (caption ? gap * 0.6 + captionBlock : 0);
-
-  let y = centeredTop(blockHeight, height) + fitted.size;
-  ctx.font = `800 ${fitted.size}px ${getFontFamilySpec("sans")}`;
-  ctx.fillStyle = INK;
-  ctx.textAlign = "center";
-  for (const row of fitted.lines) {
-    ctx.fillText(row, width / 2, y);
-    y += fitted.size * 1.4;
-  }
-
-  const cy = centeredTop(blockHeight, height) + lineBlock + gap + size / 2;
-  ctx.strokeStyle = STROKE;
-  ctx.lineWidth = Math.max(2, Math.round(width * 0.0022));
-  ctx.lineJoin = "round";
-  ctx.lineCap = "round";
-
-  const sketchSeed = `${options.line}|${options.seed ?? ""}`;
-  if (options.diagram === "scales") drawScales(ctx, width / 2, cy, size, sketchSeed);
-  else if (options.diagram === "path") drawPath(ctx, width / 2, cy, size, sketchSeed);
-  else if (options.diagram === "split") drawSplit(ctx, width / 2, cy, size, sketchSeed);
-  else drawChart(ctx, width / 2, cy, size, sketchSeed);
-
-  if (caption) {
-    ctx.font = `500 ${caption.size}px ${getFontFamilySpec("sans")}`;
-    ctx.fillStyle = accent;
-    let captionY = cy + size / 2 + gap * 0.6 + caption.size;
-    for (const row of caption.lines) {
-      ctx.fillText(row, width / 2, captionY);
-      captionY += caption.size * 1.4;
-    }
-  }
-
-  ctx.textAlign = "left";
-  footer(ctx, width, height, options.handle);
 }
 
 /** Ten sam tekst ma lądować w różnym miejscu kadru — inaczej każdy post to ta sama kompozycja. */
@@ -808,398 +501,6 @@ export function drawBillboardSignSlide(canvas: HTMLCanvasElement, options: SignS
     y += lineHeight;
   }
   ctx.textAlign = "left";
-
-  footer(ctx, width, height, options.handle);
-}
-
-/**
- * KADRY LICZBOWE.
- *
- * Materiał nie miał czym odpowiedzieć sąsiedniemu kontu. Te dwa układy
- * zamieniają twierdzenie w dowód: siatka tygodni pokazuje, ile życia już
- * minęło, a audyt tygodnia pokazuje, gdzie ten tydzień poszedł. Jeden
- * kwadrat to jeden tydzień albo jedna godzina — bez osi bez etykiet.
- */
-
-export const WEEKS_PER_YEAR = 52;
-/** Horyzont 76 lat to ~4000 tygodni — tyle, ile liczy klasyk gatunku. */
-export const LIFE_HORIZON_YEARS = 76;
-
-export interface LifeGridOptions extends LayoutTheme {
-  /** Teza nad siatką. */
-  line: string;
-  /** Puenta pod liczbą. */
-  caption?: string;
-  yearsLived: number;
-  horizonYears?: number;
-}
-
-export interface TimeAuditOptions extends LayoutTheme {
-  line: string;
-  caption?: string;
-  /** Godziny na ekran w tygodniu (nie na dobę). */
-  screenHours: number;
-  sleepHours?: number;
-  workHours?: number;
-}
-
-/** Siatka kwadratów: krok liczony ze SZEROKOŚCI, więc wypełnia kadr. */
-function cellGrid(
-  ctx: CanvasRenderingContext2D,
-  cols: number,
-  rows: number,
-  box: { x: number; y: number; w: number },
-  paint: (col: number, row: number, x: number, y: number, size: number) => void,
-): number {
-  const step = box.w / cols;
-  const size = step * 0.66;
-  const originX = box.x;
-
-  for (let row = 0; row < rows; row++) {
-    for (let col = 0; col < cols; col++) {
-      paint(
-        col,
-        row,
-        originX + col * step + (step - size) / 2,
-        box.y + row * step + (step - size) / 2,
-        size,
-      );
-    }
-  }
-  return step * rows;
-}
-
-export function drawLifeGridSlide(canvas: HTMLCanvasElement, options: LifeGridOptions): void {
-  const base = prepare(canvas, options);
-  if (!base) return;
-  const { ctx, width, height, accent } = base;
-
-  const margin = Math.round(width * 0.08);
-  const usable = width - margin * 2;
-  const horizon = Math.max(20, Math.min(95, options.horizonYears ?? LIFE_HORIZON_YEARS));
-  const lived = Math.max(0, Math.min(horizon, Math.round(options.yearsLived)));
-  const weeksLived = lived * WEEKS_PER_YEAR;
-  const weeksLeft = horizon * WEEKS_PER_YEAR - weeksLived;
-
-  const lineSize = Math.round(width * 0.052);
-  const line = fitLines(
-    ctx,
-    stripHighlightSyntax(options.line),
-    usable,
-    3,
-    (size) => `700 ${size}px ${getFontFamilySpec("cinzel")}`,
-    lineSize,
-  );
-
-  const numberSize = Math.round(width * 0.115);
-  const captionSize = Math.round(width * 0.032);
-  const caption = options.caption
-    ? fitLines(
-        ctx,
-        stripHighlightSyntax(options.caption),
-        usable,
-        2,
-        (size) => `500 ${size}px ${getFontFamilySpec("sans")}`,
-        captionSize,
-      )
-    : null;
-
-  // Siatka: 52 kolumn (tygodnie w roku), wierszy tyle, ile lat horyzontu.
-  // Krok bierzemy z szerokości — inaczej kwadraty kurczą się do kreski.
-  const cols = WEEKS_PER_YEAR;
-  const rows = horizon;
-  const gridH = (usable / cols) * rows;
-
-  const number = fitLines(
-    ctx,
-    `${weeksLeft.toLocaleString("en-US")} WEEKS`,
-    usable,
-    1,
-    (size) => `800 ${size}px ${getFontFamilySpec("sans")}`,
-    numberSize,
-    Math.round(numberSize * 0.55),
-  );
-
-  const blockHeight =
-    line.lines.length * lineSize * 1.3 +
-    gridH +
-    number.size * 1.7 +
-    (caption ? caption.lines.length * captionSize * 1.4 + 60 : 0);
-  let y = centeredTop(blockHeight, height) + lineSize;
-
-  ctx.textAlign = "center";
-  ctx.fillStyle = INK;
-  ctx.font = `700 ${line.size}px ${getFontFamilySpec("cinzel")}`;
-  for (const row of line.lines) {
-    ctx.fillText(row, width / 2, y);
-    y += line.size * 1.3;
-  }
-
-  const gridTop = y + height * 0.015;
-  cellGrid(ctx, cols, rows, { x: margin, y: gridTop, w: usable }, (col, row, x, cy, size) => {
-    const index = row * cols + col;
-    if (index === weeksLived) {
-      // Bieżący tydzień: jeden karmazyn w całym kadrze, celowo większy.
-      ctx.fillStyle = accent;
-      ctx.fillRect(x - size * 0.3, cy - size * 0.3, size * 1.6, size * 1.6);
-    } else if (index < weeksLived) {
-      ctx.fillStyle = INK;
-      ctx.fillRect(x, cy, size, size);
-    } else {
-      ctx.strokeStyle = "rgba(243,240,234,0.15)";
-      ctx.lineWidth = Math.max(1, size * 0.14);
-      ctx.strokeRect(x, cy, size, size);
-    }
-  });
-
-  y = gridTop + gridH + number.size;
-  ctx.fillStyle = accent;
-  ctx.font = `800 ${number.size}px ${getFontFamilySpec("sans")}`;
-  ctx.fillText(number.lines[0] ?? "", width / 2, y);
-
-  ctx.fillStyle = DIM;
-  ctx.font = `500 ${Math.round(width * 0.025)}px ${getFontFamilySpec("sans")}`;
-  ctx.fillText(
-    `LEFT IF YOU REACH ${horizon} - ${lived} YEARS BEHIND YOU`,
-    width / 2,
-    y + numberSize * 0.45,
-  );
-
-  if (caption) {
-    let captionY = y + numberSize * 1.1;
-    ctx.fillStyle = INK;
-    ctx.font = `500 ${caption.size}px ${getFontFamilySpec("sans")}`;
-    for (const row of caption.lines) {
-      ctx.fillText(row, width / 2, captionY);
-      captionY += caption.size * 1.4;
-    }
-  }
-
-  ctx.textAlign = "left";
-  footer(ctx, width, height, options.handle);
-}
-
-export function drawTimeAuditSlide(canvas: HTMLCanvasElement, options: TimeAuditOptions): void {
-  const base = prepare(canvas, options);
-  if (!base) return;
-  const { ctx, width, height, accent } = base;
-
-  const margin = Math.round(width * 0.1);
-  const usable = width - margin * 2;
-  const sleep = Math.max(0, Math.min(24, options.sleepHours ?? 8));
-  const work = Math.max(0, Math.min(24, options.workHours ?? 9));
-  const screenPerDay = Math.max(0, Math.min(24, options.screenHours / 7));
-
-  const lineSize = Math.round(width * 0.055);
-  const line = fitLines(
-    ctx,
-    stripHighlightSyntax(options.line),
-    usable,
-    3,
-    (size) => `700 ${size}px ${getFontFamilySpec("cinzel")}`,
-    lineSize,
-  );
-
-  const numberSize = Math.round(width * 0.17);
-  const captionSize = Math.round(width * 0.032);
-  const caption = options.caption
-    ? fitLines(
-        ctx,
-        stripHighlightSyntax(options.caption),
-        usable,
-        2,
-        (size) => `500 ${size}px ${getFontFamilySpec("sans")}`,
-        captionSize,
-      )
-    : null;
-
-  // Godziny w poziomie, dni w pionie: przy 7 kolumnach na 24 komórki siatka
-  // zwężała się do słupeczka i nie wypełniała kadru.
-  const cols = 24;
-  const rows = 7;
-  const step = usable / cols;
-  const rowGap = step * 0.55;
-  const boxH = rows * step + (rows - 1) * rowGap;
-
-  const number = fitLines(
-    ctx,
-    `${Math.round(options.screenHours)} HOURS`,
-    usable,
-    1,
-    (size) => `800 ${size}px ${getFontFamilySpec("sans")}`,
-    numberSize,
-    Math.round(numberSize * 0.5),
-  );
-
-  const blockHeight =
-    line.lines.length * lineSize * 1.3 +
-    boxH +
-    number.size * 1.7 +
-    (caption ? caption.lines.length * captionSize * 1.4 + 60 : 0);
-  let y = centeredTop(blockHeight, height) + lineSize;
-
-  ctx.textAlign = "center";
-  ctx.fillStyle = INK;
-  ctx.font = `700 ${line.size}px ${getFontFamilySpec("cinzel")}`;
-  for (const row of line.lines) {
-    ctx.fillText(row, width / 2, y);
-    y += line.size * 1.3;
-  }
-
-  const boxTop = y + step * 1.4;
-  for (let day = 0; day < rows; day++) {
-    cellGrid(
-      ctx,
-      cols,
-      1,
-      { x: margin, y: boxTop + day * (step + rowGap), w: usable },
-      (hour, _row, x, cy, size) => {
-        let fill = "rgba(243,240,234,0.10)";
-        if (hour < sleep) fill = "rgba(243,240,234,0.34)";
-        else if (hour < sleep + work) fill = "rgba(243,240,234,0.66)";
-        else if (hour < sleep + work + screenPerDay) fill = accent;
-        ctx.fillStyle = fill;
-        ctx.fillRect(x, cy, size, size);
-      },
-    );
-  }
-
-  y = boxTop + boxH + number.size;
-  ctx.fillStyle = accent;
-  ctx.font = `800 ${number.size}px ${getFontFamilySpec("sans")}`;
-  ctx.fillText(number.lines[0] ?? "", width / 2, y);
-
-  // Trzy szarości bez etykiety to zgadywanka. Siatka życia obroni się sama,
-  // tu legenda jest częścią argumentu.
-  const legendSize = Math.round(width * 0.022);
-  const legendY = boxTop - Math.round(step * 0.35);
-  const legend: Array<[string, string]> = [
-    ["SLEEP", "rgba(243,240,234,0.34)"],
-    ["WORK", "rgba(243,240,234,0.66)"],
-    ["SCREEN", accent],
-  ];
-  const legendWidth = legend.length * legendSize * 6.4;
-  ctx.textAlign = "left";
-  ctx.font = `500 ${legendSize}px ${getFontFamilySpec("sans")}`;
-  legend.forEach(([label, color], i) => {
-    const x = width / 2 - legendWidth / 2 + i * legendSize * 6.4;
-    ctx.fillStyle = color;
-    ctx.fillRect(x, legendY - legendSize * 0.75, legendSize, legendSize);
-    ctx.fillStyle = DIM;
-    ctx.fillText(label, x + legendSize * 1.5, legendY - legendSize * 0.05);
-  });
-  ctx.textAlign = "center";
-
-  ctx.fillStyle = DIM;
-  ctx.font = `500 ${Math.round(width * 0.025)}px ${getFontFamilySpec("sans")}`;
-  ctx.fillText(
-    `ON A SCREEN A WEEK - ${(options.screenHours / 24).toFixed(1)} WHOLE DAYS AWAKE`,
-    width / 2,
-    y + number.size * 0.45,
-  );
-
-  if (caption) {
-    let captionY = y + numberSize * 1.05;
-    ctx.fillStyle = INK;
-    ctx.font = `500 ${caption.size}px ${getFontFamilySpec("sans")}`;
-    for (const row of caption.lines) {
-      ctx.fillText(row, width / 2, captionY);
-      captionY += caption.size * 1.4;
-    }
-  }
-
-  ctx.textAlign = "left";
-  footer(ctx, width, height, options.handle);
-}
-
-/**
- * KADR Z MASKĄ — ten sam chłopak co w rolce, ale w planszy feedowej.
- *
- * Tekst idzie lewym słupkiem, postać prawym. Bez tego podziału litera
- * wchodziła w sylwetkę i nie dało się przeczytać ani jednego, ani drugiego.
- */
-export interface CharacterSceneOptions extends LayoutTheme {
-  line: string;
-  caption?: string;
-  pose: Pose;
-  expression?: Expression;
-  prop?: "none" | "boulder" | "phone" | "rope";
-  rotate?: number;
-}
-
-export function drawCharacterSceneSlide(
-  canvas: HTMLCanvasElement,
-  options: CharacterSceneOptions,
-): void {
-  const base = prepare(canvas, options);
-  if (!base) return;
-  const { ctx, width, height, accent } = base;
-
-  const margin = Math.round(width * 0.09);
-  const figureHeight = Math.round(height * 0.34);
-  const figureWidth = Math.round(figureHeight * 0.42);
-  // Słupek tekstu ustępuje miejsca sylwetce — inaczej kadr ma dwa pierwsze plany naraz.
-  const textWidth = width - margin * 2 - figureWidth - Math.round(width * 0.04);
-
-  const lineSize = Math.round(width * 0.078);
-  const line = fitLines(
-    ctx,
-    stripHighlightSyntax(options.line),
-    textWidth,
-    5,
-    (size) => `700 ${size}px ${getFontFamilySpec("cinzel")}`,
-    lineSize,
-  );
-
-  const captionSize = Math.round(width * 0.03);
-  const caption = options.caption
-    ? fitLines(
-        ctx,
-        stripHighlightSyntax(options.caption),
-        textWidth,
-        3,
-        (size) => `500 ${size}px ${getFontFamilySpec("sans")}`,
-        captionSize,
-      )
-    : null;
-
-  const centerY = centeredTop(figureHeight, height) + figureHeight / 2;
-
-  drawDoodle(ctx, {
-    cx: width - margin - figureWidth / 2,
-    cy: centerY,
-    height: figureHeight,
-    pose: options.pose,
-    expression: options.expression ?? "empty",
-    prop: options.prop,
-    rotate: options.rotate,
-    line: INK,
-    fill: "#050505",
-  });
-
-  ctx.textAlign = "left";
-  ctx.textBaseline = "middle";
-  let y = centeredTop(line.lines.length * line.size * 1.25, height) + line.size;
-  ctx.font = `700 ${line.size}px ${getFontFamilySpec("cinzel")}`;
-  ctx.fillStyle = INK;
-  for (const row of line.lines) {
-    ctx.fillText(row, margin, y);
-    y += line.size * 1.25;
-  }
-
-  // Karmazynowy rygiel pod tezą: mówi, gdzie kończy się myśl, a zaczyna dopisek.
-  ctx.fillStyle = accent;
-  ctx.fillRect(margin, y + line.size * 0.2, Math.min(textWidth * 0.3, 320), 3);
-
-  if (caption) {
-    let captionY = y + line.size * 0.9;
-    ctx.font = `500 ${caption.size}px ${getFontFamilySpec("sans")}`;
-    ctx.fillStyle = DIM;
-    for (const row of caption.lines) {
-      ctx.fillText(row, margin, captionY);
-      captionY += caption.size * 1.4;
-    }
-  }
 
   footer(ctx, width, height, options.handle);
 }

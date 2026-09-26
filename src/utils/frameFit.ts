@@ -8,7 +8,6 @@
 // dopisywane z banku treści: jeśli model dał jedno zdanie, kadr ma jedno
 // zdanie, tylko w dobranej figurze.
 import { UniversalLayoutSpec } from "../types";
-import { hashKey } from "../lib/hash";
 import { StructuredContent, structuredSpec } from "./ideaLayout";
 
 const LAYOUT_BY_GRID: Record<string, string> = {
@@ -16,7 +15,6 @@ const LAYOUT_BY_GRID: Record<string, string> = {
   protocol_list: "Protokół",
   cost_vs_reward: "Koszt i utrata",
   studio_wall_3d: "Napis w scenie",
-  concept_diagram: "Diagram",
   grid_2x2: "Kolaż",
 };
 
@@ -45,22 +43,8 @@ const ENUMERATED = /^\s*(?:\d+[.)]|step\s*\d+|rule\s*\d+|phase\s*\d+|[-*•])\s*
 
 /** Kontrast dwóch słupków: cena po lewej, to co się traci po prawej. */
 const COST_MARKERS = /\b(cost|price|pay|paid|charge|tax|buys|bought|forfeit|trade|gave up)\b/i;
-const CONTRAST_MARKERS = /\b(but|instead|meanwhile|while|versus|vs\.?)\b/i;
 
 const NUMBER_MARKERS = /\b\d+([.,]\d+)?\s*(%|percent|hours|minutes|days|years|reps|sets)?\b/i;
-
-/**
- * Rodzaj szkicu pod diagram. Cztery figury to cztery różne argumenty:
- * wykres = załamanie i powrót, waga = wybór między dwoma ciężarami,
- * ścieżka = droga, split = dwa równoległe życia.
- */
-function diagramKindFor(text: string): "chart" | "scales" | "path" | "split" {
-  const lower = text.toLowerCase();
-  if (/\b(weight|weigh|carries|burden|load|heavy|choice|between)\b/i.test(lower)) return "scales";
-  if (/\b(path|road|walk|route|day one|from .* to|journey|steps)\b/i.test(lower)) return "path";
-  if (/\b(two|both|either|or|parallel|lives|versions)\b/i.test(lower)) return "split";
-  return "chart";
-}
 
 function normalizeLines(lines: (string | undefined)[]): string[] {
   const out: string[] = [];
@@ -80,19 +64,14 @@ function stripEnumerators(lines: string[]): string[] {
 }
 
 /**
- * Jedno zdanie rotuje między cytatem a napisem w scenie — dwa te same zdania
- * w tygodniu mogą wyglądać inaczej, a wybór musi być powtarzalny.
+ * Jedno zdanie to jeden kadr: cała siła w tym, żeby nie rozlało się na listę,
+ * której model nie napisał.
  */
 function singleLineFrame(text: string): FittedFrame {
-  const isSign = words(text) <= 6;
-  const pick = isSign && hashKey(text) % 2 === 0 ? "studio_wall_3d" : "none_solid";
   return {
-    gridType: pick as FrameGrid,
+    gridType: "none_solid",
     content: { primary: text },
-    reason:
-      pick === "studio_wall_3d"
-        ? "Krótka teza (≤6 słów) — idzie jako napis w scenie, nie jako cytat."
-        : "Jedno zdanie — układa się jako cytat.",
+    reason: "Jedno zdanie — układa się jako cytat.",
   };
 }
 
@@ -145,16 +124,6 @@ function listFrame(lines: string[]): FittedFrame {
   };
 }
 
-function diagramFrame(lines: string[]): FittedFrame {
-  return {
-    gridType: "concept_diagram",
-    content: {
-      primary: lines[0],
-      closing: lines[lines.length - 1],
-    },
-    reason: "Krótki zwrot na końcu zdania to puenta pod szkic, nie osobny kadr.",
-  };
-}
 /**
  * Klucz: dostajemy to, co model już napisał (hook + fazy), i tylko układamy
  * to w figurę. `hint` to ewentualna podpowiedź formatu z analizy linku.
@@ -191,23 +160,15 @@ export function fitFrame(
 
   const joined = lines.join(" ");
   if (COST_MARKERS.test(joined) && lines.length >= 3) return contrastFrame(lines);
-  if (ENUMERATED.test(lines[1] || "") || words(lines[0]) <= 10) return listFrame(lines);
-  if (CONTRAST_MARKERS.test(lines[lines.length - 1]) || words(lines[lines.length - 1]) <= 6) {
-    return diagramFrame(lines);
-  }
   return listFrame(lines);
 }
 
 /** Gotowy spec dla studia posta — to samo źródło co preset wybrany ręcznie. */
 export function specFromFrame(frame: FittedFrame): UniversalLayoutSpec {
-  const meta =
-    frame.gridType === "concept_diagram"
-      ? { diagram: diagramKindFor(`${frame.content.primary} ${frame.content.closing ?? ""}`) }
-      : {};
   return structuredSpec(
     LAYOUT_BY_GRID[frame.gridType] ?? "Cytat",
     frame.gridType,
     frame.content,
-    meta,
+    {},
   );
 }

@@ -20,15 +20,10 @@ import {
 import {
   centeredTop,
   drawBillboardSignSlide,
-  drawCharacterSceneSlide,
-  drawConceptDiagramSlide,
-  drawLifeGridSlide,
-  drawTimeAuditSlide,
   drawCostVsRewardSlide,
   drawNeonSignSlide,
   drawProtocolListSlide,
 } from "./canvas/layouts-v2";
-import { POSES, pickPose, type PoseId } from "./character/poses";
 import { groupText, layerById, PRIMARY_LAYER_ID } from "./canvas/layerRoles";
 import { MIN_TEXT_PX, floorFor } from "./safeZones";
 
@@ -1133,79 +1128,7 @@ export function renderUniversalLayout(
       forfeit: groupText(spec, "forfeit"),
       closing: layerById(spec, "closing"),
       bgImage: options.backgroundImage ?? images[0] ?? null,
-    });
-    return;
-  }
-
-  // Format 5: Diagram + wiersz — rysunek niesie myśl, nie ją ilustruje.
-  if (spec.gridType === "concept_diagram") {
-    drawConceptDiagramSlide(canvas, {
-      width,
-      height,
-      handle,
-      line: layerById(spec, PRIMARY_LAYER_ID) || l1Fallback(spec),
-      caption: layerById(spec, "closing"),
-      diagram: spec.layoutData?.diagram ?? "chart",
-      // Ziarno idzie do odcisku szkicu: ten sam wers może wyjść inaczej,
-      // a zapisany kadr odtworzy się identycznie przy następnym eksporcie.
-      seed: spec.layoutData?.diagramSeed,
-      bgImage: options.backgroundImage ?? null,
-    });
-    return;
-  }
-
-  // Format 9: maska w kadrze feedowym. Poza bierze się z treści, chyba że
-  // ktoś wybrał ją ręcznie w studiu.
-  if (spec.gridType === "character_scene") {
-    const line = layerById(spec, PRIMARY_LAYER_ID) || l1Fallback(spec);
-    const poseId = (
-      spec.layoutData?.pose && POSES[spec.layoutData.pose as PoseId]
-        ? (spec.layoutData.pose as PoseId)
-        : pickPose(line)
-    ) as PoseId;
-    const poseSpec = POSES[poseId];
-    drawCharacterSceneSlide(canvas, {
-      width,
-      height,
-      handle,
-      line,
-      caption: layerById(spec, "closing"),
-      pose: poseSpec.pose,
-      expression: poseSpec.expression,
-      prop: poseSpec.prop,
-      rotate: poseSpec.rotate,
-      bgImage: options.backgroundImage ?? null,
-    });
-    return;
-  }
-
-  // Format 7: siatka życia — jeden kwadrat to jeden przeżyty tydzień.
-  if (spec.gridType === "life_grid") {
-    drawLifeGridSlide(canvas, {
-      width,
-      height,
-      handle,
-      line: layerById(spec, PRIMARY_LAYER_ID) || l1Fallback(spec),
-      caption: layerById(spec, "closing"),
-      yearsLived: spec.layoutData?.yearsLived ?? 30,
-      horizonYears: spec.layoutData?.horizonYears,
-      bgImage: options.backgroundImage ?? null,
-    });
-    return;
-  }
-
-  // Format 8: audyt tygodnia — 168 godzin rozpisane na kolumny.
-  if (spec.gridType === "time_audit") {
-    drawTimeAuditSlide(canvas, {
-      width,
-      height,
-      handle,
-      line: layerById(spec, PRIMARY_LAYER_ID) || l1Fallback(spec),
-      caption: layerById(spec, "closing"),
-      screenHours: spec.layoutData?.screenHours ?? 40,
-      sleepHours: spec.layoutData?.sleepHours,
-      workHours: spec.layoutData?.workHours,
-      bgImage: options.backgroundImage ?? null,
+      headlineFont: spec.fontFamilyCustom || fontFamily,
     });
     return;
   }

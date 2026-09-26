@@ -1,5 +1,5 @@
 import { IdeaItem, UniversalLayoutSpec, UniversalTextLayer } from "../types";
-import { formatStarkCaption } from "../lib/caption";
+import { starkCaption } from "../lib/caption";
 import { layerGroup, PRIMARY_LAYER_ID, textLayer } from "./canvas/layerRoles";
 
 /**
@@ -22,15 +22,8 @@ export interface StructuredContent {
   cost?: string[];
   forfeit?: string[];
   closing?: string;
-  /** Nadtytuł układu — warstwa jak każda inna, więc edytowalna w studio. */
   /** Duża blada cyfra w tle. Pusta = bez cyfry. */
   figure?: string;
-  /**
-   * Liczby dla układów liczbowych (wiek, godziny przed ekranem). Leżą w
-   * `layoutData`, bo sterują geometrią siatki — zdania i tak mieszkają
-   * w `textLayers`.
-   */
-  numbers?: { yearsLived?: number; screenHours?: number };
 }
 
 const LAYOUT_NAMES: Record<string, string> = {
@@ -48,6 +41,8 @@ export function structuredSpec(
   gridType: UniversalLayoutSpec["gridType"],
   content: StructuredContent,
   meta: UniversalLayoutSpec["layoutData"] = {},
+  /** Opis napisany przez model. Bez niego kadr idzie bez body — nie powtórka. */
+  caption = "",
 ): UniversalLayoutSpec {
   const layers: UniversalTextLayer[] = [textLayer(PRIMARY_LAYER_ID, content.primary)];
 
@@ -94,15 +89,10 @@ export function structuredSpec(
     fontFamilyCustom: "cinzel",
     fontColorMode: "white",
     textLayers: layers,
-    layoutData: { ...meta, ...(content.numbers ?? {}) },
-    // Opis bierze zdania z kadru, nie z banku zasad — to, co widz przeczytał
-    // na kadrze, ma pojawiać się pod nim w tej samej kolejności.
-    caption: formatStarkCaption(content.primary, [
-      ...(content.steps ?? []),
-      ...(content.cost ?? []),
-      ...(content.forfeit ?? []),
-      ...(content.closing ? [content.closing] : []),
-    ]),
+    layoutData: { ...meta },
+    // Opis ma ROZWIJAĆ temat, nie powtarzać tego, co już widać na kadrze.
+    // Bez zdania od modelu idzie sama teza + nasz CTA i hashtagi.
+    caption: starkCaption(content.primary, caption),
     detectedAudio: "Bed w pliku albo własny dźwięk",
   };
 }

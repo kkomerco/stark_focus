@@ -135,11 +135,7 @@ function buildOfflineIdeas(count: number, usedCount: number, excludeHooks: strin
         `The truth about ${cat.split(" ")[0]} nobody wants to hear.`,
         "Execute in silence. Prove them wrong.",
       ],
-      caption: formatStarkCaption(hook, [
-        "Stop negotiating with your weakness.",
-        `The truth about ${cat.split(" ")[0]} nobody wants to hear.`,
-        "Execute in silence. Prove them wrong.",
-      ]),
+      caption: formatStarkCaption(hook),
       hashtags: starkHashtags(hook),
       theme: pick([...THEMES]),
       viralityScore: 90 + Math.floor(Math.random() * 10),

@@ -43,7 +43,7 @@ interface AiRadarTabProps {
   /**
    * `lines` to fazy, które model już napisał pod ten pomysł. Bez nich studio
    * posta dostawało gołe zdanie i zawsze stawało jako cytat na czerni —
-   * z listą może ułożyć protokół, koszt albo diagram.
+   * z listą może ułożyć protokół, koszt albo kolaż.
    */
   onSendToPost?: (text: string, caption?: string, lines?: string[]) => void;
   onSendToReel?: (reel: ReelHandoff | string) => void;

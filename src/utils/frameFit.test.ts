@@ -105,13 +105,18 @@ describe("specFromFrame", () => {
     assert.ok(!JSON.stringify(spec.layoutData ?? {}).includes("Phone"));
   });
 
-  it("diagram dostaje szkic zależny od treści", () => {
-    const choice = specFromFrame(
+  it("opis nie powtarza wierszy, które już są na kadrze", () => {
+    const spec = specFromFrame(
       fitFrame({
-        hook: "You carry the weight of every unmade choice.",
-        phrases: ["Set it down or name it.", "The scale tips either way."],
+        hook: "You don't lack discipline. You lack a sequence.",
+        phrases: ["Phone in another room.", "Hardest task first.", "No deals before noon."],
       }),
     );
-    assert.ok(["chart", "scales", "path", "split"].includes(choice.layoutData?.diagram ?? "chart"));
+    for (const layer of spec.textLayers.slice(1)) {
+      assert.ok(
+        !spec.caption.toLowerCase().includes((layer.text ?? "").toLowerCase()),
+        `„${layer.text}" siedzi dwa razy: na kadrze i w opisie`,
+      );
+    }
   });
 });

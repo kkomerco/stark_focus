@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import JSZip from "jszip";
 import { Post, ReelHandoff, VaultAsset } from "../types";
-import { STARK_CTA, formatStarkCaption, starkHashtags } from "../lib/caption";
+import { STARK_CTA, starkHashtags } from "../lib/caption";
 import { BRAND_ACCENT } from "../utils/starkBrandTheme";
 import { REEL_SAFE, bandCenter, safeBand } from "../utils/safeZones";
 import { beatTimesFrom, renderReelBed } from "../utils/reelAudio";
@@ -66,9 +66,6 @@ import {
   VISUAL_THEMES,
 } from "./video/reel-helpers";
 import { pickBackground } from "../utils/backgroundPicker";
-import { drawDoodle } from "../utils/character/rig";
-import { POSES, pickScene } from "../utils/character/poses";
-import { FrameFormatId, formatById, frameToBeats } from "../lib/formats";
 
 interface VideoStudioModalProps {
   onClose?: () => void;
@@ -185,33 +182,6 @@ function formatForPhraseCount(count: number): ViralReelFormat {
   return "three_phases";
 }
 
-/** Kształty do wyboru w studio rolek — etykieta i co dostaniesz na takty. */
-const FRAME_SHAPE_OPTIONS: Array<{ id: FrameFormatId; label: string; hint: string }> = [
-  { id: "quote", label: "Cytat", hint: "Jedno zdanie w pętli — najszybszy w produkcji." },
-  {
-    id: "protocol",
-    label: "Protokół",
-    hint: "Teza wchodzi pierwsza, kroki jeden na kadr. Widz zostaje do ostatniego kroku.",
-  },
-  {
-    id: "cost",
-    label: "Koszt",
-    hint: "Cena i utrata na jednym kadrze przez ukośnik, puenta na końcu.",
-  },
-  { id: "diagram", label: "Diagram", hint: "Zdanie i puenta — dwa takty, dużo przestrzeni." },
-  { id: "collage", label: "Kolaż", hint: "Teza plus cztery kadry z tego samego tematu." },
-];
-
-/** Ile taktów, tyle sekund: poniżej 2,2 s na zdanie nikt nie doczyta. */
-function beatsToDuration(count: number): ReelDuration {
-  const seconds = Math.max(6, Math.min(20, count * 4));
-  return asReelDuration(seconds) ?? 7;
-}
-
-function toStringList(value: unknown): string[] {
-  return Array.isArray(value) ? value.map((item) => String(item)) : [];
-}
-
 /**
  * Bazę (opis-głęboki) bierzemy z pasującego szablonu, ale pola pakietu je
  * nadpisują — inaczej przełącznik „Krótki / Głębszy" cofnąłby opis do tekstu
@@ -267,13 +237,6 @@ export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
   const [reelFormat, setReelFormat] = useState<ViralReelFormat>(() =>
     initialReel ? formatForPhraseCount(resolvePhrases(initialReel).length) : "viral_loop_6s",
   );
-  /** Co generator ma ułożyć: cytat, protokół krok po kroku, koszt czy diagram. */
-  const [reelShape, setReelShape] = useState<FrameFormatId>("quote");
-  /**
-   * Chłopak w kadrze. Włączony domyślnie, bo bez niego rolka znowu jest
-   * typografią na czerni; wyłączany, gdy kadr ma zostać sam tekst.
-   */
-  const [showCharacter, setShowCharacter] = useState(true);
   const [duration, setDuration] = useState<ReelDuration>(
     () => asReelDuration(initialReel?.duration) || 7,
   );
@@ -582,90 +545,8 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
   };
 
   // 1-Click AI Reel Director (Łamacz algorytmów: Viral 6s loop, 5s hook-payoff, dynamic B-roll cut)
-  /**
-   * Rolka strukturalna: model dostaje KSZTAŁT (protokół, koszt, diagram), a my
-   * rozbijamy go na takty osi czasu. Bez tego "Generuj rolkę AI" umiał ułożyć
-   * tylko cytat — czyli ten sam materiał w innym opakowaniu.
-   */
-  const generateStructuredReel = async (shape: FrameFormatId): Promise<boolean> => {
-    const res = await fetch("/api/ai/frame-fill", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        format: shape,
-        topic: "ruthless stoic discipline, sovereign posture, quiet standards",
-        count: 1,
-        excludeHooks: seenTitlesRef.current,
-      }),
-    });
-    const data = await res.json().catch(() => null);
-    const frame = Array.isArray(data?.frames) ? data.frames[0] : null;
-    if (!frame) {
-      setToastMessage(
-        typeof data?.notice === "string"
-          ? data.notice
-          : typeof data?.error === "string"
-            ? data.error
-            : `Model nie dał kadru w formacie „${shape}". Zostaw kształt na cytacie albo spróbuj ponownie.`,
-      );
-      setTimeout(() => setToastMessage(null), 4000);
-      return false;
-    }
-
-    const beats = frameToBeats(shape, {
-      primary: String(frame.primary ?? ""),
-      steps: toStringList(frame.steps),
-      cost: toStringList(frame.cost),
-      forfeit: toStringList(frame.forfeit),
-      closing: String(frame.closing ?? ""),
-    });
-    if (beats.length === 0) return false;
-
-    const nextDuration = beatsToDuration(beats.length);
-    const background = pickBackground(beats.join(" "));
-    // Opis z własnych taktów: to, co widz przeczytał na rolce, a nie stały
-    // trójwers z banku treści.
-    const captionText = formatStarkCaption(beats[0], beats.slice(1));
-    const tpl: ReelTemplate = {
-      id: `ai_${Date.now()}`,
-      format: "three_phases",
-      title: beats[0].slice(0, 48),
-      phrases: beats,
-      captionShort: captionText,
-      captionDeep: captionText,
-      hashtags: starkHashtags(beats.join(" ")),
-      suggestedTheme: background.scene.theme,
-      suggestedDuration: nextDuration,
-      suggestedBackground: background.scene.name,
-      backgroundRationale: background.reason,
-    };
-
-    setPhrases(beats);
-    setDuration(nextDuration);
-    setReelFormat(formatForPhraseCount(beats.length));
-    setActiveTemplate(tpl);
-    setCaption(captionText);
-    setHashtags(tpl.hashtags);
-    setSelectedTheme(background.scene.theme);
-    seenTitlesRef.current.push(beats[0].toLowerCase().replace(/\s+/g, "_"));
-    timeRef.current = 0;
-    setCurrentTime(0);
-    setToastMessage(`Rolka „${formatById(shape)?.label ?? shape}" — ${beats.length} kadrów.`);
-    setTimeout(() => setToastMessage(null), 3000);
-    return true;
-  };
-
   const handleGenerateAiReel = async () => {
     setIsGeneratingAi(true);
-
-    if (reelShape !== "quote") {
-      try {
-        await generateStructuredReel(reelShape);
-      } finally {
-        setIsGeneratingAi(false);
-      }
-      return;
-    }
 
     // Automatyczny losowy dobór kąta stoickiego
     const randomCat = STOIC_CATEGORIES[Math.floor(Math.random() * STOIC_CATEGORIES.length)];
@@ -1105,39 +986,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
       const leftMargin = band.side;
       const maxTextWidth = width - band.side * 2;
 
-      // 3b. CHŁOPAK W KADRZE. Scenka bierze się z treści — ta sama zasada co
-      // przy układzie kadru i przy tle: poza nie jest kaprysem, tylko tym, co
-      // zdanie naprawdę opisuje. Postać stoi po prawej, więc tekst zwężamy o
-      // jej słup; bez tego litera wchodziłaby w sylwetkę.
-      const scene = pickScene(phrases.join(" "));
-      const beatIndex = (() => {
-        const found = activeTimeline.findIndex((seg) => timeSec >= seg.start && timeSec < seg.end);
-        return found >= 0 ? found : Math.max(0, activeTimeline.length - 1);
-      })();
-      const beat = scene.beats[beatIndex % scene.beats.length];
-      const beatStart = activeTimeline[beatIndex]?.start ?? 0;
-      const beatEnd = activeTimeline[beatIndex]?.end ?? totalDuration;
-      const beatPhase = Math.min(
-        1,
-        Math.max(0, (timeSec - beatStart) / Math.max(0.1, beatEnd - beatStart)),
-      );
-      const figureHeight = Math.round(height * 0.26);
-      const figureWidth = Math.round(figureHeight * 0.42);
-
-      if (showCharacter) {
-        const spec = POSES[beat.pose];
-        drawDoodle(ctx, {
-          cx: width - band.side - figureWidth / 2,
-          cy: band.bottom - figureHeight / 2 - Math.round(height * 0.02),
-          height: figureHeight,
-          pose: spec.pose,
-          expression: spec.expression,
-          prop: spec.prop,
-          rotate: spec.rotate,
-          motion: beatPhase * (beat.motion ?? 1),
-        });
-      }
-      const textWidth = showCharacter ? maxTextWidth - figureWidth - 24 : maxTextWidth;
+      const textWidth = maxTextWidth;
 
       // 4. Które zdanie widać o której sekundzie — logika leży w
       // `video/reelLayout.ts`, bo pętla podglądu nie działa w uśpionej karcie,
@@ -1302,8 +1151,6 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
       duration,
       fontFamily,
       pacingMode,
-      activeTimeline,
-      showCharacter,
     ],
   );
 
@@ -1778,39 +1625,6 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
               </button>
             </div>
 
-            {/* Kształt treści: ten sam timing, different materiał na kadrach. */}
-            <div className="flex flex-wrap items-center gap-1.5 pt-1">
-              <span className="text-[10px] font-mono text-neutral-500 uppercase shrink-0">
-                Generator układa:
-              </span>
-              {FRAME_SHAPE_OPTIONS.map((option) => (
-                <button
-                  key={option.id}
-                  type="button"
-                  onClick={() => setReelShape(option.id)}
-                  title={option.hint}
-                  className={`px-2.5 py-1 rounded text-[10px] font-mono uppercase tracking-wider cursor-pointer transition-colors shrink-0 ${
-                    reelShape === option.id
-                      ? "bg-white text-black"
-                      : "bg-[#141414] text-neutral-400 border border-white/10 hover:text-white"
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => setShowCharacter((prev) => !prev)}
-                title="Chłopak w kadrze — poza dobierana do treści, nie widelka"
-                className={`px-2.5 py-1 rounded text-[10px] font-mono uppercase tracking-wider cursor-pointer transition-colors shrink-0 ml-auto ${
-                  showCharacter
-                    ? "bg-white text-black"
-                    : "bg-[#141414] text-neutral-500 border border-white/10 hover:text-white"
-                }`}
-              >
-                Chłopak w kadrze
-              </button>
-            </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 pt-1 border-t border-white/5">
               {[
                 {

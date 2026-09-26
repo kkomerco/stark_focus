@@ -28,11 +28,7 @@ import {
   Package,
 } from "lucide-react";
 import { UniversalLayoutSpec, UniversalTextLayer } from "../types";
-import {
-  renderUniversalLayout,
-  drawMinimalBlackQuoteSlide,
-  drawSceneBackdrop,
-} from "../utils/canvasRenderer";
+import { renderUniversalLayout, drawMinimalBlackQuoteSlide } from "../utils/canvasRenderer";
 import { StructuredContent, structuredSpec } from "../utils/ideaLayout";
 import { FrameFormat, formatByGrid } from "../lib/formats";
 import { groupText, nextLayerId, PRIMARY_LAYER_ID } from "../utils/canvas/layerRoles";
@@ -192,69 +188,6 @@ const SPEC_COST_REWARD = structuredSpec("Koszt i utrata", "cost_vs_reward", {
   closing: "You already paid. Decide what it bought.",
 });
 
-const SPEC_WALL_3D = structuredSpec("Napis w scenie", "studio_wall_3d", {
-  primary: "Silence cannot be misquoted.",
-});
-
-/**
- * Diagram z wierszem — najtańszy w produkcji format z referencji: czarny kadr,
- * jeden szkic linią i jedno zdanie, które ten szkic znosi. Zero zdjęcia, zero
- * generowania obrazów, zero praw autorskich w grze.
- */
-const SPEC_DIAGRAM = structuredSpec(
-  "Diagram",
-  "concept_diagram",
-  {
-    primary: "Just a bad day. Not a bad life.",
-    closing: "The line comes back — if you stay on the chart.",
-  },
-  { diagram: "chart" },
-);
-
-const DIAGRAM_KINDS: Array<{ kind: "chart" | "scales" | "path" | "split"; label: string }> = [
-  { kind: "chart", label: "Wykres" },
-  { kind: "scales", label: "Waga" },
-  { kind: "path", label: "Ścieżka" },
-  { kind: "split", label: "Split" },
-];
-
-/**
- * Kadry liczbowe. Teza jest tu mniej warta niż siatka pod nią: jeden kwadrat
- * to jeden tydzień albo jedna godzina, więc kadr odpowiada na „skąd wiesz".
- */
-const SPEC_LIFE_GRID = structuredSpec("Siatka życia", "life_grid", {
-  primary: "You have spent most of the grid already.",
-  closing: "The week you are in right now is the one you keep postponing.",
-  numbers: { yearsLived: 31 },
-});
-
-const SPEC_TIME_AUDIT = structuredSpec("Audyt doby", "time_audit", {
-  primary: "You are not out of time. You are out of order.",
-  closing: "Forty hours a week is not a habit. It is a second job.",
-  numbers: { screenHours: 41 },
-});
-
-/**
- * Lista póz dla kadru z maską. Puste `pose` w `layoutData` znaczy „licz z
- * treści" — ręczny wybór jest wyjściem awaryjnym, nie domyślną ścieżką.
- */
-const POSE_CHOICES: Array<{ id: string; label: string }> = [
-  { id: "", label: "Z treści" },
-  { id: "stand", label: "Stoi" },
-  { id: "slump", label: "Siedzi" },
-  { id: "alarm", label: "Sięga po budzik" },
-  { id: "carry", label: "Niesie" },
-  { id: "climb", label: "Pnie się" },
-  { id: "fall", label: "Spada" },
-  { id: "rise", label: "Prostuje się" },
-  { id: "phone", label: "Scrolluje" },
-];
-
-const SPEC_CHARACTER_SCENE = structuredSpec("Scena z chłopakiem", "character_scene", {
-  primary: "You get up before you feel like it. That is the whole trick.",
-  closing: "The body moves first. The mood catches up later.",
-});
-
 /**
  * Lista formatów w jednym miejscu — dawniej każdy układ był dodawanym
  * przyciskiem w JSX, przez co pasek rósł szybciej niż możliwości.
@@ -267,12 +200,7 @@ const LAYOUT_PICKER: Array<{
   { gridType: "none_solid", label: "Cytat", spec: SPEC_BLACK_QUOTE },
   { gridType: "protocol_list", label: "Protokół", spec: SPEC_PROTOCOL },
   { gridType: "cost_vs_reward", label: "Koszt", spec: SPEC_COST_REWARD },
-  { gridType: "studio_wall_3d", label: "Napis w scenie", spec: SPEC_WALL_3D },
-  { gridType: "concept_diagram", label: "Diagram", spec: SPEC_DIAGRAM },
   { gridType: "grid_2x2", label: "Kolaż", spec: SPEC_COLLAGE_4 },
-  { gridType: "life_grid", label: "Siatka życia", spec: SPEC_LIFE_GRID },
-  { gridType: "time_audit", label: "Audyt doby", spec: SPEC_TIME_AUDIT },
-  { gridType: "character_scene", label: "Chłopak", spec: SPEC_CHARACTER_SCENE },
 ];
 
 /** Gdzie napis stoi w kadrze — ten sam tekst, trzy różne sceny. */
@@ -289,16 +217,14 @@ interface FrameCandidate {
   extra: string;
   archetype: string;
   content: StructuredContent;
+  /** Opis pisany pod kadr, nie z niego. Pusty = studio samo nic nie dopisze. */
+  caption: string;
+  /** Pytanie do przypiętego komentarza — trafione, bo pisane pod ten tekst. */
+  question: string;
 }
 
 function asStringList(value: unknown): string[] {
   return Array.isArray(value) ? value.map((item) => String(item).trim()).filter(Boolean) : [];
-}
-
-/** Liczba z odpowiedzi modelu: tylko cyfry i tylko w zakresie, jaki rysuje siatka. */
-function numberOr(value: unknown, fallback: number): number {
-  const raw = Number(String(value ?? "").replace(/[^\d.-]/g, ""));
-  return Number.isFinite(raw) && raw > 0 ? Math.round(raw) : fallback;
 }
 
 /**
@@ -315,8 +241,13 @@ function asCandidate(
   const primary = String(frame.primary ?? "").trim();
   const closing = String(frame.closing ?? "").trim();
   if (!primary) return null;
-  const keeps = (key: string) => !!format?.fields.some((field) => field.key === key);
-  const lists = [steps, cost, forfeit].filter((list) => list.length > 0);
+  const paired = !!format?.fields.some((field) => field.pair);
+  const keeps = (key: string) =>
+    !!format?.fields.some((field) => field.key === key || (field.pair && paired));
+  // Para zostaje parą na liście: dwa osobne słupki w podglądzie nie mówią,
+  // która utrata pada z której ceny.
+  const rows = paired ? cost.map((left, i) => `${left}  ->  ${forfeit[i] ?? ""}`) : [];
+  const lists = paired ? [rows] : [steps, cost, forfeit].filter((list) => list.length > 0);
   return {
     key: `${primary}|${lists.map((list) => list.join(" ")).join("|")}`,
     preview: primary,
@@ -325,18 +256,14 @@ function asCandidate(
       .concat(closing ? [closing] : [])
       .join("\n"),
     archetype: String(frame.archetype ?? "unlabeled"),
+    caption: String(frame.caption ?? "").trim(),
+    question: String(frame.question ?? "").trim(),
     content: {
       primary,
       steps: keeps("steps") ? steps : undefined,
       cost: keeps("cost") ? cost : undefined,
       forfeit: keeps("forfeit") ? forfeit : undefined,
       closing: keeps("closing") ? closing : "",
-      // Liczby idą do geometrii siatki, nie do warstw tekstowych.
-      numbers: keeps("years")
-        ? { yearsLived: numberOr(frame.years, 31) }
-        : keeps("hours")
-          ? { screenHours: numberOr(frame.hours, 41) }
-          : undefined,
     },
   };
 }
@@ -390,9 +317,7 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
    * Kandydat to cały kadr, nie jedno zdanie: struktura idzie z formatem, który
    * stoi aktualnie w studio, więc "Generuj z AI" pod protokół zwraca protokół.
    */
-  const [sayingCandidates, setSayingCandidates] = useState<
-    { key: string; preview: string; extra: string; archetype: string; content: StructuredContent }[]
-  >([]);
+  const [sayingCandidates, setSayingCandidates] = useState<FrameCandidate[]>([]);
   const [sayingTopic, setSayingTopic] = useState(
     "Dyscyplina stoicka, milczenie, wysokie standardy",
   );
@@ -411,6 +336,8 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
 
   const [copiedCaption, setCopiedCaption] = useState(false);
   const [copiedPinned, setCopiedPinned] = useState(false);
+  /** Pytanie od modelu. Puste = pytanie liczona z układu kadru. */
+  const [pinnedQuestion, setPinnedQuestion] = useState("");
   const [savedSuccess, setSavedSuccess] = useState(false);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -519,58 +446,6 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
     };
   }, [slotImages]);
 
-  // Tło generowane w środku aplikacji — wcześniej studio oddawało tylko tekst
-  // `bingPrompt` do wklejenia w obcym generatorze, więc materiał graficzny
-  // nie był samowystarczalny.
-  const [bgImage, setBgImage] = useState<CanvasImageSource | null>(null);
-  const [bgBusy, setBgBusy] = useState(false);
-  const [bgError, setBgError] = useState<string | null>(null);
-  const [bgNote, setBgNote] = useState<string | null>(null);
-
-  const generateBackground = async () => {
-    const hook = (spec.textLayers[0]?.text || "").trim();
-    if (!hook) {
-      setBgError("Najpierw wpisz cytat — z niego robimy scenę.");
-      return;
-    }
-    setBgBusy(true);
-    setBgError(null);
-    setBgNote(null);
-    try {
-      const res = await fetch("/api/ai/generate-background", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ hook, aspect: "9:16" }),
-      });
-      const json = await res.json();
-      if (!res.ok || typeof json?.dataUrl !== "string") {
-        applyFallbackBackdrop(hook);
-        return;
-      }
-      const img = new Image();
-      img.onload = () => setBgImage(img);
-      img.onerror = () => applyFallbackBackdrop(hook);
-      img.src = json.dataUrl;
-    } catch {
-      applyFallbackBackdrop(hook);
-    } finally {
-      setBgBusy(false);
-    }
-  };
-
-  /**
-   * Bez modelu obrazów kadr i tak ma mieć scenę. Wcześniejszą odpowiedzią był
-   * wykład o rozliczeniach w AI Studio, a użytkownik zostawał z czarnym polem.
-   */
-  const applyFallbackBackdrop = (text: string) => {
-    let seed = 7;
-    for (let i = 0; i < text.length; i++) seed = (seed * 31 + text.charCodeAt(i)) >>> 0;
-    const canvas = document.createElement("canvas");
-    drawSceneBackdrop(canvas, dimensions.width, dimensions.height, seed);
-    setBgImage(canvas);
-    setBgNote("Model obrazów niedostępny — tło z banku scen marki.");
-  };
-
   useEffect(() => {
     if (!canvasRef.current) return;
     renderUniversalLayout(canvasRef.current, spec, loadedImages, {
@@ -580,18 +455,8 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
       textScale,
       handle: userHandle,
       fontColor: "white",
-      backgroundImage: bgImage,
     });
-  }, [
-    spec,
-    loadedImages,
-    dimensions.width,
-    dimensions.height,
-    fontFamily,
-    textScale,
-    userHandle,
-    bgImage,
-  ]);
+  }, [spec, loadedImages, dimensions.width, dimensions.height, fontFamily, textScale, userHandle]);
 
   // Zastosowanie wybranego powiedzonka na kadrze (1 uderzające zdanie LUB 2 ultra-krótkie wersy)
   const handleApplySaying = (saying: StoicSaying) => {
@@ -705,18 +570,24 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
       setSayingError("Ta linia jest po polsku. Wybierz inną albo generuj ponownie.");
       return;
     }
-    applyStructuredFrame(candidate.content);
+    setPinnedQuestion(candidate.question);
+    applyStructuredFrame(candidate.content, candidate.caption);
   };
 
   /** Przebudowa kadru z zachowaniem tego, co właściciel marki ustawił sam. */
-  const applyStructuredFrame = (content: StructuredContent) => {
-    const next = structuredSpec(spec.layoutName, spec.gridType, content, spec.layoutData ?? {});
+  const applyStructuredFrame = (content: StructuredContent, modelCaption = "") => {
+    const next = structuredSpec(
+      spec.layoutName,
+      spec.gridType,
+      content,
+      spec.layoutData ?? {},
+      modelCaption,
+    );
     setSpec((prev) => ({
       ...next,
       fontFamilyCustom: prev.fontFamilyCustom,
       fontColorMode: prev.fontColorMode,
       backgroundColor: prev.backgroundColor,
-      caption: starkCaption(content.primary, next.caption),
     }));
   };
 
@@ -983,36 +854,15 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
     }
   };
 
-  // Przełącznik wariantu kadru: napis ma scenę, diagram ma szkic. Ten sam
-  // szkic przy każdym poście wyglądałby po chwili jak szablon.
+  // Napis w scenie ma trzy miejsca na litery (ściana, neon, baner) — dochodzi
+  // dopiero przy kadrze z analizy linku, więc format nie mnoży się w pickerze.
   const variantChoices: {
     label: string;
-    field: "scene" | "diagram" | "pose";
-    fallback: string;
-    options: Array<{ value: string; label: string }>;
+    options: Array<{ value: "wall" | "neon" | "billboard"; label: string }>;
   } =
     spec.gridType === "studio_wall_3d"
-      ? {
-          label: "Scena",
-          field: "scene",
-          fallback: "wall",
-          options: SIGN_SCENES.map((s) => ({ value: s.scene, label: s.label })),
-        }
-      : spec.gridType === "concept_diagram"
-        ? {
-            label: "Szkic",
-            field: "diagram",
-            fallback: "chart",
-            options: DIAGRAM_KINDS.map((d) => ({ value: d.kind, label: d.label })),
-          }
-        : spec.gridType === "character_scene"
-          ? {
-              label: "Poza",
-              field: "pose",
-              fallback: "",
-              options: POSE_CHOICES.map((p) => ({ value: p.id, label: p.label })),
-            }
-          : { label: "", field: "scene", fallback: "", options: [] };
+      ? { label: "Scena", options: SIGN_SCENES.map((s) => ({ value: s.scene, label: s.label })) }
+      : { label: "", options: [] };
 
   return (
     <div className="bg-[#0A0A0A] border border-white/10 rounded-2xl p-4 sm:p-6 shadow-2xl space-y-6 text-neutral-200">
@@ -1057,7 +907,7 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
           ))}
         </div>
 
-        {/* Wariant kadru: scena dla napisu, szkic dla diagramu. */}
+        {/* Wariant kadru: gdzie stoi napis. */}
         {variantChoices.options.length > 0 && (
           <div className="flex items-center gap-1.5">
             <span className="text-[10px] font-mono text-neutral-500 uppercase shrink-0">
@@ -1070,12 +920,11 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
                 onClick={() =>
                   setSpec((prev) => ({
                     ...prev,
-                    layoutData: { ...prev.layoutData, [variantChoices.field]: option.value },
+                    layoutData: { ...prev.layoutData, scene: option.value },
                   }))
                 }
                 className={`px-2.5 py-1 rounded text-[10px] font-mono uppercase tracking-wider cursor-pointer transition-colors shrink-0 ${
-                  (spec.layoutData?.[variantChoices.field] ?? variantChoices.fallback) ===
-                  option.value
+                  (spec.layoutData?.scene ?? "wall") === option.value
                     ? "bg-[#E11D48] text-white"
                     : "bg-[#141414] text-neutral-500 border border-white/10 hover:text-white"
                 }`}
@@ -1083,62 +932,6 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
                 {option.label}
               </button>
             ))}
-            {spec.gridType === "concept_diagram" && (
-              <button
-                type="button"
-                onClick={() =>
-                  setSpec((prev) => ({
-                    ...prev,
-                    layoutData: {
-                      ...prev.layoutData,
-                      diagramSeed: Math.random().toString(36).slice(2, 8),
-                    },
-                  }))
-                }
-                className="px-2.5 py-1 rounded text-[10px] font-mono uppercase tracking-wider cursor-pointer transition-colors shrink-0 bg-[#141414] text-neutral-500 border border-white/10 hover:text-white"
-                title="Ten sam wers, inny szkic"
-              >
-                Inny szkic
-              </button>
-            )}
-          </div>
-        )}
-
-        {/*
-          Kadry liczbowe: liczba jest treścią merytoryczną, nie ozdobą, więc
-          musi dać się wpisać. Bez tego „siatka życia" pokazuje czyjś wiek.
-        */}
-        {(spec.gridType === "life_grid" || spec.gridType === "time_audit") && (
-          <div className="flex items-center gap-2">
-            <label className="text-[10px] font-mono text-neutral-500 uppercase shrink-0">
-              {spec.gridType === "life_grid" ? "Wiek" : "Ekran (godzin w tygodniu)"}:
-            </label>
-            <input
-              type="number"
-              min={spec.gridType === "life_grid" ? 14 : 5}
-              max={spec.gridType === "life_grid" ? 90 : 120}
-              value={
-                spec.gridType === "life_grid"
-                  ? (spec.layoutData?.yearsLived ?? 31)
-                  : (spec.layoutData?.screenHours ?? 41)
-              }
-              onChange={(e) => {
-                const raw = Number(e.target.value);
-                if (!Number.isFinite(raw)) return;
-                const value = Math.max(
-                  spec.gridType === "life_grid" ? 14 : 5,
-                  Math.min(spec.gridType === "life_grid" ? 90 : 120, Math.round(raw)),
-                );
-                setSpec((prev) => ({
-                  ...prev,
-                  layoutData:
-                    prev.gridType === "life_grid"
-                      ? { ...prev.layoutData, yearsLived: value }
-                      : { ...prev.layoutData, screenHours: value },
-                }));
-              }}
-              className="w-24 px-2 py-1 bg-[#050505] border border-white/15 rounded text-[11px] font-mono text-white focus:outline-none focus:border-white"
-            />
           </div>
         )}
 
@@ -1226,48 +1019,6 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
               </span>
 
               <div className="flex flex-wrap items-center gap-2">
-                {/* Tło ma sens tylko tam, gdzie kadr jest zdjęciem: cytat na
-                    czerni ma być czernią. */}
-                {spec.gridType !== "none_solid" && (
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={generateBackground}
-                      disabled={bgBusy}
-                      title="Wygeneruj tło dopasowane do tego cytatu, bez wychodzenia z aplikacji"
-                      className={`px-2.5 py-1 rounded text-[11px] font-mono font-bold flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50 ${
-                        bgImage
-                          ? "bg-rose-600/20 text-rose-300 border border-rose-500/40"
-                          : "text-neutral-400 hover:text-white border border-neutral-700"
-                      }`}
-                    >
-                      <span>
-                        {bgBusy ? "Generuję tło…" : bgImage ? "Tło: generacja ✓" : "Tło z AI"}
-                      </span>
-                    </button>
-                    {bgImage && !bgBusy && (
-                      <button
-                        type="button"
-                        onClick={() => setBgImage(null)}
-                        className="text-[10px] font-mono text-neutral-500 hover:text-white underline underline-offset-2 cursor-pointer"
-                        title="Wróć do płaskiej czerni"
-                      >
-                        usuń tło
-                      </button>
-                    )}
-                    {bgError && (
-                      <span className="text-[10px] font-mono text-rose-400">{bgError}</span>
-                    )}
-                    {bgNote && !bgError && (
-                      <span className="text-[10px] font-mono text-neutral-500">{bgNote}</span>
-                    )}
-                  </div>
-                )}
-
-                {spec.gridType !== "none_solid" && (
-                  <div className="h-4 w-px bg-white/10 hidden sm:block" />
-                )}
-
                 <div className="flex items-center gap-1.5">
                   <span className="text-[10px] font-mono text-neutral-400">
                     Rozmiar: {Math.round(textScale * 100)}%
@@ -1621,13 +1372,16 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
           </div>
 
           {(() => {
+            const rows = spec.textLayers.filter((layer) => layer.id !== PRIMARY_LAYER_ID);
             const pinned = starkPinned(
               spec.textLayers.find((layer) => layer.id === PRIMARY_LAYER_ID)?.text ??
                 spec.textLayers[0]?.text ??
                 "",
-              spec.textLayers
-                .filter((layer) => layer.id !== PRIMARY_LAYER_ID)
-                .map((layer) => layer.text ?? ""),
+              rows.map((layer) => layer.text ?? ""),
+              pinnedQuestion,
+              spec.gridType === "none_solid" || spec.gridType === "studio_wall_3d"
+                ? "single"
+                : "list",
             );
             return (
               <div className="bg-[#121212] p-4 rounded-xl border border-white/10 space-y-2">

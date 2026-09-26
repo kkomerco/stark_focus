@@ -68,6 +68,17 @@ const POMPOUS_WORDS = [
   "henceforth",
   "thus",
   "verily",
+  // Ozdobna przyroda i kamień: „dębowe drzwi", „popiół", „marmur" nie znaczą
+  // nic, a czytelnik musi je rozszyfrowywać zamiast wykonać pierwsze zdanie.
+  "oak",
+  "granite",
+  "marble",
+  "ember",
+  "ash",
+  "ashes",
+  "tomb",
+  "shrine",
+  "altar",
 ];
 
 /** Mówienie o ludziach w trzeciej osobie brzmi jak rada, nie jak diagnoza. */
@@ -308,6 +319,7 @@ export const SLOP_BAN_LIST = [
     ABSTRACT_SUBJECTS.slice(0, 8).join(", ") +
     ") — ma być rzecz, człowiek, gest albo liczba.",
   "Zakaz: myślniki piętrzone, szablon „not X, but Y”, rym na końcu, zastrzeżenie na końcu zdania, moralizowanie o „ludziach”, żebranie o lajki i komentarze.",
+  "Zakaz przenośni ozdobnych: przedmiot nazywamy po imieniu i tylko taki, który czytelnik realnie ma w ręku (telefon, budzik, biurko, talerz). «Dębowe drzwi», «popiół», «marmur», «cisza jak grób» to dekoracja, nie treść — zdanie ma się dać wykonać.",
 ].join(" ");
 
 /** Ile słów na kadr. Jedna miara dla wszystkich tras. */

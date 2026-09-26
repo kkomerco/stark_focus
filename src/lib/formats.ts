@@ -8,8 +8,7 @@
 // studio budujące `textLayers`.
 import { UniversalLayoutSpec } from "../types";
 
-export type FrameFormatId =
-  "quote" | "protocol" | "cost" | "diagram" | "sign" | "collage" | "life_grid" | "time_audit";
+export type FrameFormatId = "quote" | "protocol" | "cost" | "collage";
 
 export interface FrameFormat {
   id: FrameFormatId;
@@ -21,13 +20,17 @@ export interface FrameFormat {
   shape: string;
   /** Pola struktury wraz z limitem wierszy — po to, żeby dało to zweryfikować. */
   fields: Array<{
-    key: "primary" | "steps" | "cost" | "forfeit" | "closing" | "years" | "hours";
+    key: "primary" | "steps" | "cost" | "forfeit" | "closing" | "rows";
     label: string;
     /** 0 = pole pojedyncze (zdanie), >0 = lista o dokładnie tylu wierszach. */
     list?: number;
     words: string;
-    /** Pole liczbowe: model podaje liczbę, układ rysuje z niej siatkę. */
-    number?: { min: number; max: number };
+    /**
+     * Lista PAR ("Cena -> Utrata). Model, który pisze dwie osobne listy,
+     * zawsze rozjedzie rząd 1 z rzędem 2 — a tu trzeci słupek ma być ceną
+     * pierwszego.
+     */
+    pair?: boolean;
   }>;
 }
 
@@ -58,32 +61,17 @@ export const FRAME_FORMATS: readonly FrameFormat[] = [
     label: "Koszt i utrata",
     gridType: "cost_vs_reward",
     layoutName: "Koszt i utrata",
-    shape: "Pytanie o cenę, dwa słupki: co płacisz teraz, co tracisz, i puenta.",
+    shape:
+      "Pytanie o cenę, trzy pary «co płacisz → co to zabiera» i puenta. Każdy rząd to JEDNA " +
+      "decyzja: utrata w tym samym wierszu jest bezpośrednią konsekwencją ceny znad strzałki, " +
+      "ta sama scena i ten sam rekwizyt. Trzy rzędy to trzy różne decyzje, nie trzy losowe " +
+      "straty. Mów wprost: ani jednej przenośni o drzewach, drzwiach, kawie ani mogile — " +
+      "czytelnik ma poznać rachunek, nie zgadywać zagadki.",
     fields: [
       { key: "primary", label: "Pytanie", words: "5-12" },
-      { key: "cost", label: "Cena", list: 3, words: "3-8" },
-      { key: "forfeit", label: "Utrata", list: 3, words: "3-8" },
+      { key: "rows", label: "Cena i utrata", list: 3, words: "3-6 + 3-6", pair: true },
       { key: "closing", label: "Puenta", words: "4-10" },
     ],
-  },
-  {
-    id: "diagram",
-    label: "Diagram",
-    gridType: "concept_diagram",
-    layoutName: "Diagram",
-    shape: "Jedno zdanie pod szkic i jedna puenta pod spodem. Mało tekstu — rysunek niesie resztę.",
-    fields: [
-      { key: "primary", label: "Zdanie", words: "4-9" },
-      { key: "closing", label: "Puenta", words: "4-9" },
-    ],
-  },
-  {
-    id: "sign",
-    label: "Napis w scenie",
-    gridType: "studio_wall_3d",
-    layoutName: "Napis w scenie",
-    shape: "Napis na ścianie: tyle słów, ile zmieści się w kadrze bez łamania.",
-    fields: [{ key: "primary", label: "Napis", words: "3-7" }],
   },
   {
     id: "collage",
@@ -94,41 +82,6 @@ export const FRAME_FORMATS: readonly FrameFormat[] = [
     fields: [
       { key: "primary", label: "Teza", words: "4-10" },
       { key: "steps", label: "Kadry", list: 4, words: "3-8" },
-    ],
-  },
-  {
-    id: "life_grid",
-    label: "Siatka życia",
-    gridType: "life_grid",
-    layoutName: "Siatka życia",
-    shape:
-      "Teza, która robi się prawdziwa dopiero po policzeniu: jeden kwadrat to jeden tydzień życia.",
-    fields: [
-      { key: "primary", label: "Teza", words: "4-10" },
-      {
-        key: "years",
-        label: "Wiek",
-        words: "liczba przeżytych lat",
-        number: { min: 14, max: 90 },
-      },
-      { key: "closing", label: "Puenta", words: "4-10" },
-    ],
-  },
-  {
-    id: "time_audit",
-    label: "Audyt doby",
-    gridType: "time_audit",
-    layoutName: "Audyt doby",
-    shape: "Tydzień rozpisany na godziny: sen, praca, ekran. Liczby robią całą tezę.",
-    fields: [
-      { key: "primary", label: "Teza", words: "4-10" },
-      {
-        key: "hours",
-        label: "Ekran w tygodniu",
-        words: "liczba godzin przed ekranem w tygodniu",
-        number: { min: 5, max: 120 },
-      },
-      { key: "closing", label: "Puenta", words: "4-10" },
     ],
   },
 ];
@@ -144,14 +97,13 @@ export function formatByGrid(gridType: string): FrameFormat | undefined {
 /** Sam prompt dla modelu: lista pól z limitami, bez zgadywania kształtu. */
 export function formatFieldSpec(format: FrameFormat): string {
   return format.fields
-    .map((field) => {
-      if (field.number) {
-        return `- "${field.key}": jedna liczba całkowita (${field.words}), tylko cyfry, bez słowa`;
-      }
-      return field.list
-        ? `- "${field.key}": dokładnie ${field.list} wierszy po angielsku (${field.words} słów każdy)`
-        : `- "${field.key}": jedno zdanie po angielsku (${field.words} słów)`;
-    })
+    .map((field) =>
+      field.pair
+        ? `- "${field.key}": dokładnie ${field.list} PAR po angielsku w formie "Cena -> Utrata" (${field.words} słów); po strzałce ma być konsekwencja tego, co przed nią`
+        : field.list
+          ? `- "${field.key}": dokładnie ${field.list} wierszy po angielsku (${field.words} każdy)`
+          : `- "${field.key}": jedno zdanie po angielsku (${field.words} słów)`,
+    )
     .join("\n");
 }
 
@@ -194,9 +146,6 @@ export function frameToBeats(formatId: FrameFormatId, content: FrameContent): st
       if (clean(content.closing)) beats.push(clean(content.closing));
       break;
     }
-    case "diagram":
-      if (clean(content.closing)) beats.push(clean(content.closing));
-      break;
     default:
       break;
   }

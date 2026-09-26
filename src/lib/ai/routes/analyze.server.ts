@@ -298,12 +298,6 @@ export function registerAnalyzeRoutes(app: MiniApp): void {
           ],
           caption: formatStarkCaption(
             "Stay ruthless with your standards. Never negotiate with weakness.",
-            [
-              "Comfort is a slow poison disguised as safety.",
-              "The standards you enforce when alone determine your destiny.",
-              "Silence protects your focus while results announce your victory.",
-            ],
-            "Execute in silence. Never compromise with mediocrity.",
           ),
           detectedAudio: rawMetadata.audioTrack || "Oryginalny dźwięk",
         },

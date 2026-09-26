@@ -221,11 +221,7 @@ ${HOOK_CRAFT_PROMPT}
             captionShort: parsed.captionShort || "Execute in total silence. Save this reminder.",
             captionDeep:
               parsed.captionDeep ||
-              formatStarkCaption("Most men lose self-respect in small private compromises.", [
-                "Move without hesitation.",
-                "Do the hardest task first.",
-                "Hold your standard in secret.",
-              ]),
+              formatStarkCaption("Most men lose self-respect in small private compromises."),
             // Hashtagi liczymy z fraz rolki — nigdy od modelu.
             hashtags: starkHashtags(Array.isArray(parsed.phrases) ? parsed.phrases.join(" ") : ""),
             suggestedTheme: parsed.suggestedTheme || randomTheme,

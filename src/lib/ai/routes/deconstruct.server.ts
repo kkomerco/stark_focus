@@ -20,14 +20,11 @@ const MAX_IMAGE_DATA_CHARS = 4_000_000;
 
 const OUR_LAYOUTS = [
   "none_solid",
-  "concept_diagram",
   "protocol_list",
   "cost_vs_reward",
   "studio_wall_3d",
   "grid_2x2",
 ] as const;
-
-const OUR_DIAGRAMS = ["chart", "scales", "path", "split"] as const;
 
 function dataUrlToImage(dataUrl: string): { base64: string; mimeType: string } | null {
   const match = /^data:(image\/(png|jpeg|webp));base64,([\s\S]+)$/i.exec(dataUrl);
@@ -187,7 +184,6 @@ hook (max 10 słów, PO ANGIELSKU), angle, phrases [hook, rozwinięcie, puenta] 
 ZADANIE 3 — 3 RECEPTURY (blueprint): to, co z oryginału da się u nas odtworzyć kadr po kadrze.
 Nasz słownik układów: ${OUR_LAYOUTS.join(", ")}.
 - "none_solid" — płaski cytat na czerni
-- "concept_diagram" — czarny kadr, wiersz u góry i SZKIC LINIĄ pod nim (diagram: ${OUR_DIAGRAMS.join(", ")})
 - "protocol_list" — teza + numerowane kroki
 - "cost_vs_reward" — pytanie + dwa słupki + puenta
 - "studio_wall_3d" — napis w scenie (scena: wall, neon, billboard)
@@ -205,7 +201,6 @@ Zwróć WYŁĄCZNIE JSON:
   "starkVariants": [{ "hook": "", "angle": "", "phrases": [], "viralityScore": 92 }],
   "blueprints": [{
     "gridType": "${OUR_LAYOUTS.join("|")}",
-    "diagram": "${OUR_DIAGRAMS.join("|")} albo puste",
     "scene": "wall|neon|billboard albo puste",
     "line": "wiersz na kadr (EN)",
     "subline": "dopisek pod szkicem (EN, opcjonalnie)",
@@ -259,11 +254,7 @@ Zwróć WYŁĄCZNIE JSON:
               const gridType = oneOf(raw.gridType, OUR_LAYOUTS, "none_solid");
               // Pola dekoracyjne tylko tam, gdzie układ naprawdę je rysuje.
               // Wypełniane zawsze wracały nawet w czystym cytacie, więc
-              // „wykres" i „ściana" nie znaczyły nic.
-              const diagram =
-                gridType === "concept_diagram"
-                  ? oneOf(raw.diagram, OUR_DIAGRAMS, "chart")
-                  : undefined;
+              // „ściana" nie znaczyła nic.
               const scene =
                 gridType === "studio_wall_3d"
                   ? oneOf(raw.scene, ["wall", "neon", "billboard"] as const, "wall")
@@ -275,7 +266,6 @@ Zwróć WYŁĄCZNIE JSON:
               return {
                 id: `blueprint-${dynamicSeed}-${idx + 1}`,
                 gridType,
-                diagram,
                 scene,
                 line: asString(raw.line).slice(0, 160),
                 subline: asString(raw.subline).slice(0, 160),

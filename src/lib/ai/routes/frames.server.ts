@@ -37,6 +37,12 @@ KAZDA linia wariantu zostaje w temacie "${topic}" i dotyczy dnia czytelnika (jeg
 POLA WARIANTU (wszystkie po angielsku, bez polskiego, bez hashtagów, bez emoji):
 ${formatFieldSpec(format)}
 
+${PAIRING_RULE[format.id] ?? ""}
+
+DOPISZ JESZCZE DWA POLA — one trafia POD kadr, nie na kadr:
+- "caption": 2-3 zdania po angielsku, ktore ROZWIJAJA temat. Nowa scena, nowy konkret, nowa konsekwencja. Zdanie powtorzone z pola wyzej jest bledem — pod kadrem nie ma byc tego, co widz wlasnie przeczytal.
+- "question": jedno pytanie po angielsku (max 18 slow) do przypiecia pod postem. Pyta o konkretna decyzje czytelnika z jego dnia, nie o opinie ani nie o to, czy sie zgadza.
+
 ${HOOK_CRAFT_PROMPT}
 REJESTR: ${HOOK_REGISTER}
 ZAKAZY: ${SLOP_BAN_LIST}
@@ -52,13 +58,47 @@ Zwróc WYŁĄCZNIE czysty JSON:
 {
   "frames": [
     {
-${format.fields.map((field) => `      "${field.key}": ${field.list ? '["linie po angielsku"]' : '"linia po angielsku"'},`).join("\n")}
+${format.fields
+  .map(
+    (field) =>
+      `      "${field.key}": ${
+        field.pair
+          ? '["Cena -> Utrata"]'
+          : field.list
+            ? '["linie po angielsku"]'
+            : '"linia po angielsku"'
+      },`,
+  )
+  .join("\n")}
+      "caption": "rozwiniecie tematu pod kadrem",
+      "question": "pytanie do przypiecia",
       "archetype": "id figury, ktorej uzyles",
       "generic_risk": 0
     }
   ]
 }
 "generic_risk": 0-10 — ile w tym kadru jest prawdy, ktorej nie da sie wpisac w dowolny motywacyjny post. Oceny MUSZA byc roznicowane.`;
+}
+
+/** Reguła dopisana tylko tam, gdzie układ rysuje wiersze parami. */
+const PAIRING_RULE: Record<string, string> = {
+  cost: 'ZASADA PAR: „forfeit[0]" jest bezposlednia konsekwencja „cost[0]", „forfeit[1]" konsekwencja „cost[1]" itd. Ten sam rzad to ta sama scena i ten sam rekwizyt — nie dwie niezalezne listy straconych rzeczy.',
+};
+
+/** Zdanie z kadru nie może wrócić w opisie — inaczej opis jest powtórką podglądu. */
+function repeatsFrame(caption: string, lines: string[]): boolean {
+  const flat = ` ${caption
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")} `;
+  return lines.some((line) => {
+    const needle = line
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    return needle.length > 8 && flat.includes(` ${needle}`);
+  });
 }
 
 function cleanLine(value: unknown): string {
@@ -87,15 +127,36 @@ export function rankFrameCandidates(
     let broken = false;
 
     for (const field of format.fields) {
-      if (field.number) {
-        // Liczba jest tu całą tezą kadru: model ma podać cyfrę, a nie zdanie
-        // z cyfrą w środku. Nic z tego nie rysujemy, jeśli liczby nie ma.
-        const raw = Number(String(entry[field.key] ?? "").replace(/[^\d.-]/g, ""));
-        if (!Number.isFinite(raw) || raw < field.number.min || raw > field.number.max) {
+      if (field.pair) {
+        // Para to JEDNO zdanie modelu z rozdzielnikiem: dopiero tak rząd
+        // „Utrata" musi odpowiadać rządowi „Cena". Dwie osobne listy model
+        // zawsze rozjeżdżał o jeden wiersz.
+        const rows = asStringArray(entry[field.key], (field.list ?? 0) + 2).map(cleanLine);
+        if (!field.list || rows.length !== field.list) {
           broken = true;
           break;
         }
-        frame[field.key] = Math.round(raw);
+        const halves = rows.map((row) => row.split(/\s*(?:->|→|—)\s*/).map((part) => part.trim()));
+        if (halves.some((half) => half.length !== 2 || !half[0] || !half[1])) {
+          broken = true;
+          break;
+        }
+        let pairBroken = false;
+        for (const [left, right] of halves) {
+          for (const line of [left, right]) {
+            const fp = hookFingerprint(line);
+            if (!auditLine(line, 12).ok || isPolishCopy(line) || excluded.has(fp) || seen.has(fp)) {
+              pairBroken = true;
+            }
+            fingerprints.push(fp);
+          }
+        }
+        if (pairBroken) {
+          broken = true;
+          break;
+        }
+        frame.cost = halves.map((half) => half[0]);
+        frame.forfeit = halves.map((half) => half[1]);
         continue;
       }
 
@@ -131,6 +192,26 @@ export function rankFrameCandidates(
     if (broken) {
       rejected++;
       continue;
+    }
+
+    // Opis i pytanie są dobrowolne: gdy model napisze powtórkę kadru, wolimy
+    // oddać kadr bez opisu niż odrzucić cały wariant (darmowy tier liczy
+    // każde wywołanie, nie każde pole).
+    const frameLines = [frame.primary, frame.closing, frame.steps, frame.cost, frame.forfeit]
+      .flatMap((value) => (Array.isArray(value) ? value : [value]))
+      .filter((value): value is string => typeof value === "string" && value.length > 0);
+    const caption = cleanLine(entry.caption);
+    if (
+      caption.length >= 40 &&
+      caption.length <= 480 &&
+      !isPolishCopy(caption) &&
+      !repeatsFrame(caption, frameLines)
+    ) {
+      frame.caption = caption;
+    }
+    const question = cleanLine(entry.question);
+    if (question && !isPolishCopy(question) && auditLine(question, 20).ok) {
+      frame.question = question;
     }
     // Odcisk całego kadru: dwa warianty z tym samym zdaniem, ale innymi
     // krokami, to nadal ten sam materiał.

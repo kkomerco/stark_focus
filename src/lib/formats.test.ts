@@ -1,18 +1,19 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { FRAME_FORMATS, REEL_BEAT_LIMIT, frameToBeats, formatByGrid } from "./formats";
+import { FRAME_FORMATS, REEL_BEAT_LIMIT, frameToBeats, formatById } from "./formats";
 
 describe("FRAME_FORMATS", () => {
-  it("kadry liczbowe mają pole liczbowe i tylko jedno", () => {
-    for (const grid of ["life_grid", "time_audit"]) {
-      const format = formatByGrid(grid);
-      assert.ok(format, `${grid} nie ma formatu`);
-      const numbers = format.fields.filter((field) => field.number);
-      assert.equal(numbers.length, 1, `${grid}: liczba ma być jedna`);
-      const range = numbers[0]?.number;
-      assert.ok(range, `${grid}: pole liczbowe bez zakresu`);
-      assert.ok(range.min < range.max, `${grid}: zakres odwrócony`);
-    }
+  it("studio ma cztery formaty i ani jednego więcej", () => {
+    assert.deepEqual(
+      FRAME_FORMATS.map((format) => format.id),
+      ["quote", "protocol", "cost", "collage"],
+    );
+  });
+
+  it("koszt pyta o pary, nie o dwa osobne słupki", () => {
+    const rows = formatById("cost")?.fields.find((field) => field.key === "rows");
+    assert.ok(rows?.pair, "rzędy kosztu muszą wychodzić parami z ust");
+    assert.ok(!formatById("cost")?.fields.some((field) => field.key === "cost"));
   });
 
   it("każdy format ma tezę jako pierwsze pole", () => {
@@ -50,12 +51,8 @@ describe("frameToBeats", () => {
     assert.equal(beats[beats.length - 1], FULL.closing);
   });
 
-  it("diagram ma tylko zdanie i puentę", () => {
-    assert.deepEqual(frameToBeats("diagram", FULL), [FULL.primary, FULL.closing]);
-  });
-
   it("rolka nigdy nie rozciąga się ponad limit taktów", () => {
-    for (const shape of ["protocol", "cost", "collage", "diagram", "quote"] as const) {
+    for (const shape of ["protocol", "cost", "collage", "quote"] as const) {
       assert.ok(frameToBeats(shape, FULL).length <= REEL_BEAT_LIMIT, shape);
     }
   });
