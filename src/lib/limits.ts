@@ -27,11 +27,6 @@ export function clampCount(value: unknown, fallback: number = LIMITS.defaultCoun
   return clampInt(value, 1, LIMITS.maxCount, fallback);
 }
 
-/** Przesunięcie w banku/stronicowaniu — nigdy ujemne, nigdy ułamkowe. */
-export function clampOffset(value: unknown): number {
-  return clampInt(value, 0, Number.MAX_SAFE_INTEGER, 0);
-}
-
 /**
  * Tekst od klienta wchodzi w skład promptu (i w klucz cache), więc go
  * przycinamy: Express dopusca 10 MB body, a za każdy znak promptu płacimy.

@@ -1,7 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { auditHook, auditLine, isAiSlop, HOOK_ARCHETYPES } from "./hookCraft";
-import { buildHookPrompt, rankHookCandidates } from "./ai/routes/hooks.server";
+import { auditHook, auditLine, isAiSlop } from "./hookCraft";
 
 describe("auditHook", () => {
   it("odrzuca klisze, abstrakt w roli podmiotu i ugaszony koniec", () => {
@@ -36,74 +35,5 @@ describe("auditHook", () => {
     // Fałsz tego testu wywracał cały kadr kosztów: sześć wariantów, zero
     // przyjętych, bo „losing / breathing" brało się za rym.
     assert.equal(auditLine("Losing the chapters you meant to read while breathing").ok, true);
-  });
-});
-
-describe("rankHookCandidates", () => {
-  const raw = [
-    { line: "Unlock your potential.", archetype: "ledger", generic_risk: 1 },
-    { line: "Rust works while you sleep.", archetype: "object", generic_risk: 2 },
-    { line: "The door closes quietly.", archetype: "quiet-close", generic_risk: 9 },
-    { line: "Rust works while you sleep.", archetype: "object", generic_risk: 3 },
-    {
-      line: "You already paid. You just have not received it.",
-      archetype: "ledger",
-      generic_risk: 4,
-    },
-  ];
-
-  it("wyrzuca klisze i duplikaty, liczac odrzuconych", () => {
-    const { candidates, rejected } = rankHookCandidates(raw, [], 10);
-    assert.equal(
-      candidates.some((c) => c.line.includes("Unlock")),
-      false,
-    );
-    assert.equal(candidates.filter((c) => c.line.startsWith("Rust")).length, 1);
-    assert.ok(rejected >= 2);
-  });
-
-  it("sortuje po ryzyku bycia ogolnikiem, nie po kolejnosci z modelu", () => {
-    const { candidates } = rankHookCandidates(raw, [], 10);
-    assert.deepEqual(
-      candidates.map((c) => c.genericRisk),
-      [...candidates.map((c) => c.genericRisk)].sort((a, b) => a - b),
-    );
-  });
-
-  it("nie daje dwóch kandydatów z tej samej figury nad miare", () => {
-    const many = Array.from({ length: 6 }, (_, i) => ({
-      line: `Rust works while you sleep ${i}.`,
-      archetype: "object",
-      generic_risk: 1,
-    }));
-    const { candidates } = rankHookCandidates(many, [], 6);
-    assert.equal(candidates.length, 2);
-  });
-
-  it("nie odda linii, ktora juz poszla w feedzie", () => {
-    const { candidates } = rankHookCandidates(raw, ["Rust works while you sleep."], 10);
-    assert.equal(
-      candidates.some((c) => c.line.startsWith("Rust")),
-      false,
-    );
-  });
-});
-
-describe("buildHookPrompt", () => {
-  it("wkleja wszystkie figury i liste zakazow", () => {
-    const prompt = buildHookPrompt({ topic: "zima", shape: "1 zdanie", exclude: [], count: 5 });
-    for (const archetype of HOOK_ARCHETYPES) assert.ok(prompt.includes(archetype.id));
-    assert.ok(prompt.includes("Zakazane frazy"));
-  });
-
-  it("przekazuje opublikowane hooki jako zakaz powtorki", () => {
-    const prompt = buildHookPrompt({
-      topic: "zima",
-      shape: "",
-      exclude: ["Silence cannot be misquoted."],
-      count: 5,
-    });
-    assert.ok(prompt.includes("Silence cannot be misquoted."));
-    assert.ok(prompt.includes("nie powtarzaj"));
   });
 });

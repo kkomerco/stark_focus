@@ -19,18 +19,18 @@ export interface CodexRule {
   suggestedTheme:
     "obsidian_void" | "crimson_eclipse" | "emerald_abyss" | "carbon_aura" | "silver_mist";
   suggestedBroll: string;
-  carouselSlides: Array<{ headline: string; bodyText: string; highlightWords: string }>;
+  /**
+   * Slajdy banku: `headline` + `bodyText`, bez `highlightWords`. Bank je
+   * dostarczał, a trasa paczki dnia i tak je wyrzucała przy mapowaniu na
+   * karuzelę — pole, które istnieje tylko po to, żeby je zgubić, jest kłamstwem
+   * w danych. Wyróżnienia wracają tam, gdzie je ktoś czyta: w recyklerze
+   * (`trends.server.ts`) i w studiu karuzeli.
+   *
+   * Bank daje 5 slajdów, czyli poniżej kontraktu (`CAROUSEL_TARGET_SLIDES` = 12).
+   * Nie dorabiamy ich na siłę — studio mówi wprost, że materiał jest krótszy.
+   */
+  carouselSlides: Array<{ headline: string; bodyText: string }>;
 }
-
-export const CODEX_CATEGORIES = [
-  { id: "all", name: "Wszystkie Zasady", icon: "" },
-  { id: "discipline", name: "Dyscyplina & Asceza", icon: "" },
-  { id: "silence_power", name: "Milczenie & Władza", icon: "" },
-  { id: "roman_stoic", name: "Cesarski Stoicyzm", icon: "" },
-  { id: "neurobiology", name: "Neurobiologia & Dopamina", icon: "" },
-  { id: "unforgiving_standard", name: "Żelazne Standardy", icon: "" },
-  { id: "paradoxes", name: "Paradoksy Sukcesu", icon: "" },
-] as const;
 
 export const STARK_CODEX_RULES: CodexRule[] = [
   {
@@ -49,27 +49,22 @@ export const STARK_CODEX_RULES: CodexRule[] = [
       {
         headline: "THE SILENT CONTRACT",
         bodyText: "You don't lack discipline. You allow negotiations with morning comfort.",
-        highlightWords: "discipline, negotiations, comfort",
       },
       {
         headline: "FIRST CONTACT",
         bodyText: "The first battle of every day happens before your eyes even open completely.",
-        highlightWords: "battle, open, completely",
       },
       {
         headline: "THE COST OF DELAY",
         bodyText: "Hitting snooze tells your subconscious that your commitments are optional.",
-        highlightWords: "snooze, subconscious, optional",
       },
       {
         headline: "THE IRON FORMULA",
         bodyText: "No thinking. No rationalizing. Five seconds of cold execution.",
-        highlightWords: "thinking, execution",
       },
       {
         headline: "THE UNFORGIVING STANDARD",
         bodyText: "Save this reminder. Win the first 10 minutes, control the entire day.",
-        highlightWords: "reminder, win, control",
       },
     ],
   },
@@ -89,27 +84,22 @@ export const STARK_CODEX_RULES: CodexRule[] = [
       {
         headline: "SHUT YOUR MOUTH",
         bodyText: "The urge to tell people your plans is weakness masquerading as excitement.",
-        highlightWords: "mouth, urge, weakness",
       },
       {
         headline: "CHEAP DOPAMINE",
         bodyText: "Your brain confuses public declaration with actual biological accomplishment.",
-        highlightWords: "brain, declaration, accomplishment",
       },
       {
         headline: "THE MONK PARADOX",
         bodyText: "The most dangerous man in any room is the one who owes nobody an explanation.",
-        highlightWords: "dangerous, owes, explanation",
       },
       {
         headline: "DARK WORK",
         bodyText: "Twelve months of uninterrupted focus in private will shock everyone in public.",
-        highlightWords: "uninterrupted, private, shock",
       },
       {
         headline: "THE UNFORGIVING STANDARD",
         bodyText: "Save this reminder. Starve your need for applause. Execute in silence.",
-        highlightWords: "reminder, applause, silence",
       },
     ],
   },
@@ -128,27 +118,22 @@ export const STARK_CODEX_RULES: CodexRule[] = [
       {
         headline: "THE INNER CITADEL",
         bodyText: "No human being or circumstance can break you without your consent.",
-        highlightWords: "citadel, break, consent",
       },
       {
         headline: "THE TWO DOMAINS",
         bodyText: "Divide every single problem into what is yours to decide, and what is noise.",
-        highlightWords: "domains, decide, noise",
       },
       {
         headline: "STRIP THE DRAMA",
         bodyText: "Remove the word 'terrible'. A situation is merely what occurred, nothing more.",
-        highlightWords: "drama, terrible, occurred",
       },
       {
         headline: "UNSHAKABLE COMPOUND",
         bodyText: "When they expect you to panic, return to your work without changing expression.",
-        highlightWords: "unshakable, panic, expression",
       },
       {
         headline: "THE UNFORGIVING STANDARD",
         bodyText: "Save this reminder. Master yourself first before attempting to master reality.",
-        highlightWords: "reminder, master, reality",
       },
     ],
   },
@@ -170,27 +155,22 @@ export const STARK_CODEX_RULES: CodexRule[] = [
         headline: "THE WILLPOWER MUSCLE",
         bodyText:
           "Willpower is not a character trait. It is a biological circuit waiting for tension.",
-        highlightWords: "willpower, trait, tension",
       },
       {
         headline: "THE AMCC MATRIX",
         bodyText: "Every time you do what you hate doing, your brain physically grows denser.",
-        highlightWords: "hate, brain, denser",
       },
       {
         headline: "NEVER NEGOTIATE",
         bodyText: "The moment you hesitate for 3 seconds, your limbic system takes over.",
-        highlightWords: "hesitate, limbic, takes",
       },
       {
         headline: "PAIN IS DATA",
         bodyText: "Reframe mental exhaustion as proof that the adaptation has begun.",
-        highlightWords: "pain, adaptation, begun",
       },
       {
         headline: "THE UNFORGIVING STANDARD",
         bodyText: "Save this reminder. Make discomfort your permanent address.",
-        highlightWords: "reminder, discomfort, permanent",
       },
     ],
   },
@@ -210,27 +190,22 @@ export const STARK_CODEX_RULES: CodexRule[] = [
       {
         headline: "KILL THE CHOICES",
         bodyText: "The disciplined man doesn't choose to work. He eliminated every other option.",
-        highlightWords: "disciplined, choose, option",
       },
       {
         headline: "DECISION FATIGUE",
         bodyText: "Debating whether to go to the gym uses more energy than the workout itself.",
-        highlightWords: "debating, energy, workout",
       },
       {
         headline: "UNBREAKABLE RULES",
         bodyText: "Replace goals with non-negotiable protocols. No mood checks. No excuses.",
-        highlightWords: "unbreakable, protocols, excuses",
       },
       {
         headline: "THE COMPOUND RESULT",
         bodyText: "When standards replace feelings, mediocrity becomes mathematically impossible.",
-        highlightWords: "standards, feelings, impossible",
       },
       {
         headline: "THE UNFORGIVING STANDARD",
         bodyText: "Save this reminder. Stop asking how you feel. Start obeying your code.",
-        highlightWords: "reminder, feel, code",
       },
     ],
   },
@@ -250,27 +225,22 @@ export const STARK_CODEX_RULES: CodexRule[] = [
       {
         headline: "THE ISOLATION EDGE",
         bodyText: "Most people are terrified of being alone with their thoughts for one hour.",
-        highlightWords: "isolation, terrified, alone",
       },
       {
         headline: "THE NOISE TAX",
         bodyText: "Every casual conversation drains energy that belonged to your life's work.",
-        highlightWords: "noise, drains, belonged",
       },
       {
         headline: "MONK MODE PROTOCOL",
         bodyText: "Go dark for 90 days. Reappear unrecognizable in capability and composure.",
-        highlightWords: "dark, unrecognizable, composure",
       },
       {
         headline: "SELECTIVE DEAFNESS",
         bodyText: "Never accept criticism from someone whose life you would refuse to live.",
-        highlightWords: "criticism, refuse, live",
       },
       {
         headline: "THE UNFORGIVING STANDARD",
         bodyText: "Save this reminder. Fall in love with the quiet grind.",
-        highlightWords: "reminder, quiet, grind",
       },
     ],
   },
@@ -289,27 +259,22 @@ export const STARK_CODEX_RULES: CodexRule[] = [
       {
         headline: "SEVER THE TIES",
         bodyText: "Your feelings are the worst advisor you could ever hire for your future.",
-        highlightWords: "sever, feelings, advisor",
       },
       {
         headline: "THE ENEMY WITHIN",
         bodyText: "Motivation creates tourists. Pure, detached discipline builds monuments.",
-        highlightWords: "motivation, discipline, monuments",
       },
       {
         headline: "COLD EXECUTION",
         bodyText: "Learn to look your fatigue in the face and start the next set anyway.",
-        highlightWords: "cold, fatigue, anyway",
       },
       {
         headline: "IMPERIAL CALM",
         bodyText: "Neither praise nor insult should ever change your stride by one millimeter.",
-        highlightWords: "imperial, praise, millimeter",
       },
       {
         headline: "THE UNFORGIVING STANDARD",
         bodyText: "Save this reminder. Treat emotions like passing clouds. Be the mountain.",
-        highlightWords: "reminder, clouds, mountain",
       },
     ],
   },
@@ -329,29 +294,24 @@ export const STARK_CODEX_RULES: CodexRule[] = [
       {
         headline: "STOP WASTING IT",
         bodyText: "You live as if you were destined to live forever. Death is already walking.",
-        highlightWords: "wasting, forever, death",
       },
       {
         headline: "THE ILLUSION OF LATER",
         bodyText: "'Tomorrow' is the graveyard where 99% of ambitions rot in silence.",
-        highlightWords: "tomorrow, graveyard, ambitions",
       },
       {
         headline: "COUNT THE HOURS",
         bodyText:
           "Notice how fiercely people protect their wallet, yet give away their time for free.",
-        highlightWords: "fiercely, wallet, time",
       },
       {
         headline: "CLAIM TODAY",
         bodyText:
           "Do not leave this desk until the essential duty is completed without compromise.",
-        highlightWords: "claim, essential, completed",
       },
       {
         headline: "THE UNFORGIVING STANDARD",
         bodyText: "Save this reminder. Time is the only currency you can never earn back.",
-        highlightWords: "reminder, currency, earn",
       },
     ],
   },
@@ -370,27 +330,22 @@ export const STARK_CODEX_RULES: CodexRule[] = [
       {
         headline: "STOP CHASING",
         bodyText: "The moment you seek validation, you surrender authority to the audience.",
-        highlightWords: "chasing, validation, surrender",
       },
       {
         headline: "THE GRAVITATIONAL PULL",
         bodyText: "People are drawn to what moves with conviction and asks for nothing in return.",
-        highlightWords: "conviction, asks, nothing",
       },
       {
         headline: "BECOME DANGEROUS",
         bodyText: "Focus entirely on being so exceptionally competent that you cannot be ignored.",
-        highlightWords: "dangerous, exceptionally, ignored",
       },
       {
         headline: "TOTAL INDIFFERENCE",
         bodyText: "Treat both their compliments and their doubts with the exact same silence.",
-        highlightWords: "indifference, compliments, silence",
       },
       {
         headline: "THE UNFORGIVING STANDARD",
         bodyText: "Save this reminder. Self-respect is built in private, never granted in public.",
-        highlightWords: "reminder, self-respect, private",
       },
     ],
   },
@@ -410,49 +365,23 @@ export const STARK_CODEX_RULES: CodexRule[] = [
       {
         headline: "THE INNER BETRAYAL",
         bodyText: "Every broken promise to yourself destroys your confidence at a cellular level.",
-        highlightWords: "betrayal, promise, destroys",
       },
       {
         headline: "THE SUBCONSCIOUS LEDGER",
         bodyText: "You cannot trick your mind. It knows every single time you took the easy exit.",
-        highlightWords: "trick, mind, exit",
       },
       {
         headline: "MAKE FEWER PROMISES",
         bodyText: "Say less. Commit to fewer tasks. But make those few completely untouchable.",
-        highlightWords: "fewer, commit, untouchable",
       },
       {
         headline: "RUTHLESS ALIGNMENT",
         bodyText: "When your actions match your words without friction, fear evaporates.",
-        highlightWords: "ruthless, actions, evaporates",
       },
       {
         headline: "THE UNFORGIVING STANDARD",
         bodyText: "Save this reminder. Your word to yourself is divine law.",
-        highlightWords: "reminder, word, divine",
       },
     ],
   },
 ];
-
-export function getRandomCodexRule(category: string = "all"): CodexRule {
-  const pool =
-    category === "all"
-      ? STARK_CODEX_RULES
-      : STARK_CODEX_RULES.filter((r) => r.category === category);
-  return pool[Math.floor(Math.random() * pool.length)] || STARK_CODEX_RULES[0];
-}
-
-export function searchCodex(query: string): CodexRule[] {
-  const q = query.trim().toLowerCase();
-  if (!q) return STARK_CODEX_RULES;
-  return STARK_CODEX_RULES.filter(
-    (r) =>
-      r.title.toLowerCase().includes(q) ||
-      r.hook0to3s.toLowerCase().includes(q) ||
-      r.corePrinciple.toLowerCase().includes(q) ||
-      r.actionDirective.toLowerCase().includes(q) ||
-      r.ruleNumber.toLowerCase().includes(q),
-  );
-}

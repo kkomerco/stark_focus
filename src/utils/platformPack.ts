@@ -238,5 +238,3 @@ ${alt}
   const blob = await zip.generateAsync({ type: "blob" });
   return { blob, files, skipped };
 }
-
-export const PLATFORM_LABELS = PLATFORMS.map((p) => `${p.label} (${p.captionLimit})`).join(", ");

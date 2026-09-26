@@ -330,9 +330,6 @@ export const SLOP_BAN_LIST = [
   "Zakaz: myślniki piętrzone, szablon „not X, but Y”, rym na końcu, zastrzeżenie na końcu zdania, moralizowanie o „ludziach”, żebranie o lajki i komentarze.",
   "Zakaz przenośni ozdobnych: przedmiot nazywamy po imieniu i tylko taki, który czytelnik realnie ma w ręku (telefon, budzik, biurko, talerz). «Dębowe drzwi», «popiół», «marmur», «cisza jak grób» to dekoracja, nie treść — zdanie ma się dać wykonać.",
 ].join(" ");
-
-/** Ile słów na kadr. Jedna miara dla wszystkich tras. */
-export const HOOK_MIN_WORDS = 3;
 export const HOOK_MAX_WORDS = 12;
 export const HOOK_IDEAL_WORDS = "4-10";
 

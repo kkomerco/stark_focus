@@ -201,25 +201,6 @@ export function importStoredData(rawJson: string): ImportResult {
   return { ok: true };
 }
 
-export function getNextSaturday20(): { date: Date; hoursLeft: number; isSaturdayToday: boolean } {
-  const now = new Date();
-  const day = now.getDay();
-  const isSaturdayToday = day === 6;
-  const daysUntilSaturday = (6 - day + 7) % 7;
-
-  const target = new Date(now);
-  if (isSaturdayToday && now.getHours() >= 20) {
-    target.setDate(target.getDate() + 7);
-  } else {
-    target.setDate(target.getDate() + daysUntilSaturday);
-  }
-  target.setHours(20, 0, 0, 0);
-
-  const diffMs = target.getTime() - now.getTime();
-  const hoursLeft = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60)));
-  return { date: target, hoursLeft, isSaturdayToday };
-}
-
 /**
  * Eksperymenty A/B czytamy bez walidacji nie da się: widok wariantu liczy na
  * `phrases` i `metrics`, a starszy blob może mieć ich połowę. Przy okazji

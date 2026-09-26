@@ -22,70 +22,6 @@ export const GEMINI_LITE_MODEL = "gemini-3.5-flash-lite";
  */
 const GEMINI_SPARE_MODELS = ["gemini-3-flash-preview", "gemini-3.8-flash"];
 
-/**
- * Model obrazowy — też tylko tutaj, bo reguła projektu mówi: żaden plik
- * poza tym nie wolna nazwy modelu. Darmowy tier nalicza obrazy osobno,
- * więc można go przestawić przez `GEMINI_IMAGE_MODEL` bez ruszania kodu.
- */
-export const GEMINI_IMAGE_MODEL = process.env["GEMINI_IMAGE_MODEL"] || "gemini-3.1-flash-image";
-
-/** Styl wymuszany na każdym tle, żeby kadr został marką, nie losowym art. */
-const BRAND_IMAGE_STYLE =
-  "Dark stoic minimalism for the brand @stark_focus: obsidian black and deep charcoal, bone-white light, a single deep crimson accent (#E11D48). Cinematic low-key lighting, high contrast chiaroscuro, monumental and quiet. Absolutely NO text, NO letters, NO watermarks, NO logos, NO cyan or neon blue.";
-
-export interface GeneratedImage {
-  /** Dane gotowe do wstawienia w <img src>. */
-  dataUrl: string;
-  mimeType: string;
-  /** Prompt, którego użyto — przy włączonym enhancerze modelu nie nasz. */
-  prompt: string;
-}
-
-/**
- * Jedno tło z promptu tekstowego.
- *
- * `ai.models.generateImages` (Imagen) jest tylko w Vertex/Enterprise — na
- * zwykłym kluczu z AI Studio rzuca „This method is only supported by…".
- * Obrazy przez Gemini API idą więc normalnym `generateContent` z
- * `responseModalities: ["IMAGE"]`, a bajty wracają w `inlineData`.
- *
- * Zwraca `null`, gdy model odda odpowiedź bez obrazu (filtr treści), a rzuca
- * AiResponseError tylko przy realnym braku konfiguracji.
- */
-export async function generateImage(options: {
-  prompt: string;
-  aspect?: "9:16" | "1:1" | "4:5";
-}): Promise<GeneratedImage | null> {
-  const ai = getGeminiClient();
-  if (!ai) {
-    throw new AiResponseError("Brak skonfigurowanego klucza GEMINI_API_KEY w pliku .env serwera");
-  }
-
-  const aspect = options.aspect ?? "9:16";
-  const orientation =
-    aspect === "1:1" ? "Square composition" : aspect === "4:5" ? "Portrait 4:5" : "Vertical 9:16";
-  const prompt = `${options.prompt.trim()}. ${BRAND_IMAGE_STYLE}. ${orientation} framing.`;
-
-  const response = await ai.models.generateContent({
-    model: GEMINI_IMAGE_MODEL,
-    contents: prompt,
-    config: {
-      responseModalities: ["IMAGE"],
-      abortSignal: AbortSignal.timeout(GEMINI_IMAGE_TIMEOUT_MS),
-    },
-  });
-
-  const parts = response.candidates?.[0]?.content?.parts ?? [];
-  for (const part of parts) {
-    const data = part.inlineData?.data;
-    if (!data) continue;
-    const mimeType = part.inlineData?.mimeType || "image/png";
-    return { dataUrl: `data:${mimeType};base64,${data}`, mimeType, prompt };
-  }
-
-  return null;
-}
-
 let cachedClient: GoogleGenAI | null = null;
 let cachedKey: string | null = null;
 
@@ -112,14 +48,11 @@ export class AiResponseError extends Error {
   }
 }
 
-/** Budżet czasowego jednego wywołania modelu. Bez niego zawieszony request trzyma trasę w nieskończoność. */
+/** Budżet czasowy jednego wywołania modelu. Bez niego zawieszony request trzyma trasę w nieskończoność. */
 const GEMINI_ATTEMPT_TIMEOUT_MS = 90_000;
 
 /** Backoff przy błędach przejściowych (przeciążenie / limit zapytań). */
 const GEMINI_RETRY_BACKOFF_MS = 1_200;
-
-/** Obrazy schodzą wyraźnie dłużej niż tekst — własny budżet, żeby nie dzielić limitu tekstu. */
-const GEMINI_IMAGE_TIMEOUT_MS = 120_000;
 
 /**
  * Gemini nagminnie opakowuje JSON w bloki markdown lub dodaje komentarz.
@@ -242,19 +175,6 @@ function anySignal(signals: (AbortSignal | undefined)[]): AbortSignal {
     else signal.addEventListener("abort", () => controller.abort(signal.reason), { once: true });
   }
   return controller.signal;
-}
-
-/** Skrót dla klasycznego promptu tekstowego. */
-export async function generateText(options: {
-  prompt: string;
-  systemInstruction?: string;
-  model?: string;
-}): Promise<string> {
-  return generateContent({
-    contents: options.prompt,
-    systemInstruction: options.systemInstruction,
-    model: options.model,
-  });
 }
 
 /** Klasyczny kształt konfiguracji (kompatybilny z bezpośrednimi wywołaniami SDK). */

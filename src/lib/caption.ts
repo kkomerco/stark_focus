@@ -20,9 +20,6 @@ export const STARK_CTAS: readonly string[] = [
   "Do the first rep before you decide how you feel.",
 ];
 
-/** Domyślna, gdy nic nie trafimy: wciąż nasza, wciąż bez żebrania o engagement. */
-export const STARK_CTA = STARK_CTAS[0];
-
 /**
  * Pytania pogrupowane po kształcie materiału. Jedna uniwersalna lista dawała
  * „which number hits closest?" pod cytatem bez ani jednej liczby — pytający

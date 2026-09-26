@@ -87,17 +87,3 @@ function fallbackScene(text: string, excluded: Set<string>): BrollScene {
   const list = pool.length > 0 ? pool : CINEMATIC_BROLL_LIBRARY;
   return list[hashKey(text) % list.length];
 }
-
-/** Ranking — top N scen (sortowane po score). Do wyboru potwierdzonego przez AI. */
-export function rankBroll(text: string, theme?: string, limit = 3): BrollMatch[] {
-  const lower = String(text || "").toLowerCase();
-  return CINEMATIC_BROLL_LIBRARY.map((scene) => scoreScene(scene, lower, theme))
-    .sort((a, b) => b.score - a.score)
-    .slice(0, Math.max(1, Math.min(limit, CINEMATIC_BROLL_LIBRARY.length)))
-    .map((match) => ({ ...match, confidenceReason: describe(match) }));
-}
-
-/** Skrót: gotowy opis do wklejenia w studio. */
-export function brollSuggestion(text: string, theme?: string): BrollMatch {
-  return pickBroll(text, theme);
-}

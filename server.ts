@@ -1,13 +1,9 @@
 import "dotenv/config";
 import express from "express";
 import type { NextFunction, Request, Response } from "express";
-import { createHash } from "node:crypto";
 import cors from "cors";
 import path from "path";
 import { handleStarkApi } from "./src/lib/ai/router.server";
-import { createTtlCache } from "./src/lib/cache";
-import { clampText } from "./src/lib/limits";
-import { getGeminiClient, generateContentWithFallback } from "./src/lib/ai/gemini.server";
 
 const PORT = Number(process.env.PORT) || 3000;
 
@@ -43,9 +39,6 @@ const ALLOWED_ORIGINS = new Set(
     .filter(Boolean),
 );
 
-// === CACHE RAM (200 wpisów, TTL 10 min) ===
-const AI_CACHE = createTtlCache<any>({ ttlMs: 10 * 60 * 1000, maxEntries: 200 });
-
 async function startServer() {
   const app = express();
 
@@ -68,55 +61,14 @@ async function startServer() {
     res.json({ status: "ok", time: new Date().toISOString() });
   });
 
-  // 1. Prawdziwe generowanie AI (Google Gemini z cache)
-  app.post("/api/generate", async (req, res) => {
-    const prompt = clampText(req.body?.prompt, 6000);
-    const systemInstruction = clampText(req.body?.systemInstruction, 2000);
-    if (!prompt) return res.status(400).json({ error: "Brak wymaganego pola prompt" });
-    if (!getGeminiClient()) {
-      return res.status(503).json({ error: "Brak skonfigurowanego klucza GEMINI_API_KEY" });
-    }
+  // Było tu /api/generate — surowy prompt prosto do modelu, z cache'em w
+  // pamięci. Nic z UI go nie wołało, a każdy, kto w sieci lokalnej trafi na
+  // ten adres, mógł przepalać dzienny limit klucza własnymi promptami.
+  // Treść generuje wyłącznie `router.server.ts`, gdzie każda trasa ma swój
+  // clamp, swoją normalizację i swój fallback.
 
-    // Klucz to skrót klampowanych pól, nie całego body: do cache trafia
-    // maksymalnie tyle, ile realnie wpływa na odpowiedź.
-    const cacheKey = `gemini-${createHash("sha256")
-      .update(`${systemInstruction}\n${prompt}`)
-      .digest("hex")}`;
-    const cached = AI_CACHE.get(cacheKey);
-    if (cached) return res.json({ text: cached, cached: true });
-
-    try {
-      const text = await generateContentWithFallback({
-        contents: prompt,
-        systemInstruction,
-      });
-      AI_CACHE.set(cacheKey, text);
-      return res.json({ text, cached: false });
-    } catch (error: any) {
-      // Szczegóły błędu idą tylko do loga: `error.message` z SDK potrafi
-      // zawierać fragmenty zapytania, ścieżki i układ środowiska.
-      console.error("Błąd Gemini API:", error);
-      const msg = String(error?.message || error);
-      // Darmowy tier ma dzienny limit zapytań na model. Gdy go wyczerpiemy,
-      // każda kolejna próba wygląda identycznie jak awaria — użytkownik
-      // musi usłyszeć, że to limit i że ma poczekać, a nie klikać dalej.
-      if (msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED")) {
-        return res.status(429).json({
-          error: "Dzienny limit darmowego klucza Gemini jest wyczerpany. Spróbuj później.",
-          reason: "quota",
-        });
-      }
-      if (msg.includes("503") || msg.includes("UNAVAILABLE")) {
-        return res.status(503).json({
-          error: "Model jest teraz przeciążony. Spróbuj za chwilę.",
-          reason: "overloaded",
-        });
-      }
-      return res.status(502).json({ error: "Generowanie AI nie udało się", reason: "failed" });
-    }
-  });
-
-  // 5. Stark Focus AI routes (trend scanning, mentor variants, hook battles, carousel templates)
+  // Wszystkie trasy AI: montowane z `router.server.ts`, tam każda ma własny
+  // moduł w `src/lib/ai/routes/`.
   app.use(async (req, res, next) => {
     if (req.path.startsWith("/api/ai/") || req.path === "/api/ghostwrite") {
       try {

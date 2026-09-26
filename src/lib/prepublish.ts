@@ -169,8 +169,3 @@ export function publishableLines(lines: string[], minWords = 3): string[] {
     .map((line) => (line || "").trim())
     .filter((line) => line && !isPolishCopy(line) && words(line).length >= minWords);
 }
-
-/** Puenta opisu: markowe CTA i hashtagi, nigdy to, co wymyślił model. */
-export function publishableCaption(hook: string, caption: string): string {
-  return starkCaption(hook, caption);
-}

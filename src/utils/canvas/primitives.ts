@@ -167,25 +167,3 @@ export function getFontFamilySpec(fontFamily: string = "sans"): string {
   if (f === "inter") return `"Inter", sans-serif`;
   return `"Plus Jakarta Sans", sans-serif`;
 }
-
-/** Jedna linia tekstu z wyróżnionymi słowami akcentem, bez przesuwania reszty. */
-export function drawTokenLine(
-  ctx: CanvasRenderingContext2D,
-  tokens: TextToken[],
-  x: number,
-  y: number,
-  baseColor: string,
-  accentColor: string,
-) {
-  let cursor = x;
-  for (const token of tokens) {
-    ctx.fillStyle = token.isHighlight ? accentColor : baseColor;
-    ctx.fillText(token.text, cursor, y);
-    cursor += ctx.measureText(`${token.text} `).width;
-  }
-}
-
-/** Zmierz szerokość linii tokenów — do wyśrodkowania i sprawdzenia, czy się mieści. */
-export function measureTokenLine(ctx: CanvasRenderingContext2D, tokens: TextToken[]): number {
-  return tokens.reduce((total, token) => total + ctx.measureText(`${token.text} `).width, 0);
-}

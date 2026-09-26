@@ -239,7 +239,7 @@ describe("normalizeFormat — zamknięty słownik układów", () => {
     assert.equal(normalizeFormat("reel", "trzy fazy"), "three_phases");
   });
 
-  it("wolny tekst z过去 nie rozbija grupy na jednoelementowe próbki", () => {
+  it("wolny tekst z przeszlosci nie rozbija grupy na jednoelementowe próbki", () => {
     const items = normalizePublished([
       entry({ id: "c1", kind: "carousel", format: "Karuzela 5 slajdów o poranku" }),
       entry({ id: "c2", kind: "carousel", postedAt: "2026-09-02", format: "karuzela — 5 slajdów" }),

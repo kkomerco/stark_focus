@@ -12,13 +12,13 @@
 
 ## Architektura
 
-- Model Gemini konfigurujemy **wyłącznie** w `src/lib/ai/gemini.server.ts` (`GEMINI_MODEL` / `GEMINI_LITE_MODEL` / `GEMINI_IMAGE_MODEL`).
+- Model Gemini konfigurujemy **wyłącznie** w `src/lib/ai/gemini.server.ts` (`GEMINI_MODEL` / `GEMINI_LITE_MODEL` / `GEMINI_SPARE_MODELS`). Modelu obrazowego w aplikacji **nie ma** — darmowy tier ma na niego limit 0, a kadr i tak rysuje canvas.
 - Klucz API (`GEMINI_API_KEY`) tylko server-side — nigdy w kodzie frontendu ani w repo.
 - Nowe trasy AI dodajemy jako moduł w `src/lib/ai/routes/` i rejestrujemy w `src/lib/ai/router.server.ts`.
-- Do generowania treści używamy `generateContent()` / `generateJson()` z `gemini.server.ts` — nie tworzymy własnych klientów ani własnych pętli retry (fallback modeli + backoff 503/429 + limit czasu są już w `gemini.server.ts`).
-- Ochrona SSRF: `isSafeUrl()` z `src/lib/safe-url.ts` dla każdego adresu od klienta; pobieranie obrazków wyłącznie przez `fetchSafeImage()` z `src/lib/fetch-image.server.ts` (odrzuca przekierowania, SVG i pliki >8 MB). Adres z odpowiedzi strony trzeciej (np. `thumbnail_url` z oEmbed) też jest niezaufany.
+- Do generowania treści używamy `generateContent()` / `generateJson()` z `gemini.server.ts` — nie tworzymy własnych klientów ani własnych pętli retry (fallback modeli + backoff 503/429 + limit czasu są już w `gemini.server.ts`). Trasa **nie dokłada własnego `AbortSignal`**: sygnał stworzony raz współdzielą wszystkie próby, więc po pierwszym przekroczeniu czasu kasuje cały łańcuch zapasowych modeli i płatna odpowiedź przerywa się w połowie.
+- Ochrona SSRF: `isSafeUrl()` z `src/lib/safe-url.ts` dla każdego adresu od klienta; pobieranie obrazków wyłącznie przez `fetchSafeImage()` z `src/lib/fetch-image.server.ts` (odrzuca przekierowania, SVG i pliki >8 MB — limit rozmiaru obowiązuje w trakcie czytania strumienia, nie po). `isSafeUrl()` zna tylko kształt adresu (normalizuje formy liczbowe: `2130706433`, `0x7f.1`, `127.1` → `127.0.0.1`), a nazwę, która RESOLWUJE się na sieć wewnętrzną (`127.0.0.1.nip.io`), łapie już `fetchSafeImage()` przez `node:dns`. Adres z odpowiedzi strony trzeciej (np. `thumbnail_url` z oEmbed) też jest niezaufany.
 - Cache: `createTtlCache()` z `src/lib/cache.ts` — nie piszemy własnych map z TTL. Odpowiedzi zapasowe (z banku treści, nie od modelu) wysyłamy przez `sendDegraded()` z `src/lib/ai/normalize.server.ts`, inaczej wejdą do cache i będą udawać wygenerowane.
-- Każdy parametr z `req.body` przechodzi przez `clampCount/clampInt/clampOffset/clampText` z `src/lib/limits.ts` — nieklampowana liczba trafia do pętli generującej wynik albo do promptu (za każdy znak płacimy).
+- Każdy parametr z `req.body` przechodzi przez `clampCount/clampInt/clampText/clampTextList` z `src/lib/limits.ts` — nieklampowana liczba trafia do pętli generującej wynik albo do promptu (za każdy znak płacimy).
 - Każde pole z odpowiedzi modelu, które UI mapuje, normalizujemy w trasie (`src/lib/ai/normalize.server.ts`: `asArray/asString/asStringArray/oneOf`). UI nie sprawdza kształtu danych; jedyny `ErrorBoundary` jest na cały app, więc zły payload = pusty ekran.
 - Losowość: `shuffle/pick/pickN/pickForDay` z `src/lib/random.ts` — `sort(() => Math.random() - 0.5)` jest stronnicze i nie tasuje.
 - Odcisk hooka liczymy przez `hookFingerprint()` z `src/lib/similarity.ts` po obu stronach; klient i serwer muszą używać tej samej funkcji.
@@ -50,7 +50,7 @@
 - Animacja rolki to czyste funkcje w `video/reelLayout.ts` (`wordStagger`, `wordRise`, `easedReveal`, `quantizeToFps`) — malarski słupek je tylko zużywa. Tło kwantujemy do 12 fps, TEKST nigdy: klatkowanie litery przenosi ją z linii bazowej.
 - Karuzela: cel to 12+ slajdów (Eden: 11-20 slajdów = 23,5% przebić vs 18% dla 2-4 slajdów u kont <10k). `MAX_SLIDES` w studiu i liczba w prompcie chodzą w parze.
 - Numer edycji liczy `src/lib/series.ts` z tego, co realnie powstało (posty + dziennik). Stopka kadru i opis biorą `seriesLine`/`seriesCaption`, nie własny napis.
-- Cudzy cytat: `src/lib/quotes.ts`. Zdanie trafia do UI tylko jeśli występuje w transkrypcie słowo w słowo (`isVerbatim`) i ma podpis (`attributionLine`). Nie pobieramy ani nie publikujemy cudzego audio/wideo — recykling materiału jest od 30.04.2026 karany w rekomendacjach, a sfałszowany cytat przypisany żywej osobie kosztuje więcej niż cały zasięg posta.
+- Cudzy cytat: `src/lib/quotes.ts`. Zdanie trafia do UI tylko jeśli występuje w transkrypcie słowo w słowo (`isVerbatim`) i ma podpis (`attributionLine`). Tak samo w dekonstrukcji linku: cudze zdanie pokazujemy wyłącznie wtedy, gdy model miał **załączony kadr** przed sobą (`shapeAiResult` zeruje `hookText` bez obrazu i w każdym wpisie bez mówcy), a nasza treść z tej analizy przechodzi przez `publishableLine` jak każda inna trasa. Nie pobieramy ani nie publikujemy cudzego audio/wideo — recykling materiału jest od 30.04.2026 karany w rekomendacjach, a sfałszowany cytat przypisany żywej osobie kosztuje więcej niż cały zasięg posta.
 - Komentarz przypięty to osobny artefakt (`starkPinned`, plik `komentarz-przypieity.txt` w pakiecie, przycisk w studiu posta), nie dopisek do opisu.
 
 ## Uruchamianie
