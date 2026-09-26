@@ -5,6 +5,8 @@
  * Niedozwolona wartość dostaje sensowny fallback zamiast `undefined`.
  */
 
+import { softenForPlatform } from "../platformSafe";
+
 function toText(value: unknown): string {
   if (typeof value === "string") return value.trim();
   if (typeof value === "number" || typeof value === "boolean") return String(value);
@@ -47,6 +49,27 @@ export function markDegraded<T extends { setHeader(name: string, value: string):
 }
 
 /**
+ * Odpowiedzi modelu zmiękcza `softenForPlatform` na wyjściu `gemini.server.ts`.
+ * Bank treści (fallback w trasie) przechodzi obok tego wyjścia — więc jedynym
+ * miejscem, które przechwytuje WSZYSTKIE zdania z banku, jest `sendDegraded`.
+ * Schodzimy cały payload i zmiękczamy każdy string tym samym eksportowanym
+ * filtrem; nie piszemy drugiej listy słów. Klucze/pole strukturalne są ASCII,
+ * a zamienniki nie mają cudzysłowów, więc JSON nie rozjeżdża się.
+ */
+function softenPayload(value: unknown): unknown {
+  if (typeof value === "string") return softenForPlatform(value);
+  if (Array.isArray(value)) return value.map(softenPayload);
+  if (value && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
+      out[key] = softenPayload(val);
+    }
+    return out;
+  }
+  return value;
+}
+
+/**
  * Wysłać treść z banku zamiast od modelu i oznaczyć ją dla routera, żeby NIE
  * weszła do cache. Osobne wywołanie `setHeader` łatwo pominąć przy nowym
  * fallbacie — stąd jedna funkcja na oba kroki.
@@ -55,7 +78,7 @@ export function sendDegraded<
   T extends { setHeader(name: string, value: string): unknown; json(payload: unknown): unknown },
 >(res: T, payload: unknown): unknown {
   res.setHeader(DEGRADED_HEADER, "1");
-  return res.json(payload);
+  return res.json(softenPayload(payload));
 }
 
 /** Wartość z zamkniętego słownika (temat, typ hooka, format). */

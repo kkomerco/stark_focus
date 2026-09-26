@@ -371,7 +371,7 @@ export function registerTrendsRoutes(app: MiniApp): void {
       const prompt = `Jesteś strategiem treści i psychologiem uwagi dla marki @stark_focus.
   Rozbij temat: "${topic}" na 4 skrajnie odmienne kąty psychologiczne:
   1. Prowokacja / Kontrowersja (uderzenie w schemat myślowy)
-  2. Rzymski Stoicyzm (asceza, memento mori, niewzruszoność)
+  2. Rzymski Stoicyzm (asceza, ciężar nieodwracalnych decyzji, niewzruszoność — po angielsku, bez słów o śmierci)
   3. Neurobiologia & Układ Dopaminy (konkretna anatomia woli i oporu)
   4. Zero-Empathy Reality Check (twarda konfrontacja bez owijania w bawełnę)
 
