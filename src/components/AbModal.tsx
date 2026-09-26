@@ -17,6 +17,8 @@ import {
   publishedHookFingerprints,
 } from "../lib/published";
 import { hookFingerprint } from "../lib/similarity";
+import { usedHookFingerprints } from "../lib/usedContent";
+import { fetchJson } from "../lib/fetchJson";
 
 export interface AbResultRow {
   label: "A" | "B";
@@ -70,6 +72,15 @@ const PANEL = "bg-[#0F121C] border border-[#2C354B] rounded-xl";
 const FIELD =
   "bg-[#0F121C] border border-[#2C354B] px-2 py-1 font-mono text-[10px] text-white placeholder:text-slate-600 focus:outline-none focus:border-slate-500";
 const LABEL = "text-[9px] font-mono uppercase text-slate-500";
+
+/** Uczciwy podpis pary: gotowiec z pliku nie może wyglądać jak odpowiedź modelu na ten temat. */
+const BANK_NOTE = "treść z banku — model nie odpowiedział";
+
+const BankTag: React.FC<{ label?: string }> = ({ label }) => (
+  <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-300 border border-rose-500/30">
+    {label || BANK_NOTE}
+  </span>
+);
 
 /** Odpowiedź trasy to kształt od modelu — nie mapujemy bez sprawdzenia pola. */
 const textList = (value: unknown): string[] =>
@@ -161,6 +172,7 @@ export const AbModal: React.FC<AbModalProps> = ({
   const [concluding, setConcluding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [bankLabel, setBankLabel] = useState<string | null>(null);
 
   const patch = (next: Partial<AbDraft>) => onDraftChange((prev) => ({ ...prev, ...next }));
 
@@ -168,6 +180,7 @@ export const AbModal: React.FC<AbModalProps> = ({
     setLoading(true);
     setError(null);
     setNotice(null);
+    setBankLabel(null);
     patch({ conclusion: null });
     setSaved(false);
     try {
@@ -185,14 +198,52 @@ export const AbModal: React.FC<AbModalProps> = ({
           };
         });
 
-      const res = await fetch("/api/ai/ab-variants", {
+      const {
+        data: json,
+        degraded,
+        status,
+      } = await fetchJson("/api/ai/ab-variants", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic, history }),
+        body: JSON.stringify({
+          topic,
+          history,
+          // Bez tego klika się płatne zapytanie o parę, która może powtórzyć
+          // hook już opublikowany — a UI dowiaduje się o tym dopiero po cenie.
+          excludeHooks: usedHookFingerprints(data),
+        }),
       });
-      if (!res.ok) throw new Error("HTTP " + res.status);
-      const json = await res.json();
+      if (status < 200 || status >= 300) {
+        setError(
+          status
+            ? `Nie udało się wygenerować wariantów A/B (HTTP ${status}).`
+            : "Nie udało się wygenerować wariantów A/B — serwer nie odpowiedział.",
+        );
+        return;
+      }
+
       const vs: AbVariant[] = Array.isArray(json.variants) ? json.variants : [];
+      // Bank dokłada ramię, gdy model odda tylko jedno: para jest, ale nie cała
+      // wyszła z jednej odpowiedzi — karta musi to mieć napisane na sobie.
+      const filled = Number(json.bankFilled ?? 0);
+      setBankLabel(
+        degraded
+          ? BANK_NOTE
+          : Number.isFinite(filled) && filled > 0
+            ? "jedno ramię pary jest z banku treści — model nie oddał obu"
+            : null,
+      );
+
+      if (vs.length === 0) {
+        // Trasa oddaje pustą parę razem z powodem. Bez tego zdania znikała cała
+        // sekcja wyników, a kliknięcie wyglądało na martwe.
+        setNotice(
+          textOf(json.notice) ||
+            textOf(json.message) ||
+            "Model nie oddał żadnego wariantu A/B — spróbuj ponownie.",
+        );
+      }
+
       patch({
         variants: vs,
         experimentId: String(json.experimentId || `ab-${Date.now()}`),
@@ -205,8 +256,6 @@ export const AbModal: React.FC<AbModalProps> = ({
           saves: 0,
         })),
       });
-    } catch {
-      setError("Nie udało się wygenerować wariantów A/B.");
     } finally {
       setLoading(false);
     }
@@ -400,6 +449,7 @@ export const AbModal: React.FC<AbModalProps> = ({
   // Odmowa to odmowa: bez linijki o zwycięzcy i bez „wzorzec zapisany".
   const refused = !conclusion?.winner || conclusion?.status === "insufficient_data";
   const pastExperiments = data.ab_experiments ?? [];
+  const teachingLoops = pastExperiments.filter((e) => e.winner && e.concludedAt).length;
   const ledgerFilled = variants.length >= 2 && variants.every(inLedger);
 
   return (
@@ -437,8 +487,17 @@ export const AbModal: React.FC<AbModalProps> = ({
           className="w-full py-2 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-xs font-mono font-bold text-rose-300 uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
         >
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Repeat className="w-4 h-4" />}
-          Generuj warianty A i B
+          Generuj warianty A i B · 1 zapytanie
         </button>
+
+        {/* Generator karmi się listą zakończonych eksperymentów z tej karty, nie
+            dziennikiem publikacji. Właściciel konta klika w dwie różne rzeczy i
+            nie może się mylić, która z nich uczy modelu. */}
+        <p className="text-[9px] font-mono text-slate-500">
+          Pętla uczenia karmi się zakończonymi eksperymentami tej karty ({teachingLoops}), a nie
+          dziennikiem publikacji. Zapis wariantów w dzienniku nic do generatora nie dokłada — to
+          osobny przycisk i osobna rzeczywistość.
+        </p>
 
         {error && (
           <div className="p-2 bg-red-500/10 border border-red-500/30 rounded-lg text-xs font-mono text-red-300">
@@ -447,6 +506,12 @@ export const AbModal: React.FC<AbModalProps> = ({
         )}
 
         <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+          {bankLabel && (
+            <div className="flex flex-wrap items-center gap-2">
+              <BankTag label={bankLabel} />
+            </div>
+          )}
+
           {variants.map((v, vIdx) => {
             const hook = textOf(v.hook);
             const phrases = textList(v.phrases);
@@ -703,6 +768,10 @@ export const AbModal: React.FC<AbModalProps> = ({
                   ? "Warianty są już w dzienniku"
                   : "Zapisz oba warianty w dzienniku publikacji"}
               </button>
+              <p className="w-full text-[9px] font-mono text-slate-500">
+                Dziennik to liczby z konta — pętla uczenia ich nie czyta. Wzorzec do generatora
+                wnosi rozstrzygnięty eksperyment z tej karty.
+              </p>
             </div>
           </div>
         )}

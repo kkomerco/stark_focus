@@ -7,6 +7,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Check, Download, Loader2, Rocket, X } from "lucide-react";
 import { DailyPackCarousel, DailyPackPost, DailyPackReel, StarkFocusData } from "../types";
 import { usedHookFingerprints } from "../lib/usedContent";
+import { fetchJson } from "../lib/fetchJson";
 import { pickBroll } from "../utils/brollPicker";
 import { pickBackground } from "../utils/backgroundPicker";
 
@@ -22,8 +23,18 @@ interface DayPack extends DayPlan {
   source: "ai" | "offline";
 }
 
+/** Plan tygodnia z trasy: dni plus to, czy odpowiedział model, czy bank szablonów. */
+interface WeekPlan {
+  days: DayPlan[];
+  degraded: boolean;
+}
+
 const PANEL = "bg-[#0F121C] border border-[#2C354B] rounded-xl";
 const DAY_PL = ["PON", "WT", "SR", "CZW", "PT", "SB", "ND"];
+/** Uczciwy podpis materiału, który nie przyszedł od modelu. */
+const BANK_NOTE = "treść z banku — model nie odpowiedział";
+const BANK_TAG =
+  "text-[9px] font-mono px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-300 border border-rose-500/30 shrink-0";
 /** Dni do wypełnienia: każde paczka dnia to jedno płatne zapytanie, więc nie zakładamy 7. */
 const DAY_CHOICES = [1, 2, 3, 5, 7];
 
@@ -107,6 +118,8 @@ export const AutopilotModal: React.FC<AutopilotModalProps> = ({ isOpen, onClose,
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [days, setDays] = useState(7);
+  // Plan z banku szablonów to płatne zapytanie, które kupiło rotację, nie treść.
+  const [planBank, setPlanBank] = useState(false);
   // Plan tygodnia to jedno zapytanie, każda paczka dnia to kolejne jedno.
   const requestCount = 1 + days;
 
@@ -123,16 +136,23 @@ export const AutopilotModal: React.FC<AutopilotModalProps> = ({ isOpen, onClose,
     };
   }, [isOpen]);
 
-  const fetchDayPlan = async (signal: AbortSignal): Promise<DayPlan[] | null> => {
-    const res = await fetch("/api/ai/weekly-autopilot", {
+  const fetchDayPlan = async (signal: AbortSignal): Promise<WeekPlan | null> => {
+    // `payload`, nie `data`: w tej samej instrukcji `data` to jeszcze historia
+    // wykluczeń z propa, a destruktor zdania powyżej wpędziłby ją w TDZ.
+    const {
+      data: payload,
+      degraded,
+      status,
+    } = await fetchJson("/api/ai/weekly-autopilot", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ excludeHooks: usedHookFingerprints(data) }),
       signal,
     });
-    if (!res.ok) return null;
-    const json = await res.json();
-    return json.week || null;
+    if (status < 200 || status >= 300) return null;
+    const week = payload.week;
+    if (!Array.isArray(week)) return null;
+    return { days: week as DayPlan[], degraded };
   };
 
   const fetchPackForDay = async (
@@ -141,25 +161,31 @@ export const AutopilotModal: React.FC<AutopilotModalProps> = ({ isOpen, onClose,
     taken: string[],
     signal: AbortSignal,
   ): Promise<DayPack> => {
-    const res = await fetch("/api/ai/daily-pack", {
+    const {
+      data: payload,
+      degraded,
+      status,
+    } = await fetchJson("/api/ai/daily-pack", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ topic: day.topic, reelsCount: 2, excludeHooks: taken }),
       signal,
     });
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    const json = await res.json();
+    if (status < 200 || status >= 300) throw new Error("HTTP " + status);
     return {
       ...day,
       dayIndex: index,
-      reels: json.reels || [],
-      carousel: json.carousel,
-      post: json.post,
-      source: json.source,
+      reels: Array.isArray(payload.reels) ? (payload.reels as DailyPackReel[]) : [],
+      carousel: payload.carousel as DailyPackCarousel | undefined,
+      post: payload.post as DailyPackPost | undefined,
+      source: degraded ? "offline" : "ai",
     };
   };
 
-  const buildZip = async (allPacks: DayPack[]): Promise<ZipSummary & { blob: Blob }> => {
+  const buildZip = async (
+    allPacks: DayPack[],
+    planFromBank: boolean,
+  ): Promise<ZipSummary & { blob: Blob }> => {
     const { default: JSZip } = await import("jszip");
     const zip = new JSZip();
 
@@ -227,17 +253,20 @@ export const AutopilotModal: React.FC<AutopilotModalProps> = ({ isOpen, onClose,
       }
 
       const planned = blocks.find((block) => block.kind === kind && block.index === 0);
+      // Archiwum jedzie na konto, więc musi w README powiedzieć, które dni
+      // napisał bank treści zamiast modelu.
+      const bankMark = pack.source === "offline" ? " · MATERIAŁ Z BANKU" : "";
 
       if (planned) {
         targets.push({ path: [label, slotName(planned, true)], files: planned.files });
         publications++;
         weekLines.push(
-          `${label} — ${SLOTS[kind].day} · ${pack.formatLabel || KIND_LABEL[kind]}\n  ${pack.plan || ""}\n  Hook dnia: ${pack.hookOfDay || planned.files["HOOK.txt"] || ""}`,
+          `${label} — ${SLOTS[kind].day} · ${pack.formatLabel || KIND_LABEL[kind]}${bankMark}\n  ${pack.plan || ""}\n  Hook dnia: ${pack.hookOfDay || planned.files["HOOK.txt"] || ""}`,
         );
       } else {
         gaps.push(label);
         weekLines.push(
-          `${label} — BRAK MATERIAŁU na ${KIND_LABEL[kind]} · ${pack.formatLabel || ""}\n  ${pack.plan || ""}\n  Hook dnia: ${pack.hookOfDay || ""}`,
+          `${label} — BRAK MATERIAŁU na ${KIND_LABEL[kind]} · ${pack.formatLabel || ""}${bankMark}\n  ${pack.plan || ""}\n  Hook dnia: ${pack.hookOfDay || ""}`,
         );
       }
 
@@ -259,6 +288,10 @@ export const AutopilotModal: React.FC<AutopilotModalProps> = ({ isOpen, onClose,
     const readme = [
       "STARK FOCUS // WEEKLY AUTOPILOT",
       `Wygenerowano: ${new Date().toLocaleString("pl-PL")}`,
+      planFromBank
+        ? "PLAN TYGODNIA: bank szablonów, nie model — dni mają tylko kategorię i format" +
+          " z rotacji, bez hooka dnia i bez zdania planu."
+        : "PLAN TYGODNIA: odpowiedź modelu.",
       "",
       `PLAN: ${publications} publikacji na ${allPacks.length} dni — jedna na dzień, w formacie`,
       "przypisanym dniowi przez plan tygodnia. Paczka dnia zwraca jednak zawsze",
@@ -293,14 +326,19 @@ export const AutopilotModal: React.FC<AutopilotModalProps> = ({ isOpen, onClose,
     setDone(false);
     setPacks([]);
     setSummary(null);
+    setPlanBank(false);
     try {
       setStage("Planuję tydzień...");
       const plan = await fetchDayPlan(controller.signal);
       if (cancelledRef.current) return;
-      if (!plan || plan.length < days) throw new Error("Nie udało się zaplanować tygodnia.");
+      if (!plan || plan.days.length < days) throw new Error("Nie udało się zaplanować tygodnia.");
+      // Local, nie stan: domknięcie `run` czytałoby `planBank` z renderu przed
+      // kliknięciem, a README w ZIP-ie musi wiedzieć to samo co nagłówek okna.
+      const planDegraded = plan.degraded;
+      setPlanBank(planDegraded);
       setProgress(Math.round((1 / (1 + days)) * 100));
 
-      const selected = plan.slice(0, days);
+      const selected = plan.days.slice(0, days);
       const all: DayPack[] = [];
       // Tydzień nie może powtórzyć tego, co poszło w poprzednich — startujemy
       // od pełnej historii, a nie od pustej listy.
@@ -320,7 +358,7 @@ export const AutopilotModal: React.FC<AutopilotModalProps> = ({ isOpen, onClose,
 
       setStage("Pakuję ZIP...");
       setPacking(true);
-      const { blob, publications, reserve, gaps } = await buildZip(all);
+      const { blob, publications, reserve, gaps } = await buildZip(all, planDegraded);
       if (cancelledRef.current) return;
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -349,6 +387,9 @@ export const AutopilotModal: React.FC<AutopilotModalProps> = ({ isOpen, onClose,
   };
 
   if (!isOpen) return null;
+
+  /** Ile paczek przyszło z banku zamiast od modelu — podsumowanie pod ZIP-em. */
+  const bankPacks = packs.filter((p) => p.source === "offline").length;
 
   return (
     <div className="fixed inset-0 z-60 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
@@ -401,10 +442,14 @@ export const AutopilotModal: React.FC<AutopilotModalProps> = ({ isOpen, onClose,
               ))}
             </select>
           </div>
-          <p className="text-[11px] font-mono text-amber-300/90 sm:flex-1">
-            Kliknięcie zużyje {pluralRequests(requestCount)} do modelu: 1 na plan tygodnia i jedno
-            na każdą paczkę dnia. Darmowy tier to około 20 zapytań tekstu na dobę.
-          </p>
+          <div className="flex flex-col gap-1.5 sm:flex-1">
+            <p className="text-[11px] font-mono text-amber-300/90">
+              {planBank
+                ? `Tydzień jest z banku szablonów, nie od modelu: dni mają tylko kategorię i format z rotacji, bez hooka i bez zdania planu. Z ${pluralRequests(requestCount)} jedno poszło już na ten plan, resztę liczą paczki dnia.`
+                : `Kliknięcie zużyje ${pluralRequests(requestCount)} do modelu: 1 na plan tygodnia i jedno na każdą paczkę dnia. Darmowy tier to około 20 zapytań tekstu na dobę.`}
+            </p>
+            {planBank && <span className={BANK_TAG}>{BANK_NOTE}</span>}
+          </div>
         </div>
 
         {(planning || packing) && (
@@ -446,6 +491,16 @@ export const AutopilotModal: React.FC<AutopilotModalProps> = ({ isOpen, onClose,
                   Dni bez materiału na zaplanowany format: {summary.gaps.join(", ")}.
                 </p>
               )}
+              {(planBank || bankPacks > 0) && (
+                <p className="text-[10px] font-mono text-rose-300">
+                  {planBank
+                    ? "Plan tygodnia poszedł z banku szablonów (bez hooków i bez zdania planu). "
+                    : ""}
+                  {bankPacks > 0
+                    ? `Paczki z banku treści: ${bankPacks} z ${packs.length} dni — README w ZIP-ie to wypisuje.`
+                    : ""}
+                </p>
+              )}
             </div>
             <ul className="space-y-1 max-h-40 overflow-y-auto">
               {packs.map((p) => (
@@ -465,6 +520,12 @@ export const AutopilotModal: React.FC<AutopilotModalProps> = ({ isOpen, onClose,
                   <div className="text-[10px] font-mono text-slate-400">
                     {p.plan || p.hookOfDay || p.topic}
                   </div>
+                  {(planBank || p.source === "offline") && (
+                    <div className="flex flex-wrap gap-1">
+                      {planBank && <span className={BANK_TAG}>plan dnia z banku szablonów</span>}
+                      {p.source === "offline" && <span className={BANK_TAG}>{BANK_NOTE}</span>}
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>

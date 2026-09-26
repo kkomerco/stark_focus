@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import JSZip from "jszip";
 import { formatStarkCaption, isPolishCopy, starkCaption, starkPinned } from "../lib/caption";
+import { fetchJson } from "../lib/fetchJson";
 import { postChecklist } from "../lib/prepublish";
 import { ChecklistPanel } from "./ChecklistPanel";
 import {
@@ -61,6 +62,11 @@ const ARCHETYPE_LABELS: Record<string, string> = {
   "earned-command": "rozkaz po diagnozie",
   unlabeled: "bez figury",
 };
+
+/** Uczciwy podpis serii: dziesiątka z pliku nie może wyglądać jak dziesiątka od modelu. */
+const BANK_NOTE = "treść z banku — model nie odpowiedział";
+const BANK_TAG =
+  "text-[9px] font-mono px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-300 border border-rose-500/30";
 
 export interface BatchPostItem {
   id: string;
@@ -349,6 +355,7 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
   const [batchCount, setBatchCount] = useState<number>(10);
   const [batchPosts, setBatchPosts] = useState<BatchPostItem[]>([]);
   const [batchNotice, setBatchNotice] = useState<string | null>(null);
+  const [batchDegraded, setBatchDegraded] = useState(false);
   const [batchDownloading, setBatchDownloading] = useState(false);
   const [batchCopiedId, setBatchCopiedId] = useState<string | null>(null);
 
@@ -649,8 +656,14 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
   // Generowanie masowej serii postów AI (Wysoka wariancja, 10 filarów)
   const handleGenerateBatch = async () => {
     setIsGeneratingBatch(true);
+    setBatchNotice(null);
+    setBatchDegraded(false);
     try {
-      const res = await fetch("/api/ai/batch-generator", {
+      const {
+        data: payload,
+        degraded,
+        status,
+      } = await fetchJson("/api/ai/batch-generator", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -660,13 +673,20 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
           exemplars: exemplarHooks,
         }),
       });
-      const data = await res.json();
-      setBatchNotice(typeof data.notice === "string" ? data.notice : null);
-      if (Array.isArray(data.posts) && data.posts.length > 0) {
-        setBatchPosts(data.posts);
+      if (status < 200 || status >= 300) {
+        setBatchNotice(
+          status
+            ? `Seria nie wyszła (HTTP ${status}) — licznik zapytań został nietknięty, spróbuj ponownie.`
+            : "Seria nie wyszła: serwer nie odpowiedział.",
+        );
+        return;
       }
-    } catch (err) {
-      console.error("Błąd generowania serii postów:", err);
+      setBatchNotice(typeof payload.notice === "string" ? payload.notice : null);
+      // Bank w miejsce modelu: pozycje są, ale nie napisał ich model.
+      setBatchDegraded(degraded);
+      if (Array.isArray(payload.posts) && payload.posts.length > 0) {
+        setBatchPosts(payload.posts as BatchPostItem[]);
+      }
     } finally {
       setIsGeneratingBatch(false);
     }
@@ -894,14 +914,11 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => {
-              setIsBatchModalOpen(true);
-              if (batchPosts.length === 0) {
-                handleGenerateBatch();
-              }
-            }}
+            // Otwarcie okna nie wolno zapytania: licznik darmowego tieru jest
+            // dobrem właściciela konta, więc koszt wisi przy przycisku generującym.
+            onClick={() => setIsBatchModalOpen(true)}
             className="px-3 py-1.5 rounded-lg text-xs font-mono font-bold uppercase transition-all bg-[#141414] hover:bg-white text-neutral-300 hover:text-black border border-white/10 hover:border-white flex items-center gap-1.5 cursor-pointer shrink-0"
-            title="Generuj serię postów z różnorodnymi ideami (wysoka wariancja)"
+            title="Otwórz generator serii postów"
           >
             <Sparkles className="w-3.5 h-3.5" />
             <span>Seria postów</span>
@@ -1373,24 +1390,28 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
               </div>
 
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleGenerateBatch}
-                  disabled={isGeneratingBatch}
-                  className="px-4 py-2 bg-white hover:bg-neutral-200 text-black font-mono font-bold text-xs uppercase rounded-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 shadow-md"
-                >
-                  {isGeneratingBatch ? (
-                    <>
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      <span>Generowanie Serii...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="w-3.5 h-3.5" />
-                      <span>Generuj Serię</span>
-                    </>
-                  )}
-                </button>
+                {/* Puste okno ma jeden przycisk i on stoi w pustym stanie — dwa
+                    guziki wołające to samo zapytanie to dwa sposoby na pomyłkę. */}
+                {batchPosts.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleGenerateBatch}
+                    disabled={isGeneratingBatch}
+                    className="px-4 py-2 bg-white hover:bg-neutral-200 text-black font-mono font-bold text-xs uppercase rounded-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 shadow-md"
+                  >
+                    {isGeneratingBatch ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Generowanie Serii...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Generuj nową serię · 1 zapytanie</span>
+                      </>
+                    )}
+                  </button>
+                )}
 
                 {batchPosts.length > 0 && (
                   <button
@@ -1419,12 +1440,25 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
             {/* Modal Content - Lista wygenerowanych postów */}
             <div className="p-4 sm:p-5 overflow-y-auto flex-1 space-y-4">
               {batchPosts.length === 0 && !isGeneratingBatch && (
-                <div className="text-center py-16 space-y-2 font-mono text-neutral-500">
+                <div className="text-center py-16 space-y-4 font-mono text-neutral-500">
                   <Package className="w-10 h-10 mx-auto text-neutral-600" />
-                  <p className="text-xs">
-                    {batchNotice ||
-                      'Kliknij "Generuj Serię", aby wygenerować pakiet zróżnicowanych postów.'}
+                  <p className="text-xs max-w-md mx-auto">
+                    Seria to {batchCount} kadrów z różnych filarów, żaden z tych, które już poszły.
+                    Otwarcie tego okna nie zużyło nic z licznika.
                   </p>
+                  <div className="flex justify-center">
+                    <button
+                      type="button"
+                      onClick={handleGenerateBatch}
+                      className="px-4 py-2 bg-white hover:bg-neutral-200 text-black font-mono font-bold text-xs uppercase rounded-lg transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Generuj serię · 1 zapytanie</span>
+                    </button>
+                  </div>
+                  {batchNotice && (
+                    <p className="text-[11px] text-rose-300 max-w-md mx-auto">{batchNotice}</p>
+                  )}
                 </div>
               )}
 
@@ -1437,6 +1471,15 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
                   <p className="text-[11px] text-neutral-500">
                     Każdy post z innego filaru i żaden z tych, które już poszły.
                   </p>
+                </div>
+              )}
+
+              {batchPosts.length > 0 && (batchDegraded || batchNotice) && (
+                <div className="flex flex-wrap items-center gap-2">
+                  {batchDegraded && <span className={BANK_TAG}>{BANK_NOTE}</span>}
+                  {batchNotice && (
+                    <span className="text-[10px] font-mono text-neutral-400">{batchNotice}</span>
+                  )}
                 </div>
               )}
 

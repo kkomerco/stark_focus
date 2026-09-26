@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { PromptLibraryItem, StarkFocusData } from "../types";
+import { fetchJson } from "../lib/fetchJson";
 
 interface PromptLibraryModalProps {
   isOpen: boolean;
@@ -27,6 +28,17 @@ const ACTION_BTN =
   "py-1.5 px-3 rounded bg-[#141824] hover:bg-[#1E2638] border border-[#2C354B] text-[11px] font-mono font-bold text-slate-200 hover:text-white transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50";
 const REROLL_BTN =
   "py-1.5 px-3 rounded bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/40 text-[11px] font-mono font-bold text-rose-300 uppercase tracking-wider flex items-center gap-1.5 cursor-pointer disabled:opacity-50";
+const META_BADGE =
+  "text-[9px] font-mono px-1.5 py-0.5 rounded bg-zinc-500/15 text-zinc-200 border border-zinc-500/40";
+const STYLE_BADGE =
+  "text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-500/10 text-slate-300 border border-slate-500/25";
+const BANK_BADGE =
+  "text-[9px] font-mono px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-300 border border-rose-500/30";
+
+/** Uczciwy podpis: szablon z pliku nie ma prawa wyglądać jak zaprojektowany w stylu feedu. */
+const BANK_NOTE = "treść z banku — model nie odpowiedział";
+/** Wartość pola `source` dla promptu, który oddał bank, nie reroll od modelu. */
+const BANK_SOURCE = "reroll z banku";
 
 export const PromptLibraryModal: React.FC<PromptLibraryModalProps> = ({
   isOpen,
@@ -39,6 +51,7 @@ export const PromptLibraryModal: React.FC<PromptLibraryModalProps> = ({
   const [rerollingId, setRerollingId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const addPrompt = (prompt: string, style: string, source: string) => {
     const item: PromptLibraryItem = {
@@ -83,21 +96,28 @@ export const PromptLibraryModal: React.FC<PromptLibraryModalProps> = ({
     if (reference.length < 10) return;
     const style = item?.style || "dark_minimalist";
     setError(null);
+    setNotice(null);
     setRerollingId(item?.id || "__draft__");
     try {
-      const res = await fetch("/api/ai/reroll-prompt", {
+      const {
+        data: payload,
+        degraded,
+        status,
+      } = await fetchJson("/api/ai/reroll-prompt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ referencePrompt: reference, format: "1:1" }),
       });
-      if (!res.ok) throw new Error("HTTP " + res.status);
-      const json = await res.json();
-      const prompt = String(json.prompt || "").trim();
-      if (prompt.length < 20) throw new Error("too short");
-      addPrompt(prompt, style, item ? "reroll" : "manual");
+      const prompt = typeof payload.prompt === "string" ? payload.prompt.trim() : "";
+      if (status < 200 || status >= 300 || prompt.length < 20) {
+        setError("Nie udało się wygenerować nowego promptu — spróbuj ponownie.");
+        return;
+      }
+      addPrompt(prompt, style, degraded ? BANK_SOURCE : item ? "reroll" : "manual");
+      if (degraded) {
+        setNotice(`${BANK_NOTE}: zapisaliśmy ten prompt jako szablon, nie jako reroll stylu.`);
+      }
       setDraft("");
-    } catch {
-      setError("Nie udało się wygenerować nowego promptu — spróbuj ponownie.");
     } finally {
       setRerollingId(null);
     }
@@ -179,6 +199,12 @@ export const PromptLibraryModal: React.FC<PromptLibraryModalProps> = ({
           </div>
         )}
 
+        {notice && (
+          <div className="p-2 bg-rose-500/10 border border-rose-500/30 rounded-lg text-[10px] font-mono text-rose-300">
+            {notice}
+          </div>
+        )}
+
         <div className="flex-1 overflow-y-auto space-y-2 pr-1">
           {library.length === 0 && (
             <div className="text-center py-12 text-xs font-mono text-slate-500">
@@ -205,12 +231,12 @@ export const PromptLibraryModal: React.FC<PromptLibraryModalProps> = ({
                 </button>
               </div>
               <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-500/10 text-slate-300 border border-slate-500/25">
-                  {item.style}
-                </span>
-                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-zinc-500/15 text-zinc-200 border border-zinc-500/40">
-                  {item.source}
-                </span>
+                <span className={STYLE_BADGE}>{item.style}</span>
+                {item.source === BANK_SOURCE ? (
+                  <span className={BANK_BADGE}>{BANK_NOTE}</span>
+                ) : (
+                  <span className={META_BADGE}>{item.source}</span>
+                )}
                 <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-300 border border-rose-500/25">
                   użyć: {item.uses}
                 </span>
