@@ -1,10 +1,12 @@
 import type { MiniApp } from "../../mini-express.server";
 import { generateContentWithFallback, getGeminiClient, safeJsonParse } from "../gemini.server";
 import { clampCount, clampText, clampTextList } from "../../limits";
-import { HOOK_CRAFT_PROMPT, auditHook, exemplarBlock } from "../../hookCraft";
-import { asArray, asString, sendDegraded } from "../normalize.server";
+import { HOOK_CRAFT_PROMPT, exemplarBlock } from "../../hookCraft";
+import { asArray, asString, asStringArray, sendDegraded } from "../normalize.server";
 import { formatStarkCaption, starkCaption } from "../../caption";
 import { hookFingerprint } from "../../similarity";
+import { FRAME_FORMATS, formatById, formatFieldSpec } from "../../formats";
+import { rankFrameCandidates } from "./frames.server";
 
 const PILLARS = [
   {
@@ -118,7 +120,81 @@ export function buildBatchFallback() {
   }));
 }
 
-// 6. BATCH GENERATOR (Mass High-Variance Posts Engine - 9:16 Cytat na Czerni)
+/**
+ * Mieszanka układów z jednej odpowiedzi modelu — wydzielone, żeby dało się
+ * sprawdzić bez sieci. Trasa pyta o każdy format z osobna, więc odpowiedź, w
+ * której model zignorował polecenie i oddał same cytaty, musi choć nie zrobić
+ * czegoś głupszego niż pozory mieszanki.
+ */
+export function mixBatchPosts(
+  parsed: unknown,
+  exclude: string[],
+  count: number,
+  quota: number,
+): Record<string, unknown>[] {
+  const posts = asArray((parsed as { posts?: unknown } | null)?.posts);
+
+  // Każdy układ przechodzi przez tę samą miarkę co studio kadru: kształt
+  // (liczba wierszy, pary cena/strata) jest twardy, rzemiosło wiersza miękkie.
+  const buckets = new Map<string, Record<string, unknown>[]>();
+  for (const item of posts) {
+    const entry = (item ?? {}) as Record<string, unknown>;
+    const format = formatById(asString(entry.format).toLowerCase()) ?? FRAME_FORMATS[0];
+    buckets.set(format.id, [...(buckets.get(format.id) ?? []), entry]);
+  }
+
+  const groups = FRAME_FORMATS.map((format) =>
+    rankFrameCandidates(buckets.get(format.id) ?? [], format, exclude, quota + 2).frames.map(
+      (frame) => ({ ...frame, formatId: format.id }),
+    ),
+  );
+
+  // Round-robin: seria ma być mieszanką od pierwszego kadru, a nie „najpierw
+  // cztery cytaty, potem reszta".
+  const mixed: Record<string, unknown>[] = [];
+  for (let round = 0; mixed.length < count; round++) {
+    let taken = false;
+    for (const group of groups) {
+      const frame = group[round];
+      if (!frame) continue;
+      mixed.push(frame);
+      taken = true;
+      if (mixed.length >= count) break;
+    }
+    if (!taken) break;
+  }
+
+  return mixed.map((frame, idx) => {
+    const format = formatById(asString(frame.formatId)) ?? FRAME_FORMATS[0];
+    const primary = asString(frame.primary);
+    const steps = asStringArray(frame.steps, 4);
+    const cost = asStringArray(frame.cost, 3);
+    const forfeit = asStringArray(frame.forfeit, 3);
+    const closing = asString(frame.closing);
+    // Siatka podglądu zna dwa wiersze; pełną strukturę niesie kadr.
+    const preview = steps[0] ?? cost[0] ?? closing;
+    return {
+      id: `batch-${idx + 1}`,
+      format: format.id,
+      layoutName: format.layoutName,
+      gridType: format.gridType,
+      pillar: format.label,
+      primary,
+      steps,
+      cost,
+      forfeit,
+      closing,
+      sayingMain: primary,
+      sayingSub: preview,
+      caption: starkCaption(primary, asString(frame.caption)),
+      question: asString(frame.question),
+      template: format.gridType,
+      fontColor: "white",
+    };
+  });
+}
+
+// 6. SERIA POSTÓW — jedna partia kadrów, wiele układów (nie tylko cytat na czerni).
 export function registerBatchRoutes(app: MiniApp): void {
   app.post("/api/ai/batch-generator", async (req, res) => {
     // Klient wysyła `niche`, trasa czytała `topic` — nisza była wyrzucana,
@@ -154,6 +230,9 @@ export function registerBatchRoutes(app: MiniApp): void {
     // Do promptu wchodzi tylko ogon historii: za każdy znak płaci się przy
     // każdym wywołaniu, a realnie grożą powtórki z ostatnich partii.
     const banList = exclude.slice(-25).join("\n- ");
+    // Jedno wywołanie, cztery układy: prosimy o tyle wariantów formatu, ile
+    // trzeba, żeby cała seria była mieszanką, a nie jednym cytatem.
+    const quota = Math.max(1, Math.ceil(count / FRAME_FORMATS.length));
 
     try {
       const prompt = `You are the lead viral copywriter for @stark_focus (dark psychology, realistic discipline, focus, high standards, black background format 9:16).
@@ -171,11 +250,15 @@ CRITICAL ANTI-AI-SLOP & TONE RULES:
 - NO ARTIFICIAL HIGHLIGHTS: No asterisks or special markdown.
 
 CRITICAL FORMAT RULES:
-1. Pure brutal minimalism: Quotes must NEVER be long paragraphs or multi-line blocks.
-2. Direct, thought-provoking & audience-facing: Address the reader/viewer directly in 2nd person ("you", "your").
-3. Format choice per post:
-   - OPTION A: Exactly ONE punchy line on the entire screen (strictly 3 to 7 words total). In this case, "sayingSub" MUST be empty string ("").
-   - OPTION B: Exactly TWO ultra-short lines ("sayingMain" of 2-5 words + "sayingSub" of 2-5 words, e.g. "Keep quiet." / "until it is done.").
+1. Seria NIE moze byc jednym ukladem. Napisz po ${quota} wariantow KAZDEGO ponizszego formatu i oznacz kazdy wpisem "format":
+${FRAME_FORMATS.map(
+  (format) =>
+    `   - "${format.id}" (${format.label}) — ${format.shape}\n     Pola: ${formatFieldSpec(
+      format,
+    ).replace(/\n/g, " ")}`,
+).join("\n")}
+2. Pure brutal minimalism: wiersz kadru jest krotki, nigdy paragraf.
+3. Direct, thought-provoking & audience-facing: Address the reader/viewer directly in 2nd person ("you", "your").
 4. Under no circumstances produce multi-sentence or wrapped long text.
 5. caption: 2-3 zdania po angielsku, które rozwijają myśl z kadru. Bez hashtagów, bez CTA, bez "Follow" — ogon doklejamy u siebie, więc dwa własne końce wyglądałyby jak pomyłka.
 6. NEVER use black font. All posts use pure white font on pitch black background.
@@ -184,9 +267,21 @@ Return ONLY valid JSON:
 {
   "posts": [
     {
+      "format": "${FRAME_FORMATS.map((format) => format.id).join("|")}",
       "pillar": "string",
-      "sayingMain": "string (strictly 3-7 words, 1 line)",
-      "sayingSub": "string (empty string OR strictly 2-5 words, 1 line)",
+${FRAME_FORMATS.flatMap((format) => format.fields)
+  .filter((field, index, all) => all.findIndex((other) => other.key === field.key) === index)
+  .map(
+    (field) =>
+      `      "${field.key}": ${
+        field.pair
+          ? '["Cena -> Utrata"]'
+          : field.list
+            ? '["linie po angielsku"]'
+            : '"linia po angielsku"'
+      },`,
+  )
+  .join("\n")}
       "caption": "string"
     }
   ]
@@ -197,31 +292,7 @@ Return ONLY valid JSON:
         temperature: 0.95,
       });
 
-      const parsed = safeJsonParse(text || "");
-      // Wypełniacz tylko gdy jest z czego: przy wyczerpanym banku `idx % 0`
-      // dałoby NaN i `filler.sayingMain` wywaliłoby całą odpowiedź.
-      const fillers = fallbackPosts.length ? fallbackPosts : allPillars;
-      const enriched = asArray(parsed.posts)
-        .map((item: any, idx: number) => {
-          const filler = fillers[idx % fillers.length];
-          const fromModel = asString(item?.sayingMain) || asString(item?.hook);
-          // Klisza od modelu nie trafia na kadr — w jej miejsce wchodzi bank.
-          // Bez tego jedna zla partia zabralaby caly zestaw.
-          const sayingMain = fromModel && auditHook(fromModel).ok ? fromModel : filler.sayingMain;
-          return {
-            id: `batch-${Date.now()}-${idx + 1}`,
-            pillar: asString(item?.pillar, `Principle ${idx + 1}`),
-            sayingMain,
-            sayingSub: asString(item?.sayingSub) || asString(item?.sub),
-            caption: starkCaption(sayingMain, asString(item?.caption)),
-            template: "none_solid",
-            fontColor: "white",
-          };
-        })
-        .filter(
-          (post) => post.sayingMain.length > 0 && !excluded.has(hookFingerprint(post.sayingMain)),
-        )
-        .slice(0, count);
+      const enriched = mixBatchPosts(safeJsonParse(text || ""), exclude, count, quota);
 
       if (enriched.length > 0) {
         return res.json({ posts: enriched, notice });

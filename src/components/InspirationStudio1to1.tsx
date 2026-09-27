@@ -71,10 +71,21 @@ const BANK_TAG =
 export interface BatchPostItem {
   id: string;
   pillar: string;
+  /** Który z układów marki ma pozycja niesie — „quote" nie jest jedyny. */
+  format?: string;
+  layoutName?: string;
+  gridType?: string;
+  primary?: string;
+  steps?: string[];
+  cost?: string[];
+  forfeit?: string[];
+  closing?: string;
+  /** Podgląd w siatce: teza i jedna linia dodatkowa. */
   sayingMain: string;
   sayingSub?: string;
   caption: string;
-  template?: "none_solid";
+  question?: string;
+  template?: string;
   fontColor?: "white" | "black";
 }
 
@@ -85,21 +96,20 @@ export interface BatchPostItem {
  * z kadrem zatwierdzonym sekundę wcześniej.
  */
 function specForBatchItem(item: BatchPostItem, base: UniversalLayoutSpec): UniversalLayoutSpec {
-  const template = base.textLayers[0];
-  if (!template) return base;
-  const lines = [item.sayingMain, item.sayingSub ?? ""].map((line) => line.trim()).filter(Boolean);
+  const gridType = (item.gridType || "none_solid") as UniversalLayoutSpec["gridType"];
+  const content: StructuredContent = {
+    primary: item.primary || item.sayingMain,
+    steps: item.steps ?? [],
+    cost: item.cost ?? [],
+    forfeit: item.forfeit ?? [],
+    closing: item.closing ?? "",
+  };
   return {
-    ...base,
-    layoutName: "Cytat",
-    gridType: "none_solid",
-    slotCount: 0,
-    slotLabels: [],
-    textLayers: lines.map((line, index) => ({
-      ...template,
-      id: index === 0 ? "t1" : `sub${index + 1}`,
-      text: line,
-    })),
-    caption: item.caption,
+    ...structuredSpec(item.layoutName || "Cytat", gridType, content, {}, item.caption),
+    // Krój i kolor bierzemy z kadru, na który człowiek patrzy — treść z serii.
+    fontFamilyCustom: base.fontFamilyCustom,
+    fontColorMode: base.fontColorMode,
+    backgroundColor: base.backgroundColor,
   };
 }
 
