@@ -8,6 +8,7 @@
 import React, { useState } from "react";
 import { Copy, Check, Loader2, Quote, Scissors, X } from "lucide-react";
 import { formatStarkCaption } from "../lib/caption";
+import { fetchJson } from "../lib/fetchJson";
 
 interface ClipMinerModalProps {
   isOpen: boolean;
@@ -36,6 +37,8 @@ export const ClipMinerModal: React.FC<ClipMinerModalProps> = ({
   const [source, setSource] = useState("");
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  /** Ślad po odpowiedzi, w której nie było ani jednego cytatu do przepisania. */
+  const [bankNotice, setBankNotice] = useState<string>("");
   const [clips, setClips] = useState<Clip[]>([]);
   const [copied, setCopied] = useState<string | null>(null);
 
@@ -44,14 +47,25 @@ export const ClipMinerModal: React.FC<ClipMinerModalProps> = ({
   const mine = async () => {
     setLoading(true);
     setNotice(null);
+    setBankNotice("");
     try {
-      const res = await fetch("/api/ai/clip-miner", {
+      const { data, degraded, status } = await fetchJson("/api/ai/clip-miner", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ transcript, speaker, source, count: 5 }),
       });
-      const data = await res.json();
-      const list = Array.isArray(data?.clips) ? data.clips : [];
+      if (status < 200 || status >= 300) {
+        setClips([]);
+        setNotice(
+          status
+            ? `Serwer nie oddał cytatów (HTTP ${status}) — spróbuj ponownie.`
+            : "Serwer nie odpowiedział — sprawdź, czy aplikacja działa.",
+        );
+        return;
+      }
+      const list = Array.isArray(data?.clips)
+        ? data.clips.filter((clip): clip is Clip => !!clip && typeof clip === "object")
+        : [];
       setClips(list);
       if (list.length === 0) {
         setNotice(
@@ -61,6 +75,11 @@ export const ClipMinerModal: React.FC<ClipMinerModalProps> = ({
               ? data.error
               : "Nic nie wyszło z tego tekstu.",
         );
+        // Ślad po odpowiedzi, w której nie było żadnego zdania: kopia z banku
+        // nie wchodzi w grę, bo cytat musi paść w transkrypcie.
+        if (degraded) {
+          setBankNotice("Model nie odpowiedział — nie ma czego przepisywać na kartę.");
+        }
       }
     } catch {
       setNotice("Serwer nie odpowiedział. Sprawdź, czy aplikacja działa.");
@@ -144,6 +163,14 @@ export const ClipMinerModal: React.FC<ClipMinerModalProps> = ({
           </button>
 
           {notice && <p className="text-[10px] font-mono text-rose-400">{notice}</p>}
+
+          {bankNotice && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-300 border border-rose-500/30">
+                {bankNotice}
+              </span>
+            </div>
+          )}
 
           {clips.length > 0 && (
             <div className="space-y-2">

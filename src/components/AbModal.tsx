@@ -36,6 +36,11 @@ export interface AbResultRow {
  */
 export interface AbConclusion {
   status?: string;
+  /**
+   * `offline` znaczy, że wniosek policzył serwer bez odpowiedzi modelu — klient
+   * dopisuje go sam z nagłówka `x-stark-degraded`, jeśli trasa go wystawiła.
+   */
+  source?: string;
   winner?: string | null;
   lesson?: string;
   minViews?: number;
@@ -75,6 +80,9 @@ const LABEL = "text-[9px] font-mono uppercase text-slate-500";
 
 /** Uczciwy podpis pary: gotowiec z pliku nie może wyglądać jak odpowiedź modelu na ten temat. */
 const BANK_NOTE = "treść z banku — model nie odpowiedział";
+
+/** Wniosek znaczy co innego niż materiał: tu zdanie liczy arytmetyka, nie model. */
+const NO_MODEL_NOTE = "wniosek liczony bez modelu — lekcji nie pisał Gemini";
 
 const BankTag: React.FC<{ label?: string }> = ({ label }) => (
   <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-300 border border-rose-500/30">
@@ -297,7 +305,11 @@ export const AbModal: React.FC<AbModalProps> = ({
     setError(null);
     setNotice(null);
     try {
-      const res = await fetch("/api/ai/ab-conclusion", {
+      const {
+        data: json,
+        degraded,
+        status,
+      } = await fetchJson("/api/ai/ab-conclusion", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -318,11 +330,17 @@ export const AbModal: React.FC<AbModalProps> = ({
           })),
         }),
       });
-      if (!res.ok) throw new Error("HTTP " + res.status);
-      const json = await res.json();
-      patch({ conclusion: json });
+      if (status < 200 || status >= 300) throw new Error("HTTP " + status);
+      // Nagłówek `x-stark-degraded` jest mocniejszy niż pole `source`: wniosek
+      // liczony bez modelu nie może stać pod eksperymentem jako lekcja od Gemini.
+      const conclusion: AbConclusion = {
+        ...(json as AbConclusion),
+        source: degraded ? "offline" : textOf(json.source),
+      };
+      patch({ conclusion });
 
-      const winnerLabel = json.winner === "A" || json.winner === "B" ? json.winner : null;
+      const winnerLabel =
+        conclusion.winner === "A" || conclusion.winner === "B" ? conclusion.winner : null;
       // Odmowa nie jest eksperymentem do zapamiętania: zapisalibyśmy ją z
       // `concludedAt` jak rozstrzygniętą, a potem opowiadali o niej generatorowi.
       if (!winnerLabel) {
@@ -373,6 +391,9 @@ export const AbModal: React.FC<AbModalProps> = ({
 
   const published = data.published ?? [];
   const ledgerFingerprints = new Set(publishedHookFingerprints(published));
+  // `source` dokleiliśmy nad nagłówkiem: bez tego lekcja policzona z samych
+  // liczb wygląda pod eksperymentem jak zdanie napisane przez model.
+  const conclusionWithoutModel = !!conclusion && conclusion.source !== "ai";
 
   /** Wariant jest w dzienniku, jeśli jego myśl już tam poszła lub wpisał go ten eksperyment. */
   const inLedger = (v: AbVariant) =>
@@ -720,9 +741,16 @@ export const AbModal: React.FC<AbModalProps> = ({
 
         {conclusion && refused && (
           <div className="p-3 bg-[#141824] border border-[#2C354B] rounded-lg space-y-2">
-            <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-300">
-              Bez rozstrzygnięcia
-            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-300">
+                Bez rozstrzygnięcia
+              </p>
+              {conclusionWithoutModel && (
+                <p className="text-[10px] font-mono text-slate-500">
+                  Odmowa liczona jest z samych liczb — model nie był o nią pytany.
+                </p>
+              )}
+            </div>
             <p className="text-[11px] font-mono text-slate-300">{conclusion.lesson}</p>
             {(conclusion.missing ?? []).map((row) => (
               <p key={textOf(row.label)} className="text-[10px] font-mono text-slate-400">
@@ -742,6 +770,11 @@ export const AbModal: React.FC<AbModalProps> = ({
               <TrendingUp className="w-3 h-3" />
               Wygrał wariant <strong>{conclusion.winner}</strong>
             </p>
+            {conclusionWithoutModel && (
+              <div className="flex flex-wrap items-center gap-2">
+                <BankTag label={NO_MODEL_NOTE} />
+              </div>
+            )}
             <p className="text-[11px] font-mono text-slate-300">{conclusion.lesson}</p>
             <p className="text-[9px] font-mono text-slate-500">
               W kolejnych generacjach stosuj więcej tego typu hooków.

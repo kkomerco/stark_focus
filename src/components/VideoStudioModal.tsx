@@ -67,6 +67,7 @@ import {
   VISUAL_THEMES,
 } from "./video/reel-helpers";
 import { pickBackground } from "../utils/backgroundPicker";
+import { fetchJson } from "../lib/fetchJson";
 
 interface VideoStudioModalProps {
   onClose?: () => void;
@@ -110,6 +111,11 @@ const easeOutCubic = (t: number) => 1 - Math.pow(1 - Math.min(1, Math.max(0, t))
 
 /** Studio ogarnia maksymalnie 4 kadry — dłuższe listy z modelu tniemy, nie renderujemy. */
 const MAX_PHRASES = 5;
+
+/** Uczciwy podpis: zdania z banku nie mogą wyglądać jak napisane pod ten temat. */
+const BANK_LABEL = "treść z banku — model nie odpowiedział";
+const BANK_TAG =
+  "text-[9px] font-mono px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-300 border border-rose-500/30 shrink-0";
 
 const ALLOWED_DURATIONS: ReelDuration[] = [5, 6, 7, 8, 9, 10, 11, 12, 15, 18, 20, 25];
 
@@ -331,6 +337,9 @@ export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
     setReelFormat(formatForPhraseCount(nextPhrases.length));
     const nextDuration = asReelDuration(reel.duration);
     if (nextDuration) setDuration(nextDuration);
+    // Pakiet z innego studia nie jest tą odpowiedzią — podpis banku zostaje na
+    // partii, którą studio naprawdę dostał.
+    setReelBankNote("");
     // Motyw idzie za wybranym ujęciem, nie za bazą szablonu — dobór tła
     // zrobił `pickTemplate` na treści pakietu i oba pola muszą się zgadzać.
     setSelectedTheme(nextTemplate.suggestedTheme);
@@ -347,6 +356,12 @@ export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
   // Bed proceduralny (dron + uderzenia na grzbietach) zamiast cichego pliku.
   const [reelAudioEnabled, setReelAudioEnabled] = useState<boolean>(true);
   const [isGeneratingAi, setIsGeneratingAi] = useState<boolean>(false);
+  /**
+   * Podpis materiału na kadrze. `x-stark-degraded` niesie też odpowiedź, w której
+   * bank treści podszedł zamiast modelu, a bez tego zdania z pliku wyglądały jak
+   * napisane pod ten temat.
+   */
+  const [reelBankNote, setReelBankNote] = useState<string>("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const seenTitlesRef = useRef<string[]>([]);
 
@@ -565,7 +580,11 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
       // przerywał połączenie, którego model już nie zwróci, a request był płatny.
       const timeoutId = setTimeout(() => controller.abort(), 25000);
 
-      const res = await fetch("/api/ghostwrite", {
+      const {
+        data: json,
+        degraded,
+        status,
+      } = await fetchJson("/api/ghostwrite", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -579,10 +598,9 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
       });
       clearTimeout(timeoutId);
 
-      if (res.ok) {
-        const json = await res.json();
-        let parsedData = json;
-        if (!json.phrases && json.content) {
+      if (status >= 200 && status < 300) {
+        let parsedData: Record<string, any> = json;
+        if (!json.phrases && typeof json.content === "string") {
           try {
             const match = json.content.match(/\{[\s\S]*\}/);
             if (match) parsedData = JSON.parse(match[0]);
@@ -666,7 +684,14 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
           timeRef.current = 0;
           setCurrentTime(0);
 
-          setToastMessage(`Rolka „${freshTitle}" — ${finalPhrases.length} kadrów.`);
+          // Nagłówek `x-stark-degraded` mówi, że te zdania wyszły z banku
+          // treści, nie z tej odpowiedzi — kadr musi mieć to napisane przy sobie.
+          setReelBankNote(degraded ? BANK_LABEL : "");
+          setToastMessage(
+            degraded
+              ? `Bank treści: „${freshTitle}" — ${finalPhrases.length} kadrów, model nie odpowiedział.`
+              : `Rolka „${freshTitle}" — ${finalPhrases.length} kadrów.`,
+          );
           setTimeout(() => setToastMessage(null), 2800);
           setIsGeneratingAi(false);
           return;
@@ -704,6 +729,9 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
     timeRef.current = 0;
     setCurrentTime(0);
 
+    // Bez odpowiedzi od modelu kładziemy na kadr to, co mamy w pliku. Zdanie
+    // z matrycy nie może stać pod rolką jako rzekomo napisana dziś fraza.
+    setReelBankNote(BANK_LABEL);
     setToastMessage(`Model nie odpowiedział — kadr z lokalnego banku treści: „${formula.title}".`);
     setTimeout(() => setToastMessage(null), 2800);
     setIsGeneratingAi(false);
@@ -1722,6 +1750,14 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                 )}
               </button>
             </div>
+
+            {/* Materiał na kadrze podpisany tym, skąd przyszedł: bank treści nie
+                może stać pod rolką jako zdanie napisane na ten temat. */}
+            {reelBankNote && (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={BANK_TAG}>{reelBankNote}</span>
+              </div>
+            )}
 
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 pt-1 border-t border-white/5">
               {[

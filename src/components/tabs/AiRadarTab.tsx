@@ -27,6 +27,7 @@ import { usedHookFingerprints } from "../../lib/usedContent";
 import { topPublishedHooks, MIN_SAMPLE } from "../../lib/published";
 import { formatStarkCaption, starkCaption } from "../../lib/caption";
 import { nextEdition } from "../../lib/series";
+import { fetchJson } from "../../lib/fetchJson";
 import { CarouselStudioModal } from "../CarouselStudioModal";
 
 interface IncomingCarousel {
@@ -89,6 +90,47 @@ interface BatchPostItem {
   template?: string;
 }
 
+/** Uczciwy podpis materiału, który nie przyszedł od modelu. */
+const BANK_LABEL = "treść z banku — model nie odpowiedział";
+const BANK_TAG =
+  "text-[9px] font-mono px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-300 border border-rose-500/30 shrink-0";
+
+/** Trasa nazywa powód w `notice`/`message`; pusty string znaczy, że nic nie zgłosiła. */
+const noticeOf = (payload: Record<string, unknown>): string => {
+  for (const key of ["notice", "message", "error"]) {
+    const value = payload[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+};
+
+const textOf = (value: unknown): string => (typeof value === "string" ? value.trim() : "");
+
+/** Recykler ma coś do pokazania dopiero wtedy, gdy jest jedno zdanie albo slajd. */
+function recycleHasContent(payload: Record<string, unknown>): boolean {
+  const reel = payload.reel as { hook?: unknown } | null | undefined;
+  const carousel = payload.carousel as { slides?: unknown } | null | undefined;
+  return (
+    textOf(payload.manifesto) !== "" ||
+    textOf(reel?.hook) !== "" ||
+    (Array.isArray(carousel?.slides) && carousel.slides.length > 0)
+  );
+}
+
+/** Podpis partii: cała z banku, część z banku, albo żaden. */
+function bankLabel(whole: boolean, bankCount: number, total: number): string {
+  if (whole || (bankCount > 0 && bankCount >= total && total > 0)) return BANK_LABEL;
+  if (bankCount > 0) {
+    const tail = bankCount % 10;
+    const tens = bankCount % 100;
+    const few = tail >= 2 && tail <= 4 && (tens < 12 || tens > 14);
+    return few
+      ? `${bankCount} z ${total} pozycji jest z banku treści`
+      : `${bankCount} z ${total} pozycji to bank treści`;
+  }
+  return "";
+}
+
 export const AiRadarTab: React.FC<AiRadarTabProps> = ({
   data,
   onUpdateData,
@@ -137,6 +179,23 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
   const [isGeneratingBatch, setIsGeneratingBatch] = useState<boolean>(false);
   const [batchPosts, setBatchPosts] = useState<BatchPostItem[]>([]);
   const [addedBatchIds, setAddedBatchIds] = useState<Set<string>>(new Set());
+
+  /**
+   * Której partii nie napisał model. Podpis idzie za listą, nie za zakładką:
+   * przełączenie karty Radaru nie może ścierać etykiety z materiału, który
+   * wciąż jest na ekranie, ani zostawiać jej na treści wczytanej z pamięci.
+   */
+  const [scanBank, setScanBank] = useState<boolean>(false);
+  const [formatBank, setFormatBank] = useState<boolean>(false);
+  const [angleBank, setAngleBank] = useState<boolean>(false);
+  const [frictionBank, setFrictionBank] = useState<boolean>(false);
+  const [recycleBank, setRecycleBank] = useState<boolean>(false);
+  const [batchBank, setBatchBank] = useState<boolean>(false);
+  /** Ile wpisów ostatniej serii dołożył bank: trasa liczy je w `bankFilled`. */
+  const [batchBankFilled, setBatchBankFilled] = useState<number>(0);
+  /** Powód, który serwer nazwał samą treścią: pusty panel nie może być martwy. */
+  const [radarError, setRadarError] = useState<string>("");
+  const [recycleNotice, setRecycleNotice] = useState<string>("");
 
   // Copy feedback
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -216,18 +275,34 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
 
   const loadViralFormats = async () => {
     setIsLoadingFormats(true);
+    setRadarError("");
     try {
-      const res = await fetch("/api/ai/viral-format-radar", {
+      const {
+        data: json,
+        degraded,
+        status,
+      } = await fetchJson("/api/ai/viral-format-radar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ niche, excludeHooks: usedHookFingerprints(data) }),
       });
-      const json = await res.json();
-      if (Array.isArray(json.formats)) {
-        setViralFormats(json.formats);
+      if (status < 200 || status >= 300) {
+        setRadarError(
+          status
+            ? `Serwer nie oddał formatów (HTTP ${status}) — kliknięcie mogło zejść z licznika.`
+            : "Serwer nie odpowiedział — formaty nie zostały pobrane.",
+        );
+        return;
+      }
+      const formats = Array.isArray(json.formats) ? (json.formats as ViralFormatItem[]) : [];
+      setViralFormats(formats);
+      setFormatBank(degraded);
+      if (formats.length === 0) {
+        setRadarError(noticeOf(json) || "Model nie oddał żadnego formatu — spróbuj ponownie.");
       }
     } catch (e) {
       console.warn("Viral format load error:", e);
+      setRadarError("Serwer nie odpowiedział — formaty nie zostały pobrane.");
     } finally {
       setIsLoadingFormats(false);
     }
@@ -235,9 +310,14 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
 
   const handleScanTrends = async () => {
     setIsScanning(true);
+    setRadarError("");
     setScanMessage("Model układa wątki powtarzające się w tej niszy...");
     try {
-      const res = await fetch("/api/ai/scan-trends", {
+      const {
+        data: json,
+        degraded,
+        status,
+      } = await fetchJson("/api/ai/scan-trends", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -247,20 +327,35 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
           excludeHooks: usedHookFingerprints(data),
         }),
       });
-      const json = await res.json();
-      if (json.trends && Array.isArray(json.trends)) {
-        setTrends(json.trends);
+      if (status < 200 || status >= 300) {
+        setScanMessage(
+          status
+            ? `Skan nie wyszedł (HTTP ${status}) — kliknięcie mogło zejść z licznika.`
+            : "Skan nie wyszedł — serwer nie odpowiedział.",
+        );
+        return;
+      }
+      const found = Array.isArray(json.trends) ? (json.trends as TrendItem[]) : [];
+      setTrends(found);
+      setScanBank(degraded);
+      if (found.length > 0) {
         onUpdateData((prev) => ({
           ...prev,
-          saved_trends: json.trends,
+          saved_trends: found,
         }));
-        setScanMessage(json.message || "Zaktualizowano wątki z niszy i hooki 0-3s.");
       }
+      setScanMessage(
+        noticeOf(json) ||
+          (found.length > 0
+            ? "Zaktualizowano wątki z niszy i hooki 0-3s."
+            : "Żaden wątek nie przeszedł kontroli rzemiosła — poniżej nie ma czego pokazać."),
+      );
       // Wcześniejsze `loadViralFormats()` w tym miejscu dokładało drugie płatne
       // zapytanie do jednego kliknięcia. Skan nie karmi formatów ani odwrotnie,
       // więc formaty mają własny przycisk i własne jedno zapytanie.
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
+      setScanBank(false);
       setScanMessage("Wystąpił problem podczas pobierania trendów sieci.");
     } finally {
       setIsScanning(false);
@@ -270,18 +365,37 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
   const handleGenerateAngles = async () => {
     if (!angleTopic.trim()) return;
     setIsGeneratingAngles(true);
+    setRadarError("");
     try {
-      const res = await fetch("/api/ai/angle-matrix", {
+      const {
+        data: json,
+        degraded,
+        status,
+      } = await fetchJson("/api/ai/angle-matrix", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ topic: angleTopic, excludeHooks: usedHookFingerprints(data) }),
       });
-      const json = await res.json();
-      if (Array.isArray(json.angles)) {
-        setAngles(json.angles);
+      if (status < 200 || status >= 300) {
+        setRadarError(
+          status
+            ? `Matryca kątów nie wyszła (HTTP ${status}) — kliknięcie mogło zejść z licznika.`
+            : "Matryca kątów nie wyszła — serwer nie odpowiedział.",
+        );
+        return;
+      }
+      const angles = Array.isArray(json.angles) ? (json.angles as AngleItem[]) : [];
+      setAngles(angles);
+      setAngleBank(degraded);
+      if (angles.length === 0) {
+        setRadarError(
+          noticeOf(json) ||
+            "Model nie oddał żadnego kąta — poniżej nie ma czego pokazać, spróbuj ponownie.",
+        );
       }
     } catch (e) {
       console.error(e);
+      setRadarError("Matryca kątów nie wyszła — serwer nie odpowiedział.");
     } finally {
       setIsGeneratingAngles(false);
     }
@@ -290,18 +404,37 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
   const handleGenerateFriction = async () => {
     if (!frictionTopic.trim()) return;
     setIsGeneratingFriction(true);
+    setRadarError("");
     try {
-      const res = await fetch("/api/ai/cognitive-friction", {
+      const {
+        data: json,
+        degraded,
+        status,
+      } = await fetchJson("/api/ai/cognitive-friction", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ topic: frictionTopic, excludeHooks: usedHookFingerprints(data) }),
       });
-      const json = await res.json();
-      if (Array.isArray(json.paradoxes)) {
-        setParadoxes(json.paradoxes);
+      if (status < 200 || status >= 300) {
+        setRadarError(
+          status
+            ? `Paradoksy nie wyszły (HTTP ${status}) — kliknięcie mogło zejść z licznika.`
+            : "Paradoksy nie wyszły — serwer nie odpowiedział.",
+        );
+        return;
+      }
+      const paradoxes = Array.isArray(json.paradoxes) ? (json.paradoxes as ParadoxItem[]) : [];
+      setParadoxes(paradoxes);
+      setFrictionBank(degraded);
+      if (paradoxes.length === 0) {
+        setRadarError(
+          noticeOf(json) ||
+            "Model nie oddał żadnego paradoksu — poniżej nie ma czego pokazać, spróbuj ponownie.",
+        );
       }
     } catch (e) {
       console.error(e);
+      setRadarError("Paradoksy nie wyszły — serwer nie odpowiedział.");
     } finally {
       setIsGeneratingFriction(false);
     }
@@ -310,8 +443,13 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
   const handleRecycleContent = async () => {
     if (!sourceText.trim()) return;
     setIsRecycling(true);
+    setRadarError("");
     try {
-      const res = await fetch("/api/ai/evergreen-recycle", {
+      const {
+        data: json,
+        degraded,
+        status,
+      } = await fetchJson("/api/ai/evergreen-recycle", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -319,12 +457,30 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
           excludeHooks: usedHookFingerprints(data),
         }),
       });
-      const json = await res.json();
-      if (json.reel && json.carousel) {
-        setRecycledData(json);
+      if (status < 200 || status >= 300) {
+        setRadarError(
+          status
+            ? `Remiks nie wyszedł (HTTP ${status}) — kliknięcie mogło zejść z licznika.`
+            : "Remiks nie wyszedł — serwer nie odpowiedział.",
+        );
+        return;
       }
+      // Trasa oddaje cztery null-e, gdy nie ma ani jednego zdania z materiału.
+      // Cztery puste karty pod sobą wyglądałyby jak wygenerowana seria.
+      if (!recycleHasContent(json)) {
+        setRecycledData(null);
+        setRecycleBank(false);
+        setRadarError(
+          noticeOf(json) || "Remiks nie wyszedł — ani model, ani bank treści nie oddał zdania.",
+        );
+        return;
+      }
+      setRecycledData(json);
+      setRecycleBank(degraded);
+      setRecycleNotice(noticeOf(json));
     } catch (e) {
       console.error(e);
+      setRadarError("Remiks nie wyszedł — serwer nie odpowiedział.");
     } finally {
       setIsRecycling(false);
     }
@@ -333,8 +489,13 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
   // Obsługa generowania masowego (Batch Generator)
   const handleGenerateBatch = async () => {
     setIsGeneratingBatch(true);
+    setRadarError("");
     try {
-      const res = await fetch("/api/ai/batch-generator", {
+      const {
+        data: result,
+        degraded,
+        status,
+      } = await fetchJson("/api/ai/batch-generator", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -344,12 +505,26 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
           exemplars: topPublishedHooks(data.published ?? []),
         }),
       });
-      const result = await res.json();
-      if (Array.isArray(result.posts) && result.posts.length > 0) {
-        setBatchPosts(result.posts);
+      if (status < 200 || status >= 300) {
+        setRadarError(
+          status
+            ? `Seria nie wyszła (HTTP ${status}) — kliknięcie mogło zejść z licznika.`
+            : "Seria nie wyszła — serwer nie odpowiedział.",
+        );
+        return;
+      }
+      const posts = Array.isArray(result.posts) ? (result.posts as BatchPostItem[]) : [];
+      setBatchPosts(posts);
+      setBatchBank(degraded);
+      // Trasa uzupełnia bankiem każdą kliszę, którą odrzuciła kontrola rzemiosła.
+      const filled = Number(result.bankFilled ?? 0);
+      setBatchBankFilled(Number.isFinite(filled) && filled > 0 ? filled : 0);
+      if (posts.length === 0) {
+        setRadarError(noticeOf(result) || "Model nie oddał żadnego wpisu — spróbuj ponownie.");
       }
     } catch (err) {
       console.error("Batch gen error:", err);
+      setRadarError("Seria nie wyszła — serwer nie odpowiedział.");
     } finally {
       setIsGeneratingBatch(false);
     }
@@ -535,6 +710,14 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
         </div>
       </div>
 
+      {/* Awaria jest inną rzeczą niż bank treści: kliknięcie mogło zejść z
+          licznika, a na ekranie nie ma niczyjego zdania. */}
+      {radarError && (
+        <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded text-xs font-mono text-rose-300">
+          {radarError}
+        </div>
+      )}
+
       {/* SUB-MODUŁ 1: RADAR TRENDÓW & FORMATÓW WIRALOWYCH */}
       {activeSubModule === "radar" && (
         <div className="space-y-6 animate-in fade-in">
@@ -615,6 +798,9 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                 Matryca Sprawdzonych Formatów Wirali (Reels / TikTok Hooks)
               </h3>
               <div className="flex items-center gap-3">
+                {formatBank && viralFormats.length > 0 && (
+                  <span className={BANK_TAG}>{BANK_LABEL}</span>
+                )}
                 <span className="text-[10px] font-mono text-neutral-500">
                   Szablony o udowodnionej retencji 0-3s
                 </span>
@@ -727,10 +913,15 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
 
           {/* Sekcja: Wątki z niszy */}
           <div className="space-y-3">
-            <h3 className="text-xs font-bold text-white uppercase font-mono tracking-wider flex items-center gap-2">
-              <Bookmark className="w-4 h-4 text-emerald-400" />
-              Wątki, które powtarzają się w niszy ({trends.length})
-            </h3>
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="text-xs font-bold text-white uppercase font-mono tracking-wider flex items-center gap-2">
+                <Bookmark className="w-4 h-4 text-emerald-400" />
+                Wątki, które powtarzają się w niszy ({trends.length})
+              </h3>
+              {/* Etykieta wisi tylko na partii z tego kliknięcia — wątki wczytane
+                  z pamięci nie niosą znaku pochodzenia i nie udają banku. */}
+              {scanBank && trends.length > 0 && <span className={BANK_TAG}>{BANK_LABEL}</span>}
+            </div>
             <p className="text-[10px] font-mono text-neutral-500 leading-relaxed -mt-1">
               Model układa tu wzorce, które widuje u dużych nadawców w tej niszy: motyw, ból
               odbiorcy i hooki 0-3 s. To propozycja do napisania, nie pomiar z sieci. O tym, co u
@@ -739,78 +930,88 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
             </p>
 
             <div className="space-y-3">
-              {trends.map((trend, idx) => (
-                <div
-                  key={trend.id || idx}
-                  className="p-4 bg-[#0E0E0E] border border-[rgba(255,255,255,0.1)] hover:border-white/20 rounded-lg space-y-2.5 transition-all"
-                >
-                  <p className="text-xs font-mono font-bold text-white uppercase">
-                    #{idx + 1} {trend.title}
+              {trends.length === 0 ? (
+                <div className="p-6 text-center bg-[#0E0E0E] border border-[rgba(255,255,255,0.05)] rounded-lg">
+                  <p className="text-xs font-mono text-neutral-400">
+                    {isScanning
+                      ? "Skanujemy niszę..."
+                      : "Żaden wątek nie trafił do tej karty — skan wrócił pusty albo jeszcze go nie było."}
                   </p>
-
-                  <div className="grid gap-1.5 text-[10px] font-mono">
-                    {trend.source_context && (
-                      <p className="text-neutral-500">
-                        <span className="uppercase text-neutral-600">Skąd:</span>{" "}
-                        <span className="text-neutral-300">{trend.source_context}</span>
-                      </p>
-                    )}
-                    {trend.audience_pain && (
-                      <p className="text-neutral-500">
-                        <span className="uppercase text-neutral-600">Ból odbiorcy:</span>{" "}
-                        <span className="text-neutral-300">{trend.audience_pain}</span>
-                      </p>
-                    )}
-                  </div>
-
-                  <p className="text-xs font-mono text-neutral-300">{trend.core_message}</p>
-
-                  <div className="flex flex-wrap items-center gap-2 pt-1">
-                    <button
-                      onClick={() => {
-                        const text = trend.viral_hooks?.[0] || trend.title;
-                        // `title` i `core_message` są po polsku — to notatka dla
-                        // autora, nie opis pod post. Lista hooków z wątku to
-                        // gotowe kroki, więc idzie razem z tekstem.
-                        const cap = trend.copy_draft?.caption || formatStarkCaption(text);
-                        if (onSendToPost)
-                          onSendToPost(text, cap, (trend.viral_hooks ?? []).slice(1));
-                        else onNavigateToTab(0);
-                      }}
-                      className="flex items-center gap-1.5 py-1.5 px-3 rounded bg-white hover:bg-neutral-200 text-black text-xs font-mono font-bold transition-all cursor-pointer"
-                    >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      <span>Wyrzuć do Posta</span>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        const hook = trend.viral_hooks?.[0] || trend.title;
-                        if (onSendToReel) onSendToReel(hook);
-                        else onOpenVideoStudio?.(hook);
-                      }}
-                      className="flex items-center gap-1.5 py-1.5 px-3 rounded bg-[#161616] hover:bg-white hover:text-black border border-[rgba(255,255,255,0.1)] text-white text-xs font-mono font-bold transition-all cursor-pointer"
-                    >
-                      <Film className="w-3.5 h-3.5" />
-                      <span>Wyrzuć do Rolki</span>
-                    </button>
-
-                    <button
-                      onClick={() =>
-                        handleCopy(`tr-${idx}`, `${trend.title}\n${trend.core_message}`)
-                      }
-                      className="p-1.5 rounded bg-[#050505] hover:bg-[#161616] border border-[rgba(255,255,255,0.1)] text-xs font-mono font-bold text-neutral-300 transition-all cursor-pointer"
-                      title="Kopiuj treść"
-                    >
-                      {copiedId === `tr-${idx}` ? (
-                        <Check className="w-3.5 h-3.5 text-emerald-400" />
-                      ) : (
-                        <Copy className="w-3.5 h-3.5" />
-                      )}
-                    </button>
-                  </div>
                 </div>
-              ))}
+              ) : (
+                trends.map((trend, idx) => (
+                  <div
+                    key={trend.id || idx}
+                    className="p-4 bg-[#0E0E0E] border border-[rgba(255,255,255,0.1)] hover:border-white/20 rounded-lg space-y-2.5 transition-all"
+                  >
+                    <p className="text-xs font-mono font-bold text-white uppercase">
+                      #{idx + 1} {trend.title}
+                    </p>
+
+                    <div className="grid gap-1.5 text-[10px] font-mono">
+                      {trend.source_context && (
+                        <p className="text-neutral-500">
+                          <span className="uppercase text-neutral-600">Skąd:</span>{" "}
+                          <span className="text-neutral-300">{trend.source_context}</span>
+                        </p>
+                      )}
+                      {trend.audience_pain && (
+                        <p className="text-neutral-500">
+                          <span className="uppercase text-neutral-600">Ból odbiorcy:</span>{" "}
+                          <span className="text-neutral-300">{trend.audience_pain}</span>
+                        </p>
+                      )}
+                    </div>
+
+                    <p className="text-xs font-mono text-neutral-300">{trend.core_message}</p>
+
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                      <button
+                        onClick={() => {
+                          const text = trend.viral_hooks?.[0] || trend.title;
+                          // `title` i `core_message` są po polsku — to notatka dla
+                          // autora, nie opis pod post. Lista hooków z wątku to
+                          // gotowe kroki, więc idzie razem z tekstem.
+                          const cap = trend.copy_draft?.caption || formatStarkCaption(text);
+                          if (onSendToPost)
+                            onSendToPost(text, cap, (trend.viral_hooks ?? []).slice(1));
+                          else onNavigateToTab(0);
+                        }}
+                        className="flex items-center gap-1.5 py-1.5 px-3 rounded bg-white hover:bg-neutral-200 text-black text-xs font-mono font-bold transition-all cursor-pointer"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Wyrzuć do Posta</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          const hook = trend.viral_hooks?.[0] || trend.title;
+                          if (onSendToReel) onSendToReel(hook);
+                          else onOpenVideoStudio?.(hook);
+                        }}
+                        className="flex items-center gap-1.5 py-1.5 px-3 rounded bg-[#161616] hover:bg-white hover:text-black border border-[rgba(255,255,255,0.1)] text-white text-xs font-mono font-bold transition-all cursor-pointer"
+                      >
+                        <Film className="w-3.5 h-3.5" />
+                        <span>Wyrzuć do Rolki</span>
+                      </button>
+
+                      <button
+                        onClick={() =>
+                          handleCopy(`tr-${idx}`, `${trend.title}\n${trend.core_message}`)
+                        }
+                        className="p-1.5 rounded bg-[#050505] hover:bg-[#161616] border border-[rgba(255,255,255,0.1)] text-xs font-mono font-bold text-neutral-300 transition-all cursor-pointer"
+                        title="Kopiuj treść"
+                      >
+                        {copiedId === `tr-${idx}` ? (
+                          <Check className="w-3.5 h-3.5 text-emerald-400" />
+                        ) : (
+                          <Copy className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
@@ -851,84 +1052,101 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {angles.map((ang, idx) => (
-              <div
-                key={ang.angleId || idx}
-                className="p-4 bg-[#0E0E0E] border border-[rgba(255,255,255,0.1)] hover:border-white/40 rounded-lg space-y-3 transition-all"
-              >
-                <div className="flex items-center justify-between border-b border-[rgba(255,255,255,0.1)] pb-2">
-                  <span className="text-xs font-mono font-bold text-white uppercase">
-                    {ang.angleName}
-                  </span>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white/10 text-neutral-300">
-                    Kąt #{idx + 1}
-                  </span>
+          {angles.length === 0 ? (
+            <div className="p-6 text-center bg-[#0E0E0E] border border-[rgba(255,255,255,0.05)] rounded-lg">
+              <p className="text-xs font-mono text-neutral-400">
+                {!isGeneratingAngles
+                  ? "Matryca jest pusta — żaden kąt nie przyszedł w tej odpowiedzi. Rozbij temat przyciskiem wyżej."
+                  : "Rozbijamy temat na cztery kąty..."}
+              </p>
+            </div>
+          ) : (
+            <>
+              {angleBank && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={BANK_TAG}>{BANK_LABEL}</span>
                 </div>
+              )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {angles.map((ang, idx) => (
+                  <div
+                    key={ang.angleId || idx}
+                    className="p-4 bg-[#0E0E0E] border border-[rgba(255,255,255,0.1)] hover:border-white/40 rounded-lg space-y-3 transition-all"
+                  >
+                    <div className="flex items-center justify-between border-b border-[rgba(255,255,255,0.1)] pb-2">
+                      <span className="text-xs font-mono font-bold text-white uppercase">
+                        {ang.angleName}
+                      </span>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white/10 text-neutral-300">
+                        Kąt #{idx + 1}
+                      </span>
+                    </div>
 
-                <div className="p-2.5 bg-[#050505] rounded border border-[rgba(255,255,255,0.1)]">
-                  <span className="text-[10px] text-neutral-500 uppercase font-mono block mb-0.5">
-                    Magnetyczny Hook:
-                  </span>
-                  <p className="text-xs font-mono font-bold text-white">"{ang.hook}"</p>
-                </div>
+                    <div className="p-2.5 bg-[#050505] rounded border border-[rgba(255,255,255,0.1)]">
+                      <span className="text-[10px] text-neutral-500 uppercase font-mono block mb-0.5">
+                        Magnetyczny Hook:
+                      </span>
+                      <p className="text-xs font-mono font-bold text-white">"{ang.hook}"</p>
+                    </div>
 
-                <div className="space-y-1 text-xs font-mono">
-                  <span className="text-[10px] text-neutral-500 uppercase block">
-                    Struktura Wideo (3 Fazy):
-                  </span>
-                  <div className="space-y-1">
-                    {ang.phrases.map((ph, pIdx) => (
-                      <div
-                        key={pIdx}
-                        className="p-1.5 bg-[#050505] rounded border border-[rgba(255,255,255,0.1)] text-[11px] text-neutral-300"
-                      >
-                        {pIdx + 1}. {ph}
+                    <div className="space-y-1 text-xs font-mono">
+                      <span className="text-[10px] text-neutral-500 uppercase block">
+                        Struktura Wideo (3 Fazy):
+                      </span>
+                      <div className="space-y-1">
+                        {ang.phrases.map((ph, pIdx) => (
+                          <div
+                            key={pIdx}
+                            className="p-1.5 bg-[#050505] rounded border border-[rgba(255,255,255,0.1)] text-[11px] text-neutral-300"
+                          >
+                            {pIdx + 1}. {ph}
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    </div>
+
+                    <p className="text-[11px] font-mono text-neutral-400 italic">{ang.rationale}</p>
+
+                    <div className="flex items-center gap-2 pt-2 border-t border-[rgba(255,255,255,0.1)]">
+                      <button
+                        onClick={() => {
+                          if (onSendToPost) onSendToPost(ang.hook, ang.caption, ang.phrases);
+                          else onNavigateToTab(0);
+                        }}
+                        className="flex-1 py-1.5 px-2.5 rounded bg-white hover:bg-neutral-200 text-black text-xs font-mono font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Do Posta</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (onSendToReel) onSendToReel({ hook: ang.hook, phrases: ang.phrases });
+                          else onOpenVideoStudio?.(ang.hook);
+                        }}
+                        className="flex-1 py-1.5 px-2.5 rounded bg-[#161616] hover:bg-white hover:text-black border border-[rgba(255,255,255,0.1)] text-white text-xs font-mono font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <Film className="w-3.5 h-3.5" />
+                        <span>Do Rolki</span>
+                      </button>
+                      <button
+                        onClick={() =>
+                          handleCopy(`ang-${idx}`, `${ang.hook}\n\n${ang.phrases.join("\n")}`)
+                        }
+                        className="p-1.5 rounded bg-[#161616] hover:bg-white hover:text-black text-neutral-300 border border-[rgba(255,255,255,0.1)] text-xs font-mono transition-all cursor-pointer"
+                        title="Kopiuj tekst"
+                      >
+                        {copiedId === `ang-${idx}` ? (
+                          <Check className="w-4 h-4 text-emerald-400" />
+                        ) : (
+                          <Copy className="w-4 h-4" />
+                        )}
+                      </button>
+                    </div>
                   </div>
-                </div>
-
-                <p className="text-[11px] font-mono text-neutral-400 italic">{ang.rationale}</p>
-
-                <div className="flex items-center gap-2 pt-2 border-t border-[rgba(255,255,255,0.1)]">
-                  <button
-                    onClick={() => {
-                      if (onSendToPost) onSendToPost(ang.hook, ang.caption, ang.phrases);
-                      else onNavigateToTab(0);
-                    }}
-                    className="flex-1 py-1.5 px-2.5 rounded bg-white hover:bg-neutral-200 text-black text-xs font-mono font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>Do Posta</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (onSendToReel) onSendToReel({ hook: ang.hook, phrases: ang.phrases });
-                      else onOpenVideoStudio?.(ang.hook);
-                    }}
-                    className="flex-1 py-1.5 px-2.5 rounded bg-[#161616] hover:bg-white hover:text-black border border-[rgba(255,255,255,0.1)] text-white text-xs font-mono font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <Film className="w-3.5 h-3.5" />
-                    <span>Do Rolki</span>
-                  </button>
-                  <button
-                    onClick={() =>
-                      handleCopy(`ang-${idx}`, `${ang.hook}\n\n${ang.phrases.join("\n")}`)
-                    }
-                    className="p-1.5 rounded bg-[#161616] hover:bg-white hover:text-black text-neutral-300 border border-[rgba(255,255,255,0.1)] text-xs font-mono transition-all cursor-pointer"
-                    title="Kopiuj tekst"
-                  >
-                    {copiedId === `ang-${idx}` ? (
-                      <Check className="w-4 h-4 text-emerald-400" />
-                    ) : (
-                      <Copy className="w-4 h-4" />
-                    )}
-                  </button>
-                </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </>
+          )}
         </div>
       )}
 
@@ -967,72 +1185,89 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {paradoxes.map((pdx, idx) => (
-              <div
-                key={idx}
-                className="p-4 bg-[#0E0E0E] border border-[rgba(255,255,255,0.1)] hover:border-white/40 rounded-lg space-y-3 transition-all"
-              >
-                <div className="flex items-center justify-between border-b border-[rgba(255,255,255,0.1)] pb-2">
-                  <span className="text-xs font-mono font-bold text-white uppercase">
-                    {pdx.title}
-                  </span>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-rose-500/10 text-rose-300 border border-rose-500/20">
-                    Pattern Interrupt
-                  </span>
+          {paradoxes.length === 0 ? (
+            <div className="p-6 text-center bg-[#0E0E0E] border border-[rgba(255,255,255,0.05)] rounded-lg">
+              <p className="text-xs font-mono text-neutral-400">
+                {!isGeneratingFriction
+                  ? "Brak paradoksów — ta odpowiedź nie przyniosła żadnego zdania po kontroli rzemiosła."
+                  : "Szukamy sprzeczności w wybranym obszarze..."}
+              </p>
+            </div>
+          ) : (
+            <>
+              {frictionBank && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={BANK_TAG}>{BANK_LABEL}</span>
                 </div>
-
-                <div className="p-3 bg-[#050505] rounded border border-[rgba(255,255,255,0.1)]">
-                  <p className="text-xs font-mono font-black text-white leading-relaxed">
-                    "{pdx.hook}"
-                  </p>
-                </div>
-
-                <p className="text-xs font-mono text-neutral-300">
-                  <strong className="text-neutral-500 uppercase text-[10px] block">
-                    Psychologia:
-                  </strong>
-                  {pdx.explanation}
-                </p>
-
-                <div className="flex items-center gap-2 pt-2 border-t border-[rgba(255,255,255,0.1)]">
-                  <button
-                    onClick={() => {
-                      if (onSendToPost)
-                        // `explanation` to psychologia po polsku, nie opis posta.
-                        onSendToPost(pdx.hook, formatStarkCaption(pdx.hook));
-                      else onNavigateToTab(0);
-                    }}
-                    className="flex-1 py-1.5 px-2.5 rounded bg-white hover:bg-neutral-200 text-black text-xs font-mono font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {paradoxes.map((pdx, idx) => (
+                  <div
+                    key={idx}
+                    className="p-4 bg-[#0E0E0E] border border-[rgba(255,255,255,0.1)] hover:border-white/40 rounded-lg space-y-3 transition-all"
                   >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>Do Posta</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (onSendToReel) onSendToReel(pdx.hook);
-                      else onOpenVideoStudio?.(pdx.hook);
-                    }}
-                    className="flex-1 py-1.5 px-2.5 rounded bg-[#161616] hover:bg-white hover:text-black border border-[rgba(255,255,255,0.1)] text-white text-xs font-mono font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <Film className="w-3.5 h-3.5" />
-                    <span>Do Rolki</span>
-                  </button>
-                  <button
-                    onClick={() => handleCopy(`pdx-${idx}`, pdx.hook)}
-                    className="p-1.5 rounded bg-[#161616] hover:bg-white hover:text-black text-neutral-300 border border-[rgba(255,255,255,0.1)] text-xs font-mono transition-all cursor-pointer"
-                    title="Kopiuj"
-                  >
-                    {copiedId === `pdx-${idx}` ? (
-                      <Check className="w-4 h-4 text-emerald-400" />
-                    ) : (
-                      <Copy className="w-4 h-4" />
-                    )}
-                  </button>
-                </div>
+                    <div className="flex items-center justify-between border-b border-[rgba(255,255,255,0.1)] pb-2">
+                      <span className="text-xs font-mono font-bold text-white uppercase">
+                        {pdx.title}
+                      </span>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-rose-500/10 text-rose-300 border border-rose-500/20">
+                        Pattern Interrupt
+                      </span>
+                    </div>
+
+                    <div className="p-3 bg-[#050505] rounded border border-[rgba(255,255,255,0.1)]">
+                      <p className="text-xs font-mono font-black text-white leading-relaxed">
+                        "{pdx.hook}"
+                      </p>
+                    </div>
+
+                    <p className="text-xs font-mono text-neutral-300">
+                      <strong className="text-neutral-500 uppercase text-[10px] block">
+                        Psychologia:
+                      </strong>
+                      {pdx.explanation}
+                    </p>
+
+                    <div className="flex items-center gap-2 pt-2 border-t border-[rgba(255,255,255,0.1)]">
+                      <button
+                        onClick={() => {
+                          if (onSendToPost)
+                            // `explanation` to psychologia po polsku, nie opis posta.
+                            onSendToPost(pdx.hook, formatStarkCaption(pdx.hook));
+                          else onNavigateToTab(0);
+                        }}
+                        className="flex-1 py-1.5 px-2.5 rounded bg-white hover:bg-neutral-200 text-black text-xs font-mono font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Do Posta</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (onSendToReel) onSendToReel(pdx.hook);
+                          else onOpenVideoStudio?.(pdx.hook);
+                        }}
+                        className="flex-1 py-1.5 px-2.5 rounded bg-[#161616] hover:bg-white hover:text-black border border-[rgba(255,255,255,0.1)] text-white text-xs font-mono font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <Film className="w-3.5 h-3.5" />
+                        <span>Do Rolki</span>
+                      </button>
+                      <button
+                        onClick={() => handleCopy(`pdx-${idx}`, pdx.hook)}
+                        className="p-1.5 rounded bg-[#161616] hover:bg-white hover:text-black text-neutral-300 border border-[rgba(255,255,255,0.1)] text-xs font-mono transition-all cursor-pointer"
+                        title="Kopiuj"
+                      >
+                        {copiedId === `pdx-${idx}` ? (
+                          <Check className="w-4 h-4 text-emerald-400" />
+                        ) : (
+                          <Copy className="w-4 h-4" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </>
+          )}
         </div>
       )}
 
@@ -1085,187 +1320,196 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
           </div>
 
           {recycledData && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Format 1: Rolka Wideo */}
-              <div className="p-4 bg-[#0E0E0E] border border-[rgba(255,255,255,0.1)] rounded-lg space-y-3">
-                <div className="flex items-center justify-between border-b border-[rgba(255,255,255,0.1)] pb-2">
-                  <span className="text-xs font-mono font-bold text-white uppercase flex items-center gap-1.5">
-                    <Film className="w-4 h-4 text-rose-400" />
-                    1. Rolka 7-Sekundowa (Wideo)
-                  </span>
-                  <span className="text-[10px] font-mono text-neutral-400">
-                    {recycledData.reel?.duration || 8}s • Climax Hold
-                  </span>
-                </div>
-
-                <div className="p-2.5 bg-[#050505] rounded border border-[rgba(255,255,255,0.1)]">
-                  <span className="text-[10px] text-neutral-500 uppercase font-mono block">
-                    Hook 0-3s:
-                  </span>
-                  <p className="text-xs font-mono font-bold text-white">
-                    "{recycledData.reel?.hook}"
-                  </p>
-                </div>
-
-                <ol className="list-decimal list-inside space-y-1 text-xs font-mono text-neutral-300">
-                  {recycledData.reel?.phrases?.map((ph: string, idx: number) => (
-                    <li key={idx}>{ph}</li>
-                  ))}
-                </ol>
-
-                <button
-                  onClick={() => {
-                    const reel = recycledData.reel;
-                    if (onSendToReel)
-                      onSendToReel({
-                        hook: reel?.hook || "",
-                        phrases: Array.isArray(reel?.phrases) ? reel.phrases : undefined,
-                      });
-                    else onOpenVideoStudio?.(recycledData.reel?.hook);
-                  }}
-                  className="w-full py-1.5 px-3 rounded bg-white hover:bg-neutral-200 text-black text-xs font-mono font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <Film className="w-3.5 h-3.5" />
-                  <span>Wyrzuć do Rolki</span>
-                </button>
+            <>
+              <div className="flex flex-wrap items-center gap-2">
+                {recycleBank && <span className={BANK_TAG}>{BANK_LABEL}</span>}
+                {!recycleBank && recycleNotice && (
+                  <p className="text-[10px] font-mono text-neutral-500">{recycleNotice}</p>
+                )}
               </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Format 1: Rolka Wideo */}
+                <div className="p-4 bg-[#0E0E0E] border border-[rgba(255,255,255,0.1)] rounded-lg space-y-3">
+                  <div className="flex items-center justify-between border-b border-[rgba(255,255,255,0.1)] pb-2">
+                    <span className="text-xs font-mono font-bold text-white uppercase flex items-center gap-1.5">
+                      <Film className="w-4 h-4 text-rose-400" />
+                      1. Rolka 7-Sekundowa (Wideo)
+                    </span>
+                    <span className="text-[10px] font-mono text-neutral-400">
+                      {recycledData.reel?.duration || 8}s • Climax Hold
+                    </span>
+                  </div>
 
-              {/* Format 2: karuzela 4:5 — etykieta nie obiecuje liczby slajdów,
+                  <div className="p-2.5 bg-[#050505] rounded border border-[rgba(255,255,255,0.1)]">
+                    <span className="text-[10px] text-neutral-500 uppercase font-mono block">
+                      Hook 0-3s:
+                    </span>
+                    <p className="text-xs font-mono font-bold text-white">
+                      "{recycledData.reel?.hook}"
+                    </p>
+                  </div>
+
+                  <ol className="list-decimal list-inside space-y-1 text-xs font-mono text-neutral-300">
+                    {recycledData.reel?.phrases?.map((ph: string, idx: number) => (
+                      <li key={idx}>{ph}</li>
+                    ))}
+                  </ol>
+
+                  <button
+                    onClick={() => {
+                      const reel = recycledData.reel;
+                      if (onSendToReel)
+                        onSendToReel({
+                          hook: reel?.hook || "",
+                          phrases: Array.isArray(reel?.phrases) ? reel.phrases : undefined,
+                        });
+                      else onOpenVideoStudio?.(recycledData.reel?.hook);
+                    }}
+                    className="w-full py-1.5 px-3 rounded bg-white hover:bg-neutral-200 text-black text-xs font-mono font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Film className="w-3.5 h-3.5" />
+                    <span>Wyrzuć do Rolki</span>
+                  </button>
+                </div>
+
+                {/* Format 2: karuzela 4:5 — etykieta nie obiecuje liczby slajdów,
                   bo poniżej widać tylko te, które naprawdę przyszły */}
-              <div className="p-4 bg-[#0E0E0E] border border-[rgba(255,255,255,0.1)] rounded-lg space-y-3">
-                <div className="flex items-center justify-between border-b border-[rgba(255,255,255,0.1)] pb-2">
-                  <span className="text-xs font-mono font-bold text-white uppercase flex items-center gap-1.5">
-                    <Layers className="w-4 h-4 text-emerald-400" />
-                    2. Karuzela 4:5
-                  </span>
-                  <span className="text-[10px] font-mono text-neutral-400">
-                    {Array.isArray(recycledData.carousel?.slides)
-                      ? recycledData.carousel.slides.length
-                      : 0}{" "}
-                    Slajdów • Format 4:5
-                  </span>
-                </div>
+                <div className="p-4 bg-[#0E0E0E] border border-[rgba(255,255,255,0.1)] rounded-lg space-y-3">
+                  <div className="flex items-center justify-between border-b border-[rgba(255,255,255,0.1)] pb-2">
+                    <span className="text-xs font-mono font-bold text-white uppercase flex items-center gap-1.5">
+                      <Layers className="w-4 h-4 text-emerald-400" />
+                      2. Karuzela 4:5
+                    </span>
+                    <span className="text-[10px] font-mono text-neutral-400">
+                      {Array.isArray(recycledData.carousel?.slides)
+                        ? recycledData.carousel.slides.length
+                        : 0}{" "}
+                      Slajdów • Format 4:5
+                    </span>
+                  </div>
 
-                <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                  {recycledData.carousel?.title && (
-                    <div className="p-2 bg-[#050505] rounded border border-[rgba(255,255,255,0.1)] text-[11px] font-mono text-emerald-300 font-bold">
-                      {recycledData.carousel.title}
-                    </div>
-                  )}
-                  {recycledData.carousel?.slides?.map((sl: any, sIdx: number) => {
-                    // Slajd od modelu to nie gwarancja obiektu — ani null, ani string nie mogą wywalić appki
-                    const headline = typeof sl === "string" ? sl : sl?.headline || "";
-                    const bodyText = typeof sl === "string" ? "" : sl?.bodyText || "";
-                    return (
-                      <div
-                        key={sIdx}
-                        className="p-2 bg-[#050505] rounded border border-[rgba(255,255,255,0.1)] text-[11px] font-mono space-y-0.5"
-                      >
-                        <div className="text-white font-bold">
-                          #{sIdx + 1} {headline}
-                        </div>
-                        <div className="text-neutral-400 truncate">{bodyText}</div>
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                    {recycledData.carousel?.title && (
+                      <div className="p-2 bg-[#050505] rounded border border-[rgba(255,255,255,0.1)] text-[11px] font-mono text-emerald-300 font-bold">
+                        {recycledData.carousel.title}
                       </div>
-                    );
-                  })}
+                    )}
+                    {recycledData.carousel?.slides?.map((sl: any, sIdx: number) => {
+                      // Slajd od modelu to nie gwarancja obiektu — ani null, ani string nie mogą wywalić appki
+                      const headline = typeof sl === "string" ? sl : sl?.headline || "";
+                      const bodyText = typeof sl === "string" ? "" : sl?.bodyText || "";
+                      return (
+                        <div
+                          key={sIdx}
+                          className="p-2 bg-[#050505] rounded border border-[rgba(255,255,255,0.1)] text-[11px] font-mono space-y-0.5"
+                        >
+                          <div className="text-white font-bold">
+                            #{sIdx + 1} {headline}
+                          </div>
+                          <div className="text-neutral-400 truncate">{bodyText}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <button
+                    onClick={() => openCarouselStudio(recycledData.carousel, recycledData.caption)}
+                    className="w-full py-1.5 px-3 rounded bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-300 font-bold uppercase text-xs font-mono transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Layers className="w-3.5 h-3.5" />
+                    <span>Studio Karuzeli — podgląd i eksport 4:5</span>
+                  </button>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        const firstSlide = recycledData.carousel?.slides?.[0];
+                        const text =
+                          firstSlide && typeof firstSlide === "object"
+                            ? `${firstSlide.headline || ""}\n${firstSlide.bodyText || ""}`
+                            : typeof firstSlide === "string"
+                              ? firstSlide
+                              : "";
+                        const cap = recycledData.caption || "";
+                        if (onSendToPost) onSendToPost(text, cap);
+                        else onNavigateToTab(0);
+                      }}
+                      className="flex-1 py-1.5 px-3 rounded bg-white hover:bg-neutral-200 text-black font-bold uppercase text-xs font-mono transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Wyrzuć do Posta</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        const text = recycledData.carousel?.slides
+                          ?.map((s: any, i: number) => {
+                            if (typeof s === "string") return `Slajd ${i + 1}: ${s}`;
+                            return `Slajd ${i + 1}: ${s?.headline || ""}\n${s?.bodyText || ""}`;
+                          })
+                          .join("\n\n");
+                        if (text) {
+                          navigator.clipboard.writeText(text);
+                          handleCopy("rec-car", text);
+                        }
+                      }}
+                      className="p-1.5 rounded bg-[#161616] hover:bg-white hover:text-black border border-[rgba(255,255,255,0.1)] text-xs font-mono text-white transition-all cursor-pointer"
+                      title="Kopiuj treść slajdów"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
 
-                <button
-                  onClick={() => openCarouselStudio(recycledData.carousel, recycledData.caption)}
-                  className="w-full py-1.5 px-3 rounded bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-300 font-bold uppercase text-xs font-mono transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <Layers className="w-3.5 h-3.5" />
-                  <span>Studio Karuzeli — podgląd i eksport 4:5</span>
-                </button>
+                {/* Format 3: Stoicki Manifest */}
+                <div className="p-4 bg-[#0E0E0E] border border-[rgba(255,255,255,0.1)] rounded-lg space-y-3">
+                  <span className="text-xs font-mono font-bold text-white uppercase flex items-center gap-1.5 border-b border-[rgba(255,255,255,0.1)] pb-2">
+                    <BookOpen className="w-4 h-4 text-neutral-300" />
+                    3. Stoicki Manifest (1 Zdanie)
+                  </span>
+                  <p className="text-xs font-mono font-bold text-white p-3 bg-[#050505] rounded border border-[rgba(255,255,255,0.1)]">
+                    "{recycledData.manifesto}"
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        if (onSendToPost)
+                          onSendToPost(recycledData.manifesto, recycledData.caption);
+                        else onNavigateToTab(0);
+                      }}
+                      className="flex-1 py-1.5 px-3 rounded bg-white hover:bg-neutral-200 text-black font-bold uppercase text-xs font-mono transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Wyrzuć do Posta</span>
+                    </button>
+                    <button
+                      onClick={() => handleCopy("rec-man", recycledData.manifesto)}
+                      className="p-1.5 rounded bg-[#161616] hover:bg-white hover:text-black border border-[rgba(255,255,255,0.1)] text-xs font-mono text-white transition-all cursor-pointer"
+                      title="Kopiuj Manifest"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
 
-                <div className="flex gap-2">
+                {/* Format 4: Opis Instagram (Caption) */}
+                <div className="p-4 bg-[#0E0E0E] border border-[rgba(255,255,255,0.1)] rounded-lg space-y-3">
+                  <span className="text-xs font-mono font-bold text-white uppercase flex items-center gap-1.5 border-b border-[rgba(255,255,255,0.1)] pb-2">
+                    <Zap className="w-4 h-4 text-purple-400" />
+                    4. Gotowy Opis Posta (Instagram)
+                  </span>
+                  <p className="text-[11px] font-mono text-neutral-300 p-2.5 bg-[#050505] rounded border border-[rgba(255,255,255,0.1)] max-h-24 overflow-y-auto whitespace-pre-wrap">
+                    {recycledData.caption}
+                  </p>
                   <button
-                    onClick={() => {
-                      const firstSlide = recycledData.carousel?.slides?.[0];
-                      const text =
-                        firstSlide && typeof firstSlide === "object"
-                          ? `${firstSlide.headline || ""}\n${firstSlide.bodyText || ""}`
-                          : typeof firstSlide === "string"
-                            ? firstSlide
-                            : "";
-                      const cap = recycledData.caption || "";
-                      if (onSendToPost) onSendToPost(text, cap);
-                      else onNavigateToTab(0);
-                    }}
-                    className="flex-1 py-1.5 px-3 rounded bg-white hover:bg-neutral-200 text-black font-bold uppercase text-xs font-mono transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>Wyrzuć do Posta</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      const text = recycledData.carousel?.slides
-                        ?.map((s: any, i: number) => {
-                          if (typeof s === "string") return `Slajd ${i + 1}: ${s}`;
-                          return `Slajd ${i + 1}: ${s?.headline || ""}\n${s?.bodyText || ""}`;
-                        })
-                        .join("\n\n");
-                      if (text) {
-                        navigator.clipboard.writeText(text);
-                        handleCopy("rec-car", text);
-                      }
-                    }}
-                    className="p-1.5 rounded bg-[#161616] hover:bg-white hover:text-black border border-[rgba(255,255,255,0.1)] text-xs font-mono text-white transition-all cursor-pointer"
-                    title="Kopiuj treść slajdów"
+                    onClick={() => handleCopy("rec-cap", recycledData.caption)}
+                    className="w-full py-1.5 px-3 rounded bg-[#161616] hover:bg-white hover:text-black border border-[rgba(255,255,255,0.1)] text-xs font-mono text-white transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                   >
                     <Copy className="w-3.5 h-3.5" />
+                    <span>Kopiuj Opis i Hashtagi</span>
                   </button>
                 </div>
               </div>
-
-              {/* Format 3: Stoicki Manifest */}
-              <div className="p-4 bg-[#0E0E0E] border border-[rgba(255,255,255,0.1)] rounded-lg space-y-3">
-                <span className="text-xs font-mono font-bold text-white uppercase flex items-center gap-1.5 border-b border-[rgba(255,255,255,0.1)] pb-2">
-                  <BookOpen className="w-4 h-4 text-neutral-300" />
-                  3. Stoicki Manifest (1 Zdanie)
-                </span>
-                <p className="text-xs font-mono font-bold text-white p-3 bg-[#050505] rounded border border-[rgba(255,255,255,0.1)]">
-                  "{recycledData.manifesto}"
-                </p>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => {
-                      if (onSendToPost) onSendToPost(recycledData.manifesto, recycledData.caption);
-                      else onNavigateToTab(0);
-                    }}
-                    className="flex-1 py-1.5 px-3 rounded bg-white hover:bg-neutral-200 text-black font-bold uppercase text-xs font-mono transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>Wyrzuć do Posta</span>
-                  </button>
-                  <button
-                    onClick={() => handleCopy("rec-man", recycledData.manifesto)}
-                    className="p-1.5 rounded bg-[#161616] hover:bg-white hover:text-black border border-[rgba(255,255,255,0.1)] text-xs font-mono text-white transition-all cursor-pointer"
-                    title="Kopiuj Manifest"
-                  >
-                    <Copy className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Format 4: Opis Instagram (Caption) */}
-              <div className="p-4 bg-[#0E0E0E] border border-[rgba(255,255,255,0.1)] rounded-lg space-y-3">
-                <span className="text-xs font-mono font-bold text-white uppercase flex items-center gap-1.5 border-b border-[rgba(255,255,255,0.1)] pb-2">
-                  <Zap className="w-4 h-4 text-purple-400" />
-                  4. Gotowy Opis Posta (Instagram)
-                </span>
-                <p className="text-[11px] font-mono text-neutral-300 p-2.5 bg-[#050505] rounded border border-[rgba(255,255,255,0.1)] max-h-24 overflow-y-auto whitespace-pre-wrap">
-                  {recycledData.caption}
-                </p>
-                <button
-                  onClick={() => handleCopy("rec-cap", recycledData.caption)}
-                  className="w-full py-1.5 px-3 rounded bg-[#161616] hover:bg-white hover:text-black border border-[rgba(255,255,255,0.1)] text-xs font-mono text-white transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <Copy className="w-3.5 h-3.5" />
-                  <span>Kopiuj Opis i Hashtagi</span>
-                </button>
-              </div>
-            </div>
+            </>
           )}
         </div>
       )}
@@ -1327,10 +1571,19 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
           {/* Lista Wygenerowanych Rolek Masowych */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-xs font-bold text-white uppercase font-mono tracking-wider flex items-center gap-2">
-                <Layers className="w-4 h-4 text-emerald-400" />
-                <span>Wygenerowane Rolki Masowe ({batchPosts.length})</span>
-              </h3>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-xs font-bold text-white uppercase font-mono tracking-wider flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-emerald-400" />
+                  <span>Wygenerowane Rolki Masowe ({batchPosts.length})</span>
+                </h3>
+                {/* Cała partia z banku, czy tylko jej część: liczba mówi, ile wpisów
+                    podszedł bank, bo model odpowiedział na resztę. */}
+                {bankLabel(batchBank, batchBankFilled, batchPosts.length) && (
+                  <span className={BANK_TAG}>
+                    {bankLabel(batchBank, batchBankFilled, batchPosts.length)}
+                  </span>
+                )}
+              </div>
 
               {batchPosts.length > 0 && (
                 <button

@@ -10,6 +10,7 @@ import {
   ViralBlueprint,
 } from "../types";
 import { structuredSpec } from "../utils/ideaLayout";
+import { fetchJson } from "../lib/fetchJson";
 
 interface DeconstructViralModalProps {
   isOpen: boolean;
@@ -27,6 +28,10 @@ interface DeconstructViralModalProps {
 const PANEL = "bg-[#0F121C] border border-[#2C354B] rounded-xl";
 const ACTION_BTN =
   "py-1.5 px-3 rounded bg-[#141824] hover:bg-[#1E2638] border border-[#2C354B] text-[11px] font-mono font-bold text-slate-200 hover:text-white transition-colors flex items-center gap-1.5 cursor-pointer";
+/** Uczciwy podpis: warianty z pliku nie mogą wyglądać na napisane pod ten post. */
+const BANK_LABEL = "treść z banku — model nie odpowiedział";
+const BANK_TAG =
+  "text-[9px] font-mono px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-300 border border-rose-500/30 shrink-0";
 
 /** Odpowiedź trasy to kształt od modelu — nie mapujemy niczego bez sprawdzenia pola. */
 const textList = (value: unknown): string[] =>
@@ -88,13 +93,27 @@ export const DeconstructViralModal: React.FC<DeconstructViralModalProps> = ({
     setError(null);
     onResultChange(null);
     try {
-      const res = await fetch("/api/ai/deconstruct-viral", {
+      const {
+        data: json,
+        degraded,
+        status,
+      } = await fetchJson("/api/ai/deconstruct-viral", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: url.trim(), imageDataUrl: shot }),
       });
-      if (!res.ok) throw new Error("HTTP " + res.status);
-      onResultChange((await res.json()) as DeconstructViralResponse);
+      if (status < 200 || status >= 300) {
+        setError(
+          status
+            ? `Analiza nie wyszła (HTTP ${status}) — kliknięcie mogło zejść z licznika.`
+            : "Serwer nie odpowiedział — spróbuj zrzutem ekranu.",
+        );
+        return;
+      }
+      const next = json as unknown as DeconstructViralResponse;
+      // `error` i `no_input` znaczą co innego niż `offline`, więc nagłówek poprawia
+      // tylko odpowiedź, która miałaby udawać robotę modelu.
+      onResultChange(degraded && next.source === "ai" ? { ...next, source: "offline" } : next);
     } catch {
       setError("Nie udało się przeanalizować posta. Spróbuj zrzutem ekranu.");
     } finally {
@@ -349,9 +368,23 @@ export const DeconstructViralModal: React.FC<DeconstructViralModalProps> = ({
               </section>
 
               <section className="space-y-2">
-                <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500">
-                  Twoje warianty @stark_focus
-                </h4>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500">
+                    Twoje warianty @stark_focus
+                  </h4>
+                  {result.source === "offline" && variants.length > 0 && (
+                    <span className={BANK_TAG}>{BANK_LABEL}</span>
+                  )}
+                </div>
+                {/* Warianty to nasza treść: gdy nie ma ich od czego złożyć, pusta
+                    sekcja pod nagłówkiem wygląda jak brak pomysłu, nie brak odpowiedzi. */}
+                {variants.length === 0 && (
+                  <p className="text-[10px] font-mono text-slate-500">
+                    {result.source === "error"
+                      ? "Model nie odpowiedział na ten materiał — nie ma twoich wariantów, jest tylko to, co widać wyżej."
+                      : "Nie ma twoich wariantów: bez odpowiedzi modelu nie dokładamy zdań z pliku."}
+                  </p>
+                )}
                 {variants.map((v) => {
                   const hook = textOf(v.hook);
                   const phrases = textList(v.phrases);

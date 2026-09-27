@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { DailyPack, ReelHandoff } from "../types";
+import { fetchJson } from "../lib/fetchJson";
 
 interface DailyPackModalProps {
   isOpen: boolean;
@@ -106,14 +107,21 @@ export const DailyPackModal: React.FC<DailyPackModalProps> = ({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/ai/daily-pack", {
+      const {
+        data: json,
+        degraded,
+        status,
+      } = await fetchJson("/api/ai/daily-pack", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ excludeHooks: usedHooks ?? [], exemplars: exemplarHooks ?? [] }),
         signal: controller.signal,
       });
-      if (!res.ok) throw new Error("HTTP " + res.status);
-      onPackChange((await res.json()) as DailyPack);
+      if (status < 200 || status >= 300) throw new Error("HTTP " + status);
+      const next = json as unknown as DailyPack;
+      // Nagłówek `x-stark-degraded` jest mocniejszy niż pole w payloadzie: trasa
+      // może oddać bank bez `source`, a pod rolką nie może stać „MODEL GEMINI".
+      onPackChange(degraded ? { ...next, source: "offline" } : next);
     } catch {
       if (!cancelledRef.current) {
         setError("Nie udało się wygenerować paczki. Spróbuj ponownie.");

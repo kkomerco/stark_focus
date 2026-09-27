@@ -3,6 +3,7 @@ import { IdeaItem, IdeaStreamResponse, StarkFocusData } from "../types";
 import { hookFingerprint, maxSimilarity, SIMILARITY } from "../lib/similarity";
 import { usedHookFingerprints } from "../lib/usedContent";
 import { topPublishedHooks } from "../lib/published";
+import { fetchJson } from "../lib/fetchJson";
 
 export interface ScoredIdea extends IdeaItem {
   /** 0..1 — maksymalne podobieństwo do tego, co już mamy. */
@@ -71,7 +72,11 @@ export function useIdeaStream(
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch("/api/ai/idea-stream", {
+        const {
+          data: payload,
+          degraded,
+          status,
+        } = await fetchJson("/api/ai/idea-stream", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -84,24 +89,28 @@ export function useIdeaStream(
           signal: controller.signal,
         });
 
-        if (!res.ok) throw new Error("HTTP " + res.status);
+        if (status < 200 || status >= 300) throw new Error("HTTP " + status);
 
-        const response = (await res.json()) as IdeaStreamResponse;
+        const response = payload as unknown as IdeaStreamResponse;
         if (controller.signal.aborted) return;
         setNotice(typeof response.notice === "string" ? response.notice : null);
+        const incoming = Array.isArray(response.ideas) ? response.ideas : [];
+        // Nagłówek `x-stark-degraded` znaczy to samo co `source: "offline"` i bywa
+        // jedynym znakiem: karta z pomysłem nie może udawać roboty modelu.
+        const origin: IdeaStreamResponse["source"] = degraded ? "offline" : response.source;
 
         // Oceniamy KAŻDY pomysł: identyczność (odcisk) i podobieństwo (tokeny).
         const exact = new Set(usedFingerprints);
-        const scored: ScoredIdea[] = response.ideas.map((idea) => {
+        const scored: ScoredIdea[] = incoming.map((idea) => {
           if (exact.has(hookFingerprint(idea.hook))) {
-            return { ...idea, similarity: 1, rejected: true, source: response.source };
+            return { ...idea, similarity: 1, rejected: true, source: origin };
           }
           const { score } = maxSimilarity(idea.hook, usedFingerprints);
           return {
             ...idea,
             similarity: score,
             rejected: score >= SIMILARITY.HARD_BLOCK,
-            source: response.source,
+            source: origin,
           };
         });
         const kept = scored.filter((idea) => !idea.rejected);
@@ -112,7 +121,9 @@ export function useIdeaStream(
           setError(
             scored.length > 0
               ? `Każdy z ${scored.length} pomysłów był zbyt podobny do tego, co już masz. Spróbuj ponownie.`
-              : "Nie udało się wygenerować pomysłów. Spróbuj ponownie.",
+              : incoming.length > 0
+                ? "Żaden z pomysłów nie przeszedł kontroli rzemiosła. Spróbuj ponownie."
+                : "Nie udało się wygenerować pomysłów. Spróbuj ponownie.",
           );
           return;
         }

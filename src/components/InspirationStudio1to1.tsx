@@ -475,7 +475,7 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
     setSayingError(null);
     const format = activeFormat;
     try {
-      const res = await fetch("/api/ai/frame-fill", {
+      const { data, degraded, status } = await fetchJson("/api/ai/frame-fill", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -486,17 +486,23 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
           exemplars: exemplarHooks,
         }),
       });
-      const data = await res.json();
       const list = Array.isArray(data?.frames) ? data.frames : [];
 
       if (list.length === 0) {
-        setSayingError(
-          typeof data?.notice === "string"
-            ? data.notice
-            : typeof data?.error === "string"
-              ? data.error
-              : `Serwer nie zwrócił treści (HTTP ${res.status}).`,
-        );
+        // Trasa nie dokłada tu banku treści: kadr bez zdania od modelu jest pusty,
+        // więc studio musi to powiedzieć, a nie wystawić zerową siatkę kandydatów.
+        // Powód z serwera zostaje na wierzchu — on nazywa odrzucone wiersze.
+        const reason =
+          typeof data?.notice === "string" && data.notice.trim()
+            ? data.notice.trim()
+            : typeof data?.error === "string" && data.error.trim()
+              ? data.error.trim()
+              : degraded
+                ? "Model nie odpowiedział — generator kadrów nie ma skąd brać treści."
+                : status
+                  ? `Serwer nie zwrócił żadnych kadrów (HTTP ${status}).`
+                  : "Serwer nie odpowiedział — sprawdź, czy aplikacja działa.";
+        setSayingError(reason);
         return;
       }
 
@@ -505,6 +511,9 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
           .map((frame: Record<string, unknown>) => asCandidate(frame, format))
           .filter((candidate: FrameCandidate | null): candidate is FrameCandidate => !!candidate),
       );
+      // Trasa nie ma banku kadrów, więc nagłówek przy pełnej liście to jedyny
+      // moment, w którym dowiadujemy się, że jednak odpowiedział plik.
+      if (degraded) setSayingError(BANK_NOTE);
     } catch (err) {
       setSayingError("Nie udało się połączyć z generatorem. Sprawdź, czy serwer działa.");
       console.error("Błąd AI Sayings:", err);
