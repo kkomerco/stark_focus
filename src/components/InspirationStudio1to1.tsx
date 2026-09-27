@@ -113,6 +113,23 @@ function specForBatchItem(item: BatchPostItem, base: UniversalLayoutSpec): Unive
   };
 }
 
+/**
+ * Co widać na karcie serii pod tezą. Wcześniej stał tu jeden wiersz
+ * `sayingSub` i etykieta „Biały Tekst na Czerni", więc protokół, koszt i kolaż
+ * wyglądały identycznie jak cytat — mieszanka układów była niewidoczna,
+ * dopóki nie wczytało się pozycji do edytora.
+ */
+function batchPreviewLines(item: BatchPostItem): string[] {
+  if (item.steps?.length) return item.steps.slice(0, 3);
+  if (item.cost?.length) {
+    return item.cost
+      .map((price, idx) => `${price} -> ${item.forfeit?.[idx] ?? ""}`.trim())
+      .slice(0, 3);
+  }
+  if (item.closing) return [item.closing];
+  return item.sayingSub ? [item.sayingSub] : [];
+}
+
 // Bogata biblioteka krojów pisma Stark Focus (wyłącznie wybrane kroje)
 export const FONT_OPTIONS = [
   { id: "sans", name: "Plus Jakarta", style: "Modern Sans" },
@@ -713,60 +730,13 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
 
   // Załadowanie wybranego posta z serii do edytora
   const handleApplyBatchPost = (item: BatchPostItem) => {
-    const cleanMain = item.sayingMain.trim();
-    const cleanSub = (item.sayingSub || "").trim();
-    const hasSub = cleanSub.length > 0;
-
+    // Dokładnie ta sama droga co przy eksporcie: `specForBatchItem`. Własne
+    // budowanie warstw od `SPEC_BLACK_QUOTE` spłaszczało każdy układ do cytatu
+    // na czerni, więc protokół, koszt i kolaż znikały w edytorze, choć trasa
+    // je oddawała.
     setSpec({
-      ...SPEC_BLACK_QUOTE,
-      layoutName: `STARK // ${item.pillar}`,
-      gridType: "none_solid",
-      fontColorMode: "white",
-      caption: item.caption,
-      textLayers: hasSub
-        ? [
-            {
-              id: "t1",
-              text: cleanMain,
-              fontFamily: spec.fontFamilyCustom || "sans",
-              fontSize: 68,
-              fontWeight: "bold",
-              fontStyle: "normal",
-              casing: "preserve",
-              color: "#FFFFFF",
-              align: "left",
-              posY: 0.42,
-              posX: 0.12,
-            },
-            {
-              id: "t2",
-              text: cleanSub,
-              fontFamily: spec.fontFamilyCustom || "sans",
-              fontSize: 42,
-              fontWeight: "normal",
-              fontStyle: "normal",
-              casing: "preserve",
-              color: "rgba(255, 255, 255, 0.72)",
-              align: "left",
-              posY: 0.5,
-              posX: 0.12,
-            },
-          ]
-        : [
-            {
-              id: "t1",
-              text: cleanMain,
-              fontFamily: spec.fontFamilyCustom || "sans",
-              fontSize: 82,
-              fontWeight: "bold",
-              fontStyle: "normal",
-              casing: "preserve",
-              color: "#FFFFFF",
-              align: "left",
-              posY: 0.46,
-              posX: 0.12,
-            },
-          ],
+      ...specForBatchItem(item, spec),
+      layoutName: `${item.layoutName || "Cytat"} // ${item.pillar}`,
     });
     setSlotImages([]);
     setIsBatchModalOpen(false);
@@ -1517,12 +1487,16 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
                           <span className="text-[10px] font-mono text-neutral-500">#{idx + 1}</span>
                         </div>
 
-                        {/* Podgląd tekstu na karcie */}
+                        {/* Podgląd tekstu na karcie — tyle struktury, ile niesie układ */}
                         <div className="p-3 bg-[#080808] rounded-lg border border-white/10 space-y-1">
                           <div className="text-sm font-mono font-black text-white">
                             "{item.sayingMain}"
                           </div>
-                          <div className="text-xs font-mono text-neutral-400">{item.sayingSub}</div>
+                          {batchPreviewLines(item).map((line, lineIdx) => (
+                            <div key={lineIdx} className="text-xs font-mono text-neutral-400">
+                              {line}
+                            </div>
+                          ))}
                         </div>
 
                         {/* Format */}
@@ -1531,7 +1505,7 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
                             9:16 (1080×1920)
                           </span>
                           <span className="px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-neutral-300">
-                            Biały Tekst na Czerni
+                            {item.layoutName || "Cytat"}
                           </span>
                         </div>
 
