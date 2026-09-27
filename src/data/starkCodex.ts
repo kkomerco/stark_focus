@@ -74,7 +74,7 @@ export const STARK_CODEX_RULES: CodexRule[] = [
     category: "silence_power",
     title: "The Law of Absolute Secrecy",
     hook0to3s: "Never announce your next move to an audience that feeds on noise.",
-    corePrinciple: "Validation received before execution kills the hunger required to finish.",
+    corePrinciple: "Validation received before execution starves the hunger required to finish.",
     actionDirective: "Build in total darkness. Let the end result create the shockwave.",
     rationale:
       "Mówienie o celach uwalnia przedwczesną dopaminę, osłabiając determinację do ich realizacji.",
@@ -188,7 +188,7 @@ export const STARK_CODEX_RULES: CodexRule[] = [
     suggestedBroll: "nocna_metropolia_stal",
     carouselSlides: [
       {
-        headline: "KILL THE CHOICES",
+        headline: "CUT THE CHOICES",
         bodyText: "The disciplined man doesn't choose to work. He eliminated every other option.",
       },
       {
@@ -293,7 +293,7 @@ export const STARK_CODEX_RULES: CodexRule[] = [
     carouselSlides: [
       {
         headline: "STOP WASTING IT",
-        bodyText: "You live as if you were destined to live forever. Death is already walking.",
+        bodyText: "You live as if you were destined to live forever. The end is already walking.",
       },
       {
         headline: "THE ILLUSION OF LATER",
@@ -356,7 +356,7 @@ export const STARK_CODEX_RULES: CodexRule[] = [
     title: "The Iron Integrity Code",
     hook0to3s: "If you break a promise to yourself, you break your soul.",
     corePrinciple: "Self-worth is the subconscious ledger of your fulfilled commitments.",
-    actionDirective: "Never say 'I will do this' unless you are prepared to die doing it.",
+    actionDirective: "Never say 'I will do this' unless you are prepared to spend your life on it.",
     rationale:
       "Każda niedotrzymana obietnica złożona samemu sobie obniża wewnętrzne poczucie sprawczości.",
     suggestedTheme: "obsidian_void",

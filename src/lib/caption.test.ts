@@ -203,6 +203,29 @@ describe("starkCaption", () => {
     );
     assert.equal(starkCaption("Silence speaks.", ""), formatStarkCaption("Silence speaks."));
   });
+
+  it("nie wypisuje tezy dwa razy, gdy model otwiera opis tym samym zdaniem", () => {
+    const hook = "You stare at your phone screen.";
+    const caption = starkCaption(
+      hook,
+      "You stare at your phone screen. Most men trade their hours for digital noise while pretending they are building something.",
+    );
+    const lines = caption.split("\n\n")[0];
+
+    assert.equal(lines, "YOU STARE AT YOUR PHONE SCREEN.");
+    assert.equal(
+      caption.split(/you stare at your phone screen/i).length - 1,
+      1,
+      "teza ma paść w opisie dokładnie raz",
+    );
+    assert.match(caption, /digital noise/, "reszta zdania zostaje");
+  });
+
+  it("gdy model oddał TYLKO echo tezy, opis nie zostaje goły", () => {
+    const caption = starkCaption("Rust works while you sleep.", "Rust works while you sleep.");
+    assert.match(caption, /Rust works while you sleep\./);
+    assert.ok(caption.length > "RUST WORKS WHILE YOU SLEEP.".length);
+  });
 });
 
 describe("starkCta", () => {

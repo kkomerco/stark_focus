@@ -1,7 +1,7 @@
 // src/components/video/reel-helpers.ts
 // Czyste typy, metadane motywow i helpery do renderu ramek rolek.
 // Wyodrębnione z VideoStudioModal.tsx — brak zależności od Reacta.
-import type { ReelVisualTheme } from "../../data/reelTemplates";
+import type { NarrativeFormat, ReelVisualTheme } from "../../data/reelTemplates";
 import type { ReelDuration } from "../../types";
 import { MIN_TEXT_PX } from "../../utils/safeZones";
 
@@ -10,6 +10,49 @@ export type { ReelDuration };
 export type HighlightStyle = "white_halo" | "bold";
 export type FontFamily = "cinzel" | "sans" | "inter" | "cormorant";
 export type PacingMode = "climax_hold" | "stoic_steady" | "uniform";
+
+/**
+ * KONTRAKT FORMATU ROLKI.
+ *
+ * Studio operuje idencifikatorami układów (`viral_loop_6s`), a trasa
+ * `/api/ghostwrite` własnym słownikiem liczby taktów. Dawniej studio wysyłało
+ * swoje id wprost: trasa nie rozpoznawała żadnego z czterech formatów, brała
+ * domyślne cztery frazy, a studio SKLEJAŁO je w jeden takt, żeby zgadzała się
+ * liczba na ekranie. Efekt: w „2 szybkich taktach" lądowało sześć linijek
+ * tekstu, a w pętli 6 s — cztery zdania w jednym kadrze.
+ *
+ * Format jest umową, nie etykietą: tu liczymy ile taktów zamówić i ile zostawić.
+ * Sam słownik nazw (`NarrativeFormat`) ma jedno miejsce: `data/reelTemplates.ts`.
+ */
+const REEL_BEATS: Record<string, number> = {
+  viral_loop_6s: 1,
+  hook_payoff_5s: 2,
+  dynamic_broll_cut: 3,
+  three_phases: 3,
+  five_beats_20s: 5,
+};
+
+export function beatsForReelFormat(formatId: string): number {
+  return REEL_BEATS[formatId] ?? 3;
+}
+
+export function narrativeFormatFor(reelFormatId: string): NarrativeFormat {
+  const beats = beatsForReelFormat(reelFormatId);
+  if (beats <= 1) return "single_quote";
+  if (beats === 2) return "two_phases";
+  if (beats === 3) return "three_phases";
+  if (beats === 4) return "four_phrases";
+  return "five_phrases";
+}
+
+/**
+ * Nadmiar taktów ODCINAMY, nigdy nie sklejamy. Sklejenie wrzuca na jeden kadr
+ * treść dwóch, a widz ma przeczytać zdanie w dwóch sekundach.
+ */
+export function clipToBeats(phrases: string[], formatId: string): string[] {
+  const beats = beatsForReelFormat(formatId);
+  return phrases.slice(0, beats);
+}
 
 export interface PhraseTimeInterval {
   index: number;

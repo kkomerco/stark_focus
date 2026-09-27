@@ -31,7 +31,8 @@ export function registerGenerateRoutes(app: MiniApp): void {
       format === "single_quote" ||
       format === "two_phases" ||
       format === "three_phases" ||
-      format === "four_phrases"
+      format === "four_phrases" ||
+      format === "five_phrases"
         ? format
         : "four_phrases";
 
@@ -42,7 +43,9 @@ export function registerGenerateRoutes(app: MiniApp): void {
           ? 2
           : targetFormat === "three_phases"
             ? 3
-            : 4;
+            : targetFormat === "four_phrases"
+              ? 4
+              : 5;
 
     const ai = getGeminiClient();
 
@@ -78,19 +81,25 @@ ${HOOK_CRAFT_PROMPT}
   CRITICAL RULE FOR NARRATIVE COHERENCE:
   The ${count} phrases MUST NOT be random disconnected slogans. They MUST form one continuous, deeply linked narrative progression:
   ${
-    targetFormat === "four_phrases"
-      ? `- Phrase 1 (The Trap/Hook): Provocative observation exposing a weakness (3-6 words).
+    targetFormat === "five_phrases"
+      ? `- Phrase 1 (The Trap): Provocative observation exposing a weakness (3-6 words).
+  - Phrase 2 (The Bitter Reality): Brutal diagnosis shattering the excuse (3-6 words).
+  - Phrase 3 (The Turn): What the disciplined person does at that exact moment (3-6 words).
+  - Phrase 4 (The Stoic Law): Timeless principle of sovereignty and action (3-6 words).
+  - Phrase 5 (The Climax Punchline): Memorable closing directive (3-6 words).`
+      : targetFormat === "four_phrases"
+        ? `- Phrase 1 (The Trap/Hook): Provocative observation exposing a weakness (3-6 words).
   - Phrase 2 (The Bitter Reality): Brutal diagnosis shattering the excuse (3-6 words).
   - Phrase 3 (The Stoic Law): Timeless principle of sovereignty and action (3-6 words).
   - Phrase 4 (The Climax Punchline): Memorable closing directive (3-6 words).`
-      : targetFormat === "three_phases"
-        ? `- Phrase 1 (The Hook): Jarring observation exposing weakness (3-6 words).
+        : targetFormat === "three_phases"
+          ? `- Phrase 1 (The Hook): Jarring observation exposing weakness (3-6 words).
   - Phrase 2 (The Stoic Law): Timeless principle of action (3-6 words).
   - Phrase 3 (The Directive): Uncompromising closing command (3-6 words).`
-        : targetFormat === "two_phases"
-          ? `- Phrase 1 (The Illusion): The mistake 99% of people make (3-6 words).
+          : targetFormat === "two_phases"
+            ? `- Phrase 1 (The Illusion): The mistake 99% of people make (3-6 words).
   - Phrase 2 (The Sovereign Standard): What the disciplined 1% execute (3-6 words).`
-          : `- Phrase 1: A profound, unforgettable stoic aphorism (3-6 words).`
+            : `- Phrase 1: A profound, unforgettable stoic aphorism (3-6 words).`
   }
 
   CRITICAL RULES FOR CAPTIONS:
@@ -111,13 +120,13 @@ ${HOOK_CRAFT_PROMPT}
   Return strictly valid JSON with this exact schema:
   {
     "title": "Short Distinctive Title (2-4 words)",
-    "phrases": ["phrase 1"${count > 1 ? ', "phrase 2"' : ""}${count > 2 ? ', "phrase 3"' : ""}${count > 3 ? ', "phrase 4"' : ""}],
+    "phrases": ["phrase 1"${count > 1 ? ', "phrase 2"' : ""}${count > 2 ? ', "phrase 3"' : ""}${count > 3 ? ', "phrase 4"' : ""}${count > 4 ? ', "phrase 5"' : ""}],
     "captionShort": "Viral short Instagram/TikTok caption (independent insight, 1-2 sentences)",
     "captionDeep": "Deep Instagram caption with independent opening hook, 3 actionable protocols, and CTA",
     "suggestedTheme": "obsidian_void",
     "suggestedBackground": "Descriptive visual scene name",
     "backgroundRationale": "Reason why this background fits the reel",
-    "suggestedDuration": ${count === 4 ? 11 : count === 3 ? 9 : count === 2 ? 8 : 7}
+    "suggestedDuration": ${count === 5 ? 14 : count === 4 ? 11 : count === 3 ? 9 : count === 2 ? 8 : 6}
   }`;
 
         // Jedno wywołanie na kliknięcie i BEZ własnego limitu czasu w trasie.
@@ -155,7 +164,8 @@ ${HOOK_CRAFT_PROMPT}
             "carbon_aura",
           ];
           const randomTheme = pick(fallbackThemes);
-          const defaultDuration = count === 4 ? 11 : count === 3 ? 9 : count === 2 ? 8 : 7;
+          const defaultDuration =
+            count === 5 ? 14 : count === 4 ? 11 : count === 3 ? 9 : count === 2 ? 8 : 6;
           const hook = phrases[0];
           // Bez zdania od modelu nie dokładamy mu z głowy ani tytułu, ani
           // opisu: stałe „Execute in total silence…" i „Marmurowy Posąg"

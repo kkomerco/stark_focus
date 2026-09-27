@@ -60,9 +60,11 @@ import type {
   VisualTheme,
 } from "./video/reel-helpers";
 import {
+  clipToBeats,
   getPhraseTimeline,
   isOrphanWord,
   layoutLines,
+  narrativeFormatFor,
   parseTokens,
   VISUAL_THEMES,
 } from "./video/reel-helpers";
@@ -590,7 +592,9 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
         body: JSON.stringify({
           topic:
             "Ruthless stoic discipline, sovereign posture, high-leverage focus, psychological power shift",
-          format: reelFormat,
+          // Nie `reelFormat`: trasa nie zna id układów studia i brałaby wtedy
+          // domyślne cztery frazy, które studio sklejało w jeden takt.
+          format: narrativeFormatFor(reelFormat),
           category: chosenCategoryId,
           excludeTitles: seenTitlesRef.current,
         }),
@@ -618,15 +622,14 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
           seenTitlesRef.current.push(freshTitle.toLowerCase().replace(/\s+/g, "_"));
           if (seenTitlesRef.current.length > 60) seenTitlesRef.current.shift();
 
-          // Dopasowanie fraz i długości do wybranego formatu
-          let finalPhrases = parsedData.phrases;
-          if (reelFormat === "viral_loop_6s" && finalPhrases.length > 1) {
-            finalPhrases = [finalPhrases.join(" ")];
-          } else if (reelFormat === "hook_payoff_5s" && finalPhrases.length > 2) {
-            finalPhrases = [finalPhrases[0], finalPhrases.slice(1).join(" ")];
-          }
-
+          // Format jest umową: nadmiar taktów odcinamy. Wcześniejsze
+          // `finalPhrases.join(" ")` upychało cztery zdania w jeden kadr, żeby
+          // tylko zgadzała się liczba na ekranie.
+          const finalPhrases = clipToBeats(parsedData.phrases, reelFormat);
           setPhrases(finalPhrases);
+          // Karta formatu pokazuje to, co jest na osi czasu, nie to, o co prosiliśmy:
+          // bank treści potrafi oddać mniej taktów niż wybrany układ.
+          setReelFormat(formatForPhraseCount(finalPhrases.length));
 
           // Trasa oddaje `suggestedDuration`; `duration` w odpowiedzi nie
           // istnieje, więc każdy modelowy czas wypadał w sztywną gałąź.

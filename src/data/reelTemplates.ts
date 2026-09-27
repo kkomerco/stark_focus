@@ -1,5 +1,6 @@
 import type { ReelDuration } from "../types";
-export type NarrativeFormat = "three_phases" | "single_quote" | "four_phrases" | "two_phases";
+export type NarrativeFormat =
+  "single_quote" | "two_phases" | "three_phases" | "four_phrases" | "five_phrases";
 
 export type ReelVisualTheme =
   "obsidian_void" | "crimson_eclipse" | "emerald_abyss" | "carbon_aura" | "silver_mist";
@@ -47,9 +48,9 @@ export const VIRAL_REEL_TEMPLATES: ReelTemplate[] = [
       "Choose your suffering.",
     ],
     captionShort:
-      "Comfort kills ambition faster than failure ever could. Choose the pain of discipline over the permanent stain of regret.",
+      "Comfort ends ambition faster than failure ever could. Choose the pain of discipline over the permanent stain of regret.",
     captionDeep:
-      "Comfort kills ambition faster than failure ever will. Every time you negotiate with weakness, you vote against your future.\n\n3 keys to crushing comfort:\n1. Do the hard task first thing in the morning.\n2. Eliminate the excuses before they form.\n3. Remember: Discomfort is where strength is forged.\n\nSave this for your next battle. Follow for daily focus.",
+      "Comfort ends ambition faster than failure ever will. Every time you negotiate with weakness, you vote against your future.\n\n3 keys to crushing comfort:\n1. Do the hard task first thing in the morning.\n2. Eliminate the excuses before they form.\n3. Remember: Discomfort is where strength is forged.\n\nSave this for your next battle. Follow for daily focus.",
     hashtags: ["#discipline", "#stoicmindset", "#conqueryourself", "#grind", "#focus"],
     suggestedTheme: "carbon_aura",
     suggestedDuration: 7,
@@ -134,7 +135,7 @@ export const VIRAL_REEL_TEMPLATES: ReelTemplate[] = [
     captionShort:
       "Serenity is not the absence of external storms; it is the presence of an inner citadel. Master yourself.",
     captionDeep:
-      "If you wait for the world to become quiet before you do your great work, you will die waiting.\n\nInner peace rules:\n- Create quiet within your own thoughts.\n- Silence the fear of other people's opinions.\n- The master finds calmness in the center of the storm.\n\nSave this reel. Follow for stoic mastery.",
+      "If you wait for the world to become quiet before you do your great work, you will wait until there is nothing left to say.\n\nInner peace rules:\n- Create quiet within your own thoughts.\n- Silence the fear of other people's opinions.\n- The master finds calmness in the center of the storm.\n\nSave this reel. Follow for stoic mastery.",
     hashtags: ["#innerpeace", "#mindcontrol", "#stoicism", "#focus"],
     suggestedTheme: "obsidian_void",
     suggestedDuration: 7,
@@ -144,7 +145,7 @@ export const VIRAL_REEL_TEMPLATES: ReelTemplate[] = [
     format: "three_phases",
     title: "The Sunk Cost Delusion",
     phrases: [
-      "You hold onto dead weight out of nostalgia.",
+      "You hold onto what is already gone out of nostalgia.",
       "Tethering your future to mistakes of the past.",
       "Cut the anchor and move forward.",
     ],
@@ -185,7 +186,7 @@ export const VIRAL_REEL_TEMPLATES: ReelTemplate[] = [
     captionShort:
       "Putting off duty until tomorrow is the hallmark of spiritual decay. Dominate the immediate second.",
     captionDeep:
-      "Death does not care about your five-year plan. What matters is the integrity of this exact heartbeat.\n\nMemento Mori command:\n1. Treat today as a complete lifetime.\n2. Do the hardest thing first.\n3. Sleep with a clean conscience.\n\nSave this quote. Follow for stoic urgency.",
+      "The end does not care about your five-year plan. What matters is the integrity of this exact heartbeat.\n\nMemento Mori command:\n1. Treat today as a complete lifetime.\n2. Do the hardest thing first.\n3. Sleep with a clean conscience.\n\nSave this quote. Follow for stoic urgency.",
     hashtags: ["#mementomori", "#now", "#action", "#discipline"],
     suggestedTheme: "emerald_abyss",
     suggestedDuration: 7,
@@ -260,12 +261,12 @@ export const VIRAL_REEL_TEMPLATES: ReelTemplate[] = [
   {
     id: "sq_6",
     format: "single_quote",
-    title: "He Who Fears Death",
-    phrases: ["He who fears death will never do anything worthy of a man who is alive."],
+    title: "He Who Fears the End",
+    phrases: ["He who fears the end will never do anything worthy of the life he has."],
     captionShort:
       "Memento Mori is not an invitation to despair—it is a fierce call to live with urgent courage and conviction.",
     captionDeep:
-      "Fear of death paralyzes men from taking bold action. Seneca reminds us that mortality gives life its supreme urgency.\n\nLive with Memento Mori:\n- Every hour is borrowed time.\n- Stop postponing what matters.\n- Act boldly today.\n\nSave this. Follow for unshakeable resolve.",
+      "Fear of the end paralyzes men from taking bold action. Seneca reminds us that mortality gives life its supreme urgency.\n\nLive with Memento Mori:\n- Every hour is borrowed time.\n- Stop postponing what matters.\n- Act boldly today.\n\nSave this. Follow for unshakeable resolve.",
     hashtags: ["#mementomori", "#fearless", "#urgency", "#stoicpath"],
     suggestedTheme: "obsidian_void",
     suggestedDuration: 7,
@@ -283,7 +284,7 @@ export const VIRAL_REEL_TEMPLATES: ReelTemplate[] = [
       "Rise now or accept your mediocrity.",
     ],
     captionShort:
-      "The morning negotiation is where men lose their sovereignty before the sun even rises. Kill the compromise.",
+      "The morning negotiation is where men lose their sovereignty before the sun even rises. End the compromise.",
     captionDeep:
       "When you hit snooze, you tell your subconscious that comfort matters more than your potential.\n\n3 morning non-negotiables:\n1. Feet on the floor at the first chime.\n2. No digital screens for the first 60 minutes.\n3. Attack the heaviest boulder before noon.\n\nSave this for tomorrow morning. Follow for relentless discipline.",
     hashtags: ["#discipline", "#stoicmindset", "#morningroutine", "#relentless", "#grindset"],
@@ -311,7 +312,7 @@ export const VIRAL_REEL_TEMPLATES: ReelTemplate[] = [
   {
     id: "fp_3",
     format: "four_phrases",
-    title: "When Motivation Dies",
+    title: "When Motivation Fades",
     phrases: [
       "You only execute when the mood feels right.",
       "That is not discipline. That is emotional dependency.",
@@ -387,7 +388,7 @@ export const VIRAL_REEL_TEMPLATES: ReelTemplate[] = [
     phrases: [
       "You act as if you have centuries to spare.",
       "Postponing greatness to a mythical next week.",
-      "Death does not wait for you to finish your excuses.",
+      "The end does not wait for you to finish your excuses.",
       "Act today with the ferocity of a dying man.",
     ],
     captionShort:
@@ -509,7 +510,7 @@ export const VIRAL_REEL_TEMPLATES: ReelTemplate[] = [
     title: "Validation vs Self-Respect",
     phrases: ["The weak crave constant applause.", "The strong require only self-respect."],
     captionShort:
-      "If you live for the applause of the crowd, you will die from their silence. Anchor your worth in your code.",
+      "If you live for the applause of the crowd, you will be broken by their silence. Anchor your worth in your code.",
     captionDeep:
       "Addiction to external applause makes you fragile. When the praise stops, so does your effort.\n\nAnchor to this:\n1. Your integrity is your only true audience.\n2. Do what is right because it is right.\n3. Self-respect outlasts any temporary applause.\n\nSave this reminder. Follow for inner strength.",
     hashtags: ["#selfworth", "#innercode", "#stoicpride", "#sovereignmind"],

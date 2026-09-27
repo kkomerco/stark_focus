@@ -253,10 +253,26 @@ export function starkCaption(hook: string, modelCaption = ""): string {
   if (!body || isPolishCopy(body)) return formatStarkCaption(hook);
 
   const cleanHook = hook.replace(/["#*]/g, "").trim().toUpperCase();
+  // Model prawie zawsze otwiera opis tym samym zdaniem, które siedzi na kadrze,
+  // a powyżej doklejamy tezę wersalikami — bez tego cięcia opis zaczynał się od
+  // „YOU STARE AT YOUR PHONE SCREEN." dwa razy pod rząd.
+  const withoutEcho = cleanHook
+    ? body.replace(new RegExp(`^${escapeForRegex(cleanHook)}\\s*[.!?]?\\s*`, "i"), "").trim()
+    : body;
+
   return (
     `${cleanHook ? `${cleanHook}\n\n` : ""}` +
-    `${body}\n\n` +
+    `${bodyOrOriginal(withoutEcho, body)}\n\n` +
     `${starkCta(hook + body)}\n\n` +
     starkHashtags(`${hook} ${body}`).join(" ")
   );
+}
+
+/** Opis bez treści po tezie to sam okrzyk — wtedy zostawiamy pierwotne zdania. */
+function bodyOrOriginal(stripped: string, original: string): string {
+  return stripped.length >= 20 ? stripped : original;
+}
+
+function escapeForRegex(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

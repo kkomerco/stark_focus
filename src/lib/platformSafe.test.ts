@@ -1,5 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { readdirSync, readFileSync } from "node:fs";
 import { softenForPlatform } from "./platformSafe";
 
 describe("softenForPlatform", () => {
@@ -35,5 +36,35 @@ describe("softenForPlatform", () => {
     const softened = softenForPlatform(raw);
     assert.doesNotThrow(() => JSON.parse(softened));
     assert.equal(JSON.parse(softened).hook, "You could be gone tonight.");
+  });
+});
+
+/**
+ * Bank treści omija wyjście modelu: `reelTemplates` i `ideaMatrix` wchodzą do
+ * studia rolek bez jednego wywołania, więc filtr z `gemini.server.ts` ich nie
+ * widzi. Dopóki pilnowaliśmy tylko odpowiedzi modelu, w samej aplikacji leżały
+ * zdania typu „you will die waiting" i „Comfort kills ambition" — i to one
+ * lądowały na kadrze. Ten test zamyka całą klasę, nie jedno zdanie.
+ */
+describe("bank treści jest tak samo bezpieczny jak odpowiedź modelu", () => {
+  const RISKY = /\b(die|dies|died|dead|death|kill|kills|killed|killer|corpse|blood|bloody)\b/i;
+  // `brollLibrary` to słownik DOBORU ujęcia (szuka po słowach z tekstu), nie
+  // napis na kadrze — tam „death" ma prawo być, bo niczego nie wyświetlamy.
+  const SKIP = new Set(["brollLibrary.ts"]);
+
+  const dir = new URL("../data/", import.meta.url);
+  const files = readdirSync(dir).filter(
+    (name) => name.endsWith(".ts") && !SKIP.has(name) && !name.endsWith(".test.ts"),
+  );
+
+  it("żaden plik z bankiem nie trzyma ryzykownej frazy", () => {
+    const offenders: string[] = [];
+    for (const name of files) {
+      const text = readFileSync(new URL(name, dir), "utf8");
+      text.split(/\r?\n/).forEach((line, index) => {
+        if (RISKY.test(line)) offenders.push(`${name}:${index + 1}`);
+      });
+    }
+    assert.deepEqual(offenders, []);
   });
 });
