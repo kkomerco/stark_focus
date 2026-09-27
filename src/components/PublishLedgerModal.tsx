@@ -1,23 +1,19 @@
 // PublishLedgerModal.tsx — dziennik tego, co realnie wyszło na konto.
-// Bez niego cała analityka jest zgadywanką: aplikacja wie, co wygenerowała,
-// ale nie wie, co zostało opublikowane i ile to uciułało.
+// Bez niego aplikacja wie, co wygenerowała, ale nie wie, co zostało opublikowane.
+// Liczy FAKT, nie skuteczność: przy kilkuset wyświetleniach każda „mediana"
+// byliby zgadywanką, więc kolumny z liczbami zniknęły razem z obowiązkiem ich
+// wpisywania.
 import React, { useMemo, useState } from "react";
 import { BarChart3, Plus, Trash2, X } from "lucide-react";
 import { PublishedItem, PublishKind, StarkFocusData } from "../types";
 import {
-  HOLD_GOOD_PCT,
-  MIN_SAMPLE,
   UNKNOWN_FORMAT,
-  type ComparedMetric,
-  type FormatStat,
-  enoughFor,
   formatLabel,
   formatsForKind,
-  ledgerVerdict,
   normalizeFormat,
   normalizePublished,
   publicationKey,
-  statsByFormat,
+  publishedEntry,
   suspectedDuplicates,
 } from "../lib/published";
 
@@ -50,11 +46,6 @@ function emptyForm(kind: PublishKind = "reel") {
     // Domyślnie pierwszy układ słownika tego gatunku — nigdy id rolki dla karuzeli.
     format: formatsForKind(kind)[0],
     hook: "",
-    reach: "",
-    hold3s: "",
-    watchPct: "",
-    shares: "",
-    saves: "",
   };
 }
 
@@ -89,9 +80,6 @@ export function PublishLedgerModal({
 
   if (!isOpen) return null;
 
-  const stats = statsByFormat(items);
-  const verdict = ledgerVerdict(items);
-
   const set = (key: keyof FormState, value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
@@ -107,30 +95,24 @@ export function PublishLedgerModal({
     const hook = form.hook.trim();
     if (!hook) return;
 
-    const entry: PublishedItem = {
-      id: `pub-${Date.now()}`,
-      postedAt: /^\d{4}-\d{2}-\d{2}$/.test(form.postedAt) ? form.postedAt : today(),
-      platform: form.platform as PublishedItem["platform"],
+    // Tego samego konstruktora używają studia przy jedno-kliknięciowym zapisie
+    // eksportu, więc wpis z formularza i wpis z eksportu to ten sam kształt.
+    const entry = publishedEntry({
       kind: form.kind as PublishKind,
       hook,
-      format: normalizeFormat(form.kind as PublishKind, form.format),
-      metrics: {
-        reach: numberOrUndefined(form.reach),
-        hold3s: numberOrUndefined(form.hold3s),
-        watchPct: numberOrUndefined(form.watchPct),
-        shares: numberOrUndefined(form.shares),
-        saves: numberOrUndefined(form.saves),
-      },
-      loggedAt: new Date().toISOString(),
-    };
+      platform: form.platform,
+      format: form.format,
+      postedAt: /^\d{4}-\d{2}-\d{2}$/.test(form.postedAt) ? form.postedAt : today(),
+    });
+    if (!entry) return;
 
     // Ten sam dzień i ta sama myśl to TA SAMA publikacja. Normalizator i tak ją
-    // wyrzuci, ale bez tego komunikatu zostałby cicho usunięty wpis, a przy
-    // trzech próbach jeden duplikat wystarczy, żeby sfabrykować wniosek.
+    // wyrzuci, ale bez tego komunikatu zostałby cicho usunięty wpis, a podwójna
+    // próba fałszuje każdy ranking i każdą anty-powtórkę.
     const key = publicationKey(entry);
     if (items.some((item) => publicationKey(item) === key)) {
       setNotice(
-        `Wpis z ${entry.postedAt} i tą myślą już jest w dzienniku. Powtórka liczyłaby się jako druga próba w każdej statyce i w każdym prompcie.`,
+        `Wpis z ${entry.postedAt} i tą myślą już jest w dzienniku. Powtórka liczyłaby się jako druga publikacja tego samego zdania.`,
       );
       return;
     }
@@ -139,11 +121,7 @@ export function PublishLedgerModal({
       ...prev,
       published: normalizePublished([entry, ...(prev.published ?? [])]),
     }));
-    setNotice(
-      entry.metrics?.reach === undefined
-        ? "Dodany wpis nie ma ani jednej liczby — nie wejdzie do żadnej mediany."
-        : null,
-    );
+    setNotice(null);
     setForm({ ...emptyForm(form.kind), postedAt: form.postedAt, platform: form.platform });
   };
 
@@ -173,62 +151,14 @@ export function PublishLedgerModal({
 
         <div className="p-4 space-y-4">
           <div className={`${PANEL} p-3 space-y-2`}>
-            <p className="text-[11px] font-mono font-bold uppercase">{verdict.headline}</p>
-            <p className="text-[11px] font-mono text-neutral-400 leading-relaxed">
-              {verdict.detail}
+            <p className="text-[11px] font-mono font-bold uppercase">
+              Wpisów w dzienniku: {items.length}
             </p>
-            {stats.length > 0 && (
-              <table className="w-full text-[10px] font-mono mt-1">
-                <thead className="text-neutral-500 uppercase">
-                  <tr>
-                    <th className="text-left py-1">Układ</th>
-                    <th className="text-right">Prób</th>
-                    <th className="text-right">Zmierzonych</th>
-                    <th className="text-right">Zasięg</th>
-                    <th className="text-right">3 s</th>
-                    <th className="text-right">Obejrzenie</th>
-                    <th className="text-right">Wysyłki/1k</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {stats.map((stat) => (
-                    <tr key={stat.key} className="border-t border-white/5">
-                      <td className="py-1">
-                        {stat.kind} · {formatLabel(stat.kind, stat.format)}
-                        {!stat.enough && (
-                          <span className="text-neutral-600">
-                            {" "}
-                            (za mało zmierzonych: {stat.measured.sharesPerK}/{MIN_SAMPLE})
-                          </span>
-                        )}
-                      </td>
-                      <td className="text-right">{stat.count}</td>
-                      <td className="text-right">
-                        {stat.unmeasured > 0 && (
-                          <span className="text-neutral-600">{stat.unmeasured} bez liczb · </span>
-                        )}
-                        {stat.measured.reach}
-                      </td>
-                      {/* Mediana bez pomiaru to nie zero — puste pole mówi „nie mierzono". */}
-                      <td className="text-right">{cell(stat, "reach", stat.medianReach)}</td>
-                      <td
-                        className={`text-right ${
-                          (stat.medianHold ?? 100) < HOLD_GOOD_PCT && enoughFor(stat, "hold3s")
-                            ? "text-rose-400"
-                            : ""
-                        }`}
-                      >
-                        {cell(stat, "hold3s", stat.medianHold)}
-                      </td>
-                      <td className="text-right">{cell(stat, "watchPct", stat.medianWatch)}</td>
-                      <td className="text-right">
-                        {cell(stat, "sharesPerK", stat.medianSharesPerK)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+            <p className="text-[11px] font-mono text-neutral-400 leading-relaxed">
+              {items.length === 0
+                ? "Dopóki tu nie ma wpisu, aplikacja nie wie, co poszło na konto — numer edycji liczy się z tego, a anty-powtórka z odcisków tych zdań."
+                : `Rolki: ${countKind(items, "reel")}, kadry: ${countKind(items, "post")}, karuzel: ${countKind(items, "carousel")}. Tego dziennik używa do numeru edycji i do wykluczania zdań, które już wyszły. Liczb o skuteczności nie pytamy — przy tej skali każdy wniosek byłby zgadywanką.`}
+            </p>
           </div>
 
           <div className={`${PANEL} p-3 space-y-2`}>
@@ -310,29 +240,6 @@ export function PublishLedgerModal({
               </div>
             )}
 
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-              {(
-                [
-                  ["reach", "Zasięg"],
-                  ["hold3s", "Przytrzymanie 3 s %"],
-                  ["watchPct", "Obejrzenie %"],
-                  ["shares", "Wysyłki"],
-                  ["saves", "Zapisy"],
-                ] as const
-              ).map(([key, label]) => (
-                <label key={key} className="space-y-1">
-                  <span className={LABEL}>{label}</span>
-                  <input
-                    type="number"
-                    min="0"
-                    value={form[key]}
-                    onChange={(e) => set(key, e.target.value)}
-                    className={FIELD}
-                  />
-                </label>
-              ))}
-            </div>
-
             {notice && <p className="text-[10px] font-mono text-rose-300">{notice}</p>}
 
             <button
@@ -349,8 +256,8 @@ export function PublishLedgerModal({
           <div className={`${PANEL} divide-y divide-white/5`}>
             {items.length === 0 && (
               <p className="p-3 text-[11px] font-mono text-neutral-500">
-                Pusto. Dopóki nie wpiszesz, co poszło i ile uciułało, aplikacja nie ma czego uczyć —
-                formaty będą dobierane na wyczucie.
+                Pusto. Aplikacja nie wie, co wyszło na konto, więc numer edycji startuje od zera i
+                żadne zdanie nie jest wykluczone jako „już opublikowane".
               </p>
             )}
             {items.map((item) => (
@@ -360,10 +267,6 @@ export function PublishLedgerModal({
                   <p className="text-[10px] font-mono text-neutral-500">
                     {item.postedAt} · {item.platform} · {item.kind}:
                     {formatLabel(item.kind, item.format)}
-                    {item.metrics?.reach !== undefined && ` · ${item.metrics.reach} odbiorców`}
-                    {item.metrics?.hold3s !== undefined && ` · ${item.metrics.hold3s}% w 3 s`}
-                    {item.metrics?.shares !== undefined && ` · ${item.metrics.shares} wysyłek`}
-                    {item.metrics === undefined && " · nie zmierzono"}
                     {item.sourceId && abExperiments.has(item.sourceId) && " · z eksperymentu A/B"}
                   </p>
                   {duplicates.has(item.id) && (
@@ -387,22 +290,6 @@ export function PublishLedgerModal({
   );
 }
 
-/**
- * Komórka tabeli: liczba tylko wtedy, gdy była zmierzona dość licznym
- * próbkowaniem. `0` i „nie mierzono" to dwie różne prawdy.
- */
-function cell(stat: FormatStat, metric: ComparedMetric, value: number | null): React.ReactNode {
-  if (value === null) return <span className="text-neutral-600">nie mierzono</span>;
-  if (!enoughFor(stat, metric))
-    return (
-      <span className="text-neutral-500" title={`za mało pomiarów: min. ${MIN_SAMPLE}`}>
-        {value}
-      </span>
-    );
-  return <span className="text-white">{value}</span>;
-}
-
-function numberOrUndefined(value: string): number | undefined {
-  const n = Number(value);
-  return value.trim() !== "" && Number.isFinite(n) && n >= 0 ? Math.round(n) : undefined;
+function countKind(items: PublishedItem[], kind: PublishKind): number {
+  return items.filter((item) => item.kind === kind).length;
 }

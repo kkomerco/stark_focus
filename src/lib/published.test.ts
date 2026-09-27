@@ -1,16 +1,12 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
-  MIN_SAMPLE,
   UNKNOWN_FORMAT,
   filterUnpublished,
-  ledgerVerdict,
-  median,
   normalizeFormat,
   normalizePublished,
   publicationKey,
   publishedHookFingerprints,
-  statsByFormat,
   suspectedDuplicates,
   topPublishedHooks,
 } from "./published";
@@ -63,66 +59,6 @@ describe("normalizePublished", () => {
   });
 });
 
-describe("median", () => {
-  it("liczy środek, nie średnią — jeden wiral nie przekłamuje formatu", () => {
-    assert.equal(median([100, 120, 30000]), 120);
-    assert.equal(median([]), null);
-  });
-});
-
-describe("statsByFormat", () => {
-  it("oznacza grupę jako za małą do wniosku", () => {
-    const stats = statsByFormat([entry(), entry({ id: "p2", postedAt: "2026-09-19" })]);
-
-    assert.equal(stats.length, 1);
-    assert.equal(stats[0].count, 2);
-    assert.equal(stats[0].enough, false);
-  });
-
-  it("liczy wysyłki na tysiąc odbiorców, nie gołe lajki", () => {
-    const stats = statsByFormat(
-      Array.from({ length: MIN_SAMPLE }, (_, i) =>
-        entry({ id: `p${i}`, metrics: { reach: 2000, shares: 40 } }),
-      ),
-    );
-
-    assert.equal(stats[0].medianSharesPerK, 20);
-  });
-});
-
-describe("ledgerVerdict", () => {
-  it("mówi wprost, że nie ma z czego wnioskować", () => {
-    const verdict = ledgerVerdict([entry(), entry({ id: "p2" })]);
-
-    assert.equal(verdict.conclusive, false);
-    assert.match(verdict.headline, /Za mało danych/);
-  });
-
-  it("przy dość licznym próbkowaniu wskazuje format z największą liczbą wysyłek", () => {
-    const items = [
-      ...Array.from({ length: MIN_SAMPLE }, (_, i) =>
-        entry({
-          id: `a${i}`,
-          format: "viral_loop_6s",
-          metrics: { reach: 5000, shares: 10, hold3s: 70 },
-        }),
-      ),
-      ...Array.from({ length: MIN_SAMPLE }, (_, i) =>
-        entry({
-          id: `b${i}`,
-          format: "three_phases",
-          metrics: { reach: 5000, shares: 90, hold3s: 44 },
-        }),
-      ),
-    ];
-    const verdict = ledgerVerdict(items);
-
-    assert.equal(verdict.conclusive, true);
-    assert.match(verdict.headline, /three_phases/);
-    assert.match(verdict.detail, /przytrzymanie/);
-  });
-});
-
 describe("topPublishedHooks", () => {
   it("bierze tylko zdania z mierzalnym zasiegiem", () => {
     assert.deepEqual(
@@ -152,43 +88,6 @@ describe("publishedHookFingerprints", () => {
   it("zwraca odciski tych samych co `hookFingerprint`, więc silniki się nie miną", () => {
     const [fp] = publishedHookFingerprints([entry()]);
     assert.ok(fp.length >= 8);
-  });
-});
-
-describe("enough — próba musi być zmierzona", () => {
-  it("sama liczba wpisów bez liczb nie daje grupy do wniosku", () => {
-    const items = Array.from({ length: MIN_SAMPLE + 2 }, (_, index) =>
-      entry({ id: `p${index}`, postedAt: `2026-09-0${index + 1}` }),
-    );
-    const [stat] = statsByFormat(items);
-
-    assert.equal(stat.count, MIN_SAMPLE + 2);
-    assert.equal(stat.measured.sharesPerK, 0);
-    assert.equal(stat.enough, false, "wpis bez metryki nie jest próbą");
-  });
-
-  it("mediana policzona, ale z jednej próbki to wciąż za mało", () => {
-    const items = [
-      entry({ id: "m1", metrics: { reach: 5000, shares: 50 } }),
-      entry({ id: "m2", postedAt: "2026-09-02" }),
-      entry({ id: "m3", postedAt: "2026-09-01" }),
-    ];
-    const [stat] = statsByFormat(items);
-
-    assert.equal(stat.measured.sharesPerK, 1);
-    assert.equal(stat.medianSharesPerK, 10);
-    assert.equal(stat.enough, false, "jedna zmierzona próbka to nie porównanie");
-  });
-
-  it("odmawia wniosków, gdy wpisy są, ale nikt ich nie zmierzył", () => {
-    const items = Array.from({ length: MIN_SAMPLE }, (_, index) =>
-      entry({ id: `p${index}`, postedAt: `2026-09-0${index + 1}` }),
-    );
-    const verdict = ledgerVerdict(items);
-
-    assert.equal(verdict.conclusive, false, "zero pomiarów to nie wniosek");
-    assert.match(verdict.headline, /Za mało danych/);
-    assert.match(verdict.detail, /ZMIERZONYCH/);
   });
 });
 
@@ -249,7 +148,7 @@ describe("normalizeFormat — zamknięty słownik układów", () => {
       items.map((item) => item.format),
       [UNKNOWN_FORMAT, UNKNOWN_FORMAT],
     );
-    assert.equal(statsByFormat(items)[0].count, 2, "oba wpisy są w jednej grupie");
+    assert.equal(items.length, 2, "oba wpisy zostają w dzienniku");
   });
 });
 

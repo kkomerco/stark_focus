@@ -1,19 +1,19 @@
 /**
  * Logika dziennika publikacji. Czysta, bez Reacta i bez modelu — żeby dało
  * się ją sprawdzić testem i żeby nikt nie musiał klikać „generuj", żeby
- * dowiedzieć się, co mu poszło.
+ * dowiedzieć się, co już poszło na konto.
  *
- * Uczciwość jest tu główną funkcją: przy trzech wpisach nie da się powiedzieć,
- * co działa. Dlatego każda statyka niesie `enough` i nikt nie może jej
- * opisać jako wniosku, dopóki próby nie są wystarczające.
+ * Dziennik liczy FAKT, nie skuteczność: data, platforma, gatunek, układ i myśl
+ * z kadru. Z tego numerujemy edycje (`series.ts`) i tego pilnujemy, żeby ta sama
+ * fraza nie wyszła drugi raz (`usedContent.ts`). Wnioski „co działa" wymagałyby
+ * kilkudziesięciu prób na układ — przy tej skali byłyby zgadywanką, więc wolimy
+ * nie mieć ich wcale niż mieć wymyślone.
  */
 import type { PublishedItem, PublishKind, PublishMetrics } from "../types";
 import { hookFingerprint } from "./similarity";
 
 /** Poniżej tylu prób nie ma wniosku, jest tylko ciekawostka. */
 export const MIN_SAMPLE = 3;
-/** Prog, od którego trzysekundowe przytrzymanie uznajemy za dobre. */
-export const HOLD_GOOD_PCT = 60;
 /**
  * Ile wyświetleń musi mieć KAŻDY wariant, żeby porównanie A/B było porównaniem.
  * Ta sama zasada co `MIN_SAMPLE`, tylko inna miara próby. Liczy ją trasa
@@ -149,13 +149,47 @@ function normalizeMetrics(value: unknown): PublishMetrics | undefined {
 }
 
 /**
- * Klucz wpisu: ten sam dzień i ta sama myśl to TA SAMA publikacja.
- * Jedyną ścieżką edycji było „usuń i dodaj ponownie", więc jeden przypadkowy
- * duplikat przekraczał `MIN_SAMPLE` i wchodził do każdego promptu przez
- * `topPublishedHooks()`.
+ * Klucz wpisu: ten sam dzień i ta sama myśl to TA SAMA publikacja. Jedyną
+ * ścieżką edycji było „usuń i dodaj ponownie", więc jeden przypadkowy duplikat
+ * liczyłby się jako druga próba — a to on karmi numer edycji i listę wykluczeń
+ * anty-powtórki.
  */
 export function publicationKey(item: { postedAt: string; hook: string }): string {
   return `${item.postedAt}|${hookFingerprint(item.hook)}`;
+}
+
+/**
+ * Wpis do dziennika z jednego kliknięcia — z datą, platformą, gatunkiem,
+ * układem i myślą artefaktu, który właśnie wyszedł. Studia (post, rolka,
+ * karuzela) budują go tutaj, a nie u siebie, inaczej każde z nich inaczej
+ * rozumiałoby słowo „opublikowane".
+ */
+export function publishedEntry(input: {
+  kind: PublishKind;
+  hook: string;
+  platform?: string;
+  format?: unknown;
+  postedAt?: string;
+  sourceId?: string;
+  music?: string;
+}): PublishedItem | null {
+  const hook = (input.hook ?? "").trim().slice(0, 300);
+  if (!hook) return null;
+  const postedAt = asDate(input.postedAt ?? "");
+  const kind: PublishKind = (KINDS as readonly string[]).includes(input.kind) ? input.kind : "post";
+  return {
+    id: `pub-${Date.now()}`,
+    postedAt: postedAt || new Date().toISOString().slice(0, 10),
+    platform: (PLATFORMS as readonly string[]).includes(String(input.platform))
+      ? (input.platform as PublishedItem["platform"])
+      : "instagram",
+    kind,
+    hook,
+    format: normalizeFormat(kind, input.format),
+    sourceId: input.sourceId,
+    music: typeof input.music === "string" ? input.music.slice(0, 80) : undefined,
+    loggedAt: new Date().toISOString(),
+  };
 }
 
 /** Blob z localStorage może mieć cokolwiek — stąd normalizacja pola po polu. */
@@ -223,13 +257,6 @@ export function suspectedDuplicates(items: PublishedItem[]): Map<string, string>
   return flags;
 }
 
-export function median(values: number[]): number | null {
-  if (values.length === 0) return null;
-  const sorted = [...values].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 ? sorted[mid] : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
-}
-
 export function publishedHookFingerprints(items: { hook: string }[]): string[] {
   return items.map((item) => hookFingerprint(item.hook));
 }
@@ -292,142 +319,4 @@ export function topPublishedHooks(items: PublishedItem[], limit = 6): string[] {
     if (out.length >= limit) break;
   }
   return out;
-}
-
-/** Wielkości, którymi porównujemy układy. `enough` liczony jest dla każdej osobno. */
-export type ComparedMetric = "reach" | "hold3s" | "watchPct" | "sharesPerK" | "saves";
-
-export interface FormatStat {
-  key: string;
-  kind: PublishKind;
-  format: string;
-  /** Wszystkie wpisy w grupie, także te bez ani jednej liczby. */
-  count: number;
-  /** Wpisy bez żadnych liczb — nie wchodzą do żadnej mediany. */
-  unmeasured: number;
-  /** Ile wpisów REALNIE ma daną wielkość. Na tym liczy się `enough`. */
-  measured: Record<ComparedMetric, number>;
-  /** Grupa nadaje się do wniosku, gdy `MIN_SAMPLE` wpisów ma policzone wysyłki. */
-  enough: boolean;
-  medianReach: number | null;
-  medianHold: number | null;
-  medianWatch: number | null;
-  medianSharesPerK: number | null;
-  medianSaves: number | null;
-}
-
-function sharesPerK(item: PublishedItem): number | null {
-  const reach = item.metrics?.reach;
-  const shares = item.metrics?.shares;
-  if (!reach || shares === undefined || reach < 100) return null;
-  return Math.round((shares / reach) * 1000);
-}
-
-const METRIC_SOURCES: Array<{ key: ComparedMetric; of: (item: PublishedItem) => number | null }> = [
-  { key: "reach", of: (item) => item.metrics?.reach ?? null },
-  { key: "hold3s", of: (item) => item.metrics?.hold3s ?? null },
-  { key: "watchPct", of: (item) => item.metrics?.watchPct ?? null },
-  { key: "sharesPerK", of: sharesPerK },
-  { key: "saves", of: (item) => item.metrics?.saves ?? null },
-];
-
-/** Czy dana wielkość tej grupy została zmierzona dość licznym próbkowaniem. */
-export function enoughFor(stat: FormatStat, metric: ComparedMetric): boolean {
-  return stat.measured[metric] >= MIN_SAMPLE;
-}
-
-/** Zbiorcze liczby per format (albo per gatunek kadru) z progiem ZMIERZONYCH prób. */
-export function statsByFormat(items: PublishedItem[]): FormatStat[] {
-  const groups = new Map<string, PublishedItem[]>();
-  for (const item of items) {
-    const format = normalizeFormat(item.kind, item.format);
-    const key = `${item.kind}:${format}`;
-    groups.set(key, [...(groups.get(key) ?? []), item]);
-  }
-
-  return [...groups.entries()]
-    .map(([key, group]) => {
-      const ofMetric = (metric: ComparedMetric) =>
-        group
-          .map((item) => METRIC_SOURCES.find((source) => source.key === metric)?.of(item) ?? null)
-          .filter(onlyNumbers);
-      const measured = Object.fromEntries(
-        METRIC_SOURCES.map(({ key: metric }) => [metric, ofMetric(metric).length]),
-      ) as Record<ComparedMetric, number>;
-      return {
-        key,
-        kind: group[0].kind,
-        format: key.split(":")[1],
-        count: group.length,
-        unmeasured: group.filter((item) => item.metrics === undefined).length,
-        measured,
-        enough: measured.sharesPerK >= MIN_SAMPLE,
-        medianReach: median(ofMetric("reach")),
-        medianHold: median(ofMetric("hold3s")),
-        medianWatch: median(ofMetric("watchPct")),
-        medianSharesPerK: median(ofMetric("sharesPerK")),
-        medianSaves: median(ofMetric("saves")),
-      };
-    })
-    .sort((a, b) => (b.medianSharesPerK ?? 0) - (a.medianSharesPerK ?? 0));
-}
-
-function onlyNumbers(value: number | null | undefined): value is number {
-  return typeof value === "number" && Number.isFinite(value);
-}
-
-export interface LedgerVerdict {
-  headline: string;
-  detail: string;
-  /** Czy jest z czego wyciągnąć wniosek, czy tylko zbieramy dane. */
-  conclusive: boolean;
-}
-
-/**
- * Co dziennik mówi. Nagradzamy wysyłki i przytrzymanie, nie lajki — lajki
- * rosną razem z zasięgiem, więc mówią o algorytmie, nie o treści.
- */
-export function ledgerVerdict(items: PublishedItem[]): LedgerVerdict {
-  const stats = statsByFormat(items);
-  const usable = stats.filter((stat) => stat.enough);
-  const measuredShares = stats.reduce((sum, stat) => sum + stat.measured.sharesPerK, 0);
-  const unmeasuredEntries = items.filter((item) => item.metrics === undefined).length;
-
-  if (usable.length === 0) {
-    return {
-      headline: "Za mało danych, żeby cokolwiek rozstrzygnąć",
-      detail: items.length
-        ? `Wpisów: ${items.length}, z policzonymi wysyłkami: ${measuredShares}. Wniosek o układzie wymaga ${MIN_SAMPLE} ZMIERZONYCH publikacji w tym samym układzie, nie ${MIN_SAMPLE} samych wpisów.${
-            unmeasuredEntries ? ` Bez ani jednej liczby: ${unmeasuredEntries}.` : ""
-          }`
-        : "Dodaj pierwszą publikację z liczbami, a aplikacja zacznie porównywać formaty zamiast strzelać.",
-      conclusive: false,
-    };
-  }
-
-  const top = [...usable].sort((a, b) => (b.medianSharesPerK ?? 0) - (a.medianSharesPerK ?? 0))[0];
-  const withHold = usable.filter((stat) => enoughFor(stat, "hold3s"));
-  const weak = [...withHold]
-    .filter((stat) => (stat.medianHold ?? 100) < HOLD_GOOD_PCT)
-    .sort((a, b) => (a.medianHold ?? 0) - (b.medianHold ?? 0))[0];
-
-  const detail = [
-    `Mediana z ${top.measured.sharesPerK} publikacji z policzonymi wysyłkami w układzie ${top.key}.`,
-    weak
-      ? `Najsłabsze przytrzymanie: ${weak.key} — ${weak.medianHold}% po trzech sekundach, czyli pierwsza fraza nie zatrzymuje kciuka.`
-      : withHold.length
-        ? "Żaden dość licznie zmierzony układ nie spada poniżej progu przytrzymania."
-        : `Przytrzymania nie zmierzyliśmy w dość licznym próbkowaniu (min. ${MIN_SAMPLE} wpisów), więc nie orzekamy o progu ${HOLD_GOOD_PCT}%.`,
-    unmeasuredEntries
-      ? `Wpisów bez ani jednej liczby, pomijanych w każdej medianie: ${unmeasuredEntries}.`
-      : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
-
-  return {
-    headline: `Najwięcej wysyłek na tysiąc: ${top.key} (${top.medianSharesPerK ?? 0})`,
-    detail,
-    conclusive: true,
-  };
 }
