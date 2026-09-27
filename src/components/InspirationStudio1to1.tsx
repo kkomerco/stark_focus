@@ -170,17 +170,11 @@ const SPEC_BLACK_QUOTE: UniversalLayoutSpec = {
 };
 
 /** Kolaż przez `structuredSpec`, żeby preset pokazywał dokładnie tę geometrię,
- * którą rysuje generator: wybrany format i wygenerowany kadr nie mogą się różnić
- * układem. */
+ * którą rysuje generator: napis na środku i cztery kadry w rogach. Zdjęcia
+ * dokleja właściciel konta — model ich nie generuje. */
 const SPEC_COLLAGE_4: UniversalLayoutSpec = {
-  ...structuredSpec("Kolaż 4 Kadrów", "grid_2x2", {
-    primary: "This winter, disappear into obsession.",
-    steps: [
-      "The alarm nobody sees.",
-      "The first set, alone.",
-      "The cold kettle.",
-      "The drive back, again.",
-    ],
+  ...structuredSpec("Kolaż", "grid_2x2", {
+    primary: "Work unseen",
   }),
   slotCount: 4,
   slotLabels: ["Kadr 1", "Kadr 2", "Kadr 3", "Kadr 4"],

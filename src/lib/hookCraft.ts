@@ -204,6 +204,28 @@ export function auditLine(text: string, maxWords = 16): HookAudit {
   return { issues, ok: issues.length === 0 };
 }
 
+/**
+ * Napis na kadr (jedno-dwa słowa), nie zdanie. Kolaż ma na środku podpis
+ * całości, a nie tezę — miara hooka (trzy słowa i pełna myśl) odrzuciłaby
+ * każdy poprawny napis tego układu.
+ */
+export function auditLabel(text: string): HookAudit {
+  const clean = text.replace(/[*#"]/g, "").trim();
+  const lower = clean.toLowerCase();
+  const words = clean.split(/\s+/).filter(Boolean);
+  const issues: string[] = [];
+
+  if (words.length < 1) issues.push("pusty napis");
+  if (words.length > 2) issues.push(`za długi na podpis (${words.length} słów)`);
+  const cliche = CLICHE_PHRASES.find((phrase) => lower.includes(phrase));
+  if (cliche) issues.push(`klisza („${cliche}” )`);
+  const pompous = POMPOUS_WORDS.find((word) => new RegExp(`\\b${word}\\b`, "i").test(clean));
+  if (pompous) issues.push(`pompa („${pompous}” )`);
+  if (ENGAGEMENT_BAIT.test(clean)) issues.push("żebranie o engagement");
+
+  return { issues, ok: issues.length === 0 };
+}
+
 /** True, jeśli zdanie nie powinno trafić na kadr ani do podglądu. */
 export function isAiSlop(text: string): boolean {
   return !auditHook(text).ok;

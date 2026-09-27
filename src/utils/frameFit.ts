@@ -111,16 +111,13 @@ function listFrame(lines: string[]): FittedFrame {
     "",
   );
   return {
-    gridType: steps.length >= 4 ? "grid_2x2" : "protocol_list",
+    gridType: "protocol_list",
     content: {
       primary: lines[0],
       steps: steps.slice(0, 4),
       figure: hasNumber ? figure : "",
     },
-    reason:
-      steps.length >= 4
-        ? "Cztery lub więcej punktów — kolaż z jednej siatki czyta się szybciej niż lista."
-        : "Teza plus wyliczenie — protokół z krokami.",
+    reason: "Teza plus wyliczenie — protokół z krokami.",
   };
 }
 
@@ -148,11 +145,17 @@ export function fitFrame(
     };
   }
   if (hint === "collage" || /kola|collage|grid/i.test(hint || "")) {
-    const steps = stripEnumerators(lines.slice(1)).filter(Boolean);
+    // Kolaż to napis i cztery zdjęcia. Zdjęć z tekstu nie zrobimy, więc
+    // układowi oddajemy tylko podpis — pierwszy wyraz zdania, nie całe zdanie.
+    const label = lines[0]
+      .split(/\s+/)
+      .slice(0, 2)
+      .join(" ")
+      .replace(/[.!?,;:]$/, "");
     return {
       gridType: "grid_2x2",
-      content: { primary: lines[0], steps: steps.slice(0, 4) },
-      reason: "Format wskazuje na kolaż — cztery kadry z jednej treści.",
+      content: { primary: label },
+      reason: "Format wskazuje na kolaż — napis na środku, cztery kadry dobiera właściciel konta.",
     };
   }
 

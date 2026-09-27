@@ -36,15 +36,9 @@ const COST = {
 
 const COLLAGE = {
   format: "collage",
-  primary: "Four rooms remember what you skipped.",
-  steps: [
-    "Desk with one open tab",
-    "Phone face down all morning",
-    "Kitchen table with no plates",
-    "Front door still locked",
-  ],
+  primary: "Work unseen",
   caption:
-    "An avoided week leaves traces in the exact order you left them. The rooms keep score longer than you do.",
+    "Four rooms, four mornings, one decision repeated before anyone is awake enough to watch it.",
 };
 
 const GRID_BY_FORMAT: Record<string, string> = {

@@ -132,8 +132,7 @@ const COST = structuredSpec("Koszt i utrata", "cost_vs_reward", {
 });
 
 const COLLAGE = structuredSpec("Kolaż", "grid_2x2", {
-  primary: "Four things nobody photographs.",
-  steps: ["The alarm nobody sees.", "The first set, alone.", "The cold kettle.", "The drive back."],
+  primary: "Work unseen",
 });
 
 const QUOTE = structuredSpec("Cytat", "none_solid", {
@@ -184,16 +183,20 @@ describe("renderUniversalLayout", () => {
     });
   }
 
-  it("kolaż rysuje cztery kadry, nie jedna teze — dawniej przepołowiony slupek", () => {
+  it("kolaż niesie napis i cztery kadry — nie cztery podpisy w ćwiartkach", () => {
     const drawn = render(COLLAGE);
-    assert.ok(drawn.length >= 5, `tylko ${drawn.length} linii na kadrze`);
-    // Pierwsze slowo kazdego kadru — caly frazes moze sie lamac na dwie linie.
-    for (const word of ["alarm", "first", "cold", "drive"]) {
-      assert.ok(
-        drawn.some((entry) => entry.text.toLowerCase().includes(word)),
-        `kadr „${word}" zniknął z układu`,
-      );
+    assert.ok(drawn.length >= 1, "napis zniknął z kadru");
+    for (const entry of drawn) {
+      if (entry.text.startsWith("@")) continue;
+      // Każda narysowana linia to fragment napisu (może się łamać na dwie),
+      // nic więcej: dawniej dochodziły cztery wiersze ćwiartek.
+      for (const word of entry.text.toLowerCase().split(/\s+/)) {
+        assert.ok(/work|unseen/.test(word), `obcy tekst na kolażu: „${entry.text}”`);
+      }
     }
+    // Podpis ma uderzać rozmiarem, nie pełnić roli stopki pod siatką.
+    const labelSize = Number((drawn[0].font.match(/(\d+)px/) ?? [])[1]);
+    assert.ok(labelSize >= 100, `rozmiar napisu ${labelSize}px — za mały na środek kadru`);
   });
 
   it("krój ze speca schodzi na tezę kadru, nie domyślny literał układu", () => {

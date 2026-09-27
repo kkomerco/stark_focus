@@ -31,6 +31,11 @@ export interface FrameFormat {
      * pierwszego.
      */
     pair?: boolean;
+    /**
+     * Napis, nie zdanie: jedno-dwa słowa na sam środek kadru (kolaż). Tego nie
+     * mierzy się miarą hooka, bo hook żąda trzech słów i pełnej myśli.
+     */
+    short?: boolean;
   }>;
 }
 
@@ -78,11 +83,10 @@ export const FRAME_FORMATS: readonly FrameFormat[] = [
     label: "Kolaż",
     gridType: "grid_2x2",
     layoutName: "Kolaż",
-    shape: "Teza + cztery kadry z tego samego tematu, każdy osobno czytelny.",
-    fields: [
-      { key: "primary", label: "Teza", words: "4-10" },
-      { key: "steps", label: "Kadry", list: 4, words: "3-8" },
-    ],
+    shape:
+      "Jedno-dwa słowa na samym środku i cztery zdjęcia z tego samego tematu w rogach. " +
+      "Słowo jest podpisem całości, nie zdaniem — treść niosą kadry, których nie pisze model.",
+    fields: [{ key: "primary", label: "Napis", words: "1-2", short: true }],
   },
 ];
 

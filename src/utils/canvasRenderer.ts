@@ -650,10 +650,8 @@ export function draw4GridCollageSlide(
   options: {
     width?: number;
     height?: number;
-    /** Teza — pas przez środek kadru. */
+    /** Napis na środku: jedno-dwa słowa, podpis całości. */
     centerText: string;
-    /** Cztery kadry z tego samego tematu; każdy w swoim kwadrancie. */
-    lines?: string[];
     images: (CanvasImageSource | null)[];
     handle?: string;
     fontColor?: "white" | "black";
@@ -665,7 +663,6 @@ export function draw4GridCollageSlide(
     width = 1080,
     height = 1920,
     centerText = "",
-    lines = [],
     images = [null, null, null, null],
     handle = "",
     fontColor = "white",
@@ -722,29 +719,12 @@ export function draw4GridCollageSlide(
     }
   });
 
-  // Kadry u góry górnych ćwiartek i na dole dolnych: pas tezy idzie środkiem
-  // kadru, więc tekst przyklejony do górnej krawędzi dolnych pól wpadał pod niego.
-  // Wciecie kadrowe jest to samo co w kazdym innym ukladzie (9%); sciana
-  // wewnetrzna dostaje polowe, bo srodek kadru i tak dzieli czarna linia.
+  // Kadry są czyste: w kole tego układu treść niosą cztery zdjęcia, a nie
+  // cztery podpisy pod nimi. Wcześniejsze wiersze w ćwiartkach zamieniały
+  // kolaż w listę punktową ułożoną w siatkę.
   const pad = Math.round(width * 0.09);
-  const gutter = Math.round(pad / 2);
-  const lineHeight = Math.round(width * 0.042 * textScale);
-  const columnWidth = halfW - gutter - pad;
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
-  quadrants.forEach((q, idx) => {
-    const line = (lines[idx] ?? "").trim();
-    if (!line) return;
-    const textX = q.x === 0 ? pad : q.x + gutter;
-    ctx.font = `500 ${lineHeight}px ${getFontFamilySpec("sans")}`;
-    const rows = wrapTextLines(ctx, line, columnWidth).slice(0, 3);
-    const blockTop =
-      idx < 2 ? q.y + pad + lineHeight : q.y + halfH - pad - rows.length * lineHeight * 1.3;
-    rows.forEach((row, rowIdx) => {
-      ctx.fillStyle = ink;
-      ctx.fillText(row, textX, blockTop + rowIdx * lineHeight * 1.3);
-    });
-  });
 
   // Czarne linie dzielące siatkę (10px)
   ctx.strokeStyle = "#000000";
@@ -763,16 +743,16 @@ export function draw4GridCollageSlide(
     return;
   }
 
-  // Teza przez cały kadr: `fitLines` dobija rozmiar do szerokości, bo stałe
-  // 76 px wypychało jedno zdanie za obie krawędzie.
+  // Napis to jedno-dwa słowa, więc może uderzyć rozmiarem: dawniej stałe
+  // 76 px dobijane do całego zdania czyniło z podpisu stopkę.
   const usable = width - pad * 2;
   const fitted = fitLines(
     ctx,
     centerText,
     usable,
-    3,
+    2,
     (size) => `700 ${size}px ${getFontFamilySpec(fontFamily)}`,
-    Math.round(width * 0.082 * textScale),
+    Math.round(width * 0.135 * textScale),
   );
 
   const blockHeight = fitted.lines.length * fitted.size * 1.22;
@@ -1093,7 +1073,6 @@ export function renderUniversalLayout(
       width,
       height,
       centerText: layerById(spec, PRIMARY_LAYER_ID) || "",
-      lines: groupText(spec, "step"),
       images,
       handle,
       fontColor,

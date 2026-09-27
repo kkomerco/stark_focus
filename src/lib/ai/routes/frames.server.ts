@@ -7,6 +7,7 @@ import {
   HOOK_REGISTER,
   SLOP_BAN_LIST,
   auditHook,
+  auditLabel,
   auditLine,
 } from "../../hookCraft";
 import { hookFingerprint } from "../../similarity";
@@ -171,7 +172,12 @@ interface DuplicateState {
  * zmiękcza odpowiedź modelu, więc trzeci warunek jest zabezpieczeniem dla
  * treści, która przyszłaby inną drogą — to ta sama funkcja, nie druga lista.
  */
-function checkLine(line: string, maxWords: number | null, state: DuplicateState): LineCheck {
+function checkLine(
+  line: string,
+  maxWords: number | null,
+  state: DuplicateState,
+  short = false,
+): LineCheck {
   if (!line) return { fatal: REASON.empty, issues: [] };
   if (isPolishCopy(line)) return { fatal: REASON.polish, issues: [] };
   if (softenForPlatform(line) !== line) return { fatal: REASON.risk, issues: [] };
@@ -181,7 +187,13 @@ function checkLine(line: string, maxWords: number | null, state: DuplicateState)
   // Drugi raz w tym samym kadrze to wiersz do skreślenia, nie wariant do wyrzucenia.
   if (state.used.has(fp)) return { fatal: null, issues: [REASON.repeated] };
 
-  const audit = maxWords === null ? auditHook(line) : auditLine(line, maxWords);
+  // `short` to podpis (kolaż): jedno-dwa słowa, których miara hooka nie oceni,
+  // bo hook żąda trzech słów i pełnej myśli.
+  const audit = short
+    ? auditLabel(line)
+    : maxWords === null
+      ? auditHook(line)
+      : auditLine(line, maxWords);
   return { fatal: null, issues: audit.issues.map(issueLabel) };
 }
 
@@ -325,7 +337,7 @@ export function rankFrameCandidates(
       // Pole pojedyncze (teza, pytanie, puenta) nie ma „wiersza do wycięcia":
       // bez tego zdania kadr jest innym układem, więc odmowa zostaje twarda.
       const line = cleanLine(entry[field.key]);
-      const check = checkLine(line, null, state);
+      const check = checkLine(line, null, state, field.short === true);
       if (check.fatal) {
         fatal = check.fatal;
         break;
