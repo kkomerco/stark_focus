@@ -1,6 +1,15 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { auditHook, auditLine, isAiSlop } from "./hookCraft";
+import { HOOK_CRAFT_PROMPT, auditHook, auditLine, isAiSlop } from "./hookCraft";
+
+describe("HOOK_CRAFT_PROMPT", () => {
+  it("niesie zasadę zrozumiałości bez kontekstu, bo reszta bloku wymusza konkret", () => {
+    // Bez tej reguły model pisze scenki („You delete the chat draft.") — zdanie
+    // namacalne, ale puste, więc czytelnik przewija.
+    assert.match(HOOK_CRAFT_PROMPT, /zrozumiałości bez kontekstu/);
+    assert.match(HOOK_CRAFT_PROMPT, /gest bez konsekwencji/);
+  });
+});
 
 describe("auditHook", () => {
   it("odrzuca klisze, abstrakt w roli podmiotu i ugaszony koniec", () => {

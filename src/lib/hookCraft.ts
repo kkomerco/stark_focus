@@ -334,6 +334,21 @@ export const HOOK_MAX_WORDS = 12;
 export const HOOK_IDEAL_WORDS = "4-10";
 
 /**
+ * Konkret bez postawionej tezy jest zagadką. Cały blok powyżej wymusza rzecz,
+ * gest i liczbę, więc model nauczył się pisać scenki: „You delete the chat
+ * draft." / „Put the glass down." — zdanie prawdziwe, namacalne i zupełnie
+ * puste, bo czytelnik nie wie, o co chodzi, i przewija. Ta reguła trzyma
+ * sens na kadrze, a nie w głowie autora.
+ */
+export const CONTEXT_FREE_RULE =
+  "Zasada zrozumiałości bez kontekstu: czytelnik patrzy pół sekundy i nie znał wczorajszego posta. " +
+  "Zdanie musi samo nieść myśl — nazwać stawkę (kto traci, co to kosztuje, dlaczego tak jest) albo domknąć ją " +
+  "razem z następnym wierszem tak, żeby z całej karty wynikała teza, nie scenka. " +
+  "Sam gest bez konsekwencji („You delete the chat draft.”, „Put the glass down.”) jest zagadką: niech czytelnik " +
+  "nie musi znać tematu rolki, żeby zrozumieć, o co chodzi. " +
+  "Zakaz skrótów myślowych rozumianych tylko przez autora — podpis pod zdjęciem to nie treść.";
+
+/**
  * Blok do wklejenia w każdy prompt treści. Trasy nie wymyślają własnych
  * zakazów — dzięki temu „dobra rada" nie wygląda inaczej w rolce, inaczej
  * w karuzeli i inaczej w paczce dnia.
@@ -342,4 +357,5 @@ export const HOOK_CRAFT_PROMPT = `ZASADY RZEMIOSLA (wspolne dla calej marki):
 ${HOOK_ARCHETYPES.map((a) => `- ${a.id}: ${a.instruction}`).join("\n")}
 ${HOOK_REGISTER}
 ${SLOP_BAN_LIST}
+${CONTEXT_FREE_RULE}
 Kazde zdanie ma byc jedna z powyzszych figur, nie parafraza tematu.`;
