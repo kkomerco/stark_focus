@@ -728,11 +728,11 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
     // budowanie warstw od `SPEC_BLACK_QUOTE` spłaszczało każdy układ do cytatu
     // na czerni, więc protokół, koszt i kolaż znikały w edytorze, choć trasa
     // je oddawała.
-    setSpec({
-      ...specForBatchItem(item, spec),
-      layoutName: `${item.layoutName || "Cytat"} // ${item.pillar}`,
-    });
-    setSlotImages([]);
+    const next = specForBatchItem(item, spec);
+    setSpec({ ...next, layoutName: `${item.layoutName || "Cytat"} // ${item.pillar}` });
+    // Kolaż bez slotsów na zdjęcia to kadr, którego nie da się dokończyć —
+    // stąd puste cztery pola, a nie wyczyszczona lista.
+    setSlotImages(Array.from({ length: next.slotCount }, () => null));
     setIsBatchModalOpen(false);
   };
 

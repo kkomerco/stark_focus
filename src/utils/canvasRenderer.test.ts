@@ -134,6 +134,10 @@ const COST = structuredSpec("Koszt i utrata", "cost_vs_reward", {
 const COLLAGE = structuredSpec("Kolaż", "grid_2x2", {
   primary: "Work unseen",
 });
+// Studio pokazuje panel „Wgraj zdjęcia" tylko wtedy, gdy kadr mówi ile ma
+// slotów — bez tego kolaż z generatora nie miał gdzie przyjąć czterech kadrów.
+assert.equal(COLLAGE.slotCount, 4);
+assert.deepEqual(COLLAGE.slotLabels, ["Kadr 1", "Kadr 2", "Kadr 3", "Kadr 4"]);
 
 const QUOTE = structuredSpec("Cytat", "none_solid", {
   primary: "You get one hour back a day. Nobody spends it.",
@@ -197,6 +201,7 @@ describe("renderUniversalLayout", () => {
     // Podpis ma uderzać rozmiarem, nie pełnić roli stopki pod siatką.
     const labelSize = Number((drawn[0].font.match(/(\d+)px/) ?? [])[1]);
     assert.ok(labelSize >= 100, `rozmiar napisu ${labelSize}px — za mały na środek kadru`);
+    assert.equal(QUOTE.slotCount, 0, "sloty należą się tylko układowi ze zdjęciami");
   });
 
   it("krój ze speca schodzi na tezę kadru, nie domyślny literał układu", () => {

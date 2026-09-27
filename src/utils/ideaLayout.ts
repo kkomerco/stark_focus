@@ -83,8 +83,10 @@ export function structuredSpec(
     backgroundColor: "#050505",
     dividerWidth: 0,
     dividerColor: "#000000",
-    slotCount: 0,
-    slotLabels: [],
+    // Kolaż żyje ze zdjęć: bez slotsów w specie studio nie pokazuje panelu
+    // „Wgraj zdjęcia", więc wygenerowany kolaż dało się tylko podziwiać.
+    slotCount: gridType === "grid_2x2" ? 4 : 0,
+    slotLabels: gridType === "grid_2x2" ? ["Kadr 1", "Kadr 2", "Kadr 3", "Kadr 4"] : [],
     textEffect: "flat",
     fontFamilyCustom: "cinzel",
     fontColorMode: "white",
