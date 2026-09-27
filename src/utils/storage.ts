@@ -86,10 +86,25 @@ function normalizeParsedData(parsed: any, base: StarkFocusData): StarkFocusData 
     return true;
   });
 
+  // Wcześniejsze `{ ...base, ...parsed }` wlewało do stanu KAŻDY klucz z pliku,
+  // a `loadStoredData` zapisywało go potem z powrotem do localStorage — więc
+  // pole po wersji, której już nie ma, rosło razem z kopią w nieskończoność.
+  // Przy 5 MB limicie przeglądarki walka o miejsce kończyła się tak, że
+  // `shrinkForQuota` wycinało `vault_assets`, żeby ratować czyjeś śmieci.
+  // Dozwolone klucze to te z danych domyślnych (compiler pilnuje, by były
+  // kompletne) plus pola opcjonalne, których typ sam z siebie nie wymusza.
+  const allowed = new Set([...Object.keys(base), "notificationsEnabled"]);
+  const known: Record<string, unknown> = {};
+  if (parsed && typeof parsed === "object") {
+    for (const [key, value] of Object.entries(parsed)) {
+      if (allowed.has(key)) known[key] = value;
+    }
+  }
+
   // Bezpieczne wartości domyślne – nic nie rzuci błędem .filter()
   return {
     ...base,
-    ...parsed,
+    ...known,
     posts: Array.isArray(parsed?.posts) ? parsed.posts : [],
     vault_assets: cleanedAssets,
     // Dziennik publikacji: bez tego aplikacja nie wie, co naprawdę wyszło.
@@ -195,9 +210,12 @@ export function importStoredData(rawJson: string): ImportResult {
   } catch {
     // Brak miejsca na podgląd sprzed importu nie blokuje samego importu
   }
-  // Walidacja pełnego kształtu dopiero przy odczycie (normalizeParsedData);
-  // tu zapisujemy surowy obiekt, żeby nie pisać drugiego normalizatora.
-  saveStoredData(source as unknown as StarkFocusData);
+  // Import przechodzi przez ten sam normalizator co odczyt, ZANIM cokolwiek
+  // trafi do localStorage. Wcześniejszy zapis surowego pliku oznaczał, że
+  // śmieci z pliku są przechowywane dokładnie tak, jak je ktoś wyeksportował,
+  // a filtr kształtu włączał się dopiero przy następnym wczytaniu.
+  const normalized = normalizeParsedData(source, structuredClone(INITIAL_DATA));
+  saveStoredData(normalized);
   return { ok: true };
 }
 

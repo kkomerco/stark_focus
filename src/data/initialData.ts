@@ -37,4 +37,13 @@ export const INITIAL_DATA: StarkFocusData = {
     tiktok: "stark_focus",
     youtube: "@stark_focus",
   },
+  // Pola, które aplikacja czyta od pierwszego uruchomienia. Są tu, a nie
+  // „jakiś tam undefined", z jednego powodu: `storage.ts` przyjmuje przy
+  // imporcie wyłącznie klucze obecne w tych danych domyślnych. Bez tej listy
+  // nowsze pole zgubiłoby historię przy każdym wczytaniu kopii.
+  published: [],
+  ab_experiments: [],
+  prompt_library: [],
+  saved_trends: [],
+  used_idea_fingerprints: [],
 };
