@@ -101,4 +101,27 @@ describe("import kopii — tylko znane pola", () => {
     assert.equal(after.xp, 300);
     assert.deepEqual(Object.keys(after).sort(), Object.keys({ ...INITIAL_DATA, ...after }).sort());
   });
+
+  it("wzorce ręczne przeżywają eksport/import, a śmieci z listy odpadają", () => {
+    const before = loadStoredData();
+    const backup = serializeBackup({
+      ...before,
+      exemplars: [
+        "Rust works while you sleep.",
+        "  The rent is due every morning.  ",
+        "rust works while you sleep", // duplikat odciskiem — ma odpaść
+        "", // puste — ma odpaść
+        42, // nie-tekst — ma odpaść
+        "x".repeat(400), // za długie — ma być ucięte do 300
+      ] as any,
+    });
+
+    assert.equal(importStoredData(backup).ok, true);
+    const after = loadStoredData();
+    assert.deepEqual(after.exemplars, [
+      "Rust works while you sleep.",
+      "The rent is due every morning.",
+      "x".repeat(300),
+    ]);
+  });
 });

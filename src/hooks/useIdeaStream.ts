@@ -2,7 +2,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { IdeaItem, IdeaStreamResponse, StarkFocusData } from "../types";
 import { hookFingerprint, maxSimilarity, SIMILARITY } from "../lib/similarity";
 import { usedHookFingerprints } from "../lib/usedContent";
-import { topPublishedHooks } from "../lib/published";
+import { exemplarHooksFor } from "../lib/published";
 import { fetchJson } from "../lib/fetchJson";
 
 export interface ScoredIdea extends IdeaItem {
@@ -51,8 +51,12 @@ export function useIdeaStream(
   const usedFingerprints = useMemo(() => usedHookFingerprints(data), [data]);
   // Wzorce liczone osobno i w osobnym `useMemo`: całe `data` zmienia się przy
   // każdym kliknięciu, a prompt ma zostawać taki sam, dopóki nie przybędzie
-  // publikacja z metrykami.
-  const exemplars = useMemo(() => topPublishedHooks(data.published ?? []), [data.published]);
+  // oznaczony wzorzec albo publikacja z metrykami. Formuła jest jedna —
+  // `exemplarHooksFor`: ręczne wzorce, potem najlepsze z dziennika.
+  const exemplars = useMemo(
+    () => exemplarHooksFor({ exemplars: data.exemplars, published: data.published }),
+    [data.exemplars, data.published],
+  );
 
   /** Zamknięcie okna nie zostawia zapytania w locie — wynik i tak byłby do wyrzucenia. */
   const abort = useCallback(() => {

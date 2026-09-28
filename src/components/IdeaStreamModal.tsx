@@ -2,6 +2,8 @@
 // Historia odcisków (posty + dziennik + to, co wysłano do studia) decyduje, co nie wróci.
 import React from "react";
 import {
+  BookmarkCheck,
+  BookmarkPlus,
   Check,
   Copy,
   Film,
@@ -14,7 +16,7 @@ import {
 } from "lucide-react";
 import { IdeaItem, ReelHandoff } from "../types";
 import { formatById, formatByGrid } from "../lib/formats";
-import { SIMILARITY } from "../lib/similarity";
+import { hookFingerprint, SIMILARITY } from "../lib/similarity";
 import type { useIdeaStream } from "../hooks/useIdeaStream";
 
 /**
@@ -28,6 +30,13 @@ interface IdeaStreamModalProps {
   isOpen: boolean;
   onClose: () => void;
   stream: IdeaStreamState;
+  /**
+   * Wzorce ręczne z `data.exemplars` — lista trzyma rodzic, bo to ona karmi
+   * prompty generatorów, a modal tylko oznacza zdania na kartach.
+   */
+  exemplars: string[];
+  /** Dodaje/zdejmuje zdanie z listy wzorców dla modelu (zapis w rodzicu). */
+  onToggleExemplar: (hook: string) => void;
   onSendToReel: (reel: ReelHandoff) => void;
   /**
    * Trzeci argument to CAŁY pomysł z trasy (`layout` + `structure`), nie tekst:
@@ -64,12 +73,20 @@ export const IdeaStreamModal: React.FC<IdeaStreamModalProps> = ({
   isOpen,
   onClose,
   stream,
+  exemplars,
+  onToggleExemplar,
   onSendToReel,
   onSendToPost,
 }) => {
   const { ideas, loading, error, notice, usedCount, generateIdeas, markUsed, clearHistory, abort } =
     stream;
   const [copiedId, setCopiedId] = React.useState<string | null>(null);
+  // Aktywny stan przełącznika liczymy odciskiem — model potrafi oddać to samo
+  // zdanie z inną wielkością liter, a wzorzec ma się zapalić i wtedy.
+  const exemplarFingerprints = React.useMemo(
+    () => new Set(exemplars.map(hookFingerprint)),
+    [exemplars],
+  );
   // Kasowanie pamięci generatora wymaga drugiego kliknięcia: to jedyna rzecz,
   // która chroni przed powtórkami, a wchodzi w nią tylko to, po co kliknął.
   const [confirmForget, setConfirmForget] = React.useState(false);
@@ -251,6 +268,27 @@ export const IdeaStreamModal: React.FC<IdeaStreamModalProps> = ({
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => onToggleExemplar(idea.hook)}
+                      title={
+                        exemplarFingerprints.has(hookFingerprint(idea.hook))
+                          ? "Usuń ze wzorców dla modelu"
+                          : "Wzorzec dla modelu — kolejne partie będą naśladować to zdanie"
+                      }
+                      className={
+                        exemplarFingerprints.has(hookFingerprint(idea.hook))
+                          ? "py-1.5 px-3 rounded bg-rose-600/20 hover:bg-rose-600/30 border border-rose-600/40 text-[11px] font-mono font-bold text-rose-300 flex items-center gap-1.5 cursor-pointer transition-colors"
+                          : ACTION_BTN
+                      }
+                    >
+                      {exemplarFingerprints.has(hookFingerprint(idea.hook)) ? (
+                        <BookmarkCheck className="w-3 h-3" />
+                      ) : (
+                        <BookmarkPlus className="w-3 h-3" />
+                      )}
+                      Wzorzec
+                    </button>
                     <button
                       type="button"
                       onClick={() => {

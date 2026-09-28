@@ -252,6 +252,12 @@ export interface StarkFocusData {
   saved_trends?: TrendItem[];
   social_handles?: SocialHandles;
   used_idea_fingerprints?: string[];
+  /**
+   * Zdania oznaczone ręcznie na kartach pomysłów jako wzorce dla modelu.
+   * Dziennik publikacji nie ma już ekranu, więc bez tej listy few-shot
+   * w promptach głodowałby do zera.
+   */
+  exemplars?: string[];
   ab_experiments?: AbExperiment[];
   prompt_library?: PromptLibraryItem[];
   /** Co poszło na konto i jak sobie poradziło — jedyna pamięć o rzeczywistości. */

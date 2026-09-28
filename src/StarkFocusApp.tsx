@@ -25,7 +25,8 @@ import {
 import { specFromIdea } from "./utils/ideaLayout";
 import { fitFrame, specFromFrame } from "./utils/frameFit";
 import { usedHookFingerprints } from "./lib/usedContent";
-import { normalizePublished, topPublishedHooks } from "./lib/published";
+import { exemplarHooksFor, MAX_EXEMPLARS, normalizePublished } from "./lib/published";
+import { hookFingerprint } from "./lib/similarity";
 import { DataBar } from "./components/DataBar";
 import { loadStoredData, saveStoredData } from "./utils/storage";
 import { useIdeaStream } from "./hooks/useIdeaStream";
@@ -147,9 +148,33 @@ export default function StarkFocusApp() {
   // Jedna lista na wszystkie generatory: to, co już wyszło z aplikacji.
   // Memoizowana, bo każdy generator trzyma ją w zależnościach efektu.
   const usedHooks = useMemo(() => usedHookFingerprints(data), [data]);
-  // Wzorce idą do promptu dopiero, gdy dziennik ma co pokazać: bez metryk
-  // „najlepsze zdanie" jest zgadywanką.
-  const exemplarHooks = useMemo(() => topPublishedHooks(data.published ?? []), [data.published]);
+  // Wzorce do promptu: najpierw ręcznie oznaczone zdania (klik na karcie
+  // pomysłu), potem najlepsze z dziennika — jedna formuła w `exemplarHooksFor`.
+  const exemplarHooks = useMemo(
+    () => exemplarHooksFor({ exemplars: data.exemplars, published: data.published }),
+    [data.exemplars, data.published],
+  );
+
+  /**
+   * „To jest wzorzec" na karcie pomysłu: zdanie trafia do `data.exemplars`,
+   * skąd `exemplarHooksFor` bierze je do promptów. Drugi klik zdejmuje
+   * oznaczenie; porównujemy odciskiem, bo model potrafi oddać to samo zdanie
+   * z inną wielkością liter.
+   */
+  const handleToggleExemplar = (hook: string) => {
+    const fingerprint = hookFingerprint(hook);
+    if (!fingerprint) return;
+    handleUpdateData((prev) => {
+      const list = prev.exemplars ?? [];
+      const marked = list.some((entry) => hookFingerprint(entry) === fingerprint);
+      return {
+        ...prev,
+        exemplars: marked
+          ? list.filter((entry) => hookFingerprint(entry) !== fingerprint)
+          : [...list, hook.trim().slice(0, 300)].slice(-MAX_EXEMPLARS),
+      };
+    });
+  };
 
   const handleSavePostFrom1to1 = (post: any) => {
     const newPost: Post = {
@@ -352,6 +377,8 @@ export default function StarkFocusApp() {
             isOpen={ideaStreamOpen}
             onClose={() => setIdeaStreamOpen(false)}
             stream={ideaStream}
+            exemplars={data.exemplars ?? []}
+            onToggleExemplar={handleToggleExemplar}
             onSendToReel={(reel) => {
               setIdeaStreamOpen(false);
               handleSendToReel(reel);

@@ -42,6 +42,7 @@ export const INITIAL_DATA: StarkFocusData = {
   // imporcie wyłącznie klucze obecne w tych danych domyślnych. Bez tej listy
   // nowsze pole zgubiłoby historię przy każdym wczytaniu kopii.
   published: [],
+  exemplars: [],
   ab_experiments: [],
   prompt_library: [],
   saved_trends: [],

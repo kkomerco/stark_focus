@@ -1,5 +1,5 @@
 import { AbExperiment, StarkFocusData } from "../types";
-import { normalizePublished } from "../lib/published";
+import { normalizeExemplars, normalizePublished } from "../lib/published";
 import { INITIAL_DATA } from "../data/initialData";
 
 const STORAGE_KEY = "stark_focus_os_v31_data";
@@ -109,6 +109,8 @@ function normalizeParsedData(parsed: any, base: StarkFocusData): StarkFocusData 
     vault_assets: cleanedAssets,
     // Dziennik publikacji: bez tego aplikacja nie wie, co naprawdę wyszło.
     published: normalizePublished(parsed?.published),
+    // Wzorce ręczne: niepuste teksty ≤300 znaków, bez duplikatów, max 50 najnowszych.
+    exemplars: normalizeExemplars(parsed?.exemplars),
     ab_experiments: normalizeAbExperiments(parsed?.ab_experiments),
     // Streak z zapisanej wartości, inaczej liczony od daty utworzenia konta
     streak: readStreak(parsed),

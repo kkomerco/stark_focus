@@ -9,7 +9,7 @@
  * kilkudziesięciu prób na układ — przy tej skali byłyby zgadywanką, więc wolimy
  * nie mieć ich wcale niż mieć wymyślone.
  */
-import type { PublishedItem, PublishKind, PublishMetrics } from "../types";
+import type { PublishedItem, PublishKind, PublishMetrics, StarkFocusData } from "../types";
 import { hookFingerprint } from "./similarity";
 
 /** Poniżej tylu prób nie ma wniosku, jest tylko ciekawostka. */
@@ -318,6 +318,54 @@ export function topPublishedHooks(items: PublishedItem[], limit = 6): string[] {
     seen.add(fp);
     out.push(entry.hook);
     if (out.length >= limit) break;
+  }
+  return out;
+}
+
+// ===== Wzorce ręczne (jedno kliknięcie na karcie pomysłu) =====
+
+/** Sufit listy wzorców — jedna miara dla normalizatora i przełącznika na karcie. */
+export const MAX_EXEMPLARS = 50;
+
+/**
+ * Lista zapisana przez właściciela marki, ale plik z importu może mieć cokolwiek:
+ * tylko niepuste teksty, każdy ucięty do 300 znaków, bez duplikatów (odcisk),
+ * nie więcej niż 50 NAJNOWSZYCH — lista jest dopisywana na końcu.
+ */
+export function normalizeExemplars(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const entry of value) {
+    const hook = typeof entry === "string" ? entry.trim().slice(0, 300) : "";
+    if (!hook) continue;
+    const fp = hookFingerprint(hook);
+    if (seen.has(fp)) continue;
+    seen.add(fp);
+    out.push(hook);
+  }
+  return out.slice(-MAX_EXEMPLARS);
+}
+
+/**
+ * Wzorce do promptu z JEDNEGO miejsca: najpierw zdania oznaczone ręcznie
+ * (ostatnie 8 — dziennik publikacji nie ma już ekranu, więc to one niosą
+ * few-shot), potem najlepsze hooki z dziennika. Bez duplikatów, nie więcej
+ * niż 8 łącznie. Trzy generatory liczą tę listę tutaj, a nie u siebie.
+ */
+export function exemplarHooksFor(
+  data: Pick<StarkFocusData, "exemplars" | "published">,
+  limit = 8,
+): string[] {
+  const marked = normalizeExemplars(data.exemplars).slice(-limit);
+  const seen = new Set(marked.map(hookFingerprint));
+  const out = [...marked];
+  for (const hook of topPublishedHooks(data.published ?? [])) {
+    if (out.length >= limit) break;
+    const fp = hookFingerprint(hook);
+    if (seen.has(fp)) continue;
+    seen.add(fp);
+    out.push(hook);
   }
   return out;
 }
