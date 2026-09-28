@@ -33,6 +33,16 @@ import {
 /** Nadmiar jest darmowy, każdy kolejny klik już nie (darmowy tier). */
 const OVERGENERATE = 6;
 
+/**
+ * Który układ ma być wypełniony. Studio posta podaje `format` (id z tabeli),
+ * karta z taniego strumienia podaje `layout` (gridType z speca) — dawniej
+ * pierwszy argument miał domyślne „quote", więc drugiego nikt nigdy nie
+ * czytał i protokół wracał jako cytat z samą tezą.
+ */
+export function resolveFrameFormat(formatId: string, layoutId: string): FrameFormat {
+  return formatById(formatId) ?? formatByGrid(layoutId) ?? FRAME_FORMATS[0];
+}
+
 export function buildFramePrompt(
   format: FrameFormat,
   topic: string,
@@ -472,10 +482,10 @@ export function buildFrameNotice(
 export function registerFrameRoutes(app: MiniApp): void {
   app.post("/api/ai/frame-fill", async (req, res) => {
     const thesis = clampText(req.body?.thesis, 300, "");
-    const format =
-      formatById(clampText(req.body?.format, 24, "quote")) ??
-      formatByGrid(clampText(req.body?.layout, 24, "")) ??
-      FRAME_FORMATS[0];
+    const format = resolveFrameFormat(
+      clampText(req.body?.format, 24, ""),
+      clampText(req.body?.layout, 24, ""),
+    );
     const topic = clampText(req.body?.topic, 200, thesis || "stoic discipline and quiet standards");
     // Przypięta teza znaczy jeden kadr: człowiek wybrał zdanie, nie losuje partii.
     const count = thesis ? 1 : clampInt(req.body?.count, 1, 6, 3);

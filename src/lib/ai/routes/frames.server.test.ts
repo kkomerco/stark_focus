@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { buildFrameNotice, buildFramePrompt, rankFrameCandidates } from "./frames.server";
+import {
+  buildFrameNotice,
+  buildFramePrompt,
+  rankFrameCandidates,
+  resolveFrameFormat,
+} from "./frames.server";
 import { formatById } from "../../formats";
 
 /**
@@ -299,5 +304,22 @@ describe("przypięta teza (wypełnienie karty z taniego strumienia)", () => {
     const prompt = buildFramePrompt(protocol, "cold mornings", []);
     assert.ok(prompt.includes("Napisz 6 warianty"), prompt.slice(0, 400));
     assert.ok(!/przypięta/i.test(prompt));
+  });
+});
+
+/**
+ * Studio podaje id formatu, karta z taniego strumienia podaje gridType.
+ * Pierwsze z domyślnym „quote" anulowało drugie i protokół wracał jako cytat.
+ */
+describe("resolveFrameFormat", () => {
+  it("słucha layoutu z karty, gdy format nie padł", () => {
+    assert.equal(resolveFrameFormat("", "protocol_list").id, "protocol");
+    assert.equal(resolveFrameFormat("", "cost_vs_reward").id, "cost");
+    assert.equal(resolveFrameFormat("", "grid_2x2").id, "collage");
+  });
+
+  it("id formatu wygrywa, a brak obu zostaje przy cytacie", () => {
+    assert.equal(resolveFrameFormat("cost", "protocol_list").id, "cost");
+    assert.equal(resolveFrameFormat("", "").id, "quote");
   });
 });
