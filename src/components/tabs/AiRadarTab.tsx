@@ -923,8 +923,8 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
             <p className="text-[10px] font-mono text-neutral-500 leading-relaxed -mt-1">
               Model układa tu wzorce, które widuje u dużych nadawców w tej niszy: motyw, ból
               odbiorcy i hooki 0-3 s. To propozycja do napisania, nie pomiar z sieci. O tym, co u
-              nas działa, nie orzekamy procentem z głowy — rozstrzyga dziennik publikacji, i to
-              dopiero po {MIN_SAMPLE} zmierzonych wpisach w tym samym układzie.
+              nas działa, nie orzekamy procentem z głowy — aplikacja tego nie mierzy, więc zostaje
+              to, co sam widzisz na koncie.
             </p>
 
             <div className="space-y-3">
