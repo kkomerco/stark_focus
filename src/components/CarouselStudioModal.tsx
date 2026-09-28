@@ -11,7 +11,6 @@ import {
 } from "../utils/canvasRenderer";
 import type { RenderSlideOptions } from "../utils/canvasRenderer";
 import type { CarouselFontFamily, SlideData, TopHeaderMode, VisualTheme } from "../types";
-import { seriesCaption, seriesLine } from "../lib/series";
 import { formatStarkCaption, stripHashtagTail, starkHashtags } from "../lib/caption";
 import { CAROUSEL_MAX_SLIDES, CAROUSEL_TARGET_SLIDES } from "../lib/carousel";
 import { ensureBrandFonts } from "../utils/fonts";
@@ -52,12 +51,9 @@ interface CarouselStudioModalProps {
   slides: unknown; // odpowiedź modelu / banku treści — kształt niezaufany
   caption?: string;
   handle: string;
-  /** Numer edycji w serii — stopka „STARK CODEX 07/52" robi z postów ciało pracy. */
-  edition?: number;
   /**
    * Eksport karuzeli to skończony materiał, więc wchodzi do `data.posts` jak
-   * zapisany post: bez tego `nextEdition` liczyłby ten sam numer do skutku, a
-   * `usedHookFingerprints` nie miałby czego wykluczyć.
+   * zapisany post: bez tego `usedHookFingerprints` nie miałby czego wykluczyć.
    */
   onSave?: (carousel: { hook: string; title: string; caption: string; slideCount: number }) => void;
   onClose: () => void;
@@ -130,7 +126,6 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
   slides: incomingSlides,
   caption,
   handle,
-  edition = 1,
   onSave,
   onClose,
 }) => {
@@ -159,9 +154,8 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
       theme,
       fontChoice,
       topHeaderMode,
-      footerSignature: seriesLine(edition),
     }),
-    [slides, handle, theme, fontChoice, topHeaderMode, edition],
+    [slides, handle, theme, fontChoice, topHeaderMode],
   );
 
   useEffect(() => {
@@ -231,21 +225,20 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
   };
 
   /**
-   * Opis ZIP-a jest zawsze nasz: gdy źródło dało własny opis, doklejamy numer
-   * edycji i hashtagi z `caption.ts`; gdy nie dał nic, stopkę układamy z tezy
+   * Opis ZIP-a jest zawsze nasz: gdy źródło dało własny opis, doklejamy do
+   * niego hashtagi z `caption.ts`; gdy nie dał nic, stopkę układamy z tezy
    * pierwszego slajdu. Dawniej wpadało tu „Slajd 1: …" pisane z etykiet UI,
    * czyli polski podpis wychodził jako opis angielskiego materiału.
    */
   const buildCaptionText = useCallback(
     (thesis: string): string => {
       const source = text(caption, 5000);
-      const editionLine = seriesCaption(edition);
-      if (!source) return formatStarkCaption(thesis, [], editionLine);
+      if (!source) return formatStarkCaption(thesis, []);
       const bare = stripHashtagTail(source);
-      if (!bare) return formatStarkCaption(thesis, [], editionLine);
-      return `${bare}\n\n${editionLine}\n\n${starkHashtags(`${thesis} ${bare}`).join(" ")}`;
+      if (!bare) return formatStarkCaption(thesis, []);
+      return `${bare}\n\n${starkHashtags(`${thesis} ${bare}`).join(" ")}`;
     },
-    [caption, edition],
+    [caption],
   );
 
   const handleDownloadZip = async () => {

@@ -53,7 +53,6 @@ export interface RenderSlideOptions {
   highlightWords?: string;
   fontChoice?: CarouselFontFamily;
   isContinuous?: boolean; // Ciągłość karuzeli (delikatne łączniki krawędzi)
-  footerSignature?: string; // Podpis w stopce kadru — numer edycji z `series.ts` ("STARK CODEX 07/52")
   bgStyle?: "flat_fog" | "procedural" | "image"; // Styl tła: płaskie/zamglone bez stałych obiektów
 }
 
@@ -1413,7 +1412,6 @@ export function drawSlideToCanvas(canvas: HTMLCanvasElement, options: RenderSlid
     highlightWords = "",
     fontChoice = "plus_jakarta",
     isContinuous = false,
-    footerSignature = "",
     bgStyle = "flat_fog",
   } = options;
 
@@ -1773,12 +1771,10 @@ export function drawSlideToCanvas(canvas: HTMLCanvasElement, options: RenderSlid
     ctx.fillText(`@${cleanHandle}`, contentLeftX, footerY + 6);
   }
 
-  // 6B. Prawa strona stopki. Albo numer edycji (`footerSignature` z `series.ts`
-  // — był destructured i nigdy nierysowany, więc znikał z każdego slajda), albo
-  // na ostatnim kadrze zamykające wezwanie z puli marki (`starkCta`). Jedno
-  // obok drugiego nie zmieści się na wiersz, a dawniej stał tu napis
-  // „SAVE THIS POST ⚑” i „SWIPE ➔” na każdym wcześniejszym: dwa znaki, których
-  // w krojach marki nie ma, i zdanie bez autora.
+  // 6B. Prawa strona stopki: na ostatnim kadrze zamykające wezwanie z puli
+  // marki (`starkCta`). Dawniej stał tu napis „SAVE THIS POST ⚑" oraz „SWIPE ➔"
+  // na każdym wcześniejszym: dwa znaki, których w krojach marki nie ma, i
+  // zdanie bez autora. Numeru edycji tu nie ma — właściciel konta go zdjął.
   const closingCta = slideNumber === totalSlides ? starkCta(`${headline} ${bodyText}`) : "";
   if (closingCta) {
     ctx.font = 'bold 13px "Space Grotesk", monospace, sans-serif';
@@ -1791,11 +1787,6 @@ export function drawSlideToCanvas(canvas: HTMLCanvasElement, options: RenderSlid
     ctx.fillStyle = "#080C14";
     ctx.textAlign = "center";
     ctx.fillText(closingCta, width - 74 - badgeW / 2, footerY + 11);
-  } else if (footerSignature) {
-    ctx.font = 'bold 14px "Space Grotesk", monospace, sans-serif';
-    ctx.fillStyle = "#94A3B8";
-    ctx.textAlign = "right";
-    ctx.fillText(footerSignature, width - 74, footerY + 5);
   }
 }
 

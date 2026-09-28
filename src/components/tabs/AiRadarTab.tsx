@@ -26,7 +26,6 @@ import { Post, ReelHandoff, StarkFocusData, TrendItem } from "../../types";
 import { usedHookFingerprints } from "../../lib/usedContent";
 import { topPublishedHooks, MIN_SAMPLE } from "../../lib/published";
 import { formatStarkCaption, starkCaption } from "../../lib/caption";
-import { nextEdition } from "../../lib/series";
 import { fetchJson } from "../../lib/fetchJson";
 import { CarouselStudioModal } from "../CarouselStudioModal";
 
@@ -221,9 +220,8 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
   /**
    * Karuzela po eksporcie jest materiałem tak samo jak zapisany kadr, więc wchodzi
    * do `data.posts` — tam samo, gdzie studio 1:1 odkłada posty. Bez tego wpisu
-   * `nextEdition` oddawał ten sam numer edycji przy każdej karuzeli, a
-   * `usedHookFingerprints` nie miał jej tezy na liście wykluczeń. Drugiego
-   * magazynu na karuzelę nie budujemy.
+   * `usedHookFingerprints` nie miałby jej tezy na liście wykluczeń i ta sama
+   * myśl wróciłaby w kolejnej partii. Drugiego magazynu na karuzelę nie budujemy.
    */
   const handleCarouselSaved = useCallback(
     (carousel: { hook: string; title: string; caption: string; slideCount: number }) => {
@@ -1715,7 +1713,6 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
           slides={carouselStudio.slides}
           caption={carouselStudio.caption}
           handle={data.social_handles?.instagram || "stark_focus"}
-          edition={nextEdition(data)}
           onSave={handleCarouselSaved}
           onClose={() => setCarouselStudio(null)}
         />
