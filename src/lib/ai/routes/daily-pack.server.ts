@@ -13,7 +13,14 @@ import {
   HOOK_MAX_WORDS,
   exemplarBlock,
 } from "../../hookCraft";
-import { asArray, asString, asStringArray, oneOf, sendDegraded } from "../normalize.server";
+import {
+  asArray,
+  asString,
+  asStringArray,
+  degradedReason,
+  oneOf,
+  sendDegraded,
+} from "../normalize.server";
 import { publishableLine, publishableLines } from "../../prepublish";
 import { starkCaption, starkHashtags, starkShortCaption } from "../../caption";
 
@@ -252,7 +259,12 @@ Zwróć WYŁĄCZNIE poprawny JSON wg schematu:
       });
     } catch (err) {
       console.warn("Błąd daily-pack:", err);
-      return sendDegraded(res, buildOfflinePack(topic, reelsCount, safeExclude));
+      // Bank z powodem awarii w `notice` — treść z banku nigdy nie udaje odpowiedzi modelu.
+      return sendDegraded(
+        res,
+        buildOfflinePack(topic, reelsCount, safeExclude),
+        degradedReason(err),
+      );
     }
   });
 }

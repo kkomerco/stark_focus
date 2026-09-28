@@ -14,7 +14,14 @@ import {
 } from "../../hookCraft";
 import { FRAME_FORMATS, FrameFormat, formatFieldSpec } from "../../formats";
 import { formatStarkCaption, isPolishCopy, starkCaption, starkHashtags } from "../../caption";
-import { asArray, asString, asStringArray, oneOf, sendDegraded } from "../normalize.server";
+import {
+  asArray,
+  asString,
+  asStringArray,
+  degradedReason,
+  oneOf,
+  sendDegraded,
+} from "../normalize.server";
 
 /**
  * IDEA STREAM — generator pomysłów z anty-powtórką.
@@ -242,18 +249,28 @@ function buildOfflineIdeas(count: number, usedCount: number, excludeHooks: strin
  * pustelnia. Wolimy to powiedzieć w odpowiedzi, niż cicho wysłać mniej
  * pomysłów niż o nie proszono.
  */
-function sendOfflineIdeas(res: MiniResponse, count: number, used: number, exclude: string[]) {
+function sendOfflineIdeas(
+  res: MiniResponse,
+  count: number,
+  used: number,
+  exclude: string[],
+  reason?: string,
+) {
   const ideas = buildOfflineIdeas(count, used, exclude);
   const exhausted = ideas.length < count;
-  return sendDegraded(res, {
-    generatedAt: new Date().toISOString(),
-    source: "offline" as const,
-    ideas,
-    exhausted,
-    notice: exhausted
-      ? `Bank treści offline ma ${OFFLINE_HOOKS.length} zdań po kontroli rzemiosła — zostało ${ideas.length} z ${count}. Ustaw GEMINI_API_KEY albo zmniejsz liczbę.`
-      : undefined,
-  });
+  return sendDegraded(
+    res,
+    {
+      generatedAt: new Date().toISOString(),
+      source: "offline" as const,
+      ideas,
+      exhausted,
+      notice: exhausted
+        ? `Bank treści offline ma ${OFFLINE_HOOKS.length} zdań po kontroli rzemiosła — zostało ${ideas.length} z ${count}. Ustaw GEMINI_API_KEY albo zmniejsz liczbę.`
+        : undefined,
+    },
+    reason,
+  );
 }
 
 /** Pojedynczy pomysł od modelu -> kształt, którego studio użyje bez sprawdzania. */
@@ -418,7 +435,8 @@ Zwróć WYŁĄCZNIE JSON:
       });
     } catch (err) {
       console.warn("Idea stream error:", err);
-      return sendOfflineIdeas(res, safeCount, safeUsed, safeExclude);
+      // UI pokazuje `notice` — bank bez powodu udawałby wolny wybór, nie awarię.
+      return sendOfflineIdeas(res, safeCount, safeUsed, safeExclude, degradedReason(err));
     }
   });
 }

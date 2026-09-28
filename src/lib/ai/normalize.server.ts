@@ -70,15 +70,59 @@ function softenPayload(value: unknown): unknown {
 }
 
 /**
+ * Uczciwy powód degradacji z błędu Gemini: przeciążenie (503) i limit dzienny
+ * (429) to dwie różne diagnozy dla właściciela konta, a „coś nie działa" nie
+ * mówi, czy czekać minutę, czy do jutra. `ApiError` z SDK niesie `status`
+ * (liczbę), reszta kształtów — tylko `message`, więc czytamy oba.
+ */
+export function degradedReason(err: unknown): string {
+  const status = (err as { status?: unknown } | null)?.status;
+  const message = String((err as { message?: unknown } | null)?.message ?? err ?? "");
+  const lower = message.toLowerCase();
+  if (
+    status === 503 ||
+    message.includes("503") ||
+    message.includes("UNAVAILABLE") ||
+    lower.includes("high demand")
+  ) {
+    return "Model nie odpowiedział: przeciążenie darmowej warstwy (503). Poniżej treść z banku, nie od modelu.";
+  }
+  if (
+    status === 429 ||
+    message.includes("429") ||
+    lower.includes("quota") ||
+    lower.includes("limit")
+  ) {
+    return "Model nie odpowiedział: dzienny limit zapytań darmowej warstwy. Poniżej treść z banku, nie od modelu.";
+  }
+  return "Model nie odpowiedział. Poniżej treść z banku, nie od modelu.";
+}
+
+/**
+ * Powód degradacji doklejamy jako `notice` tylko do obiektu: payload tablicowy
+ * dostałby klucz na pozycji, której UI nie czyta, a `notice` i tak by zniknął.
+ * Własny `notice` trasy (np. wyczerpany bank) dostawiamy za powodem — obie
+ * informacje są prawdziwe, więc żadnej nie gubimy.
+ */
+function withDegradedNotice(payload: unknown, reason?: string): unknown {
+  if (!reason) return payload;
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return payload;
+  const base = payload as Record<string, unknown>;
+  const existing = typeof base.notice === "string" ? base.notice.trim() : "";
+  return { ...base, notice: existing ? `${reason} ${existing}` : reason };
+}
+
+/**
  * Wysłać treść z banku zamiast od modelu i oznaczyć ją dla routera, żeby NIE
  * weszła do cache. Osobne wywołanie `setHeader` łatwo pominąć przy nowym
- * fallbacie — stąd jedna funkcja na oba kroki.
+ * fallbacie — stąd jedna funkcja na oba kroki. Znany powód (`degradedReason`)
+ * dokłada do obiektu pole `notice`, które UI pokazuje użytkownikowi.
  */
 export function sendDegraded<
   T extends { setHeader(name: string, value: string): unknown; json(payload: unknown): unknown },
->(res: T, payload: unknown): unknown {
+>(res: T, payload: unknown, reason?: string): unknown {
   res.setHeader(DEGRADED_HEADER, "1");
-  return res.json(softenPayload(payload));
+  return res.json(softenPayload(withDegradedNotice(payload, reason)));
 }
 
 /** Wartość z zamkniętego słownika (temat, typ hooka, format). */

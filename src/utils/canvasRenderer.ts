@@ -1728,6 +1728,13 @@ export function drawSlideToCanvas(canvas: HTMLCanvasElement, options: RenderSlid
   let curY = layout.startY;
   const contentLeftX = 88;
 
+  // Pole atramentu dla sygnetu marki (klamry na końcu funkcji): góra to
+  // wersaliki nagłówka, dół to ostatni element treści NAD stopką — handle i
+  // CTA zostają poza klamrami. Krawędź atramentu, nie linia bazowa: wersaliki
+  // zaczynają się ~0,72 stopnia nad baseline, tak samo liczą układy kartowe.
+  let inkTop = layout.startY;
+  let inkBottom = layout.startY;
+
   // 5A. Pas nad nagłówkiem zostaje pusty. Wcześniejsze etykiety („HOOK // THE
   // UNFORGIVING REALITY”, „RULE 04 // PRINCIPLE”, „CONCLUSION // THE FINAL
   // DIRECTIVE”) kłamały — slajd nie jest zasadą, a teza nie jest cudzym
@@ -1735,6 +1742,7 @@ export function drawSlideToCanvas(canvas: HTMLCanvasElement, options: RenderSlid
   // Geometrii nie ruszamy: to oddech nad tezą liczony w `computeFittedSlideLayout`.
   ctx.textAlign = "left";
   curY += layout.headlineFontSize + 14;
+  inkTop = curY - layout.headlineFontSize * 0.72;
 
   // 5B. Headline z obsługą Enter i wyróżnianiem słów
   ctx.font = `900 ${layout.headlineFontSize}px ${fontFam.headlineFont}`;
@@ -1755,6 +1763,7 @@ export function drawSlideToCanvas(canvas: HTMLCanvasElement, options: RenderSlid
       currentX += ctx.measureText(`${token.text} `).width;
     });
 
+    inkBottom = curY + layout.headlineFontSize * 0.25;
     curY += layout.headlineLineHeight;
   });
 
@@ -1769,6 +1778,7 @@ export function drawSlideToCanvas(canvas: HTMLCanvasElement, options: RenderSlid
   ctx.moveTo(contentLeftX + 16, curY);
   ctx.lineTo(contentLeftX + Math.min(maxContentW, 260), curY);
   ctx.stroke();
+  inkBottom = curY + 3;
 
   curY += layout.bodyFontSize + 14;
 
@@ -1792,6 +1802,7 @@ export function drawSlideToCanvas(canvas: HTMLCanvasElement, options: RenderSlid
       currentX += tokenW + ctx.measureText(" ").width;
     });
 
+    inkBottom = curY + layout.bodyFontSize * 0.25;
     curY += layout.bodyLineHeight;
   });
 
@@ -1832,6 +1843,19 @@ export function drawSlideToCanvas(canvas: HTMLCanvasElement, options: RenderSlid
     ctx.textAlign = "center";
     ctx.fillText(closingCta, width - 74 - badgeW / 2, footerY + 11);
   }
+
+  // 7. SYGNET MARKI: klamry narożne pola treści — ten sam znak co na kartach
+  // posta (`renderUniversalLayout`), karmazyn tylko w górnym lewym rogu.
+  // Kolumna treści to 88..width-88 (tyle wynosi `maxContentW`), pion to
+  // atrament nagłówka…ostatni element NAD stopką. Slajd karuzeli jest ciemny
+  // przy każdym motywie, więc `onLight: false`. Podgląd, PNG i ZIP idą przez
+  // tę funkcję, więc znak jest identyczny wszędzie.
+  drawBrandBrackets(ctx, {
+    width,
+    height,
+    box: { left: contentLeftX, top: inkTop, right: width - contentLeftX, bottom: inkBottom },
+    onLight: false,
+  });
 }
 
 export async function exportSlideToBlob(

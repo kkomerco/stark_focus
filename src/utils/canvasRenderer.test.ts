@@ -11,7 +11,11 @@
 // kolumna i krój inny niż wybrany w studiu.
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { renderUniversalLayout } from "./canvasRenderer";
+import {
+  drawSlideToCanvas,
+  renderUniversalLayout,
+  type RenderSlideOptions,
+} from "./canvasRenderer";
 import { BRAND_ACCENT } from "./starkBrandTheme";
 import { structuredSpec } from "./ideaLayout";
 import { UniversalLayoutSpec } from "../types";
@@ -291,6 +295,45 @@ describe("renderUniversalLayout", () => {
     assert.ok(
       size >= 90,
       `teza ma ${size}px na kadrze ${WIDTH}x${HEIGHT} — dawniej drabinka zatrzymywała ją na 64px`,
+    );
+  });
+});
+
+// Karuzela rysuje przez `drawSlideToCanvas` — podgląd w studiu, PNG i ZIP
+// przechodzą tą samą funkcją, więc jeden test załatwia wszystkie trzy wyjścia.
+const SLIDE: RenderSlideOptions = {
+  width: 1080,
+  height: 1350,
+  slideNumber: 2,
+  totalSlides: 12,
+  headline: "Discipline is the only door",
+  bodyText:
+    "Every morning you either pay the price of discipline or the interest on regret. The bill arrives either way.",
+  handle: "@stark_focus",
+};
+
+describe("drawSlideToCanvas (karuzela)", () => {
+  // Sygnet marki: te same klamry co na karcie posta — cztery rogi pola
+  // treści, karmazyn tylko w górnym lewym. Stopka (handle) zostaje na
+  // zewnątrz: klamra nigdy nie obejmuje podpisu profilu.
+  it("sygnet: cztery klamry na slajdzie, karmazyn w górnym lewym, stopka poza nimi", () => {
+    const { canvas, drawn, paths } = fakeCanvas();
+    drawSlideToCanvas(canvas as unknown as HTMLCanvasElement, SLIDE);
+    const corners = paths.filter((path) => path.points.length === 3);
+    assert.equal(corners.length, 4, `klamer jest ${corners.length}`);
+    const crimson = corners.filter((corner) => corner.color === BRAND_ACCENT);
+    assert.equal(crimson.length, 1, `karmazynowych rogów jest ${crimson.length}`);
+    const all = corners.map((corner) => corner.points[1]);
+    const accent = crimson[0].points[1];
+    assert.equal(accent[0], Math.min(...all.map(([x]) => x)), "karmazyn nie jest lewym rogiem");
+    assert.equal(accent[1], Math.min(...all.map(([, y]) => y)), "karmazyn nie jest górnym rogiem");
+
+    const handleEntry = drawn.find((entry) => entry.text.startsWith("@"));
+    assert.ok(handleEntry, "podpis profilu zniknął ze stopki");
+    const lowestBracket = Math.max(...all.map(([, y]) => y));
+    assert.ok(
+      handleEntry.y > lowestBracket,
+      `stopka (y=${handleEntry.y}) weszła w klamry (dół=${lowestBracket})`,
     );
   });
 });
