@@ -18,6 +18,15 @@ import { UniversalLayoutSpec } from "../types";
 const WIDTH = 1080;
 const HEIGHT = 1920;
 
+interface Shape {
+  kind: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  fill: string;
+}
+
 interface Drawn {
   text: string;
   font: string;
@@ -42,6 +51,7 @@ function inkLeft(entry: Drawn, width: number): number {
  */
 function fakeCanvas() {
   const drawn: Drawn[] = [];
+  const shapes: Shape[] = [];
   const state: Record<string, unknown> = {
     font: "10px sans-serif",
     textAlign: "left",
@@ -77,6 +87,12 @@ function fakeCanvas() {
       data: new Uint8ClampedArray(Math.max(1, w * h) * 4),
     }),
     drawImage: () => undefined,
+    fillRect: (x: number, y: number, w: number, h: number) => {
+      shapes.push({ kind: "rect", x, y, w, h, fill: String(state.fillStyle) });
+    },
+    arc: (x: number, y: number, r: number) => {
+      shapes.push({ kind: "circle", x, y, w: r, h: r, fill: String(state.fillStyle) });
+    },
   };
 
   const ctx = new Proxy(target, {
@@ -98,11 +114,11 @@ function fakeCanvas() {
     toDataURL: () => "data:image/png;base64,",
   };
 
-  return { canvas, drawn };
+  return { canvas, drawn, shapes };
 }
 
-function render(spec: UniversalLayoutSpec, fontFamily = "cinzel") {
-  const { canvas, drawn } = fakeCanvas();
+function render(spec: UniversalLayoutSpec, fontFamily = "cinzel", edition = "") {
+  const { canvas, drawn, shapes } = fakeCanvas();
   renderUniversalLayout(canvas as unknown as HTMLCanvasElement, spec, [], {
     width: WIDTH,
     height: HEIGHT,
@@ -110,8 +126,24 @@ function render(spec: UniversalLayoutSpec, fontFamily = "cinzel") {
     textScale: 1,
     handle: "@stark_focus",
     fontColor: "white",
+    edition,
   });
   return drawn.filter((entry) => entry.text.trim().length > 0);
+}
+
+/** Ten sam render, ale z kształtami — żeby złapać sygnet marki, który nie jest tekstem. */
+function renderShapes(spec: UniversalLayoutSpec, edition = ""): Shape[] {
+  const { canvas, shapes } = fakeCanvas();
+  renderUniversalLayout(canvas as unknown as HTMLCanvasElement, spec, [], {
+    width: WIDTH,
+    height: HEIGHT,
+    fontFamily: "cinzel",
+    textScale: 1,
+    handle: "@stark_focus",
+    fontColor: "white",
+    edition,
+  });
+  return shapes;
 }
 
 const PROTOCOL = structuredSpec("Protokół", "protocol_list", {
@@ -202,6 +234,29 @@ describe("renderUniversalLayout", () => {
     const labelSize = Number((drawn[0].font.match(/(\d+)px/) ?? [])[1]);
     assert.ok(labelSize >= 100, `rozmiar napisu ${labelSize}px — za mały na środek kadru`);
     assert.equal(QUOTE.slotCount, 0, "sloty należą się tylko układowi ze zdjęciami");
+  });
+
+  it("sygnet marki stoi na każdym układzie: szyna, kropka i numer edycji", () => {
+    for (const spec of [QUOTE, PROTOCOL, COST, COLLAGE]) {
+      const shapes = renderShapes(spec, "STARK CODEX 07/52");
+      const spine = shapes.find((s) => s.kind === "rect" && s.h >= HEIGHT * 0.9);
+      const dot = shapes.find((s) => s.kind === "circle");
+      assert.ok(spine, `${spec.layoutName}: brak szyny przy lewej krawędzi`);
+      assert.ok(dot, `${spec.layoutName}: brak kropki sygnetu`);
+      assert.ok(spine.x < WIDTH * 0.1, "szyna ma stać przy lewej krawędzi, nie w środku");
+      assert.ok(dot.y > HEIGHT * 0.8, "kropka ma być nisko, nad handlem");
+    }
+
+    const withEdition = render(QUOTE, "cinzel", "STARK CODEX 07/52");
+    assert.ok(
+      withEdition.some((entry) => entry.text.includes("STARK CODEX 07/52")),
+      "numer edycji nie dochodzi na kadr",
+    );
+    const withoutEdition = render(QUOTE);
+    assert.ok(
+      !withoutEdition.some((entry) => /STARK CODEX/.test(entry.text)),
+      "bez podanej edycji kadr nie może zmyślać numeru",
+    );
   });
 
   it("krój ze speca schodzi na tezę kadru, nie domyślny literał układu", () => {

@@ -26,6 +26,7 @@ import {
 } from "./canvas/layouts-v2";
 import { starkCta } from "../lib/caption";
 import { groupText, layerById, PRIMARY_LAYER_ID } from "./canvas/layerRoles";
+import { drawBrandMark } from "./brandMark";
 import { MIN_TEXT_PX, floorFor } from "./safeZones";
 
 export type { SlideData };
@@ -1038,7 +1039,7 @@ function l1Fallback(spec: UniversalLayoutSpec): string {
   return spec.textLayers[0]?.text?.trim() ?? "";
 }
 
-export function renderUniversalLayout(
+function renderFrameBody(
   canvas: HTMLCanvasElement,
   spec: UniversalLayoutSpec,
   images: (CanvasImageSource | null)[] = [],
@@ -1051,6 +1052,8 @@ export function renderUniversalLayout(
     fontColor?: "white" | "black";
     /** Obraz tła z `POST /api/ai/generate-background`. */
     backgroundImage?: CanvasImageSource | null;
+    /** Stopka serii dla sygnetu marki; pusta = kadr bez numeru edycji. */
+    edition?: string;
   } = {},
 ) {
   const width = options.width || 1080;
@@ -1185,6 +1188,30 @@ export function renderUniversalLayout(
     fontColor,
     handle,
     backgroundImage: options.backgroundImage ?? null,
+  });
+}
+
+/**
+ * Jedyne wejście do renderu kadru: układ, a na niego sygnet marki.
+ *
+ * Sygnet jest rysowany jako ostatni i zawsze tą samą funkcją, więc podgląd,
+ * pojedyncze PNG, JPG i archiwum ZIP mają identyczny znak. Wcześniejsza
+ * wersja malowała go wewnątrz wybranych układów — przez to ten sam kadr
+ * wyglądał inaczej w studio i inaczej wychodził z pliku.
+ */
+export function renderUniversalLayout(
+  canvas: HTMLCanvasElement,
+  spec: UniversalLayoutSpec,
+  images: (CanvasImageSource | null)[] = [],
+  options: Parameters<typeof renderFrameBody>[3] = {},
+) {
+  renderFrameBody(canvas, spec, images, options);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  drawBrandMark(ctx, {
+    width: options.width || 1080,
+    height: options.height || 1080,
+    edition: options.edition,
   });
 }
 
