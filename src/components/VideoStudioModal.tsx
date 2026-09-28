@@ -24,8 +24,9 @@ import {
   Flame,
 } from "lucide-react";
 import JSZip from "jszip";
-import { Post, ReelHandoff, VaultAsset } from "../types";
+import { Post, PublishedItem, ReelHandoff, VaultAsset } from "../types";
 import { starkCaption, starkCta, starkHashtags, stripHashtagTail } from "../lib/caption";
+import { publishedEntry } from "../lib/published";
 import { BRAND_ACCENT } from "../utils/starkBrandTheme";
 import { REEL_SAFE, bandCenter, safeBand } from "../utils/safeZones";
 import { beatTimesFrom, renderReelBed } from "../utils/reelAudio";
@@ -78,6 +79,10 @@ interface VideoStudioModalProps {
   initialBgUrl?: string;
   availablePosts?: Post[];
   vaultAssets?: VaultAsset[];
+  /** Odciski treści, która już poszła na konto — jedyna lista anty-powtórkowa. */
+  excludeHooks?: string[];
+  /** Jeden klik „poszło na konto" — wpis do dziennika buduje `publishedEntry`. */
+  onMarkPublished?: (item: PublishedItem) => void;
   onSchedulePostFor1300?: (postData: any) => void;
   onSchedulePost?: (postData: any) => void;
   embedded?: boolean;
@@ -232,6 +237,8 @@ export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
   initialBgUrl,
   embedded = false,
   onSendToPost,
+  excludeHooks = [],
+  onMarkPublished,
 }) => {
   // Read saved preset from localStorage if exists
   const savedPreset = useMemo(() => {
@@ -314,6 +321,7 @@ export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
 
   // Editable phrases for quick preview & correction (kadry z pakietu generatora)
   const [phrases, setPhrases] = useState<string[]>(() => resolvePhrases(initialReel));
+  const [publishedLogged, setPublishedLogged] = useState(false);
 
   // Current template reference for caption toggling
   const [activeTemplate, setActiveTemplate] = useState<ReelTemplate>(initialTpl);
@@ -597,6 +605,10 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
           format: narrativeFormatFor(reelFormat),
           category: chosenCategoryId,
           excludeTitles: seenTitlesRef.current,
+          // Jedna lista anty-powtórkowa z konta: dawniej studio mówiło trasie
+          // tylko o tytułach z tej sesji i rolka potrafiła oddać zdanie, które
+          // już wyszło na konto.
+          excludeHooks,
         }),
         signal: controller.signal,
       });
@@ -2311,6 +2323,29 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                   ? `Eksportowanie (${exportProgress}%)...`
                   : ` Pobierz Rolkę (${duration}s • 30 FPS • ${reelAudioEnabled ? "z bedem" : "bez dźwięku"})`}
               </button>
+
+              {onMarkPublished && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const entry = publishedEntry({
+                      kind: "reel",
+                      hook: phrases[0] ?? "",
+                      platform: "instagram",
+                      format: reelFormat,
+                    });
+                    if (!entry) return;
+                    onMarkPublished(entry);
+                    setPublishedLogged(true);
+                  }}
+                  disabled={publishedLogged}
+                  className="px-3 py-2 rounded-lg bg-[#181818] hover:bg-white hover:text-black text-white border border-white/20 text-xs font-mono font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer disabled:opacity-60 transition-all"
+                  title="Jeden klik: zapisuje w dzienniku, że ta rolka poszła na konto (dedupe po dacie i myśli)"
+                >
+                  <BookmarkCheck className="w-3.5 h-3.5" />
+                  {publishedLogged ? "W dzienniku" : "Poszło na konto"}
+                </button>
+              )}
             </div>
           </div>
         </div>

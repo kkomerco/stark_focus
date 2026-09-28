@@ -1,5 +1,6 @@
 import { NarrativeFormat, ReelTemplate, ReelVisualTheme } from "./reelTemplates";
 import { getRandomBackgroundScene, EXPANDED_BACKGROUND_LIBRARY } from "./expandedBackgrounds";
+import { pick, chance } from "../lib/random";
 
 // Matryca Tematyczna do generowania niepowtarzalnych, powiązanych logicznie narracji stoickich
 export interface StoicTopicCategory {
@@ -843,18 +844,16 @@ export function generateCombinatorialFormula(
 ): ReelTemplate {
   const catKeys = Object.keys(ARCHETYPE_COMPONENTS);
   const chosenCategoryKey =
-    category !== "all" && ARCHETYPE_COMPONENTS[category]
-      ? category
-      : catKeys[Math.floor(Math.random() * catKeys.length)];
+    category !== "all" && ARCHETYPE_COMPONENTS[category] ? category : pick(catKeys);
 
   const arch = ARCHETYPE_COMPONENTS[chosenCategoryKey];
 
   // Losuj po 1 elemencie z każdego z 4 poziomów narracji
-  const hook = arch.hooks[Math.floor(Math.random() * arch.hooks.length)];
-  const contrast = arch.contrasts[Math.floor(Math.random() * arch.contrasts.length)];
-  const law = arch.laws[Math.floor(Math.random() * arch.laws.length)];
-  const punchline = arch.punchlines[Math.floor(Math.random() * arch.punchlines.length)];
-  const theme = arch.themes[Math.floor(Math.random() * arch.themes.length)];
+  const hook = pick(arch.hooks);
+  const contrast = pick(arch.contrasts);
+  const law = pick(arch.laws);
+  const punchline = pick(arch.punchlines);
+  const theme = pick(arch.themes);
 
   // Dopasowana baza tytułów dla kategorii
   const poolTitles = CATEGORY_TITLES[chosenCategoryKey] || CATEGORY_TITLES.discipline;
@@ -863,7 +862,7 @@ export function generateCombinatorialFormula(
 
   let title: string;
   if (freshTitles.length > 0) {
-    title = freshTitles[Math.floor(Math.random() * freshTitles.length)];
+    title = pick(freshTitles);
   } else {
     // Generowanie nowego złożonego tytułu gdy pula została wyczerpana
     const prefixes = ["Protocol", "Rule", "Doctrine", "Codex", "Decree", "Law", "Standard"];
@@ -877,7 +876,7 @@ export function generateCombinatorialFormula(
       "The Monolith",
       "The Iron Vow",
     ];
-    const candidate = `${prefixes[Math.floor(Math.random() * prefixes.length)]}: ${cores[Math.floor(Math.random() * cores.length)]} #${Math.floor(Math.random() * 90 + 10)}`;
+    const candidate = `${pick(prefixes)}: ${pick(cores)} #${Math.floor(Math.random() * 90 + 10)}`;
     title = candidate;
   }
 
@@ -947,7 +946,7 @@ export function generateCombinatorialFormula(
 
   const openers =
     categoryContextOpeners[chosenCategoryKey] || categoryContextOpeners.discipline_vs_motivation;
-  const contextOpener = openers[Math.floor(Math.random() * openers.length)];
+  const contextOpener = pick(openers);
 
   const captionShort = `${contextOpener} Execute without apology. Save this standard and follow @stark_focus.`;
 
@@ -998,11 +997,11 @@ export function getRandomUniqueFormula(
   const available = pool.filter((item) => !excludedNorms.has(normalizeId(item.title)));
 
   // Jeśli w banku nie ma już unikalnych lub 60% losowości -> generator kombinatoryczny 28 000+ kombinacji
-  if (available.length === 0 || Math.random() > 0.35) {
+  if (available.length === 0 || chance(0.65)) {
     return generateCombinatorialFormula(format, category, excludeIds);
   }
 
-  const item = available[Math.floor(Math.random() * available.length)];
+  const item = pick(available);
   const id = `matrix_${item.title.toLowerCase().replace(/\s+/g, "_")}_${Date.now()}`;
 
   let phrases: string[] = [];

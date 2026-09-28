@@ -19,12 +19,13 @@ import {
   ReelHandoff,
   StarkFocusData,
   Post,
+  PublishedItem,
   UniversalLayoutSpec,
 } from "./types";
 import { specFromIdea } from "./utils/ideaLayout";
 import { fitFrame, specFromFrame } from "./utils/frameFit";
 import { usedHookFingerprints } from "./lib/usedContent";
-import { topPublishedHooks } from "./lib/published";
+import { normalizePublished, topPublishedHooks } from "./lib/published";
 import { DataBar } from "./components/DataBar";
 import { loadStoredData, saveStoredData } from "./utils/storage";
 import { useIdeaStream } from "./hooks/useIdeaStream";
@@ -131,6 +132,14 @@ export default function StarkFocusApp() {
 
   const handleUpdateData = (updater: (prev: StarkFocusData) => StarkFocusData) => {
     setData((prev) => updater(prev));
+  };
+
+  /** Jeden klik „poszło na konto" w studiach — jedyny ręczny zapis do dziennika. */
+  const handleMarkPublished = (item: PublishedItem) => {
+    handleUpdateData((prev) => ({
+      ...prev,
+      published: normalizePublished([item, ...(prev.published ?? [])]),
+    }));
   };
 
   const ideaStream = useIdeaStream(data, handleUpdateData);
@@ -273,6 +282,7 @@ export default function StarkFocusApp() {
                 onSendToReel={handleSendToReel}
                 usedHooks={usedHooks}
                 exemplarHooks={exemplarHooks}
+                onMarkPublished={handleMarkPublished}
               />
             )}
             {activeTab === 1 && (
@@ -283,7 +293,9 @@ export default function StarkFocusApp() {
                 initialBgUrl={reelPreset?.bgUrl}
                 availablePosts={data.posts}
                 vaultAssets={data.vault_assets}
+                excludeHooks={usedHooks}
                 onSendToPost={handleSendToPost}
+                onMarkPublished={handleMarkPublished}
               />
             )}
             {activeTab === 2 && (

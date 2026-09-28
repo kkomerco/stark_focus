@@ -1,4 +1,5 @@
 import { ReelVisualTheme } from "./reelTemplates";
+import { pick } from "../lib/random";
 
 export interface BackgroundScene {
   id: string;
@@ -692,11 +693,8 @@ export function getRandomBackgroundScene(filterTheme?: ReelVisualTheme): Backgro
     : EXPANDED_BACKGROUND_LIBRARY;
 
   if (pool.length === 0) {
-    return EXPANDED_BACKGROUND_LIBRARY[
-      Math.floor(Math.random() * EXPANDED_BACKGROUND_LIBRARY.length)
-    ];
+    return pick(EXPANDED_BACKGROUND_LIBRARY);
   }
 
-  const idx = Math.floor(Math.random() * pool.length);
-  return pool[idx];
+  return pick(pool);
 }

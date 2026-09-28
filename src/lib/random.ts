@@ -19,6 +19,15 @@ export function pick<T>(items: readonly T[]): T {
   return items[Math.floor(Math.random() * items.length)];
 }
 
+/**
+ * Prawdopodobieństwo progu — rozstrzyga „bank czy generator" itp. Rozproszone
+ * `Math.random() > p` po danych omija ten moduł i daje ten sam kształt
+ * stronniczości co tasowanie naiwne.
+ */
+export function chance(probability: number): boolean {
+  return Math.random() < probability;
+}
+
 /** `n` różnych elementów w losowej kolejności (bez powtórzeń). */
 export function pickN<T>(items: readonly T[], n: number): T[] {
   return shuffle(items).slice(0, Math.max(1, Math.min(n, items.length)));

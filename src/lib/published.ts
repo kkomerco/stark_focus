@@ -158,6 +158,41 @@ export function publicationKey(item: { postedAt: string; hook: string }): string
   return `${item.postedAt}|${hookFingerprint(item.hook)}`;
 }
 
+/**
+ * Wpis do dziennika z jednego kliknięcia przy eksporcie — z datą, platformą,
+ * gatunkiem, układem i myślą artefaktu, który właśnie wyszedł. Studia (post,
+ * rolka) budują go tutaj, a nie u siebie, inaczej każde z nich inaczej
+ * rozumiałoby słowo „opublikowane". Zapis przez `normalizePublished`: drugie
+ * kliknięcie tego samego kadru tego dnia nie dodaje drugiego wpisu.
+ */
+export function publishedEntry(input: {
+  kind: PublishKind;
+  hook: string;
+  platform?: string;
+  format?: unknown;
+  postedAt?: string;
+  sourceId?: string;
+  music?: string;
+}): PublishedItem | null {
+  const hook = (input.hook ?? "").trim().slice(0, 300);
+  if (!hook) return null;
+  const postedAt = asDate(input.postedAt ?? "");
+  const kind: PublishKind = (KINDS as readonly string[]).includes(input.kind) ? input.kind : "post";
+  return {
+    id: `pub-${Date.now()}`,
+    postedAt: postedAt || new Date().toISOString().slice(0, 10),
+    platform: (PLATFORMS as readonly string[]).includes(String(input.platform))
+      ? (input.platform as PublishedItem["platform"])
+      : "instagram",
+    kind,
+    hook,
+    format: normalizeFormat(kind, input.format),
+    sourceId: input.sourceId,
+    music: typeof input.music === "string" ? input.music.slice(0, 80) : undefined,
+    loggedAt: new Date().toISOString(),
+  };
+}
+
 /** Blob z localStorage może mieć cokolwiek — stąd normalizacja pola po polu. */
 export function normalizePublished(value: unknown): PublishedItem[] {
   if (!Array.isArray(value)) return [];

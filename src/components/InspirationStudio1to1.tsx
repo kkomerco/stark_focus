@@ -28,11 +28,12 @@ import {
   X,
   Package,
 } from "lucide-react";
-import { UniversalLayoutSpec, UniversalTextLayer } from "../types";
+import { UniversalLayoutSpec, UniversalTextLayer, PublishedItem } from "../types";
 import { renderUniversalLayout } from "../utils/canvasRenderer";
 import { StructuredContent, structuredSpec } from "../utils/ideaLayout";
 import { FrameFormat, formatByGrid } from "../lib/formats";
 import { groupText, layerById, nextLayerId, PRIMARY_LAYER_ID } from "../utils/canvas/layerRoles";
+import { publishedEntry } from "../lib/published";
 
 interface InspirationStudioProps {
   onSaveToPipeline?: (post: any) => void;
@@ -46,6 +47,8 @@ interface InspirationStudioProps {
   usedHooks?: string[];
   /** Nasze zdania o najlepszym wyniku — wzorzec rytmu dla modelu. */
   exemplarHooks?: string[];
+  /** Jeden klik „poszło na konto" — wpis do dziennika buduje `publishedEntry`. */
+  onMarkPublished?: (item: PublishedItem) => void;
 }
 
 /** Nazwy figur zwracanych przez `/api/ai/hooks` — w UI po polsku, w materiale po angielsku. */
@@ -331,11 +334,13 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
   onSendToReel,
   usedHooks = [],
   exemplarHooks = [],
+  onMarkPublished,
 }) => {
   // Format proporcji: wyłącznie wertykalny 9:16 (1080x1920 PX)
   const aspectRatio = "9:16" as const;
   const dimensions = { width: 1080, height: 1920 };
   const [fontFamily, setFontFamily] = useState<string>("sans");
+  const [publishedLogged, setPublishedLogged] = useState(false);
   const [textScale, setTextScale] = useState<number>(1.0);
 
   // Stan generatora powiedzonek
@@ -947,6 +952,29 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
               <span>Pobierz JPG</span>
             </button>
           </div>
+
+          {onMarkPublished && (
+            <button
+              type="button"
+              onClick={() => {
+                const entry = publishedEntry({
+                  kind: "post",
+                  hook: spec.textLayers.find((layer) => layer.id === PRIMARY_LAYER_ID)?.text ?? "",
+                  platform: "instagram",
+                  format: spec.gridType,
+                });
+                if (!entry) return;
+                onMarkPublished(entry);
+                setPublishedLogged(true);
+              }}
+              disabled={publishedLogged}
+              className="w-full max-w-[320px] py-2 px-3 rounded-lg bg-[#141414] hover:bg-white hover:text-black text-neutral-300 border border-white/10 hover:border-white text-[11px] font-mono font-bold flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-60"
+              title="Jeden klik: zapisuje w dzienniku, że ten kadr poszedł na konto (dedupe po dacie i myśli)"
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              {publishedLogged ? "W dzienniku" : "Poszło na konto"}
+            </button>
+          )}
 
           {/* Przekaż treść do Rolki */}
           {onSendToReel && (
