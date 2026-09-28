@@ -117,8 +117,8 @@ function fakeCanvas() {
   return { canvas, drawn, shapes };
 }
 
-function render(spec: UniversalLayoutSpec, fontFamily = "cinzel", edition = "") {
-  const { canvas, drawn, shapes } = fakeCanvas();
+function render(spec: UniversalLayoutSpec, fontFamily = "cinzel") {
+  const { canvas, drawn } = fakeCanvas();
   renderUniversalLayout(canvas as unknown as HTMLCanvasElement, spec, [], {
     width: WIDTH,
     height: HEIGHT,
@@ -126,13 +126,12 @@ function render(spec: UniversalLayoutSpec, fontFamily = "cinzel", edition = "") 
     textScale: 1,
     handle: "@stark_focus",
     fontColor: "white",
-    edition,
   });
   return drawn.filter((entry) => entry.text.trim().length > 0);
 }
 
 /** Ten sam render, ale z kształtami — żeby złapać sygnet marki, który nie jest tekstem. */
-function renderShapes(spec: UniversalLayoutSpec, edition = ""): Shape[] {
+function renderShapes(spec: UniversalLayoutSpec): Shape[] {
   const { canvas, shapes } = fakeCanvas();
   renderUniversalLayout(canvas as unknown as HTMLCanvasElement, spec, [], {
     width: WIDTH,
@@ -141,7 +140,6 @@ function renderShapes(spec: UniversalLayoutSpec, edition = ""): Shape[] {
     textScale: 1,
     handle: "@stark_focus",
     fontColor: "white",
-    edition,
   });
   return shapes;
 }
@@ -236,9 +234,9 @@ describe("renderUniversalLayout", () => {
     assert.equal(QUOTE.slotCount, 0, "sloty należą się tylko układowi ze zdjęciami");
   });
 
-  it("sygnet marki stoi na każdym układzie: szyna, kropka i numer edycji", () => {
+  it("sygnet marki stoi na każdym układzie: szyna i kropka, bez numeru edycji", () => {
     for (const spec of [QUOTE, PROTOCOL, COST, COLLAGE]) {
-      const shapes = renderShapes(spec, "STARK CODEX 07/52");
+      const shapes = renderShapes(spec);
       const spine = shapes.find((s) => s.kind === "rect" && s.h >= HEIGHT * 0.9);
       const dot = shapes.find((s) => s.kind === "circle");
       assert.ok(spine, `${spec.layoutName}: brak szyny przy lewej krawędzi`);
@@ -247,16 +245,14 @@ describe("renderUniversalLayout", () => {
       assert.ok(dot.y > HEIGHT * 0.8, "kropka ma być nisko, nad handlem");
     }
 
-    const withEdition = render(QUOTE, "cinzel", "STARK CODEX 07/52");
-    assert.ok(
-      withEdition.some((entry) => entry.text.includes("STARK CODEX 07/52")),
-      "numer edycji nie dochodzi na kadr",
-    );
-    const withoutEdition = render(QUOTE);
-    assert.ok(
-      !withoutEdition.some((entry) => /STARK CODEX/.test(entry.text)),
-      "bez podanej edycji kadr nie może zmyślać numeru",
-    );
+    // Numer edycji zniknął z kadru na żądanie właściciela konta — kadr nie ma
+    // prawa sam z siebie go odrysować.
+    for (const spec of [QUOTE, PROTOCOL, COST, COLLAGE]) {
+      const texts = render(spec)
+        .map((entry) => entry.text)
+        .join(" ");
+      assert.ok(!/STARK CODEX|\d+\/52/.test(texts), `numer edycji wrócił na kadr: ${texts}`);
+    }
   });
 
   it("krój ze speca schodzi na tezę kadru, nie domyślny literał układu", () => {

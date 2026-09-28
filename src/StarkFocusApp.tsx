@@ -25,7 +25,6 @@ import {
 import { specFromIdea } from "./utils/ideaLayout";
 import { fitFrame, specFromFrame } from "./utils/frameFit";
 import { usedHookFingerprints } from "./lib/usedContent";
-import { nextEdition, seriesLine } from "./lib/series";
 import { topPublishedHooks } from "./lib/published";
 import { DataBar } from "./components/DataBar";
 import { loadStoredData, saveStoredData } from "./utils/storage";
@@ -280,7 +279,6 @@ export default function StarkFocusApp() {
                 onSendToReel={handleSendToReel}
                 usedHooks={usedHooks}
                 exemplarHooks={exemplarHooks}
-                edition={seriesLine(nextEdition(data))}
               />
             )}
             {activeTab === 1 && (

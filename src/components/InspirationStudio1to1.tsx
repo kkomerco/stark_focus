@@ -44,8 +44,6 @@ interface InspirationStudioProps {
   onSendToReel?: (text: string) => void;
   /** Odciski treści, która już poszła — generatory mają jej nie powtarzać. */
   usedHooks?: string[];
-  /** Stopka serii dla sygnetu marki ("STARK CODEX 07/52") — rysowana na kadrze. */
-  edition?: string;
   /** Nasze zdania o najlepszym wyniku — wzorzec rytmu dla modelu. */
   exemplarHooks?: string[];
 }
@@ -327,7 +325,6 @@ function layerLabel(spec: UniversalLayoutSpec, layer: UniversalTextLayer, index:
 export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
   onSaveToPipeline,
   userHandle = "stark_focus",
-  edition = "",
   initialText,
   initialCaption,
   initialSpec,
@@ -485,18 +482,8 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
       textScale,
       handle: userHandle,
       fontColor: "white",
-      edition,
     });
-  }, [
-    spec,
-    loadedImages,
-    dimensions.width,
-    dimensions.height,
-    fontFamily,
-    textScale,
-    userHandle,
-    edition,
-  ]);
+  }, [spec, loadedImages, dimensions.width, dimensions.height, fontFamily, textScale, userHandle]);
 
   /**
    * Studio nie prosi modelu o jedną odpowiedź, tylko o kilka, i pokazuje je do
@@ -761,7 +748,6 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
       textScale,
       handle: userHandle,
       fontColor: "white",
-      edition,
     });
     const link = document.createElement("a");
     link.download = `stark_${item.pillar.toLowerCase().replace(/[^a-z0-9]/gi, "_")}_9x16.png`;
@@ -787,7 +773,6 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
           textScale,
           handle: userHandle,
           fontColor: "white",
-          edition,
         });
         const dataUrl = offscreen.toDataURL("image/png");
         const base64 = dataUrl.split(",")[1];

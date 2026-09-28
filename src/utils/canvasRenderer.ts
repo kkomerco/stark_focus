@@ -1052,8 +1052,6 @@ function renderFrameBody(
     fontColor?: "white" | "black";
     /** Obraz tła z `POST /api/ai/generate-background`. */
     backgroundImage?: CanvasImageSource | null;
-    /** Stopka serii dla sygnetu marki; pusta = kadr bez numeru edycji. */
-    edition?: string;
   } = {},
 ) {
   const width = options.width || 1080;
@@ -1211,7 +1209,6 @@ export function renderUniversalLayout(
   drawBrandMark(ctx, {
     width: options.width || 1080,
     height: options.height || 1080,
-    edition: options.edition,
   });
 }
 
