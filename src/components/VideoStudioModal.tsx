@@ -28,12 +28,16 @@ import { Post, PublishedItem, ReelHandoff, VaultAsset } from "../types";
 import { starkCaption, starkCta, starkHashtags, stripHashtagTail } from "../lib/caption";
 import { publishedEntry } from "../lib/published";
 import { BRAND_ACCENT } from "../utils/starkBrandTheme";
+import { bracketGeometry } from "../utils/brandMark";
 import { REEL_SAFE, bandCenter, safeBand } from "../utils/safeZones";
 import { beatTimesFrom, renderReelBed } from "../utils/reelAudio";
 import { exactExportSupported, exportReelExact } from "../utils/reelExport";
 import { reelChecklist } from "../lib/prepublish";
 import {
+  cameraScaleAt,
   easedReveal,
+  maskRevealFraction,
+  outroBracketProgress,
   quantizeToFps,
   reelBlocksAt,
   stackBlocks,
@@ -112,9 +116,6 @@ const DEFAULT_CAPTION = `${DEFAULT_PHRASES[0].toUpperCase()}\n\n${starkCta(DEFAU
 // Hashtagi liczą się z treści rolki, nie ze stałej listy: Meta ucina ich
 // pięć, a sztywny ogon sprawiał, że każdy post miał identyczną stopkę.
 const DEFAULT_HASHTAGS = starkHashtags(DEFAULT_PHRASES[0]);
-
-/** Wyjscie z lagodnym hamowaniem — liniowy fade wyglada jak włącznik swiatla. */
-const easeOutCubic = (t: number) => 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 3);
 
 /** Studio ogarnia maksymalnie 4 kadry — dłuższe listy z modelu tniemy, nie renderujemy. */
 const MAX_PHRASES = 5;
@@ -796,15 +797,13 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
       // „dokumentalnego", przez który kadr przestaje wyglądać na wygenerowany.
       // Kwantowanie tekstu przenosiłoby literę z linii bazowej.
       const bgTime = quantizeToFps(timeSec, 12);
-      const zoomProgress = Math.min(1, Math.max(0, bgTime / totalDuration));
       const isDynamicCut = reelFormat === "dynamic_broll_cut" && timeSec >= totalDuration * 0.48;
-      // Ken Burns startuje od 1,02, nie od 1,00: kadr, ktory w pierwszej
-      // sekundzie nie drgnie, nie jest hookiem — jest stopklatka.
-      // Ostatnie 12% wraca do 1,02, zeby zapetlenie nie bylo widoczne jako skok.
-      const loopReturn = Math.max(0, (zoomProgress - 0.88) / 0.12);
+      // Oddech kamery liczy czysta funkcja z reelLayout — jedna wartość dla
+      // podglądu i eksportu, bo oba maluje ten sam słupek. Skala idzie tylko
+      // na tło (obraz/gradient), tekst zostaje na pełnej rozdzielczości kadru.
       const zoomScale = isDynamicCut
         ? 1.09 + 0.03 * ((bgTime - totalDuration * 0.48) / (totalDuration * 0.52))
-        : 1.02 + 0.03 * easeOutCubic(zoomProgress) * (1 - loopReturn);
+        : cameraScaleAt(bgTime, totalDuration);
 
       // 1. Background: Custom Upload (Image or Video) or Dark Generative Theme with Slow Zoom
       ctx.save();
@@ -1086,7 +1085,6 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
       blocks.forEach((block, blockIdx) => {
         const { lines, fontSize, lineHeight } = block.layout;
         const cursorY = tops[blockIdx];
-        ctx.globalAlpha = block.opacity;
         const reveal = blockIdx === activeIndex ? easedReveal(block.reveal) : 1;
         const tokenCount = lines.reduce((sum, line) => sum + line.tokens.length, 0);
         const alphas =
@@ -1094,18 +1092,25 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
             ? wordStagger(tokenCount, block.reveal)
             : Array.from({ length: tokenCount }, () => 1);
 
-        if (reveal < 1) {
-          ctx.save();
-          ctx.beginPath();
-          ctx.rect(0, cursorY - lineHeight, width * reveal, lineHeight * (lines.length + 1));
-          ctx.clip();
-        }
         // Pomiar i rysowanie na tym samym kroju — inaczej słowa wchodzą na siebie.
         ctx.font = `600 ${fontSize}px ${selectedFont}`;
         const spaceW = ctx.measureText(" ").width;
 
         let tokenIndex = 0;
         lines.forEach((line, lIdx) => {
+          // Wiersz wychodzi znad maski jadącej w górę, nie z przenikania:
+          // napis filmowy, nie slajd. Prostokąt odsłonięcia kotwiczy przy
+          // dolnej krawędzi wiersza i rośnie ku górze, więc litera wyrasta
+          // znad kreski razem ze swoim wznoszeniem.
+          const mask =
+            blockIdx === activeIndex ? maskRevealFraction(reveal, lIdx, lines.length) : 1;
+          if (mask < 1) {
+            const lineBottom = cursorY + (lIdx + 1) * lineHeight;
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(0, lineBottom - lineHeight * mask, width, lineHeight * mask);
+            ctx.clip();
+          }
           let curX = leftMargin;
           line.tokens.forEach((tok) => {
             const alpha = alphas[tokenIndex] ?? 1;
@@ -1116,11 +1121,14 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
             // reszta zostaje kością. Bez tego wyróżniony był cały wers.
             const accent = tok.isKeyword && !accentUsed;
             if (accent) accentUsed = true;
-            ctx.globalAlpha = block.opacity * alpha;
+            // Wejście robi maska, nie alfa — fade zostaje ściemnieniu
+            // przeczytanych zdań, nie tezie.
+            ctx.globalAlpha = block.opacity;
             ctx.fillStyle = accent ? BRAND_ACCENT : "#F8FAFC";
             ctx.fillText(tok.raw, curX, lineY);
             curX += ctx.measureText(tok.raw).width + spaceW;
           });
+          if (mask < 1) ctx.restore();
         });
 
         ctx.globalAlpha = block.opacity;
@@ -1134,11 +1142,56 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
           ctx.globalAlpha = block.opacity;
           ctx.fillRect(leftMargin, ruleY, ruleWidth, Math.max(2, fontSize * 0.05));
         }
-
-        if (reveal < 1) ctx.restore();
       });
 
       ctx.restore();
+
+      // 4b. OUTRO: sygnet marki rysuje się progresywnie przez ostatnie ~1,1 s.
+      // Klamry idą w pełnej liczbie klatek jak tekst — kwantowanie do 12 fps
+      // jest wyłącznie dla tła, a rosnąca kreska skakałaby po rogach. Znak
+      // obejmuje ostatni blok treści; geometrię liczy ta sama funkcja co
+      // statyczny sygnet kadru (`bracketGeometry`), tylko kreskę malujemy
+      // etapami przez setLineDash.
+      const outroProgress = outroBracketProgress(timeSec, totalDuration);
+      if (outroProgress > 0 && blocks.length > 0) {
+        const lastIndex = blocks.length - 1;
+        const lastBlock = blocks[lastIndex];
+        const lastTop = tops[lastIndex];
+        let widest = 0;
+        for (const line of lastBlock.layout.lines) {
+          if (line.width > widest) widest = line.width;
+        }
+        const outroBox = {
+          left: leftMargin,
+          top: lastTop,
+          right: leftMargin + widest,
+          bottom: lastTop + lastBlock.layout.lines.length * lastBlock.layout.lineHeight,
+        };
+        const g = bracketGeometry(width, height, outroBox);
+        // Kreska rośnie od czubka ramienia, przez róg, do czubka drugiego
+        // ramienia — długość jednej klamry to dwa ramiona.
+        const cornerLength = g.arm * 2;
+        ctx.save();
+        ctx.lineWidth = g.lineWidth;
+        ctx.lineCap = "butt";
+        ctx.setLineDash([cornerLength * outroProgress, cornerLength]);
+        const quiet = "rgba(243, 240, 234, 0.30)";
+        const corners: Array<[number, number, number, number, string]> = [
+          [g.left, g.top, 1, 1, BRAND_ACCENT],
+          [g.right, g.top, -1, 1, quiet],
+          [g.left, g.bottom, 1, -1, quiet],
+          [g.right, g.bottom, -1, -1, quiet],
+        ];
+        for (const [x, y, dx, dy, color] of corners) {
+          ctx.strokeStyle = color;
+          ctx.beginPath();
+          ctx.moveTo(x + dx * g.arm, y);
+          ctx.lineTo(x, y);
+          ctx.lineTo(x, y + dy * g.arm);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
 
       // 5. Handle tuż nad strefą, którą platforma zakrywa opisem i komentarzami.
       // Wcześniej stał na 0,88 wysokości, czyli dokładnie w pasie oznaczonym

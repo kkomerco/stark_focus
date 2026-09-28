@@ -1,9 +1,14 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+  CAMERA_PUSH_IN,
   DIMMED_OPACITY,
   LOOP_TAIL_SECONDS,
+  OUTRO_SECONDS,
+  cameraScaleAt,
   easedReveal,
+  maskRevealFraction,
+  outroBracketProgress,
   quantizeToFps,
   reelBlocksAt,
   stackBlocks,
@@ -136,5 +141,93 @@ describe("animacja wejścia", () => {
     assert.equal(easedReveal(0), 0);
     assert.equal(easedReveal(1), 1);
     assert.ok(easedReveal(0.5) > 0.5, "easeOut ma iść szybko na początku");
+  });
+});
+
+describe("oddech kamery", () => {
+  it("skala startuje od 1,00 i kończy na ~1,04", () => {
+    assert.equal(cameraScaleAt(0, 12), 1);
+    assert.ok(
+      Math.abs(cameraScaleAt(12, 12) - (1 + CAMERA_PUSH_IN)) < 1e-9,
+      "na koncu klipu kamera ma byc najblizej kadru",
+    );
+  });
+
+  it("najazd jest monotoniczny i nie wyjezdza poza 1,04", () => {
+    let last = 1;
+    for (let i = 0; i <= 120; i++) {
+      const scale = cameraScaleAt((i / 120) * 9, 9);
+      assert.ok(scale >= last, `skala cofnela sie przy kroku ${i}`);
+      assert.ok(scale <= 1 + CAMERA_PUSH_IN + 1e-9, "skala wyjechala poza najazd");
+      last = scale;
+    }
+  });
+
+  it("bez czasu trwania albo czasu kamera stoi w miejscu", () => {
+    assert.equal(cameraScaleAt(3, 0), 1);
+    assert.equal(cameraScaleAt(Number.NaN, 9), 1);
+    assert.equal(cameraScaleAt(-1, 9), 1);
+  });
+});
+
+describe("maska wiersza", () => {
+  it("ulamek maski rosnie monotonicznie z odslonieciem", () => {
+    for (let line = 0; line < 3; line++) {
+      let last = 0;
+      for (let i = 0; i <= 100; i++) {
+        const reveal = i / 100;
+        const fraction = maskRevealFraction(reveal, line, 3);
+        assert.ok(fraction >= last, `wiersz ${line} cofnal sie przy reveal ${reveal}`);
+        assert.ok(fraction >= 0 && fraction <= 1, `ulamek ${fraction} poza zakresem`);
+        last = fraction;
+      }
+    }
+  });
+
+  it("pierwszy wiersz odslania sie przed ostatnim", () => {
+    const mid = 0.2;
+    assert.ok(
+      maskRevealFraction(mid, 0, 3) > maskRevealFraction(mid, 2, 3),
+      "fala ma isc od gory akapitu",
+    );
+    assert.equal(maskRevealFraction(mid, 2, 3), 0, "ostatni wiersz jeszcze czeka pod maska");
+  });
+
+  it("przy pelnym odslonieciu kazdy wiersz jest w calosci, przy zerowym zakryty", () => {
+    for (let line = 0; line < 4; line++) {
+      assert.equal(maskRevealFraction(1, line, 4), 1);
+      assert.equal(maskRevealFraction(0, line, 4), 0);
+    }
+  });
+});
+
+describe("outro ze znakiem marki", () => {
+  it("klamry nie rysuja sie przed oknem koncowki", () => {
+    assert.equal(outroBracketProgress(0, 12), 0);
+    assert.equal(outroBracketProgress(12 - OUTRO_SECONDS, 12), 0);
+    assert.equal(outroBracketProgress(12 - OUTRO_SECONDS - 0.4, 12), 0);
+  });
+
+  it("na koncu klipu kreska jest domknieta", () => {
+    assert.equal(outroBracketProgress(12, 12), 1);
+    assert.ok(
+      outroBracketProgress(12 - 0.05, 12) > 0.9,
+      "ostatnia klatka nie moze pokazywac polowy znaku",
+    );
+  });
+
+  it("postep rosnie monotonicznie w oknie outro", () => {
+    let last = 0;
+    for (let i = 0; i <= 100; i++) {
+      const time = 9 - OUTRO_SECONDS + (i / 100) * OUTRO_SECONDS;
+      const progress = outroBracketProgress(time, 9);
+      assert.ok(progress >= last, `kreska cofnela sie przy ${time} s`);
+      last = progress;
+    }
+  });
+
+  it("klip krotszy niz okno outro rysuje znak od klatki zero", () => {
+    assert.ok(outroBracketProgress(0.4, 0.8) > 0, "okno nie moze byc dluzsze niz klip");
+    assert.equal(outroBracketProgress(0.8, 0.8), 1);
   });
 });

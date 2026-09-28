@@ -15,6 +15,10 @@ export const REVEAL_SECONDS = 0.28;
 export const LOOP_TAIL_SECONDS = 0.4;
 /** Zaciemnienie poprzednich zdań pod bieżącym. */
 export const DIMMED_OPACITY = 0.28;
+/** O ile kamera wjeżdża w kadr przez cały klip — oddech, nie jazda po szynach. */
+export const CAMERA_PUSH_IN = 0.04;
+/** Długość końcówki ze znakiem marki — ostatnie ~1,1 s klipu. */
+export const OUTRO_SECONDS = 1.1;
 
 export interface ReelBlock {
   text: string;
@@ -118,6 +122,61 @@ export function wordRise(alpha: number, fontSize: number): number {
 export function quantizeToFps(timeSec: number, fps = 12): number {
   if (!Number.isFinite(timeSec) || timeSec <= 0) return 0;
   return Math.floor(timeSec * fps) / fps;
+}
+
+/**
+ * Oddech kamery: powolny najazd od 1,00 do ~1,04 przez cały klip.
+ *
+ * Liniowy, nie wygładzony — dolly jedzie jednostajnie, a hamowanie na końcu
+ * czyta się jak postawienie wózka, nie jak filmowany kadr. Skala idzie na
+ * warstwę tła (obraz albo gradient), nigdy na tekst. Czas przychodzi już
+ * skwantowany do 12 fps razem z resztą tła, więc podgląd i eksport malują
+ * identyczną wartość.
+ */
+export function cameraScaleAt(timeSec: number, durationSec: number): number {
+  if (!Number.isFinite(durationSec) || durationSec <= 0) return 1;
+  if (!Number.isFinite(timeSec) || timeSec <= 0) return 1;
+  const progress = Math.min(1, timeSec / durationSec);
+  return 1 + CAMERA_PUSH_IN * progress;
+}
+
+/**
+ * Ile wiersza jest odsłonięte znad maski jadącej w górę: 0 = wiersz wciąż
+ * zakryty, 1 = w pełni widoczny.
+ *
+ * Wiersze wchodzą falą jak słowa w `wordStagger` — następny zaczyna się
+ * odsłaniać, zanim poprzedni doszedł do końca, więc akapit wyrasta, a nie
+ * ładuje się linijka po linijce. Malarski słupek tnie prostokątem od dolnej
+ * krawędzi wiersza w górę o `fraction` jego wysokości.
+ */
+export function maskRevealFraction(
+  reveal: number,
+  lineIndex: number,
+  lineCount: number,
+  overlap = 1.6,
+): number {
+  if (lineCount <= 0 || lineIndex < 0 || lineIndex >= lineCount) return 0;
+  if (reveal >= 1) return 1;
+  if (reveal <= 0) return 0;
+  const window = lineCount * overlap;
+  return Math.min(1, Math.max(0, reveal * window - lineIndex));
+}
+
+/**
+ * Postęp rysowania klamr w outro: 0 przed oknem końcówki, 1 na końcu klipu.
+ *
+ * Znak marki rysuje się tylko w ostatnich ~1,1 s — wcześniej klamra byłaby
+ * ozdobą, a nie punktem kulminacyjnym. Czas idzie w pełnej liczbie klatek
+ * (jak tekst, nie jak tło): rosnąca kreska skwantowana do 12 fps skakałaby
+ * po krawędzi pola treści.
+ */
+export function outroBracketProgress(timeSec: number, durationSec: number): number {
+  if (!Number.isFinite(durationSec) || durationSec <= 0) return 0;
+  if (!Number.isFinite(timeSec)) return 0;
+  const window = Math.min(OUTRO_SECONDS, durationSec);
+  const start = durationSec - window;
+  if (timeSec <= start) return 0;
+  return easeOutCubic(Math.min(1, (timeSec - start) / window));
 }
 
 /**
