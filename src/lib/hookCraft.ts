@@ -81,6 +81,47 @@ const POMPOUS_WORDS = [
   "altar",
 ];
 
+/**
+ * Konkret da się policzyć albo sfotografować — to cała reguła. Sam abstrakt
+ * („Mindset is everything.") nie daje czytelnikowi nic do złapania w pół
+ * sekundy, więc zdanie z pojęciem w środku musi nieść przynajmniej jeden
+ * marker z list poniżej. Heurystyka, nie NLP: lepiej przepuścić sprytny
+ * slop niż odrzucić markowe „Maybe forty more summers."
+ */
+const NUMBER_WORDS =
+  /\b(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|dozen|once|twice|half)\b/i;
+
+/** Godzina, pora dnia i dzień tygodnia kotwiczą zdanie w dobie, nie w idei. */
+const TIME_ANCHORS =
+  /\b(noon|midnight|dawn|sunrise|sunset|mornings?|evenings?|nights?|tonight|today|tomorrow|yesterday|hours?|minutes?|mondays?|tuesdays?|wednesdays?|thursdays?|fridays?|saturdays?|sundays?|weekdays?|weekends?)\b/i;
+
+/** Ciało jest zawsze konkretne, nawet gdy zdanie mówi o czymś większym. */
+const BODY_PARTS =
+  /\b(head|face|eyes?|ears?|mouth|jaw|neck|shoulders?|arms?|hands?|fingers?|fists?|chest|back|spine|heart|lungs?|stomach|guts?|legs?|knees?|feet|foot|toes?|skin|bones?|blood|breath|sweat)\b/i;
+
+/** Przedmiot, który czytelnik realnie ma w ręku albo pod stopami — nie ozdoba. */
+const CONCRETE_NOUNS =
+  /\b(kettle|phones?|doors?|floors?|barbells?|boots?|beds?|pillows?|blankets?|alarms?|water|air|snow|rain|mud|ground|sun|moon|gyms?|rust|axes?|wood|rivers?|glass(es)?|desks?|chairs?|tables?|mirrors?|windows?|walls?|rooms?|stairs|streets?|coffee|cups?|clocks?|watch(es)?|screens?|notebooks?|pens?|paper|books?|plates?|shoes?|jackets?|ropes?|mats?)\b/i;
+
+/**
+ * „You" stawia w zdaniu człowieka z krwi, więc „You lack discipline" ma
+ * podmiot, który da się sfotografować — bez tego wyjątku reguła konkretu
+ * odrzucałaby diagnozy mówione wprost do czytelnika.
+ */
+const PERSON_ANCHOR =
+  /\b(you|your|yours|yourself|we|our|us|i|me|my|mine|myself|nobody|somebody|someone|anyone|everyone|everybody)\b/i;
+
+/** Zdanie niesie coś policzalnego albo namacalnego: liczbę, porę, ciało, rzecz. */
+export function hasConcreteImage(text: string): boolean {
+  return (
+    /\d/.test(text) ||
+    NUMBER_WORDS.test(text) ||
+    TIME_ANCHORS.test(text) ||
+    BODY_PARTS.test(text) ||
+    CONCRETE_NOUNS.test(text)
+  );
+}
+
 /** Mówienie o ludziach w trzeciej osobie brzmi jak rada, nie jak diagnoza. */
 const MORALIZING = /\b(people who|most men|everyone knows|society|they all|nobody these days)\b/i;
 
@@ -160,6 +201,15 @@ export function auditHook(text: string): HookAudit {
 
   const first = (words[0] || "").replace(/[^a-z]/gi, "").toLowerCase();
   if (ABSTRACT_SUBJECTS.includes(first)) issues.push(`abstrakt w roli podmiotu („${first}”)`);
+
+  // Pojęcie w środku zdania też bywa całą treścią („The key to success is
+  // patience.") — dotąd przechodziło, bo kontrola patrzyła tylko na pierwszy
+  // wyraz. Abstrakt zostaje tylko z obrazem albo człowiekiem obok.
+  const abstract = ABSTRACT_SUBJECTS.find((word) => new RegExp(`\\b${word}\\b`, "i").test(clean));
+  if (abstract && !hasConcreteImage(clean) && !PERSON_ANCHOR.test(clean))
+    issues.push(
+      `abstrakt bez konkretu („${abstract}” — ani liczby, ani przedmiotu, ani człowieka)`,
+    );
 
   const cliche = CLICHE_PHRASES.find((phrase) => lower.includes(phrase));
   if (cliche) issues.push(`klisza („${cliche}”)`);

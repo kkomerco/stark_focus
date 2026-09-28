@@ -48,6 +48,40 @@ describe("reelChecklist", () => {
 
     assert.ok(checklistProblems(items).some((item) => item.id === "english"));
   });
+
+  it("rolka z samych sentencji nie ma komu jej przesłać — i to tylko ostrzeżenie", () => {
+    const items = reelChecklist({
+      phrases: [
+        "Discipline is a lifestyle.",
+        "Mindset is everything.",
+        "Success demands consistency.",
+      ],
+      durationSec: 12,
+      audioEnabled: true,
+    });
+
+    const sendTest = items.find((item) => item.id === "send-test");
+    assert.ok(sendTest, "test wysyłki ma być na liście kontrolnej");
+    assert.equal(sendTest.ok, false, "goła sentencja nie nazywa adresata ani sceny");
+    assert.equal(typeof sendTest.hint, "string");
+  });
+
+  it("scena albo „you” daje rolce powód do wysyłki", () => {
+    const items = reelChecklist({
+      phrases: [
+        "The kettle is cold again at 4:40.",
+        "Nobody is coming to fix your year.",
+        "So do it scared, and do it alone.",
+      ],
+      durationSec: 12,
+      audioEnabled: true,
+    });
+
+    assert.equal(
+      checklistProblems(items).some((item) => item.id === "send-test"),
+      false,
+    );
+  });
 });
 
 describe("postChecklist", () => {
@@ -101,6 +135,28 @@ describe("postChecklist", () => {
     assert.ok(
       checklistProblems(items).some((item) => item.id === "hook"),
       "krok z klisza nie moze byc OK",
+    );
+  });
+
+  it("kadr bez adresata i sceny dostaje test wysyłki jako ostrzeżenie, nie blokadę", () => {
+    const items = postChecklist({
+      primary: "Discipline is a lifestyle.",
+      caption: formatStarkCaption("Discipline is a lifestyle."),
+    });
+    const problems = checklistProblems(items).map((item) => item.id);
+
+    assert.ok(problems.includes("send-test"), "goła sentencja nie ma komu jej przesłać");
+    // Panel pozostaje doradczy: funkcja oddaje listę, decyzja o eksporcie zostaje przy właścicielu.
+    assert.ok(items.length > 0);
+  });
+
+  it("konkret na kadrze przechodzi test wysyłki razem z całą kontrolą", () => {
+    const caption = formatStarkCaption("The kettle is cold again at 4:40.");
+    const items = postChecklist({ primary: "The kettle is cold again at 4:40.", caption });
+
+    assert.deepEqual(
+      checklistProblems(items).map((item) => item.id),
+      [],
     );
   });
 });

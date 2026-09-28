@@ -8,7 +8,7 @@
  * Panel jest doradczy. Blokowanie eksportu byłoby zakładaniem, że aplikacja
  * wie lepiej niż właściciel marki — wie tylko tyle, co wpisaliście w reguły.
  */
-import { auditHook, auditLine } from "./hookCraft";
+import { auditHook, auditLine, hasConcreteImage } from "./hookCraft";
 import { isPolishCopy, STARK_CTAS, starkCaption } from "./caption";
 
 export interface ChecklistItem {
@@ -22,6 +22,25 @@ export interface ChecklistItem {
 const SECONDS_PER_BEAT = 2.2;
 const NL = String.fromCharCode(10);
 const MAX_WORDS_PER_LINE = 4;
+
+/** Druga osoba: czytelnik czyta „you" i słyszy własne imię. */
+const SECOND_PERSON = /\b(you|your|yours|yourself|yourselves)\b/i;
+
+/** Nazwany adresat: „the one person who…" to gotowy odbiorca przesyłki. */
+const ADDRESSEE =
+  /\b(the (one |only )?(person|man|woman|friend|kid|son|daughter|father|mother|brother|sister) who|the one who|some(one|body) who|whoever)\b/i;
+
+/**
+ * Test wysyłki: kadr przechodzi, gdy czytelnik może pomyśleć o JEDNEJ osobie
+ * („to o niej") i przesłać go w DM-ie — a tam idą zasięgi tej niszy. Druga
+ * osoba, nazwany adresat albo scena z życia dają powód do wysyłki; goła
+ * sentencja kończy na lajku i nie idzie dalej.
+ */
+function namesSomeoneToSend(text: string): boolean {
+  if (SECOND_PERSON.test(text)) return true;
+  if (ADDRESSEE.test(text)) return true;
+  return hasConcreteImage(text);
+}
 
 function words(text: string): string[] {
   return text.replace(/[*#]/g, "").trim().split(/\s+/).filter(Boolean);
@@ -78,6 +97,12 @@ export function reelChecklist(options: {
       hint: "Karmazyn łapiący całe zdanie przestaje wyróżniać i zaczyna krzyczeć.",
     },
     {
+      id: "send-test",
+      label: "Da się ją przesłać jednej konkretnej osobie",
+      ok: namesSomeoneToSend(phrases.join(" ")),
+      hint: "Wysyłki idą przez DM-y. „You”, nazwany adresat albo scena z życia dają powód do przesłania — goła sentencja kończy na lajku.",
+    },
+    {
       id: "audio",
       label: "Rolka ma ścieżkę dźwiękową",
       ok: options.audioEnabled,
@@ -113,6 +138,14 @@ export function postChecklist(options: {
       label: "Myśl z kadru przechodzi kontrolę rzemiosła",
       ok: issues.length === 0,
       hint: issues.join("; ") || "Czysto.",
+    },
+    {
+      id: "send-test",
+      label: "Myśl z kadru ma jednego adresata",
+      // Mierzymy kadr, nie opis: markowy ogon CTA zawsze kogoś nazywa, więc
+      // kontrola opisu przechodziłaby z automatu i nic by nie mówiła.
+      ok: namesSomeoneToSend([options.primary, ...(options.lines ?? [])].join(" ")),
+      hint: "Kadr mówiący do „you”, nazywający adresata albo pokazujący scenę dostaje przesyłkę w DM-ie, nie tylko lajka.",
     },
     {
       id: "english",
