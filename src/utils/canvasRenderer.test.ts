@@ -12,6 +12,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { renderUniversalLayout } from "./canvasRenderer";
+import { BRAND_ACCENT } from "./starkBrandTheme";
 import { structuredSpec } from "./ideaLayout";
 import { UniversalLayoutSpec } from "../types";
 
@@ -42,6 +43,8 @@ function inkLeft(entry: Drawn, width: number): number {
  */
 function fakeCanvas() {
   const drawn: Drawn[] = [];
+  const paths: Array<{ color: string; points: Array<[number, number]> }> = [];
+  let current: Array<[number, number]> = [];
   const state: Record<string, unknown> = {
     font: "10px sans-serif",
     textAlign: "left",
@@ -77,6 +80,18 @@ function fakeCanvas() {
       data: new Uint8ClampedArray(Math.max(1, w * h) * 4),
     }),
     drawImage: () => undefined,
+    beginPath: () => {
+      current = [];
+    },
+    moveTo: (x: number, y: number) => {
+      current = [[x, y]];
+    },
+    lineTo: (x: number, y: number) => {
+      current.push([x, y]);
+    },
+    stroke: () => {
+      paths.push({ color: String(state.strokeStyle), points: [...current] });
+    },
   };
 
   const ctx = new Proxy(target, {
@@ -98,7 +113,7 @@ function fakeCanvas() {
     toDataURL: () => "data:image/png;base64,",
   };
 
-  return { canvas, drawn };
+  return { canvas, drawn, paths };
 }
 
 function render(spec: UniversalLayoutSpec, fontFamily = "cinzel") {
@@ -112,6 +127,24 @@ function render(spec: UniversalLayoutSpec, fontFamily = "cinzel") {
     fontColor: "white",
   });
   return drawn.filter((entry) => entry.text.trim().length > 0);
+}
+
+/**
+ * Ten sam render, ale dla znaku marki: klamry nie są tekstem, więc test musi
+ * patrzeć na ścieżki. Zostawiamy tylko łamane złożone z trzech punktów —
+ * dokładnie tyle ma róg klamry, a siatka kolażu rysuje swoje linie z dwóch.
+ */
+function renderBrackets(spec: UniversalLayoutSpec) {
+  const { canvas, paths } = fakeCanvas();
+  renderUniversalLayout(canvas as unknown as HTMLCanvasElement, spec, [], {
+    width: WIDTH,
+    height: HEIGHT,
+    fontFamily: "cinzel",
+    textScale: 1,
+    handle: "@stark_focus",
+    fontColor: "white",
+  });
+  return paths.filter((path) => path.points.length === 3);
 }
 
 const PROTOCOL = structuredSpec("Protokół", "protocol_list", {
@@ -216,6 +249,48 @@ describe("renderUniversalLayout", () => {
     assert.ok(
       !drawn.some((entry) => entry.text.toLowerCase().includes("silence cannot be misquoted")),
       drawn.map((entry) => entry.text).join(" | "),
+    );
+  });
+
+  // Sygnet marki: klamry narożne pola treści. Jeden akcent karmazynu (górny
+  // lewy róg), reszta kością — inaczej kadr ma dwa krzyki na raz.
+  it("sygnet: cztery klamry na kadrze, karmazyn tylko w górnym lewym rogu", () => {
+    for (const [name, spec] of [
+      ["cytat", QUOTE],
+      ["protokół", PROTOCOL],
+      ["koszt", COST],
+      ["kolaż", COLLAGE],
+    ] as Array<[string, UniversalLayoutSpec]>) {
+      const corners = renderBrackets(spec);
+      assert.equal(corners.length, 4, `${name}: klamer jest ${corners.length}`);
+      const crimson = corners.filter((corner) => corner.color === BRAND_ACCENT);
+      assert.equal(crimson.length, 1, `${name}: karmazynowych rogów jest ${crimson.length}`);
+      const all = corners.map((corner) => corner.points[1]);
+      const accent = crimson[0].points[1];
+      assert.equal(
+        accent[0],
+        Math.min(...all.map(([x]) => x)),
+        `${name}: karmazyn nie jest lewym rogiem`,
+      );
+      assert.equal(
+        accent[1],
+        Math.min(...all.map(([, y]) => y)),
+        `${name}: karmazyn nie jest górnym rogiem`,
+      );
+    }
+  });
+
+  it("sygnet: klamry zostają przy naszej kompozycji, nie na kopii cudzej", () => {
+    const replica: UniversalLayoutSpec = { ...QUOTE, gridType: "studio_wall_3d" };
+    assert.equal(renderBrackets(replica).length, 0);
+  });
+
+  it("cytat: zdanie markowe nie siada poniżej pisma plakatu", () => {
+    const thesis = render(QUOTE)[0];
+    const size = Number(/(\d+(?:\.\d+)?)px/.exec(thesis.font)?.[1] ?? 0);
+    assert.ok(
+      size >= 90,
+      `teza ma ${size}px na kadrze ${WIDTH}x${HEIGHT} — dawniej drabinka zatrzymywała ją na 64px`,
     );
   });
 });

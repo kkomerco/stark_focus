@@ -25,6 +25,7 @@ import {
   drawProtocolListSlide,
 } from "./canvas/layouts-v2";
 import { starkCta } from "../lib/caption";
+import { drawBrandBrackets, type InkBox } from "./brandMark";
 import { groupText, layerById, PRIMARY_LAYER_ID } from "./canvas/layerRoles";
 import { MIN_TEXT_PX, floorFor } from "./safeZones";
 
@@ -672,7 +673,11 @@ export function draw4GridCollageSlide(
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext("2d");
-  if (!ctx) return;
+  if (!ctx) return null;
+
+  // Treścią kolażu są cztery zdjęcia, więc polem objętym klamrami jest cała
+  // siatka, a nie sam napis na środku.
+  const gridBox: InkBox = { left: 0, top: 0, right: width, bottom: height };
 
   const halfW = width / 2;
   const halfH = height / 2;
@@ -739,7 +744,7 @@ export function draw4GridCollageSlide(
 
   if (!centerText.trim()) {
     sign();
-    return;
+    return gridBox;
   }
 
   // Napis to jedno-dwa słowa, więc może uderzyć rozmiarem: dawniej stałe
@@ -774,6 +779,7 @@ export function draw4GridCollageSlide(
   ctx.textBaseline = "alphabetic";
 
   sign();
+  return gridBox;
 }
 
 // =========================================================================
@@ -812,7 +818,7 @@ export function drawMinimalBlackQuoteSlide(
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext("2d");
-  if (!ctx) return;
+  if (!ctx) return null;
 
   const isBlackFont = fontColor === "black";
 
@@ -842,12 +848,20 @@ export function drawMinimalBlackQuoteSlide(
   const drawX = align === "center" ? width / 2 : paddingX;
   ctx.textAlign = align === "center" ? "center" : "left";
 
+  let blockBox: InkBox | null = null;
+
   if (!hasSub) {
     // TRYB 1: teza — jedna linia albo cały cytat rozbity na wiersze.
-    let baseFontSize = height >= 1800 ? 84 : 70;
-    if (cleanMain.length > 25) baseFontSize = height >= 1800 ? 74 : 62;
-    if (cleanMain.length > 45) baseFontSize = height >= 1800 ? 64 : 52;
-    if (cleanMain.length > 70) baseFontSize = height >= 1800 ? 54 : 44;
+    //
+    // Dawniej drabinka zaczynała się od 84 px i dla zdania >45 znaków siadała
+    // na 64 px. Zdanie markowe ma 46 znaków, więc każdy kadr wychodził tym
+    // samym drobnym napisem dryfującym na środku pustej czerni — to, a nie
+    // brak ozdóbki, sprawiał, że karta wyglądała na cudzą. `fitLines` i tak
+    // dobija rozmiar do liczby wierszy, więc start może być odważny.
+    let baseFontSize = height >= 1800 ? 150 : 118;
+    if (cleanMain.length > 25) baseFontSize = height >= 1800 ? 112 : 92;
+    if (cleanMain.length > 45) baseFontSize = height >= 1800 ? 96 : 80;
+    if (cleanMain.length > 70) baseFontSize = height >= 1800 ? 84 : 70;
 
     // Rozmiar dobierany pod realną liczbę wierszy: dawniej długi cytat rósł
     // ponad kadr i łamał się o własne linie.
@@ -863,11 +877,14 @@ export function drawMinimalBlackQuoteSlide(
     const mainFontSize = fitted.size;
     const mainLines = fitted.lines;
 
-    const lineHeight = Math.round(mainFontSize * 1.34);
+    // Duże pismo potrzebuje ciasnego interlinia — przy 1,34 czterowiersz
+    // wyglądał jak lista, a nie jak jedno zdanie.
+    const lineHeight = Math.round(mainFontSize * 1.18);
     const totalH = mainLines.length * lineHeight;
 
     // Środek bezpiecznego pasa — góra i dół kadru to teren interfejsu.
-    let curY = centeredTop(totalH, height) + mainFontSize;
+    const blockTop = centeredTop(totalH, height);
+    let curY = blockTop + mainFontSize;
 
     ctx.font = `700 ${mainFontSize}px ${fontSpec}`;
     ctx.fillStyle = textColor;
@@ -875,6 +892,13 @@ export function drawMinimalBlackQuoteSlide(
       ctx.fillText(line, drawX, curY);
       curY += lineHeight;
     });
+
+    blockBox = {
+      left: drawX,
+      right: drawX + maxLineWidth,
+      top: blockTop,
+      bottom: blockTop + totalH,
+    };
   } else {
     // TRYB 2: DWA WERSY (Nagłówek + dopisek). Najpierw schodzimy z rozmiarem pisma, a dopiero
     // na twardym minimum łamiemy tekst na wiersze — inaczej długie zdanie od modelu wyleca
@@ -922,6 +946,13 @@ export function drawMinimalBlackQuoteSlide(
     ctx.fillStyle = textMutedColor;
     const subStartY = startY + (mainLines.length - 1) * mainLineHeight + gap + subFontSize;
     subLines.forEach((line, i) => ctx.fillText(line, drawX, subStartY + i * subLineHeight));
+
+    blockBox = {
+      left: drawX,
+      right: drawX + maxLineWidth,
+      top: startY - mainFontSize,
+      bottom: startY - mainFontSize + totalH,
+    };
   }
 
   // Dyskretna sygnatura na dole kadru 9:16
@@ -930,6 +961,8 @@ export function drawMinimalBlackQuoteSlide(
   ctx.fillStyle = isBlackFont ? "rgba(0, 0, 0, 0.38)" : "rgba(255, 255, 255, 0.38)";
   ctx.textAlign = align === "center" ? "center" : "left";
   ctx.fillText(`@${cleanHandle}`, drawX, height - 120);
+
+  return blockBox;
 }
 
 // =========================================================================
@@ -1037,7 +1070,38 @@ function l1Fallback(spec: UniversalLayoutSpec): string {
   return spec.textLayers[0]?.text?.trim() ?? "";
 }
 
+/** Kadr gotowy: pole treści + kształt, potrzebny, żeby sygnet narysować raz, na końcu. */
+interface RenderedFrame {
+  box: InkBox | null;
+  width: number;
+  height: number;
+  onLight: boolean;
+}
+
+/**
+ * Jedyny eksportowany renderer kadru. Ciało układów nie rysuje znaku — klamry
+ * dokłada to jedno miejsce, inaczej podgląd i eksport rozjechałyby się o
+ * pół roku decyzji właściciela marki.
+ */
 export function renderUniversalLayout(
+  canvas: HTMLCanvasElement,
+  spec: UniversalLayoutSpec,
+  images: (CanvasImageSource | null)[] = [],
+  options: Parameters<typeof renderLayoutBody>[3],
+) {
+  const frame = renderLayoutBody(canvas, spec, images, options);
+  if (!frame?.box) return;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  drawBrandBrackets(ctx, {
+    width: frame.width,
+    height: frame.height,
+    box: frame.box,
+    onLight: frame.onLight,
+  });
+}
+
+function renderLayoutBody(
   canvas: HTMLCanvasElement,
   spec: UniversalLayoutSpec,
   images: (CanvasImageSource | null)[] = [],
@@ -1048,10 +1112,9 @@ export function renderUniversalLayout(
     textScale?: number;
     handle?: string;
     fontColor?: "white" | "black";
-    /** Obraz tła z `POST /api/ai/generate-background`. */
     backgroundImage?: CanvasImageSource | null;
   } = {},
-) {
+): RenderedFrame | null {
   const width = options.width || 1080;
   const height = options.height || 1080;
   const handle = options.handle || "stark_focus";
@@ -1068,7 +1131,7 @@ export function renderUniversalLayout(
 
   // Format 1: Kolaż 4 Kadrów — teza przez środek, każdy kadr w swojej ćwiartce.
   if (spec.gridType === "grid_2x2") {
-    draw4GridCollageSlide(canvas, {
+    const box = draw4GridCollageSlide(canvas, {
       width,
       height,
       centerText: layerById(spec, PRIMARY_LAYER_ID) || "",
@@ -1078,12 +1141,12 @@ export function renderUniversalLayout(
       fontFamily: spec.fontFamilyCustom || fontFamily,
       textScale,
     });
-    return;
+    return { box, width, height, onLight: fontColor === "black" };
   }
 
   // Format 2: Protokół — numerowane kroki pod tezą.
   if (spec.gridType === "protocol_list") {
-    drawProtocolListSlide(canvas, {
+    const box = drawProtocolListSlide(canvas, {
       width,
       height,
       handle,
@@ -1093,12 +1156,12 @@ export function renderUniversalLayout(
       bgImage: options.backgroundImage ?? images[0] ?? null,
       headlineFont: spec.fontFamilyCustom || fontFamily,
     });
-    return;
+    return { box, width, height, onLight: false };
   }
 
   // Format 3: Koszt vs utrata — dwa słupki i pytanie bez odpowiedzi.
   if (spec.gridType === "cost_vs_reward") {
-    drawCostVsRewardSlide(canvas, {
+    const box = drawCostVsRewardSlide(canvas, {
       width,
       height,
       handle,
@@ -1109,7 +1172,7 @@ export function renderUniversalLayout(
       bgImage: options.backgroundImage ?? images[0] ?? null,
       headlineFont: spec.fontFamilyCustom || fontFamily,
     });
-    return;
+    return { box, width, height, onLight: false };
   }
 
   // Format 4: napis w otoczeniu — ściana 3D, neon albo baner. Ten sam tekst,
@@ -1124,11 +1187,11 @@ export function renderUniversalLayout(
 
     if (scene === "neon") {
       drawNeonSignSlide(canvas, { width, height, textLines, handle });
-      return;
+      return null;
     }
     if (scene === "billboard") {
       drawBillboardSignSlide(canvas, { width, height, textLines, handle });
-      return;
+      return null;
     }
 
     draw3DWallQuoteSlide(canvas, {
@@ -1142,13 +1205,16 @@ export function renderUniversalLayout(
       textScale,
       fontColor,
     });
-    return;
+    return null;
   }
 
   // Wiele warstw z własną geometrią — tylko w układach z analizy linku.
   // Cytat na czerni ma warstwy będące LINIJAMI TEJ SAMEJ myśli: puszczenie ich
   // przez `posY` każdej warstwy sprawiałoby, że przy trzeciej linii słowa
   // zaczynały na siebie nachodzić.
+  //
+  // Bez klamer: ten kadr jest wierną kopią cudzej kompozycji i własny sygnet
+  // wjechałby w cudzy układ.
   if (spec.gridType !== "none_solid" && spec.textLayers.length > 2) {
     drawLayeredTextSlide(canvas, spec, {
       width,
@@ -1158,7 +1224,7 @@ export function renderUniversalLayout(
       handle,
       backgroundImage: options.backgroundImage ?? null,
     });
-    return;
+    return null;
   }
 
   // Format 4: Domyślny, nieskazitelny Cytat na Czerni (9:16)
@@ -1173,7 +1239,7 @@ export function renderUniversalLayout(
           .join("\n")
       : l1;
 
-  drawMinimalBlackQuoteSlide(canvas, {
+  const box = drawMinimalBlackQuoteSlide(canvas, {
     width,
     height,
     mainText,
@@ -1185,6 +1251,8 @@ export function renderUniversalLayout(
     handle,
     backgroundImage: options.backgroundImage ?? null,
   });
+
+  return { box, width, height, onLight: fontColor === "black" };
 }
 
 // GŁÓWNY SILNIK RENDEROWANIA KARUZEL

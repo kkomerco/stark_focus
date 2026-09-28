@@ -1,4 +1,5 @@
 import { BRAND_ACCENT } from "../starkBrandTheme";
+import type { InkBox } from "../brandMark";
 import { centeredTop as centeredInBand, safeBand } from "../safeZones";
 import {
   drawImageCover,
@@ -107,9 +108,9 @@ export interface ProtocolSlideOptions extends LayoutTheme {
 export function drawProtocolListSlide(
   canvas: HTMLCanvasElement,
   options: ProtocolSlideOptions,
-): void {
+): InkBox | null {
   const base = prepare(canvas, options);
-  if (!base) return;
+  if (!base) return null;
   const { ctx, width, height, accent } = base;
 
   const margin = Math.round(width * 0.09);
@@ -156,6 +157,7 @@ export function drawProtocolListSlide(
     stepGap;
 
   let y = centeredTop(blockHeight, height);
+  const blockTop = y;
 
   // Pieczęć z liczbą — przy tezie, nie w rogu: róg to strefa interfejsu.
   // Malowana PRZED krokami, bo inaczej „72h" wchodziło w ostatni wiersz listy.
@@ -203,6 +205,16 @@ export function drawProtocolListSlide(
   });
 
   footer(ctx, width, height, options.handle);
+
+  // Dół i góra po atramencie, nie po linii bazowej: `blockTop` to bazowa
+  // pierwszego wiersza, a wersaliki schodzą nad nią o ~0,7 rozmiaru — klamra
+  // liczone od niej wchodziła w literę.
+  return {
+    left: margin,
+    right: width - margin,
+    top: blockTop - statementSize * 0.72,
+    bottom: y - stepGap + stepSize * 0.25,
+  };
 }
 
 export interface CostRewardSlideOptions extends LayoutTheme {
@@ -222,9 +234,9 @@ export interface CostRewardSlideOptions extends LayoutTheme {
 export function drawCostVsRewardSlide(
   canvas: HTMLCanvasElement,
   options: CostRewardSlideOptions,
-): void {
+): InkBox | null {
   const base = prepare(canvas, options);
-  if (!base) return;
+  if (!base) return null;
   const { ctx, width, height, accent } = base;
 
   const margin = Math.round(width * 0.09);
@@ -285,6 +297,7 @@ export function drawCostVsRewardSlide(
     (closing ? closingGap + closingBlock : 0);
 
   let y = centeredTop(blockHeight, height);
+  const blockTop = y;
   ctx.font = `700 ${question.size}px ${headline}`;
   ctx.fillStyle = INK;
   for (const line of question.lines) {
@@ -296,6 +309,7 @@ export function drawCostVsRewardSlide(
   hairline(ctx, margin, y, contentWidth, "rgba(243,240,234,0.16)");
 
   const rowsTop = y + tableTopGap;
+  let contentBottom = rowsTop + rowCount * rowSpan;
 
   const column = (title: string, items: string[], x: number, highlight: boolean) => {
     ctx.font = `800 ${headerSize}px ${bodyFont}`;
@@ -336,9 +350,18 @@ export function drawCostVsRewardSlide(
     closing.lines.forEach((line, index) => {
       ctx.fillText(line, margin, closingTop + closing.size + index * closing.size * 1.25);
     });
+    contentBottom = closingTop + closing.size + (closing.lines.length - 1) * closing.size * 1.25;
   }
 
   footer(ctx, width, height, options.handle);
+
+  // Krawędź atramentu, nie linia bazowa — patrz uwaga przy protokole.
+  return {
+    left: margin,
+    right: width - margin,
+    top: blockTop - question.size * 0.72,
+    bottom: contentBottom + bodySize * 0.25,
+  };
 }
 
 export interface SignSlideOptions extends LayoutTheme {
