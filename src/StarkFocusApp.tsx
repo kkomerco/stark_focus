@@ -379,6 +379,7 @@ export default function StarkFocusApp() {
             stream={ideaStream}
             exemplars={data.exemplars ?? []}
             onToggleExemplar={handleToggleExemplar}
+            excludeHooks={usedHooks}
             onSendToReel={(reel) => {
               setIdeaStreamOpen(false);
               handleSendToReel(reel);

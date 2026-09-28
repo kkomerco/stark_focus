@@ -289,6 +289,12 @@ export interface IdeaItem {
   /** Układ wizualny wybrany przez model — bez niego każdy pomysł lądowałby jako cytat. */
   layout?: "quote" | "protocol_list" | "cost_vs_reward" | "studio_wall_3d" | "grid_2x2";
   structure?: IdeaStructure;
+  /**
+   * Tani prompt strumienia daje tylko tezę i układ. Kadr, któremu brakuje
+   * wierszy, nie jest cytasem — jest niewypełniony, i studio dopyta go jednym
+   * zapytaniem dopiero wtedy, gdy człowiek otworzy kartę.
+   */
+  needsFill?: boolean;
 }
 
 export interface IdeaStreamResponse {

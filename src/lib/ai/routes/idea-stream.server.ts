@@ -187,7 +187,8 @@ interface BatchSeed {
   shapes: string[];
 }
 
-function batchSeed(count: number): BatchSeed {
+/** Eksportowane dla testu taniego promptu — reszta aplikacji nie ma tu czego szukać. */
+export function batchSeed(count: number): BatchSeed {
   return {
     cats: pickN([...CATEGORIES], Math.min(count, CATEGORIES.length)),
     figures: pickN(
@@ -274,15 +275,18 @@ function sendOfflineIdeas(
 }
 
 /** Pojedynczy pomysł od modelu -> kształt, którego studio użyje bez sprawdzania. */
-function normalizeModelIdea(raw: unknown, index: number, seed: BatchSeed) {
+/** Eksportowane dla testów: tu zapada wyrok, czy kadr jest pełny, czy tylko tezą. */
+export function normalizeModelIdea(raw: unknown, index: number, seed: BatchSeed) {
   const item = (raw ?? {}) as Record<string, unknown>;
   const structure = (item.structure ?? {}) as Record<string, unknown>;
   const layout = oneOf(item.layout, LAYOUT_VALUES, "quote" as IdeaLayout);
   const format = LAYOUTS.find((option) => option.value === layout)?.format ?? FRAME_FORMATS[0];
 
   // Teza kadru jest jedynym źródłem hooka: model nie pisze osobno „hook" i
-  // osobno „statement", bo te dwa pola zawsze się rozjeżdżały.
-  const statement = thesis(structure.primary);
+  // osobno „statement", bo te dwa pola zawsze się rozjeżdżały. Tani prompt
+  // strumienia daje ją wprost w polu „primary"; „structure.primary" zostaje
+  // jako ścieżka dla odpowiedzi pełnego kadru.
+  const statement = thesis(item.primary ?? structure.primary);
   if (!statement) return null;
 
   const steps = lineList(structure.steps, listSize(format, "steps"));
@@ -292,22 +296,25 @@ function normalizeModelIdea(raw: unknown, index: number, seed: BatchSeed) {
   const rawFigure = clean(structure.figure).slice(0, 12);
   const figure = rawFigure && !isPolishCopy(rawFigure) ? rawFigure : "";
 
-  // Układ, z którego filtr wyciął wszystkie wiersze, nie jest tym układem:
-  // studio narysowałoby pustą listę, więc oddajemy cytat z samą tezą.
+  // Brak wierszy przy układzie, który ich żąda, to NIE pusta lista — to kadr
+  // jeszcze niewypełniony. Dawniej taka karta zwijała się do cytatu i znikała
+  // z niej informacja, że pomysł był protokołem; teraz niesie flagę, na której
+  // studio dopytuje jeden pełny kadr.
   const wantsRows = listSize(format, "steps") > 0 || listSize(format, "rows") > 0;
-  const collapsed = wantsRows && steps.length === 0 && cost.length === 0;
+  const needsFill = wantsRows && steps.length === 0 && cost.length === 0;
 
   return {
     id: `idea-${Date.now()}-${index + 1}`,
-    layout: (collapsed ? "quote" : layout) as IdeaLayout,
+    layout: layout as IdeaLayout,
+    needsFill,
     // Puste listy nie wchodzą do struktury — `structuredSpec` dokłada warstwę
     // tylko za każdą niepustą listę, a kadr z dziurą nie ma czym wypełnić.
     structure: {
       statement,
-      ...(collapsed ? {} : steps.length ? { steps } : {}),
-      ...(collapsed || !cost.length ? {} : { cost, forfeit }),
-      ...(collapsed || !closing ? {} : { closing }),
-      ...(collapsed || !figure ? {} : { figure }),
+      ...(steps.length ? { steps } : {}),
+      ...(cost.length ? { cost, forfeit } : {}),
+      ...(closing ? { closing } : {}),
+      ...(figure ? { figure } : {}),
     },
     hook: statement,
     category: note(item.category, seed.cats[index % seed.cats.length]),
@@ -342,22 +349,21 @@ export function registerIdeaStreamRoutes(app: MiniApp): void {
       const prompt = `Jesteś autorem treści marki @stark_focus (brutalny stoicyzm, dyscyplina, wysokie standardy).
 Temat nadrzędny: "${topic}".
 
-ZADANIE: napisz DOKŁADNIE ${safeCount} pomysłów na materiał. Każdy pomysł to UKŁAD KADRU wraz z jego polami, nie samo hasło.
+ZADANIE: napisz DOKŁADNIE ${safeCount} pomysłów na materiał. Każdy pomysł to TEZA kadru plus wybrany dla niej układ — i nic więcej. Wierszy, par, opisu ani pytania NIE pisz: dopisuje je osobne zapytanie w momencie, gdy człowiek otwiera pomysł w studiu. Dzięki temu jedna partia jest tania, a pełny kadr płaci się tylko za to, co naprawdę poszło do edytora.
 
 ${HOOK_CRAFT_PROMPT}
 ${exemplarBlock(exemplars)}
 
-UKŁADY (pole "layout" oraz pole "structure" z polami wybranego układu; w jednej paczce użyj MINIMUM 3 różnych, nigdy wszystkiego jako "quote"):
+UKŁADY (pole "layout"; w jednej paczce użyj MINIMUM 3 różnych, nigdy wszystkiego jako "quote"). Z całej listy pól interesuje nas wyłącznie "primary" — to jest teza, którą masz napisać:
 ${LAYOUT_PROMPT}
 
-Pola "structure" nazywamy dokładnie tak, jak w listach powyżej ("primary", "steps", "rows", "closing").
-Opcjonalnie "figure": jedna liczba wynikająca z tezy (np. "72h" albo "3:1") — tylko gdy naprawdę ją widać w zdaniu; bez tego kadr idzie bez cyfry.
+Teza ma być napisana tak, by wybrany układ miał co rozwinąć: protokół pod zdanie z sekwencją działań, koszt pod pytanie o cenę, kolaż pod dwa słowa, które trzymają cztery kadry. Cyfry nie dokleaj — "figure" też jest polem pełnego kadru.
 
 JAKOŚĆ (to warunek, nie opcja):
 - Żadnych sloganów motywacyjnych. Zamiast "bądź zdyscyplinowany" — konkretna, niewygodna obserwacja, którą czytelnik musi dokończyć sam.
 - Każdy pomysł ma jeden koszt, jedną liczbę albo jedną sprzeczność. Abstrakcja bez ceny nie zatrzymuje kciuka.
-- Teza kadru: ${HOOK_IDEAL_WORDS} słów. Wiersze struktury krótsze niż teza.
-- 100% PO ANGIELSKU (teza, wiersze, puenta, caption). Polski w dowolnym polu = pomysł odrzucony w kodzie.
+- Teza kadru: ${HOOK_IDEAL_WORDS} słów.
+- 100% PO ANGIELSKU (teza i wszystkie krótkie pola). Polski w dowolnym polu = pomysł odrzucony w kodzie.
 
 MACIERZ (używaj różnych kombinacji; "archetype" to id figury z listy powyżej):
 - Kategorie: ${seed.cats.join(" | ")}
@@ -383,13 +389,11 @@ Zwróć WYŁĄCZNIE JSON:
   "ideas": [
     {
       "layout": ${LAYOUT_VALUES.map((value) => `"${value}"`).join(" | ")},
-      "structure": { pola wybranego układu, po angielsku },
+      "primary": "teza kadru po angielsku — jedyne zdanie, które piszesz",
       "category": "string",
       "archetype": "id figury, której użyłeś",
       "emotionalTarget": "string",
       "format": "string",
-      "phrases": ["fazy roli: teza, rozwinięcie, puenta — po angielsku"],
-      "caption": "2-3 zdania po angielsku rozwijające myśl z kadru — bez hashtagów i bez CTA, ogon doklejamy u siebie",
       "theme": "${THEMES.join(" | ")}"
     }
   ]

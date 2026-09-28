@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { IdeaItem, ReelHandoff } from "../types";
 import { formatById, formatByGrid } from "../lib/formats";
+import { fillIdeaForPost } from "../lib/ideaFill";
 import { hookFingerprint, SIMILARITY } from "../lib/similarity";
 import type { useIdeaStream } from "../hooks/useIdeaStream";
 
@@ -44,6 +45,8 @@ interface IdeaStreamModalProps {
    * każdy pomysł zapada się w cytat na czerni.
    */
   onSendToPost: (text: string, caption?: string, idea?: IdeaItem) => void;
+  /** Odciski z konta — wypełnianie kadru nie może dopisać wiersza, który już wyszedł. */
+  excludeHooks?: string[];
 }
 
 const PANEL = "bg-[#0F121C] border border-[#2C354B] rounded-xl";
@@ -77,10 +80,14 @@ export const IdeaStreamModal: React.FC<IdeaStreamModalProps> = ({
   onToggleExemplar,
   onSendToReel,
   onSendToPost,
+  excludeHooks = [],
 }) => {
   const { ideas, loading, error, notice, usedCount, generateIdeas, markUsed, clearHistory, abort } =
     stream;
   const [copiedId, setCopiedId] = React.useState<string | null>(null);
+  // Karta z taniej partii niesie tylko tezę i układ. Wypełnienie jest jednym
+  // zapytaniem do modelu, więc klik musi mówić, że płaci, a nie udawać darmowy.
+  const [fillingId, setFillingId] = React.useState<string | null>(null);
   // Aktywny stan przełącznika liczymy odciskiem — model potrafi oddać to samo
   // zdanie z inną wielkością liter, a wzorzec ma się zapalić i wtedy.
   const exemplarFingerprints = React.useMemo(
@@ -109,6 +116,23 @@ export const IdeaStreamModal: React.FC<IdeaStreamModalProps> = ({
     navigator.clipboard.writeText(text);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  /**
+   * Teza z taniej partii trafia do studia dopiero po wypełnieniu: jedno
+   * zapytanie dopisuje wiersze, pary i opis. Gdy model milczy, kadr idzie do
+   * edytora z samą tezą — klik nie może być ślepą uliczką.
+   */
+  const openInPostStudio = async (idea: IdeaItem) => {
+    markUsed(idea.hook);
+    if (!idea.needsFill) {
+      onSendToPost(idea.hook, idea.caption || undefined, idea);
+      return;
+    }
+    setFillingId(idea.id);
+    const filled = await fillIdeaForPost(idea, excludeHooks);
+    setFillingId(null);
+    onSendToPost(filled.hook, filled.caption || undefined, filled);
   };
 
   if (!isOpen) return null;
@@ -212,6 +236,11 @@ export const IdeaStreamModal: React.FC<IdeaStreamModalProps> = ({
                       {idea.hook}
                     </p>
                     <span className={ACCENT_TAG}>{layoutLabel(idea.layout)}</span>
+                    {/* Uczciwie przed kliknięciem: ta karta jest tylko tezą, a
+                        jej wypełnienie kosztuje jedno zapytanie do modelu. */}
+                    {idea.needsFill && (
+                      <span className={META_TAG}>tylko teza — wypełni przy otwarciu</span>
+                    )}
                   </div>
 
                   {/* Przed kliknięciem widać kształt: ten sam układ narysuje studio. */}
@@ -310,14 +339,21 @@ export const IdeaStreamModal: React.FC<IdeaStreamModalProps> = ({
                       type="button"
                       // Cały pomysł, nie tylko tekst: `layout` i `structure` są tym,
                       // co sprawia, że studio robi protokół/koszt/kolaż zamiast cytatu.
-                      onClick={() => {
-                        markUsed(idea.hook);
-                        onSendToPost(idea.hook, idea.caption || undefined, idea);
-                      }}
+                      onClick={() => void openInPostStudio(idea)}
+                      disabled={fillingId === idea.id}
+                      title={
+                        idea.needsFill
+                          ? "Ta karta niesie tylko tezę. Otwarcie w studiu kosztuje jedno zapytanie do modelu — dopisze wiersze, pary i opis."
+                          : undefined
+                      }
                       className={ACTION_BTN}
                     >
-                      <Sparkles className="w-3 h-3" />
-                      Do posta 1:1
+                      {fillingId === idea.id ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <Sparkles className="w-3 h-3" />
+                      )}
+                      {fillingId === idea.id ? "Wypełniam kadr…" : "Do posta 1:1"}
                     </button>
                     <button
                       type="button"

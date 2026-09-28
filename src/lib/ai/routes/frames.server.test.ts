@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { buildFrameNotice, rankFrameCandidates } from "./frames.server";
+import { buildFrameNotice, buildFramePrompt, rankFrameCandidates } from "./frames.server";
 import { formatById } from "../../formats";
 
 /**
@@ -263,5 +263,41 @@ describe("buildFrameNotice", () => {
   it("nie wymyśla przyczyny, gdy model nie oddał nic", () => {
     assert.ok(buildFrameNotice(quote, 0, []).includes("żadnego wariantu"));
     assert.ok(buildFrameNotice(quote, 2, []).includes("żaden nie trafił do układu"));
+  });
+});
+
+/**
+ * Tani prompt strumienia pyta tylko o tezę i układ, więc pełny kadr dopisuje
+ * TO wywołanie. Człowiek wybrał zdanie — wypełnienie ma rozwinąć właśnie nie,
+ * a nie proponować własne.
+ */
+describe("przypięta teza (wypełnienie karty z taniego strumienia)", () => {
+  const HUMAN = "The kettle is cold again at 4:40.";
+
+  it("oddaje zdanie człowieka, nawet gdy model wstawił własne", () => {
+    const { frames } = rankFrameCandidates(
+      [protocolVariant(STEPS, "A sentence the model thought was better.")],
+      protocol,
+      [],
+      1,
+      HUMAN,
+    );
+    assert.equal(frames.length, 1);
+    assert.equal(frames[0].primary, HUMAN);
+    assert.deepEqual(asList(frames[0].steps), STEPS);
+  });
+
+  it("prompt z tezą prosi o jeden wariant i cytuje ją słowo w słowo", () => {
+    const prompt = buildFramePrompt(protocol, "cold mornings", [], HUMAN);
+    assert.ok(prompt.includes(HUMAN), prompt.slice(0, 400));
+    assert.match(prompt, /przypięta/i);
+    assert.ok(prompt.includes("Napisz jeden wariant"), prompt.slice(0, 400));
+    assert.ok(!prompt.includes("Napisz 6 warianty"), "partia wariantów pod przypiętą tezą");
+  });
+
+  it("bez tezy prompt zostaje partią kandydatów", () => {
+    const prompt = buildFramePrompt(protocol, "cold mornings", []);
+    assert.ok(prompt.includes("Napisz 6 warianty"), prompt.slice(0, 400));
+    assert.ok(!/przypięta/i.test(prompt));
   });
 });

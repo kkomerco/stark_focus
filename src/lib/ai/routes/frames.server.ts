@@ -13,7 +13,13 @@ import {
 import { hookFingerprint } from "../../similarity";
 import { isPolishCopy } from "../../caption";
 import { softenForPlatform } from "../../platformSafe";
-import { FRAME_FORMATS, FrameFormat, formatById, formatFieldSpec } from "../../formats";
+import {
+  FRAME_FORMATS,
+  FrameFormat,
+  formatById,
+  formatByGrid,
+  formatFieldSpec,
+} from "../../formats";
 
 /**
  * Wypełnianie kadru treścią pod WYBRANY format.
@@ -27,12 +33,30 @@ import { FRAME_FORMATS, FrameFormat, formatById, formatFieldSpec } from "../../f
 /** Nadmiar jest darmowy, każdy kolejny klik już nie (darmowy tier). */
 const OVERGENERATE = 6;
 
-export function buildFramePrompt(format: FrameFormat, topic: string, exclude: string[]): string {
+export function buildFramePrompt(
+  format: FrameFormat,
+  topic: string,
+  exclude: string[],
+  thesis = "",
+): string {
+  const pinned = thesis.trim();
   return `Jesteś autorem treści marki @stark_focus (brutalny stoicyzm, dyscyplina, wysokie standardy).
+${
+  pinned
+    ? `TEZA KADRU (wybrana przez człowieka, przypięta): "${pinned}".
+Przepisz ją słowo w słowo do pola "${format.fields[0]?.key ?? "primary"}" — nie zmieniaj jej, nie parafrazuj, nie skracaj. Twoim zadaniem jest reszta układu: wiersze, pary, puenta, opis i pytanie pod TĘ tezę.
 TEMAT: "${topic}".
-FORMAT KADRU: ${format.label} — ${format.shape}
 
-Napisz ${OVERGENERATE} warianty tego kadru. Kazdy wariant to INNA figura retoryczna i INNE rozwinięcie tematu.
+`
+    : `TEMAT: "${topic}".
+`
+}FORMAT KADRU: ${format.label} — ${format.shape}
+
+Napisz ${pinned ? "jeden wariant" : `${OVERGENERATE} warianty`} tego kadru.${
+    pinned
+      ? " Wariant rozwija przypiętą tezę i trzyma się jej świata."
+      : " Kazdy wariant to INNA figura retoryczna i INNE rozwinięcie tematu."
+  }
 
 KAZDA linia wariantu zostaje w temacie "${topic}" i dotyczy dnia czytelnika (jego telefon, jego godzina, jego praca, jego cialo). Rekwizyt bez zwiazku z tematem — mosiez, szklo, klucz — jest bledem, nie klimatem.
 
@@ -236,6 +260,8 @@ export function rankFrameCandidates(
   format: FrameFormat,
   exclude: string[],
   count: number,
+  /** Teza wybrana przez człowieka w strumieniu pomysłów — wraca nietknięta. */
+  pinnedThesis = "",
 ): FrameRanking {
   const excluded = new Set(exclude.map((line) => hookFingerprint(line)));
   const seen = new Set<string>();
@@ -331,6 +357,14 @@ export function rankFrameCandidates(
         }
         frame[field.key] = kept;
         if (kept.length < field.list) droppedFields.push(field.label);
+        continue;
+      }
+
+      // Teza z strumienia jest już wybrana i już prześwietlona `auditHookiem`
+      // — wypełnianie nie może jej oceniać po raz drugi ani wymieniać na własną.
+      if (pinnedThesis && field.key === "primary") {
+        frame[field.key] = pinnedThesis;
+        keep(pinnedThesis);
         continue;
       }
 
@@ -437,9 +471,14 @@ export function buildFrameNotice(
 
 export function registerFrameRoutes(app: MiniApp): void {
   app.post("/api/ai/frame-fill", async (req, res) => {
-    const format = formatById(clampText(req.body?.format, 24, "quote")) || FRAME_FORMATS[0];
-    const topic = clampText(req.body?.topic, 200, "stoic discipline and quiet standards");
-    const count = clampInt(req.body?.count, 1, 6, 3);
+    const thesis = clampText(req.body?.thesis, 300, "");
+    const format =
+      formatById(clampText(req.body?.format, 24, "quote")) ??
+      formatByGrid(clampText(req.body?.layout, 24, "")) ??
+      FRAME_FORMATS[0];
+    const topic = clampText(req.body?.topic, 200, thesis || "stoic discipline and quiet standards");
+    // Przypięta teza znaczy jeden kadr: człowiek wybrał zdanie, nie losuje partii.
+    const count = thesis ? 1 : clampInt(req.body?.count, 1, 6, 3);
     const exclude = clampTextList(req.body?.excludeHooks);
 
     if (!getGeminiClient()) {
@@ -454,7 +493,7 @@ export function registerFrameRoutes(app: MiniApp): void {
 
     try {
       const parsed = await generateJsonWithFallback({
-        contents: buildFramePrompt(format, topic, exclude),
+        contents: buildFramePrompt(format, topic, exclude, thesis),
         temperature: 1.0,
       });
       const { frames, rejected, rejectedDetails, trimmedDetails } = rankFrameCandidates(
@@ -462,6 +501,7 @@ export function registerFrameRoutes(app: MiniApp): void {
         format,
         exclude,
         count,
+        thesis,
       );
 
       if (frames.length === 0) {
