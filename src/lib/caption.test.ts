@@ -237,4 +237,27 @@ describe("starkCta", () => {
     assert.ok(STARK_CTAS.includes(starkCta(b)));
     assert.notEqual(starkCta(a), starkCta(b), "dwa rozne posty nie moga miec identycznej stopki");
   });
+
+  it("wezwanie wynika z ksztaltu tresci, nie z rzutu po hashu", () => {
+    assert.equal(
+      starkCta("The alarm goes at 4:40. You get up in the dark anyway."),
+      "Keep it for the next morning you do not want to.",
+    );
+    assert.equal(
+      starkCta("You slipped on Sunday. Monday is the restart, not the punishment."),
+      "Send it to whoever is starting this over again on Monday.",
+    );
+    assert.equal(
+      starkCta("1. Phone in another room. 2. Hardest task first. 3. No negotiations."),
+      "Save this reminder. Execute in silence. Follow @stark_focus.",
+    );
+  });
+
+  it("poniedzialek nie wchodzi pod protokol", () => {
+    const protocol = "1. Cold room. 2. No phone. 3. First hour belongs to the work.";
+    assert.notEqual(
+      starkCta(protocol),
+      "Send it to whoever is starting this over again on Monday.",
+    );
+  });
 });

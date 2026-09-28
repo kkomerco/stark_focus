@@ -21,7 +21,35 @@ export const STARK_CTAS: readonly string[] = [
 ];
 
 /**
- * Pytania pogrupowane po kształcie materiału. Jedna uniwersalna lista dawała
+ * Po które zdania nadaje się każde wezwanie. Rzut kostką po hashu treści
+ * doklejał „wyślij to komuś, kto zaczyna od nowa w poniedziałek" pod protokół
+ * o trzeciej w nocy — wezwanie ma wynikać z tego, co jest w poście, a nie z
+ * tego, na którą cyfrę padł hash.
+ */
+const CTA_FIT: ReadonlyArray<readonly [string, RegExp]> = [
+  [
+    "Send this to the one person who still asks why you disappeared.",
+    /\b(disappear|nobody|no one|alone|silence|quiet|unseen|ghost|without audience)\b/i,
+  ],
+  [
+    "Keep it for the next morning you do not want to.",
+    /\b(morning|alarm|wake|bed|sunrise|4:\d|5:\d|first hour|dark)\b/i,
+  ],
+  [
+    "Do the first rep before you decide how you feel.",
+    /\b(feel|feeling|motivation|mood|want|rep|set|workout|train|start)\b/i,
+  ],
+  [
+    "Send it to whoever is starting this over again on Monday.",
+    /\b(monday|week|again|restart|start over|slipped|fell off|reset|relapse|back to)\b/i,
+  ],
+  [
+    "Save this reminder. Execute in silence. Follow @stark_focus.",
+    /\b(step|protocol|sequence|rule|list|checklist|daily|every day|repeat|routine)\b|^\s*\d+[.)]\s/i,
+  ],
+];
+
+/** Pytania pogrupowane po kształcie materiału. Jedna uniwersalna lista dawała
  * „which number hits closest?" pod cytatem bez ani jednej liczby — pytający
  * wyglądał jak generator, a widz nie miał czego odpowiadać.
  */
@@ -158,10 +186,17 @@ export function starkHashtags(text: string): string[] {
   return tags.slice(0, HASHTAG_LIMIT);
 }
 
-/** Ten sam post zawsze dostaje to samo wezwanie — opis nie moze sie zmieniac przy odswiezeniu. */
+/**
+ * Ten sam post zawsze dostaje to samo wezwanie — opis nie może zmieniać się
+ * przy odświeżeniu. Najpierw kształt treści, hash tylko łamie remis między
+ * wezwaniami, które pasują równie dobrze.
+ */
 export function starkCta(text: string): string {
-  const key = hashKey(text.slice(0, 2000));
-  return STARK_CTAS[key % STARK_CTAS.length];
+  const haystack = text.slice(0, 2000);
+  const key = hashKey(haystack);
+  const fitting = CTA_FIT.filter(([, match]) => match.test(haystack));
+  const pool = fitting.length > 0 ? fitting.map(([cta]) => cta) : [...STARK_CTAS];
+  return pool[key % pool.length];
 }
 
 /**
@@ -186,7 +221,7 @@ export function formatStarkCaption(
   return (
     `${cleanHook}\n\n` +
     `${middle ? `${middle}\n\n` : ""}` +
-    `${starkCta(hook)}\n\n` +
+    `${starkCta(`${hook} ${middle}`)}\n\n` +
     starkHashtags(hook).join(" ")
   );
 }
