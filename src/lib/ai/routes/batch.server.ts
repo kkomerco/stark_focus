@@ -108,6 +108,9 @@ const PILLARS = [
  */
 export function buildBatchFallback() {
   const stamp = Date.now();
+  // Bank też trzyma jedną partię: osiem postów z tej samej tabeli nie może
+  // mieć jednego podpisu, bo to on jest twarzą konta w opisie.
+  const usedCtas = new Set<string>();
   return PILLARS.map((p, idx) => ({
     id: `batch-post-${idx + 1}-${stamp}`,
     pillar: p.name,
@@ -116,7 +119,7 @@ export function buildBatchFallback() {
     sayingSub: p.sub,
     // Indeks partii jako sol: bez niego osiem postów z jednej serii
     // kończyło się tą samą linią, bo kształt treści w tej marce jest ten sam.
-    caption: formatStarkCaption(p.hook, [], "", idx),
+    caption: formatStarkCaption(p.hook, [], "", idx, usedCtas),
     template: "none_solid" as const,
     fontColor: "white" as const,
   }));
@@ -133,6 +136,8 @@ export function mixBatchPosts(
   exclude: string[],
   count: number,
   quota: number,
+  /** Wezwania już użyte w tej partii — patrz `starkCta`. */
+  usedCtas?: Set<string>,
 ): Record<string, unknown>[] {
   const posts = asArray((parsed as { posts?: unknown } | null)?.posts);
 
@@ -188,7 +193,7 @@ export function mixBatchPosts(
       closing,
       sayingMain: primary,
       sayingSub: preview,
-      caption: starkCaption(primary, asString(frame.caption)),
+      caption: starkCaption(primary, asString(frame.caption), 0, usedCtas),
       question: asString(frame.question),
       template: format.gridType,
       fontColor: "white",
@@ -294,7 +299,13 @@ ${FRAME_FORMATS.flatMap((format) => format.fields)
         temperature: 0.95,
       });
 
-      const enriched = mixBatchPosts(safeJsonParse(text || ""), exclude, count, quota);
+      const enriched = mixBatchPosts(
+        safeJsonParse(text || ""),
+        exclude,
+        count,
+        quota,
+        new Set<string>(),
+      );
 
       if (enriched.length > 0) {
         return res.json({ posts: enriched, notice });

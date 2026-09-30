@@ -276,7 +276,13 @@ function sendOfflineIdeas(
 
 /** Pojedynczy pomysł od modelu -> kształt, którego studio użyje bez sprawdzania. */
 /** Eksportowane dla testów: tu zapada wyrok, czy kadr jest pełny, czy tylko tezą. */
-export function normalizeModelIdea(raw: unknown, index: number, seed: BatchSeed) {
+export function normalizeModelIdea(
+  raw: unknown,
+  index: number,
+  seed: BatchSeed,
+  /** Wezwania już użyte w tej partii — opis każdego pomysłu ma być inny. */
+  usedCtas?: Set<string>,
+) {
   const item = (raw ?? {}) as Record<string, unknown>;
   const structure = (item.structure ?? {}) as Record<string, unknown>;
   const layout = oneOf(item.layout, LAYOUT_VALUES, "quote" as IdeaLayout);
@@ -324,7 +330,7 @@ export function normalizeModelIdea(raw: unknown, index: number, seed: BatchSeed)
     phrases: [statement, ...lineList(item.phrases, 3).filter((text) => text !== statement)],
     // Sol to kolejność w partii: cała paczka ma ten sam kształt treści, więc
     // bez niego każdy pomysł w strumieniu dostawał to samo wezwanie.
-    caption: starkCaption(statement, clean(item.caption), index),
+    caption: starkCaption(statement, clean(item.caption), index, usedCtas),
     hashtags: starkHashtags(statement),
     theme: oneOf(item.theme, THEMES, "obsidian_void"),
   };
@@ -345,6 +351,7 @@ export function registerIdeaStreamRoutes(app: MiniApp): void {
     }
 
     try {
+      const usedCtas = new Set<string>();
       const dynamicSeed = Date.now() + Math.floor(Math.random() * 1000000);
       const seed = batchSeed(safeCount);
 
@@ -412,7 +419,9 @@ Zwróć WYŁĄCZNIE JSON:
       const recentHooks = safeExclude.slice(-50);
       const seenInBatch = new Set<string>();
       const ideas = asArray(parsed.ideas)
-        .map((item, index) => normalizeModelIdea(item, index, seed))
+        // Jedna partia = jeden zestaw użytych wezwań: bez niego osiem
+        // pomysłów o tym samym kształcie kończyło się tym samym podpisem.
+        .map((item, index) => normalizeModelIdea(item, index, seed, usedCtas))
         .filter((idea): idea is NonNullable<typeof idea> => idea !== null)
         .filter((idea) => {
           const fingerprint = hookFingerprint(idea.hook);

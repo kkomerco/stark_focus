@@ -53,7 +53,7 @@ const REEL_DURATION_MAX = 15;
  * i polszczyzna nie mogą dojść do paczki, a potem do konta.
  */
 /** `index` wchodzi z `map()` jako sol wezwania — patrz `starkCta`. */
-function normalizeReel(item: unknown, index = 0) {
+function normalizeReel(item: unknown, index = 0, usedCtas?: Set<string>) {
   const reel = (item ?? {}) as Record<string, unknown>;
   const phrases = publishableLines(asStringArray(reel.phrases, 5));
   const rawHook = asString(reel.hook);
@@ -64,7 +64,7 @@ function normalizeReel(item: unknown, index = 0) {
     phrases: phrases.length > 0 ? phrases : hook ? [hook] : [],
     theme: oneOf(reel.theme, REEL_THEMES, "obsidian_void"),
     duration: clampInt(reel.duration, REEL_DURATION_MIN, REEL_DURATION_MAX, 8),
-    captionShort: starkCaption(hook, asString(reel.captionShort), index),
+    captionShort: starkCaption(hook, asString(reel.captionShort), index, usedCtas),
     // Hashtagi liczymy z tego, co jest na kadrze. Model niech ich nie prosi:
     // każdy własny zestaw to inny ogon pod kolejnym postem tego samego konta.
     hashtags: starkHashtags((hook + " " + phrases.join(" ")).trim()),
@@ -90,6 +90,10 @@ function pickDailyCategory(): string {
 /** Paczka z lokalnych banków treści — działa w 100% offline (zero klucza API, zero limitów). */
 function buildOfflinePack(topic: string, reelsCount: number, excludeHooks: string[] = []) {
   const excluded = new Set(excludeHooks.map(hookFingerprint));
+  // Cała paczka dnia to jedna partia: trzy powierzchnie (rolka, zasada, post)
+  // nie mogą mieć tego samego wezwania pod spodem, bo wtedy dzień wygląda
+  // jak wygenerowany z jednego szablonu.
+  const usedCtas = new Set<string>();
   const reels = shuffle(VIRAL_REEL_TEMPLATES)
     .filter((t) => !excluded.has(hookFingerprint(String(t.phrases[0] || t.title))))
     .slice(0, reelsCount)
@@ -104,7 +108,7 @@ function buildOfflinePack(topic: string, reelsCount: number, excludeHooks: strin
         // bez puli z `caption.ts` na koncie ląduje pięć różnych stopek pisanych
         // przez pięć osób. `starkCaption` bierze ze zdania banku treść, a CTA
         // i hashtagy dokłada zawsze markowe.
-        captionShort: starkCaption(hook, template.captionShort, idx),
+        captionShort: starkCaption(hook, template.captionShort, idx, usedCtas),
         hashtags: starkHashtags(template.phrases.join(" ")),
       };
     });
@@ -120,7 +124,7 @@ function buildOfflinePack(topic: string, reelsCount: number, excludeHooks: strin
 
   const post = {
     headline: rule.hook0to3s,
-    body: starkShortCaption(rule.hook0to3s, rule.corePrinciple),
+    body: starkShortCaption(rule.hook0to3s, rule.corePrinciple, 0, usedCtas),
     bingPrompt: getRandomBackgroundScene(pick(REEL_THEMES)).bingPrompt,
   };
 
@@ -219,8 +223,11 @@ Zwróć WYŁĄCZNIE poprawny JSON wg schematu:
         preferredModel: GEMINI_MODEL,
       });
 
+      // Jedna paczka dnia = jeden zestaw użytych wezwań, więc deklaracja
+      // wyprzedza pierwsze zdanie, które może je zabrać.
+      const usedCtas = new Set<string>();
       const reels = asArray(parsed.reels)
-        .map(normalizeReel)
+        .map((item, index) => normalizeReel(item, index, usedCtas))
         .filter((reel) => reel.phrases.length > 0 && reel.hook)
         .slice(0, MAX_PACK_REELS);
 
@@ -253,7 +260,7 @@ Zwróć WYŁĄCZNIE poprawny JSON wg schematu:
         post: postHeadline
           ? {
               headline: postHeadline,
-              body: starkShortCaption(postHeadline, asString(parsed.post?.body)),
+              body: starkShortCaption(postHeadline, asString(parsed.post?.body), 0, usedCtas),
               bingPrompt: asString(parsed.post?.bingPrompt),
             }
           : { headline: "", body: "", bingPrompt: "" },

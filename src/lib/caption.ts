@@ -18,6 +18,15 @@ export const STARK_CTAS: readonly string[] = [
   "Keep it for the next morning you do not want to.",
   "Send it to whoever is starting this over again on Monday.",
   "Do the first rep before you decide how you feel.",
+  "Come back to this line the next time you negotiate with yourself.",
+  "Put it where the phone lands before your feet do.",
+  "Finish today's hour before you promise tomorrow's.",
+  "Say nothing about it. Show the result in ninety days.",
+  "Keep this for the day the plan falls apart.",
+  "Send it to the person who still expects you to quit.",
+  "Read it once. Do the boring part twice.",
+  "Return to it when the room is cold and nobody is watching.",
+  "Write it on the first page you open tomorrow.",
 ];
 
 /**
@@ -25,6 +34,10 @@ export const STARK_CTAS: readonly string[] = [
  * doklejał „wyślij to komuś, kto zaczyna od nowa w poniedziałek" pod protokół
  * o trzeciej w nocy — wezwanie ma wynikać z tego, co jest w poście, a nie z
  * tego, na którą cyfrę padł hash.
+ *
+ * Pula jest celowo większa niż partia: pięć wezwań na feed, w którego każdym
+ * poście jest „poranek" i „nikt nie sprawdza", dawało ten sam podpis pod
+ * każdym postem.
  */
 const CTA_FIT: ReadonlyArray<readonly [string, RegExp]> = [
   [
@@ -46,6 +59,42 @@ const CTA_FIT: ReadonlyArray<readonly [string, RegExp]> = [
   [
     "Save this reminder. Execute in silence. Follow @stark_focus.",
     /\b(step|protocol|sequence|rule|list|checklist|daily|every day|repeat|routine)\b|^\s*\d+[.)]\s/i,
+  ],
+  [
+    "Come back to this line the next time you negotiate with yourself.",
+    /\b(negotiat|yourself|decide|debate|bargain|mind|talk yourself)\b/i,
+  ],
+  [
+    "Put it where the phone lands before your feet do.",
+    /\b(phone|screen|scroll|notification|notifications|doomscroll)\b/i,
+  ],
+  [
+    "Finish today's hour before you promise tomorrow's.",
+    /\b(today|tomorrow|promise|later|someday|not yet)\b/i,
+  ],
+  [
+    "Say nothing about it. Show the result in ninety days.",
+    /\b(say|tell|announce|prove|result|proof|progress|nobody knows)\b/i,
+  ],
+  [
+    "Keep this for the day the plan falls apart.",
+    /\b(plan|schedule|routine|falls apart|fall apart|break|worst day|bad day)\b/i,
+  ],
+  [
+    "Send it to the person who still expects you to quit.",
+    /\b(quit|give up|doubt|expect|believes|watching|judges)\b/i,
+  ],
+  [
+    "Read it once. Do the boring part twice.",
+    /\b(boring|twice|double|repeat|consistency|consistent|again and again)\b/i,
+  ],
+  [
+    "Return to it when the room is cold and nobody is watching.",
+    /\b(cold|freezing|dark|room|empty|alone|nobody|shiver|early)\b/i,
+  ],
+  [
+    "Write it on the first page you open tomorrow.",
+    /\b(write|written|paper|journal|page|note|list|desk)\b/i,
   ],
 ];
 
@@ -201,21 +250,29 @@ export function starkHashtags(text: string): string[] {
  * pasujące wezwanie to nie jest wybór, to powtórka, więc gdy kandydatów jest
  * mniej niż dwóch, dobieramy następne z tej samej puli marki.
  */
-export function starkCta(text: string, salt = 0): string {
+export function starkCta(text: string, salt = 0, used?: Set<string>): string {
   const haystack = text.slice(0, 2000);
   const key = hashKey(haystack) + Math.abs(Math.trunc(salt));
   const fitting = CTA_FIT.filter(([, match]) => match.test(haystack)).map(([cta]) => cta);
-  if (fitting.length === 0) return STARK_CTAS[key % STARK_CTAS.length];
-  // Poza partią (`salt` 0) liczy się sam dobór: jedno pasujące wezwanie jest
-  // uczciwą odpowiedzią na tę treść, nie powodem, żeby je rozwadniać.
-  if (salt === 0 && fitting.length < 2) return fitting[0];
-  // W partii rotujemy — inaczej osiem postów o tym samym kształcie kończy się
-  // identycznym podpisem, więc dobieramy następne z tej samej puli marki.
-  const pool =
-    fitting.length >= 2
-      ? fitting
-      : [...fitting, ...STARK_CTAS.filter((cta) => !fitting.includes(cta)).slice(0, 2)];
-  return pool[key % pool.length];
+  // Bez `used` (pojedynczy post) liczy się sam dobór: jedno pasujące wezwanie
+  // jest uczciwą odpowiedzią na tę treść, nie powodem do rozwadniania go.
+  if (!used) {
+    const pool = fitting.length > 0 ? fitting : [...STARK_CTAS];
+    return pool[key % pool.length];
+  }
+  // W partii wezwanie nie może się powtórzyć — to jest cała różnica między
+  // „opis szyty pod post" a „stopka generatora". Kolejność jest stała:
+  // najpierw pasujące do treści, potem reszta puli marki, start z offsetem
+  // hashującym treść, więc dwa różne zdania nie zaczynają od tego samego rogu.
+  const ordered = [...fitting, ...STARK_CTAS.filter((cta) => !fitting.includes(cta))];
+  for (let i = 0; i < ordered.length; i++) {
+    const candidate = ordered[(key + i) % ordered.length];
+    if (!used.has(candidate)) {
+      used.add(candidate);
+      return candidate;
+    }
+  }
+  return ordered[key % ordered.length];
 }
 
 /**
@@ -232,6 +289,8 @@ export function formatStarkCaption(
   directive = "",
   /** Kolejność w partii — patrz `starkCta`. */
   salt = 0,
+  /** Wezwania już użyte w tej partii; pilnują, że opis nie jest powtórką. */
+  used?: Set<string>,
 ): string {
   const cleanHook = hook.replace(/["#*]/g, "").trim().toUpperCase();
   const body = lines.map((line) => line.replace(/["#*]/g, "").trim()).filter(Boolean);
@@ -272,13 +331,13 @@ export function isPolishCopy(text: string): boolean {
  * `line` to jedno zdanie od modelu (albo pierwsze zdanie tego, co dał), a
  * teza zostaje na kadrze — dlatego tu jej nie powtarzamy.
  */
-export function starkShortCaption(hook: string, line = "", salt = 0): string {
+export function starkShortCaption(hook: string, line = "", salt = 0, used?: Set<string>): string {
   const sentence = line
     .split(/(?<=[.!?])\s+/)
     .map((part) => part.replace(/[*#"]/g, "").trim())
     .find((part) => part && !isPolishCopy(part) && !/^#|@/.test(part));
   const body = sentence && sentence.toLowerCase() !== hook.toLowerCase().trim() ? sentence : "";
-  return [body, starkCta(`${hook} ${body}`, salt), starkHashtags(`${hook} ${body}`).join(" ")]
+  return [body, starkCta(`${hook} ${body}`, salt, used), starkHashtags(`${hook} ${body}`).join(" ")]
     .filter(Boolean)
     .join("\n\n");
 }
@@ -289,7 +348,13 @@ export function starkShortCaption(hook: string, line = "", salt = 0): string {
  * po polsku, a każdy własny CTA i zestaw hashtagów rozjeżdża estetykę feedu.
  * Gdy treść nie nadaje się do użycia — wracamy do stałego schematu marki.
  */
-export function starkCaption(hook: string, modelCaption = "", salt = 0): string {
+export function starkCaption(
+  hook: string,
+  modelCaption = "",
+  salt = 0,
+  /** Wezwania użyte w tej partii — patrz `starkCta`. */
+  used?: Set<string>,
+): string {
   const body = modelCaption
     .split(/\r?\n/)
     .map((line) => line.trim())
@@ -306,7 +371,7 @@ export function starkCaption(hook: string, modelCaption = "", salt = 0): string 
     .replace(/[*#]/g, "")
     .trim();
 
-  if (!body || isPolishCopy(body)) return formatStarkCaption(hook, [], "", salt);
+  if (!body || isPolishCopy(body)) return formatStarkCaption(hook, [], "", salt, used);
 
   const cleanHook = hook.replace(/["#*]/g, "").trim().toUpperCase();
   // Model prawie zawsze otwiera opis tym samym zdaniem, które siedzi na kadrze,
