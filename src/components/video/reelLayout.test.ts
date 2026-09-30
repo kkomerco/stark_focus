@@ -5,6 +5,7 @@ import {
   DIMMED_OPACITY,
   LOOP_TAIL_SECONDS,
   OUTRO_SECONDS,
+  backgroundFrameTime,
   cameraScaleAt,
   easedReveal,
   maskRevealFraction,
@@ -229,5 +230,24 @@ describe("outro ze znakiem marki", () => {
   it("klip krotszy niz okno outro rysuje znak od klatki zero", () => {
     assert.ok(outroBracketProgress(0.4, 0.8) > 0, "okno nie moze byc dluzsze niz klip");
     assert.equal(outroBracketProgress(0.8, 0.8), 1);
+  });
+});
+
+describe("tło wideo liczone pod eksport", () => {
+  it("zostaje na tym samym skoku 12 fps co klatkaż tła", () => {
+    assert.equal(backgroundFrameTime(0, 14), 0);
+    assert.equal(backgroundFrameTime(1 / 30, 14), 0);
+    assert.equal(backgroundFrameTime(0.25, 14), 0.25);
+    assert.equal(backgroundFrameTime(0.3, 14), 0.25);
+  });
+
+  it("klip krótszy niż rolka wraca na początek zamiast wypaść poza materiał", () => {
+    assert.equal(backgroundFrameTime(4, 4), 0);
+    assert.equal(backgroundFrameTime(5.5, 4), 1.5);
+  });
+
+  it("bez znanego czasu klipu nie zgaduje — zostaje sam skwantowany czas", () => {
+    assert.equal(backgroundFrameTime(3.7, 0), 44 / 12);
+    assert.equal(backgroundFrameTime(2, Number.NaN), 2);
   });
 });

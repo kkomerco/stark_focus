@@ -125,6 +125,21 @@ export function quantizeToFps(timeSec: number, fps = 12): number {
 }
 
 /**
+ * Sekunda klipu, którą tło ma pokazać dla `timeSec` rolki.
+ *
+ * Kadr liczy własny licznik klatek, a klip z katalogu ma swój czas i swoją
+ * pętlę — bez tego eksport blitowałby to, co w danej chwili pokazuje żywy
+ * element, i plik wychodziłby z tłem stojącym albo przesuniętym o pół frazy
+ * względem tego, co widać na podglądzie. Czas wraca do środka klipu resztą,
+ * więc dłuższa rolka niż ujęcie po prostu kręci nim od nowa.
+ */
+export function backgroundFrameTime(timeSec: number, clipDuration: number): number {
+  const stepped = quantizeToFps(timeSec, 12);
+  if (!Number.isFinite(clipDuration) || clipDuration <= 0) return stepped;
+  return stepped % clipDuration;
+}
+
+/**
  * Oddech kamery: powolny najazd od 1,00 do ~1,04 przez cały klip.
  *
  * Liniowy, nie wygładzony — dolly jedzie jednostajnie, a hamowanie na końcu

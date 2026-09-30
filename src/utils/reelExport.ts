@@ -92,6 +92,12 @@ export interface ExactReelExport {
   durationSec: number;
   /** Narysuj kadr przypadający na `t` sekund. To jedyny kontakt z rendererem. */
   drawFrame: (t: number) => void | Promise<void>;
+  /**
+   * Przygotowanie klatki PRZED narysowaniem — np. przewinięcie tła wideo na
+   * czas tej klatki. Bez tego okna eksport blituje to, co w danej chwili
+   * pokazuje żywy element, a nie to, co wypada w liczniku klatek.
+   */
+  beforeFrame?: (t: number) => void | Promise<void>;
   /** Gotowy podkład z `renderReelBed`; bez niego plik jest niemy. */
   audio?: AudioBuffer | null;
   onProgress?: (percent: number) => void;
@@ -103,7 +109,7 @@ export interface ExactReelExport {
  * istnieje. Nigdy nie udajemy sukcesu pustym plikiem.
  */
 export async function exportReelExact(options: ExactReelExport): Promise<Blob> {
-  const { canvas, width, height, durationSec, drawFrame, audio, onProgress } = options;
+  const { canvas, width, height, durationSec, drawFrame, beforeFrame, audio, onProgress } = options;
   const codec = await pickVideoCodec(width, height);
   if (!codec) throw new Error("Brak wspieranego enkodera H.264 dla tego kadru.");
 
@@ -156,6 +162,7 @@ export async function exportReelExact(options: ExactReelExport): Promise<Blob> {
   try {
     for (let index = 0; index < totalFrames; index++) {
       const at = index / REEL_FPS;
+      await beforeFrame?.(at);
       await drawFrame(at);
       const frame = new VideoFrame(canvas, {
         timestamp: Math.round(at * 1e6),

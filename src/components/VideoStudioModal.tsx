@@ -49,6 +49,7 @@ import { beatTimesFrom, renderReelBed } from "../utils/reelAudio";
 import { exactExportSupported, exportReelExact } from "../utils/reelExport";
 import { reelChecklist } from "../lib/prepublish";
 import {
+  backgroundFrameTime,
   cameraScaleAt,
   easedReveal,
   maskRevealFraction,
@@ -1560,6 +1561,35 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
   };
 
   /**
+   * Przewinięcie tła na czas klatki, zanim eksport ją narysuje. Bez czekania
+   * na `seeked` `drawImage` łapie kadr sprzed skoku, czyli plik dostaje tło
+   * żywego podglądu zamiast tego, co wypada w naszym liczniku klatek.
+   * Pułap czasu jest dlatego, że jeden niezdecode'owany klip nie ma prawa
+   * zatrzymać eksportu na trzydziestu klatkach.
+   */
+  const seekBackgroundForFrame = (at: number) =>
+    new Promise<void>((resolve) => {
+      const vid = customVideoRef.current;
+      const clip = vid?.duration ?? 0;
+      if (customBgType !== "video" || !vid || !(clip > 0)) return resolve();
+
+      const target = backgroundFrameTime(at, clip);
+      if (Math.abs(vid.currentTime - target) < 0.001) return resolve();
+
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        vid.removeEventListener("seeked", finish);
+        clearTimeout(timer);
+        resolve();
+      };
+      const timer = setTimeout(finish, 500);
+      vid.addEventListener("seeked", finish);
+      vid.currentTime = target;
+    });
+
+  /**
    * Ścieżka pierwszego wyboru: klatka po klatce przez WebCodecs. Licznik
    * klatek jest nasz, więc plik ma dokładnie `duration` sekund, a przy
    * zamrożonej karcie nie zamienia się w jedną stojącą klatkę.
@@ -1579,6 +1609,10 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
     setIsExporting(true);
     setExportProgress(0);
     setIsPlaying(false);
+    // Żywy playhead przerywa walkę z naszym licznikiem klatek: bez pauzy
+    // element przewijałby się sam w trakcie, gdy my ustawiamy `currentTime`.
+    const bgVideo = customVideoRef.current;
+    bgVideo?.pause();
 
     try {
       const bed = reelAudioEnabled
@@ -1594,6 +1628,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
         height: REEL_HEIGHT,
         durationSec: totalDur,
         drawFrame: renderFrame,
+        beforeFrame: seekBackgroundForFrame,
         audio: bed,
         onProgress: setExportProgress,
       });
@@ -1601,6 +1636,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
       isExportingRef.current = false;
       setIsExporting(false);
       setIsPlaying(true);
+      bgVideo?.play().catch(() => {});
       downloadBlob(
         blob,
         `stark_reel_${REEL_WIDTH}x${REEL_HEIGHT}_${totalDur}s_${selectedTheme}_${Date.now()}.mp4`,
@@ -1614,6 +1650,8 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
       console.error("Eksport klatka-po-klatce nie wyszedł, wracam na MediaRecorder:", err);
       isExportingRef.current = false;
       setIsExporting(false);
+      // Ścieżka zapasowa nagrywa żywy podgląd, więc tło musi znowu lecieć.
+      bgVideo?.play().catch(() => {});
       await exportReelWithRecorder();
     }
   };
