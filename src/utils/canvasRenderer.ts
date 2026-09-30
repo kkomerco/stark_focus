@@ -26,6 +26,8 @@ import {
 } from "./canvas/layouts-v2";
 import { starkCta } from "../lib/caption";
 import { drawBrandBrackets, type InkBox } from "./brandMark";
+import { applyTweak, tweakBox, tweakOf } from "./frameAdjust";
+import type { FrameAdjust } from "../types";
 import { groupText, layerById, PRIMARY_LAYER_ID } from "./canvas/layerRoles";
 import { MIN_TEXT_PX, floorFor } from "./safeZones";
 
@@ -657,6 +659,8 @@ export function draw4GridCollageSlide(
     fontColor?: "white" | "black";
     fontFamily?: string;
     textScale?: number;
+    /** Mikrokorekta napisu na siatce — patrz `frameAdjust.ts`. */
+    adjust?: FrameAdjust;
   },
 ) {
   const {
@@ -761,8 +765,14 @@ export function draw4GridCollageSlide(
 
   const blockHeight = fitted.lines.length * fitted.size * 1.22;
   const scrimTop = halfH - blockHeight / 2 - fitted.size * 0.5;
+
+  ctx.save();
+  applyTweak(ctx, tweakOf(options.adjust, "content"), width, height);
+  // Pasma tła pod napisem celowo szersze niż kadr: korekta przesuwem nie
+  // może odsłonić czarnego paska z jednej strony, bo wtedy „poprawka" wygląda
+  // jak dziura w kompozycji.
   ctx.fillStyle = "rgba(5,5,5,0.82)";
-  ctx.fillRect(0, scrimTop, width, blockHeight + fitted.size);
+  ctx.fillRect(-width, scrimTop, width * 3, blockHeight + fitted.size);
 
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
@@ -777,6 +787,7 @@ export function draw4GridCollageSlide(
   });
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
+  ctx.restore();
 
   sign();
   return gridBox;
@@ -798,6 +809,8 @@ export function drawMinimalBlackQuoteSlide(
     textScale?: number;
     fontColor?: "white" | "black";
     handle?: string;
+    /** Mikrokorekta treści narysowanej na tym kadrze — patrz `frameAdjust.ts`. */
+    adjust?: FrameAdjust;
     /** Wygenerowane w aplikacji tło — bez tego studio posta miało tylko płaską czerń. */
     backgroundImage?: CanvasImageSource | null;
   },
@@ -813,6 +826,7 @@ export function drawMinimalBlackQuoteSlide(
     fontColor = "white",
     handle = "stark_focus",
     backgroundImage = null,
+    adjust,
   } = options;
 
   canvas.width = width;
@@ -849,6 +863,12 @@ export function drawMinimalBlackQuoteSlide(
   ctx.textAlign = align === "center" ? "center" : "left";
 
   let blockBox: InkBox | null = null;
+
+  // Korekta myszą idzie NA BLOK TEKSTU, nie na cały kadr: tło i stopka muszą
+  // zostać tam, gdzie je postawił układ — inaczej skala zostawiłaby prześwit
+  // przy krawędzi, a handle odjechałby od dołu kadru.
+  ctx.save();
+  applyTweak(ctx, tweakOf(adjust, "content"), width, height);
 
   if (!hasSub) {
     // TRYB 1: teza — jedna linia albo cały cytat rozbity na wiersze.
@@ -954,6 +974,8 @@ export function drawMinimalBlackQuoteSlide(
       bottom: startY - mainFontSize + totalH,
     };
   }
+
+  ctx.restore();
 
   // Dyskretna sygnatura na dole kadru 9:16
   const cleanHandle = handle.replace("@", "") || "stark_focus";
@@ -1070,8 +1092,8 @@ function l1Fallback(spec: UniversalLayoutSpec): string {
   return spec.textLayers[0]?.text?.trim() ?? "";
 }
 
-/** Kadr gotowy: pole treści + kształt, potrzebny, żeby sygnet narysować raz, na końcu. */
-interface RenderedFrame {
+/** Kadr gotowy: pole treści + kształt, potrzebny sygnetowi i uchwytom w studiu. */
+export interface RenderedFrame {
   box: InkBox | null;
   width: number;
   height: number;
@@ -1088,17 +1110,30 @@ export function renderUniversalLayout(
   spec: UniversalLayoutSpec,
   images: (CanvasImageSource | null)[] = [],
   options: Parameters<typeof renderLayoutBody>[3],
-) {
+): RenderedFrame | null {
+  // Oddajemy pole treści: studio kładzie na nim uchwyty i liczy, dokąd wolno
+  // przeciągnąć blok, zanim wejdzie pod interfejs platformy.
   const frame = renderLayoutBody(canvas, spec, images, options);
-  if (!frame?.box) return;
+  if (!frame?.box) return frame ?? null;
   const ctx = canvas.getContext("2d");
-  if (!ctx) return;
+  if (!ctx) return frame;
+  // Klamry idą za treścią: najpierw ta sama korekta, którą dostał blok tekstu
+  // (inaczej znak zostałby tam, gdzie stał przed poprawką), potem własna
+  // korekta znaku — ta, o którą prosi człowiek, gdy mówi „ramkę lekko w lewo".
+  const content = tweakOf(spec.adjust, "content");
+  const mark = tweakOf(spec.adjust, "mark");
   drawBrandBrackets(ctx, {
     width: frame.width,
     height: frame.height,
-    box: frame.box,
+    box: tweakBox(
+      tweakBox(frame.box, content, frame.width, frame.height),
+      mark,
+      frame.width,
+      frame.height,
+    ),
     onLight: frame.onLight,
   });
+  return frame;
 }
 
 function renderLayoutBody(
@@ -1140,6 +1175,7 @@ function renderLayoutBody(
       fontColor,
       fontFamily: spec.fontFamilyCustom || fontFamily,
       textScale,
+      adjust: spec.adjust,
     });
     return { box, width, height, onLight: fontColor === "black" };
   }
@@ -1155,6 +1191,7 @@ function renderLayoutBody(
       figure: layerById(spec, "figure"),
       bgImage: options.backgroundImage ?? images[0] ?? null,
       headlineFont: spec.fontFamilyCustom || fontFamily,
+      adjust: spec.adjust,
     });
     return { box, width, height, onLight: false };
   }
@@ -1171,6 +1208,7 @@ function renderLayoutBody(
       closing: layerById(spec, "closing"),
       bgImage: options.backgroundImage ?? images[0] ?? null,
       headlineFont: spec.fontFamilyCustom || fontFamily,
+      adjust: spec.adjust,
     });
     return { box, width, height, onLight: false };
   }
@@ -1250,6 +1288,7 @@ function renderLayoutBody(
     fontColor,
     handle,
     backgroundImage: options.backgroundImage ?? null,
+    adjust: spec.adjust,
   });
 
   return { box, width, height, onLight: fontColor === "black" };

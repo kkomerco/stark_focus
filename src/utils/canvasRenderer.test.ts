@@ -48,6 +48,7 @@ function inkLeft(entry: Drawn, width: number): number {
 function fakeCanvas() {
   const drawn: Drawn[] = [];
   const paths: Array<{ color: string; points: Array<[number, number]> }> = [];
+  const transforms: string[] = [];
   let current: Array<[number, number]> = [];
   const state: Record<string, unknown> = {
     font: "10px sans-serif",
@@ -96,6 +97,18 @@ function fakeCanvas() {
     stroke: () => {
       paths.push({ color: String(state.strokeStyle), points: [...current] });
     },
+    translate: (x: number, y: number) => {
+      transforms.push(`t ${Math.round(x)} ${Math.round(y)}`);
+    },
+    scale: (x: number) => {
+      transforms.push(`s ${x}`);
+    },
+    save: () => {
+      transforms.push("save");
+    },
+    restore: () => {
+      transforms.push("restore");
+    },
   };
 
   const ctx = new Proxy(target, {
@@ -117,7 +130,7 @@ function fakeCanvas() {
     toDataURL: () => "data:image/png;base64,",
   };
 
-  return { canvas, drawn, paths };
+  return { canvas, drawn, paths, transforms };
 }
 
 function render(spec: UniversalLayoutSpec, fontFamily = "cinzel") {
@@ -335,5 +348,54 @@ describe("drawSlideToCanvas (karuzela)", () => {
       handleEntry.y > lowestBracket,
       `stopka (y=${handleEntry.y}) weszła w klamry (dół=${lowestBracket})`,
     );
+  });
+});
+
+/**
+ * Korekta myszą to jedyna rzecz w kadrze, którą człowiek wprowadza palcem, a
+ * nie liczy z drabinki — więc test musi widzieć, że przesuw doszedł do pisma
+ * ORAZ że klamry poszły razem z nim. Ramka, która zostaje pod odjechanym
+ * zdaniem, jest gorsza niż brak ramki.
+ */
+describe("mikrokorekta kadru", () => {
+  function renderAdjusted(spec: UniversalLayoutSpec, adjust?: UniversalLayoutSpec["adjust"]) {
+    const { canvas, paths, transforms } = fakeCanvas();
+    renderUniversalLayout(canvas as unknown as HTMLCanvasElement, { ...spec, adjust }, [], {
+      width: WIDTH,
+      height: HEIGHT,
+      fontFamily: "cinzel",
+      textScale: 1,
+      handle: "@stark_focus",
+      fontColor: "white",
+    });
+    return {
+      paths: paths.filter((path) => path.points.length === 3),
+      transforms,
+      crimsonX: paths.find((path) => path.color === BRAND_ACCENT)?.points[1]?.[0] ?? Number.NaN,
+    };
+  }
+
+  it("przesuw treści trafia na kontekst i nie zostawia ramki w miejscu", () => {
+    const plain = renderAdjusted(QUOTE);
+    const moved = renderAdjusted(QUOTE, { content: { x: 60, y: 0, scale: 1 } });
+
+    assert.ok(moved.transforms.includes("t 60 0"), moved.transforms.join(", "));
+    assert.ok(!plain.transforms.includes("t 60 0"), "bez korekty nie ma przesuwu");
+    assert.equal(Math.round(moved.crimsonX), Math.round(plain.crimsonX) + 60);
+  });
+
+  it("samodzielna korekta znaku rusza tylko klamry", () => {
+    const plain = renderAdjusted(QUOTE);
+    const markOnly = renderAdjusted(QUOTE, { mark: { x: 0, y: 40, scale: 1 } });
+
+    assert.ok(!markOnly.transforms.includes("t 0 40"), "treść nie drgnęła");
+    assert.equal(
+      Math.round(markOnly.crimsonX),
+      Math.round(plain.crimsonX),
+      "ruch jest w pionie, nie w poziomie",
+    );
+    const plainTop = plain.paths.find((p) => p.color === BRAND_ACCENT)!.points[1][1];
+    const movedTop = markOnly.paths.find((p) => p.color === BRAND_ACCENT)!.points[1][1];
+    assert.equal(Math.round(movedTop), Math.round(plainTop) + 40);
   });
 });

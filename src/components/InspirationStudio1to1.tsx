@@ -27,9 +27,20 @@ import {
   Sliders,
   X,
   Package,
+  Move,
 } from "lucide-react";
 import { UniversalLayoutSpec, UniversalTextLayer, PublishedItem } from "../types";
-import { renderUniversalLayout } from "../utils/canvasRenderer";
+import { renderUniversalLayout, type RenderedFrame } from "../utils/canvasRenderer";
+import {
+  clampTweakToBand,
+  isIdentity,
+  normalizeTweak,
+  tweakBox,
+  tweakOf,
+  TWEAK_LIMITS,
+} from "../utils/frameAdjust";
+import type { FrameTweak } from "../types";
+import { safeBand } from "../utils/safeZones";
 import { StructuredContent, structuredSpec } from "../utils/ideaLayout";
 import { FrameFormat, formatByGrid } from "../lib/formats";
 import { groupText, layerById, nextLayerId, PRIMARY_LAYER_ID } from "../utils/canvas/layerRoles";
@@ -340,6 +351,12 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
   const aspectRatio = "9:16" as const;
   const dimensions = { width: 1080, height: 1920 };
   const [fontFamily, setFontFamily] = useState<string>("sans");
+  // Którą część kadru ciągniemy: treść czy znak marki (klamry).
+  const [adjustTarget, setAdjustTarget] = useState<"content" | "mark">("content");
+  const [frame, setFrame] = useState<RenderedFrame | null>(null);
+  const dragRef = useRef<{ x: number; y: number; from: FrameTweak; w: number; h: number } | null>(
+    null,
+  );
   const [publishedLogged, setPublishedLogged] = useState(false);
   const [textScale, setTextScale] = useState<number>(1.0);
 
@@ -480,15 +497,82 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
 
   useEffect(() => {
     if (!canvasRef.current) return;
-    renderUniversalLayout(canvasRef.current, spec, loadedImages, {
-      width: dimensions.width,
-      height: dimensions.height,
-      fontFamily: spec.fontFamilyCustom || fontFamily,
-      textScale,
-      handle: userHandle,
-      fontColor: "white",
-    });
+    setFrame(
+      renderUniversalLayout(canvasRef.current, spec, loadedImages, {
+        width: dimensions.width,
+        height: dimensions.height,
+        fontFamily: spec.fontFamilyCustom || fontFamily,
+        textScale,
+        handle: userHandle,
+        fontColor: "white",
+      }),
+    );
   }, [spec, loadedImages, dimensions.width, dimensions.height, fontFamily, textScale, userHandle]);
+
+  /**
+   * Mikrokorekta: domyślny układ zostaje nienaruszony, a mysz dokłada przesuw
+   * i skalę. Klamry liczone są od tego samego pola co tekst, więc korekta
+   * treści pociąga za sobą znak — inaczej ramka zostałaby pod zdaniem, które
+   * już odjechało.
+   */
+  const activeTweak = tweakOf(spec.adjust, adjustTarget);
+
+  const writeTweak = (role: "content" | "mark", tweak: FrameTweak) => {
+    setSpec((prev) => {
+      const next = { ...(prev.adjust ?? {}) };
+      if (isIdentity(tweak)) delete next[role];
+      else next[role] = tweak;
+      return { ...prev, adjust: Object.keys(next).length > 0 ? next : undefined };
+    });
+  };
+
+  /** Pole, od którego liczymy hamulec: treść w swoim miejscu albo klamry po korekcie treści. */
+  const dragBox = (() => {
+    if (!frame?.box) return null;
+    if (adjustTarget === "content") return frame.box;
+    return tweakBox(frame.box, tweakOf(spec.adjust, "content"), frame.width, frame.height);
+  })();
+
+  const onDragStart = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragBox || !frame) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    dragRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+      from: activeTweak,
+      w: rect.width,
+      h: rect.height,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const onDragMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    if (!drag || !frame || !dragBox) return;
+    const next = normalizeTweak({
+      x: drag.from.x + ((event.clientX - drag.x) / drag.w) * 1080,
+      y: drag.from.y + ((event.clientY - drag.y) / drag.h) * 1920,
+      scale: drag.from.scale,
+    });
+    writeTweak(
+      adjustTarget,
+      clampTweakToBand(
+        next,
+        dragBox,
+        safeBand(frame.height, frame.width, false),
+        frame.width,
+        frame.height,
+      ),
+    );
+  };
+
+  const onDragEnd = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (dragRef.current) event.currentTarget.releasePointerCapture(event.pointerId);
+    dragRef.current = null;
+  };
+
+  const hasAdjust =
+    !isIdentity(tweakOf(spec.adjust, "content")) || !isIdentity(tweakOf(spec.adjust, "mark"));
 
   /**
    * Studio nie prosi modelu o jedną odpowiedź, tylko o kilka, i pokazuje je do
@@ -930,6 +1014,100 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
 
           <div className="relative w-full max-w-[250px] aspect-[9/16] rounded-xl overflow-hidden border border-white/15 shadow-2xl bg-black transition-all duration-200">
             <canvas ref={canvasRef} className="w-full h-full object-contain" />
+            {/* Warstwa przeciągania: podgląd jest jedynym miejscem, gdzie kadr
+                się ocenia, więc to na nim łapie się treść i ramkę. */}
+            <div
+              onPointerDown={onDragStart}
+              onPointerMove={onDragMove}
+              onPointerUp={onDragEnd}
+              onPointerCancel={onDragEnd}
+              className={
+                dragBox
+                  ? "absolute inset-0 touch-none cursor-grab active:cursor-grabbing"
+                  : "absolute inset-0 touch-none"
+              }
+              title={
+                adjustTarget === "content"
+                  ? "Przeciągnij, żeby lekko przesunąć tekst"
+                  : "Przeciągnij, żeby lekko przesunąć ramkę marki"
+              }
+            />
+          </div>
+
+          {/* Mikrokorekta ponad domyślnym układem — nie edytor kompozycji. */}
+          <div className="w-full max-w-[320px] space-y-2 rounded-lg border border-white/10 bg-[#0B0B0B] p-3">
+            <div className="flex items-center gap-2">
+              {(
+                [
+                  ["content", "Tekst"],
+                  ["mark", "Ramka"],
+                ] as const
+              ).map(([role, label]) => (
+                <button
+                  key={role}
+                  type="button"
+                  onClick={() => setAdjustTarget(role)}
+                  className={
+                    adjustTarget === role
+                      ? "px-2.5 py-1 rounded bg-white text-black text-[10px] font-mono font-bold uppercase tracking-wider cursor-pointer"
+                      : "px-2.5 py-1 rounded bg-[#141414] hover:bg-[#1E1E1E] text-neutral-300 border border-white/10 text-[10px] font-mono font-bold uppercase tracking-wider cursor-pointer"
+                  }
+                >
+                  {label}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => {
+                  writeTweak("content", { x: 0, y: 0, scale: 1 });
+                  writeTweak("mark", { x: 0, y: 0, scale: 1 });
+                }}
+                disabled={!hasAdjust}
+                className="ml-auto px-2.5 py-1 rounded bg-[#141414] hover:bg-white hover:text-black disabled:opacity-40 text-neutral-300 border border-white/10 text-[10px] font-mono font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer transition-colors"
+                title="Wróć do układu, który wyszedł z drabinki pisma"
+              >
+                <RefreshCw className="w-3 h-3" />
+                Układ
+              </button>
+            </div>
+
+            <label className="flex items-center gap-2 text-[10px] font-mono text-neutral-400 uppercase tracking-wider">
+              <Move className="w-3 h-3 shrink-0" />
+              Rozmiar
+              <input
+                type="range"
+                min={TWEAK_LIMITS.scaleMin}
+                max={TWEAK_LIMITS.scaleMax}
+                step={0.01}
+                value={activeTweak.scale}
+                onChange={(event) =>
+                  writeTweak(
+                    adjustTarget,
+                    clampTweakToBand(
+                      normalizeTweak({ ...activeTweak, scale: Number(event.target.value) }),
+                      dragBox ?? {
+                        left: 0,
+                        top: 0,
+                        right: dimensions.width,
+                        bottom: dimensions.height,
+                      },
+                      safeBand(dimensions.height, dimensions.width, false),
+                      dimensions.width,
+                      dimensions.height,
+                    ),
+                  )
+                }
+                className="flex-1 accent-rose-600"
+              />
+              <span className="w-9 text-right text-neutral-300">
+                {activeTweak.scale.toFixed(2)}
+              </span>
+            </label>
+
+            <p className="text-[10px] font-mono leading-relaxed text-neutral-500">
+              Przesuw {activeTweak.x} × {activeTweak.y} px. Ciągnij po podglądzie; poza bezpieczny
+              pas uchwyty same stają, żeby interfejs platformy niczego nie zasłonił.
+            </p>
           </div>
 
           {/* Przyciski Pobierania: PNG i JPG */}

@@ -1,5 +1,7 @@
 import { BRAND_ACCENT } from "../starkBrandTheme";
 import type { InkBox } from "../brandMark";
+import { applyTweak, tweakOf } from "../frameAdjust";
+import type { FrameAdjust } from "../../types";
 import { centeredTop as centeredInBand, safeBand } from "../safeZones";
 import {
   drawImageCover,
@@ -22,6 +24,8 @@ export interface LayoutTheme {
   height: number;
   handle: string;
   bgImage?: CanvasImageSource | null;
+  /** Mikrokorekta treści narysowanej na tym kadrze — patrz `frameAdjust.ts`. */
+  adjust?: FrameAdjust;
   accentColor?: string;
   headlineFont?: string;
   bodyFont?: string;
@@ -112,6 +116,11 @@ export function drawProtocolListSlide(
   const base = prepare(canvas, options);
   if (!base) return null;
   const { ctx, width, height, accent } = base;
+
+  // Korekta myszą tylko na treść: tło i stopka zostają w swoim miejscu,
+  // inaczej skala odsłoniłaby krawędź kadru, a handle odjechałby w górę.
+  ctx.save();
+  applyTweak(ctx, tweakOf(options.adjust, "content"), width, height);
 
   const margin = Math.round(width * 0.09);
   const usable = width - margin * 2;
@@ -204,6 +213,7 @@ export function drawProtocolListSlide(
     y += Math.min(stepLines.length, 3) * stepSize * 1.35 + stepGap;
   });
 
+  ctx.restore();
   footer(ctx, width, height, options.handle);
 
   // Dół i góra po atramencie, nie po linii bazowej: `blockTop` to bazowa
@@ -238,6 +248,11 @@ export function drawCostVsRewardSlide(
   const base = prepare(canvas, options);
   if (!base) return null;
   const { ctx, width, height, accent } = base;
+
+  // Korekta myszą tylko na treść: tło i stopka zostają w swoim miejscu,
+  // inaczej skala odsłoniłaby krawędź kadru, a handle odjechałby w górę.
+  ctx.save();
+  applyTweak(ctx, tweakOf(options.adjust, "content"), width, height);
 
   const margin = Math.round(width * 0.09);
   const gutter = Math.round(width * 0.06);
@@ -353,6 +368,7 @@ export function drawCostVsRewardSlide(
     contentBottom = closingTop + closing.size + (closing.lines.length - 1) * closing.size * 1.25;
   }
 
+  ctx.restore();
   footer(ctx, width, height, options.handle);
 
   // Krawędź atramentu, nie linia bazowa — patrz uwaga przy protokole.

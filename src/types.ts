@@ -116,6 +116,24 @@ export interface UniversalTextLayer {
   casing?: "preserve" | "lowercase" | "uppercase" | string;
 }
 
+/**
+ * Mikrokorekta jednej warstwy kadru: przesuw w pikselach przy kadrze 1080×1920
+ * i skala liczona od środka. Zero i jedynka to „jak wyszło z drabinki pisma" —
+ * domyślny układ jest nadal jedynym źródłem kształtu, to tylko ludzka poprawka
+ * na nim.
+ */
+export interface FrameTweak {
+  x: number;
+  y: number;
+  scale: number;
+}
+
+/** Którą część kadru korygujemy: treść albo znak marki (klamry). */
+export interface FrameAdjust {
+  content?: FrameTweak;
+  mark?: FrameTweak;
+}
+
 export interface UniversalLayoutSpec {
   layoutName: string;
   // "studio_wall_3d" to układ zwracany przez analizę linku — bez niego
@@ -150,6 +168,8 @@ export interface UniversalLayoutSpec {
   detectedAudio: string;
   fontFamilyCustom?: string;
   fontColorMode?: "white" | "black";
+  /** Korekta myszą nałożona na domyślny układ — patrz `utils/frameAdjust.ts`. */
+  adjust?: FrameAdjust;
 }
 
 // ===== Czas trwania rolki =====
