@@ -40,6 +40,24 @@ export function activeStockSource(): StockSource | null {
   return null;
 }
 
+/**
+ * Jaki klucz serwer naprawdę zobaczył — długość i czy ma w środku znaki,
+ * których klucz nie ma. Status czytają ludzie przy konfiguracji, a „400"
+ * bez tej informacji znaczy godzinę zgadywania, czy winny jest plik, serwer
+ * czy katalog.
+ */
+export function activeStockKey(): {
+  source: StockSource;
+  length: number;
+  looksBroken: boolean;
+} | null {
+  const source = activeStockSource();
+  if (!source) return null;
+  const key =
+    source === "pexels" ? String(process.env.PEXELS_API_KEY) : String(process.env.PIXABAY_API_KEY);
+  return { source, length: key.length, looksBroken: /\s|=/.test(key) };
+}
+
 function assetFromFile(
   file: { filename: string; url: string; bytes: number },
   id: string,

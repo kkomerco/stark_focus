@@ -216,6 +216,15 @@ describe("pixabay", () => {
     assert.match(result.notice, /PIXABAY_API_KEY/);
   });
 
+  it("nie idzie do sieci po klucz z spacją albo '=' w środku", async () => {
+    process.env.PIXABAY_API_KEY = "1234567890-abc=def";
+    const result = await searchPixabayClips("cold shower", 8);
+
+    assert.deepEqual(result.clips, []);
+    assert.match(result.notice, /=/);
+    delete process.env.PIXABAY_API_KEY;
+  });
+
   it("pliki Pixabaya wolno ściągać, strony już nie", () => {
     assert.ok(isAllowedFileUrl("https://cdn.pixabay.com/video/2024/x.mp4", HOSTS));
     assert.equal(isAllowedFileUrl("https://pixabay.com/video/2024/x.mp4", HOSTS), false);
@@ -230,5 +239,21 @@ describe("vaultIdPrefix", () => {
       vaultFileName("pixabay-42", "zimny prysznic", "video/mp4"),
       "pixabay-42-zimny-prysznic.mp4",
     );
+  });
+});
+
+describe("activeStockKey", () => {
+  it("mówi, jaki klucz serwer naprawdę zobaczył", async () => {
+    const { activeStockKey } = await import("./ai/routes/vault.server");
+    delete process.env.PEXELS_API_KEY;
+    delete process.env.PIXABAY_API_KEY;
+    assert.equal(activeStockKey(), null);
+
+    process.env.PIXABAY_API_KEY = "1234567890-abc=def";
+    assert.deepEqual(activeStockKey(), { source: "pixabay", length: 18, looksBroken: true });
+
+    process.env.PIXABAY_API_KEY = "1234567890abcdef";
+    assert.deepEqual(activeStockKey(), { source: "pixabay", length: 16, looksBroken: false });
+    delete process.env.PIXABAY_API_KEY;
   });
 });

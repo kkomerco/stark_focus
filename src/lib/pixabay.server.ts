@@ -100,6 +100,18 @@ export async function searchPixabayClips(
   }
   if (!term) return { clips: [], notice: "Wpisz frazę po angielsku, np. ‚empty street night'." };
 
+  // Klucz Pixabaya to sam ciąg znaków z pola na górze dokumentacji. Spacja albo
+  // `=` w środku znaczy, że do `.env` trafił kawałek przykładowego adresu
+  // razem z `key=` — katalog odpowiedziałby 400 bez wyjaśnienia, więc
+  // wyjaśniamy tu.
+  const key = String(process.env.PIXABAY_API_KEY);
+  if (/\s|=/.test(key)) {
+    return {
+      clips: [],
+      notice: `Klucz w .env wygląda na przeklejony razem z resztą zdania (długość ${key.length}, spacja albo '=' w środku) — wklej sam ciąg z pola your API key na górze dokumentacji.`,
+    };
+  }
+
   const url = `${API}?${new URLSearchParams({
     key: String(process.env.PIXABAY_API_KEY),
     q: term,
