@@ -52,7 +52,8 @@ const REEL_DURATION_MAX = 15;
  * Frazy przechodzą przez te same reguły co kontrola przed publikacją — klisza
  * i polszczyzna nie mogą dojść do paczki, a potem do konta.
  */
-function normalizeReel(item: unknown) {
+/** `index` wchodzi z `map()` jako sol wezwania — patrz `starkCta`. */
+function normalizeReel(item: unknown, index = 0) {
   const reel = (item ?? {}) as Record<string, unknown>;
   const phrases = publishableLines(asStringArray(reel.phrases, 5));
   const rawHook = asString(reel.hook);
@@ -63,7 +64,7 @@ function normalizeReel(item: unknown) {
     phrases: phrases.length > 0 ? phrases : hook ? [hook] : [],
     theme: oneOf(reel.theme, REEL_THEMES, "obsidian_void"),
     duration: clampInt(reel.duration, REEL_DURATION_MIN, REEL_DURATION_MAX, 8),
-    captionShort: starkCaption(hook, asString(reel.captionShort)),
+    captionShort: starkCaption(hook, asString(reel.captionShort), index),
     // Hashtagi liczymy z tego, co jest na kadrze. Model niech ich nie prosi:
     // każdy własny zestaw to inny ogon pod kolejnym postem tego samego konta.
     hashtags: starkHashtags((hook + " " + phrases.join(" ")).trim()),
@@ -92,7 +93,7 @@ function buildOfflinePack(topic: string, reelsCount: number, excludeHooks: strin
   const reels = shuffle(VIRAL_REEL_TEMPLATES)
     .filter((t) => !excluded.has(hookFingerprint(String(t.phrases[0] || t.title))))
     .slice(0, reelsCount)
-    .map((template) => {
+    .map((template, idx) => {
       const hook = template.phrases[0] || template.title;
       return {
         hook,
@@ -103,7 +104,7 @@ function buildOfflinePack(topic: string, reelsCount: number, excludeHooks: strin
         // bez puli z `caption.ts` na koncie ląduje pięć różnych stopek pisanych
         // przez pięć osób. `starkCaption` bierze ze zdania banku treść, a CTA
         // i hashtagy dokłada zawsze markowe.
-        captionShort: starkCaption(hook, template.captionShort),
+        captionShort: starkCaption(hook, template.captionShort, idx),
         hashtags: starkHashtags(template.phrases.join(" ")),
       };
     });

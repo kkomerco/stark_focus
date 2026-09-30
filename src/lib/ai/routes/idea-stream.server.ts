@@ -322,7 +322,9 @@ export function normalizeModelIdea(raw: unknown, index: number, seed: BatchSeed)
     emotionalTarget: note(item.emotionalTarget, seed.emos[index % seed.emos.length]),
     format: note(item.format, seed.shapes[index % seed.shapes.length]),
     phrases: [statement, ...lineList(item.phrases, 3).filter((text) => text !== statement)],
-    caption: starkCaption(statement, clean(item.caption)),
+    // Sol to kolejność w partii: cała paczka ma ten sam kształt treści, więc
+    // bez niego każdy pomysł w strumieniu dostawał to samo wezwanie.
+    caption: starkCaption(statement, clean(item.caption), index),
     hashtags: starkHashtags(statement),
     theme: oneOf(item.theme, THEMES, "obsidian_void"),
   };

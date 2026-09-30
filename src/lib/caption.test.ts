@@ -6,9 +6,9 @@ import {
   isPolishCopy,
   starkCaption,
   starkCta,
+  starkHashtags,
   starkShortCaption,
   stripHashtagTail,
-  starkHashtags,
 } from "./caption";
 
 describe("caption.ts - Stark Focus Caption Formatter", () => {
@@ -259,5 +259,44 @@ describe("starkCta", () => {
       starkCta(protocol),
       "Send it to whoever is starting this over again on Monday.",
     );
+  });
+});
+
+/**
+ * Seria z radaru kończyła się tą samą linią pod każdym postem: kształt treści
+ * w tej marce („poranek", „nikt nie sprawdza") pasuje do jednego wezwania, a
+ * filtr brał tylko pasujące. Test trzyma obie własności naraz — wezwanie ma
+ * pasować do treści i ma się różnić w obrębie partii.
+ */
+describe("wezwanie w partii", () => {
+  const SIMILAR = [
+    "You get one hour back a day. Nobody spends it.",
+    "The alarm is not the discipline.",
+    "Nobody is coming to check on you.",
+    "The kettle is cold again at 4:40.",
+    "Your standards dropped and nobody said anything.",
+    "Consistency is boring on purpose.",
+    "Motivation is a rented room.",
+    "The first set is the whole workout.",
+  ];
+
+  it("osiem podobnych zdani nie konczy sie jednym podpisem", () => {
+    const ctas = SIMILAR.map((hook, index) => starkCta(hook, index));
+    for (const cta of ctas) assert.ok(STARK_CTAS.includes(cta), cta);
+    assert.ok(
+      new Set(ctas).size >= 3,
+      `tylko ${new Set(ctas).size} roznych wezwan:\n${ctas.join("\n")}`,
+    );
+  });
+
+  it("ten sam material o tej samej pozycji dostaje to samo wezwanie", () => {
+    assert.equal(starkCta(SIMILAR[0], 2), starkCta(SIMILAR[0], 2));
+  });
+
+  it("opis z partii roznim ogonem niesie rózne wezwanie", () => {
+    const tails = SIMILAR.map(
+      (hook, index) => formatStarkCaption(hook, [], "", index).split("\n\n").slice(-2)[0],
+    );
+    assert.ok(new Set(tails).size >= 3, tails.join("\n"));
   });
 });

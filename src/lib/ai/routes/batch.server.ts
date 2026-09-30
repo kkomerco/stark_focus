@@ -114,7 +114,9 @@ export function buildBatchFallback() {
     pillarId: p.id,
     sayingMain: p.hook,
     sayingSub: p.sub,
-    caption: formatStarkCaption(p.hook),
+    // Indeks partii jako sol: bez niego osiem postów z jednej serii
+    // kończyło się tą samą linią, bo kształt treści w tej marce jest ten sam.
+    caption: formatStarkCaption(p.hook, [], "", idx),
     template: "none_solid" as const,
     fontColor: "white" as const,
   }));
