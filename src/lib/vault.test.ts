@@ -137,39 +137,59 @@ describe("searchStockClips", () => {
 });
 
 describe("pixabay", () => {
+  // Kształt sprawdzony na żywo: miniaturka siedzi w tierze, a tiery to warianty
+  // bitrate tego samego kadru, nie różne proporcje.
   const HIT = {
     id: 42,
     duration: 14,
-    picture_2x: "https://cdn.pixabay.com/video/2024/01/01/42-poster.jpg",
     videos: {
       large: {
-        url: "https://cdn.pixabay.com/video/2024/01/01/42-large.mp4",
+        url: "https://cdn.pixabay.com/video/2024-01-01/42-large.mp4",
         width: 2160,
         height: 3840,
         size: 90_000_000,
+        thumbnail: "https://cdn.pixabay.com/video/2024-01-01/42-large.jpg",
       },
       medium: {
-        url: "https://cdn.pixabay.com/video/2024/01/01/42-medium.mp4",
+        url: "https://cdn.pixabay.com/video/2024-01-01/42-medium.mp4",
         width: 1080,
         height: 1920,
         size: 8_000_000,
+        thumbnail: "https://cdn.pixabay.com/video/2024-01-01/42-medium.jpg",
       },
       small: {
-        url: "https://cdn.pixabay.com/video/2024/01/01/42-small.mp4",
+        url: "https://cdn.pixabay.com/video/2024-01-01/42-small.mp4",
         width: 720,
         height: 1280,
         size: 3_000_000,
+        thumbnail: "https://cdn.pixabay.com/video/2024-01-01/42-small.jpg",
       },
     },
   };
 
-  it("biera pion w jakości, która zmieści się w sejfie", () => {
+  it("biera pion w jakości, która zmieści się w sejfie, i miniaturkę z tieru", () => {
     const clip = normalizePixabayClip(HIT);
 
     assert.equal(clip?.id, "pixabay-42");
-    assert.equal(clip?.fileUrl, "https://cdn.pixabay.com/video/2024/01/01/42-medium.mp4");
+    assert.equal(clip?.fileUrl, "https://cdn.pixabay.com/video/2024-01-01/42-medium.mp4");
+    assert.equal(clip?.previewUrl, "https://cdn.pixabay.com/video/2024-01-01/42-medium.jpg");
     assert.equal(clip?.bytes, 8_000_000);
     assert.equal(clip?.height, 1920);
+  });
+
+  it("klipu generowanego przez model i oznaczonego jako słaby nie ma w wynikach", () => {
+    assert.equal(normalizePixabayClip({ ...HIT, isAiGenerated: true }), null);
+    assert.equal(normalizePixabayClip({ ...HIT, isLowQuality: true }), null);
+  });
+
+  it("tier bez wymiarów odpada zamiast wejść w kartę z zerami", () => {
+    assert.equal(
+      normalizePixabayClip({
+        id: 42,
+        videos: { medium: { url: "https://cdn.pixabay.com/v.mp4", width: 0, height: 0, size: 0 } },
+      }),
+      null,
+    );
   });
 
   it("poziom bierze dopiero bez pionu, a pusty hit nie jest ujęciem", () => {
@@ -181,6 +201,7 @@ describe("pixabay", () => {
             width: 1920,
             height: 1080,
             size: 1000,
+            thumbnail: "",
           },
         },
       },

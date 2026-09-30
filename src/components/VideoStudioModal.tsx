@@ -26,8 +26,7 @@ import {
   Move,
 } from "lucide-react";
 import JSZip from "jszip";
-import { Post, PublishedItem, ReelHandoff, VaultAsset } from "../types";
-import type { FrameTweak, StockClip, VaultFile } from "../types";
+import type { FrameTweak, Post, PublishedItem, ReelHandoff, StockClip, VaultFile } from "../types";
 import { formatMegabytes, readVault, searchVaultClips, takeVaultClip } from "../lib/vaultClient";
 import { starkCaption, starkCta, starkHashtags, stripHashtagTail } from "../lib/caption";
 import { publishedEntry } from "../lib/published";
@@ -99,7 +98,6 @@ interface VideoStudioModalProps {
   initialReel?: ReelHandoff;
   initialBgUrl?: string;
   availablePosts?: Post[];
-  vaultAssets?: VaultAsset[];
   /** Odciski treści, która już poszła na konto — jedyna lista anty-powtórkowa. */
   excludeHooks?: string[];
   /** Jeden klik „poszło na konto" — wpis do dziennika buduje `publishedEntry`. */
@@ -2404,7 +2402,8 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                         )}
                       </span>
                       <span className="block px-1 py-0.5 text-[9px] font-mono text-neutral-400 truncate">
-                        {Math.round(clip.durationSec)} s · {clip.height} px
+                        {clip.height > clip.width ? "pion" : "poziom"} ·{" "}
+                        {Math.round(clip.durationSec)} s
                         {clip.bytes > 0 && ` · ${formatMegabytes(clip.bytes)}`}
                       </span>
                     </button>

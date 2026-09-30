@@ -73,18 +73,20 @@ describe("import kopii — tylko znane pola", () => {
     assert.equal(data.ab_experiments?.length, 1);
   });
 
-  it("przestarzałe tła .webp i posągi odpadają już przy imporcie, nie przy odczycie", () => {
+  it("klucz po sejfie z dawnej wersji odpada przy imporcie, nie zostaje w stanie", () => {
     importStoredData(
       JSON.stringify({
-        vault_assets: [
-          { id: "a1", filename: "marcus_aurelius.webp", url: "/x.webp" },
-          { id: "a2", filename: "monolit.png", url: "/monolit.png" },
-        ],
+        posts: [{ id: "p1", sayingMain: "Rust works while you sleep." }],
+        vault_assets: [{ id: "a1", filename: "marcus_aurelius.webp", url: "/x.webp" }],
       }),
     );
 
-    const stored = JSON.parse(store.get(KEY) ?? "{}") as { vault_assets: unknown[] };
-    assert.equal(stored.vault_assets.length, 1);
+    const stored = JSON.parse(store.get(KEY) ?? "{}") as Record<string, unknown>;
+
+    // Pliki ujęć mieszkają na dysku i serwer je wymienia po `/sejf/...`; wpis
+    // w kopii danych był opisem, którego nic nie czytało.
+    assert.equal(stored.vault_assets, undefined);
+    assert.equal((stored.posts as unknown[]).length, 1);
   });
 
   it("plik z innej aplikacji nie nadpisuje stanu", () => {

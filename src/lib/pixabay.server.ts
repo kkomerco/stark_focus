@@ -7,10 +7,11 @@ import type { StockClip } from "../types";
  * nie może zależeć od widzimisię jednego dostawcy — więc dochodzi ten, którego
  * klucz widać od razu po zalogowaniu na stronie dokumentacji.
  *
- * Odpowiedź jest obcym JSON-em i przechodzi przez te same bramki co każda
- * inna: liczby przez `asNumber`, teksty przez `clampText`, a tier wideo
- * wybieramy dopiero po sprawdzeniu, że jest pionowy i mieści się w limicie
- * sejfu — rozmiar widać w odpowiedzi, więc nie musimy go ciągnąć, żeby odmówić.
+ * Kształt odpowiedzi jest sprawdzony na żywo, nie z dokumentacji: tiery
+ * (`large`/`medium`/`small`/`tiny`) to warianty bitrate **tego samego kadru**,
+ * a nie różne proporcje, miniaturka siedzi w `videos.<tier>.thumbnail` (żadnego
+ * `picture_2x` przy wideo nie ma), a katalog sam oznacza klipy generowane przez
+ * model (`isAiGenerated`) i oznaczone jako niskiej jakości (`isLowQuality`).
  */
 
 const API = "https://pixabay.com/api/videos/";
@@ -24,6 +25,7 @@ interface PixabayTier {
   width: number;
   height: number;
   bytes: number;
+  thumbnail: string;
 }
 
 const TIERS = ["large", "medium", "small", "tiny"] as const;
@@ -32,51 +34,79 @@ function asTier(raw: unknown): PixabayTier | null {
   if (!raw || typeof raw !== "object") return null;
   const tier = raw as Record<string, unknown>;
   const url = clampText(tier.url, 400);
-  if (!url.startsWith("https://")) return null;
+  const width = asNumber(tier.width, 0);
+  const height = asNumber(tier.height, 0);
+  // Tier bez wymiarów to nie „mniejszy plik", tylko odpowiedź, której nie da
+  // się ocenić — odpada, zamiast wejść w kartę z zerami.
+  if (!url.startsWith("https://") || width <= 0 || height <= 0) return null;
   return {
     url,
-    width: asNumber(tier.width, 0),
-    height: asNumber(tier.height, 0),
+    width,
+    height,
     bytes: asNumber(tier.size, 0),
+    thumbnail: clampText(tier.thumbnail, 400),
   };
 }
 
+function tiersOf(hit: Record<string, unknown>): PixabayTier[] {
+  const videos = (hit.videos ?? {}) as Record<string, unknown>;
+  return TIERS.map((name) => asTier(videos[name])).filter((tier): tier is PixabayTier =>
+    Boolean(tier),
+  );
+}
+
+/** Kadry, które katalog ma w pionie, są pierwsze — poziome zostają jako rezerwa. */
+function isVertical(tier: PixabayTier): boolean {
+  return tier.height > tier.width;
+}
+
 /**
- * Największy pionowy tier, który mieści się w sejfie. `maxBytes = 0` z
- * odpowiedzi nie jest zaproszeniem do pobrania wszystkiego — wtedy tier
- * zostaje, bo rozmiar i tak sprawdzi strumień.
+ * Wybór tieru: pion whole'u klipu, największy mieszczący się w sejfie, ale
+ * nie powyżej 2160 px — i tak rysujemy na 1080, a 4K mnoży tylko megabajty.
+ * `bytes = 0` z odpowiedzi nie jest zaproszeniem do pobrania wszystkiego:
+ * limit i tak sprawdza strumień.
  */
 export function pickPixabayTier(
   hit: Record<string, unknown>,
-  maxBytes: number,
+  maxBytes = LIMITS.maxVaultBytes,
 ): PixabayTier | null {
-  const videos = (hit.videos ?? {}) as Record<string, unknown>;
-  const tiers = TIERS.map((name) => asTier(videos[name])).filter((tier): tier is PixabayTier =>
-    Boolean(tier),
-  );
-  const portrait = tiers.filter((tier) => tier.height > tier.width);
-  const fits = (portrait.length > 0 ? portrait : tiers).filter(
+  const all = tiersOf(hit);
+  if (all.length === 0) return null;
+  const vertical = all.filter(isVertical);
+  const pool = vertical.length > 0 ? vertical : all;
+  // Dłuższy bok powyżej 2160 px to 4K: na kadrze 1080 nie widać różnicy,
+  // a sejf dostaje plik czterokrotnie większy niż potrzeba.
+  const usable = pool.filter((tier) => Math.max(tier.width, tier.height) <= 2160);
+  const candidates = usable.length > 0 ? usable : pool;
+  const fits = candidates.filter(
     (tier) => maxBytes <= 0 || tier.bytes === 0 || tier.bytes <= maxBytes,
   );
   // TIERS jest od największego, więc pierwszy pasujący to najlepszy pasujący.
-  return fits[0] ?? null;
+  return fits[0] ?? candidates[0] ?? null;
 }
 
+/**
+ * Hit → karta ujęcia. Filtry są markowe, nie techniczne: klip generowany przez
+ * model i oznaczony jako niskiej jakości nie wchodzi do rolki konta, które ma
+ * wyglądać na nagrane.
+ */
 export function normalizePixabayClip(
   raw: unknown,
   maxBytes = LIMITS.maxVaultBytes,
 ): StockClip | null {
   if (!raw || typeof raw !== "object") return null;
   const hit = raw as Record<string, unknown>;
+  if (hit.isAiGenerated === true || hit.isLowQuality === true) return null;
+
   const id = asString(hit.id);
   const tier = pickPixabayTier(hit, maxBytes);
   if (!id || !tier) return null;
 
   return {
-    // Identyfikator z nazwą katalogu: dwa katalogi mogą mieć ten sam numer,
-    // a sejf rozpoznaje po nim, czy plik już leży na dysku.
+    // Identyfikator z nazwą katalogu: dwa katalogi mają te same numery, a po
+    // przedrostku sejf poznaje, czy plik już leży na dysku.
     id: `pixabay-${id}`,
-    previewUrl: clampText(hit.picture_2x, 400),
+    previewUrl: tier.thumbnail || tiersOf(hit).find((t) => t.thumbnail)?.thumbnail || "",
     fileUrl: tier.url,
     width: tier.width,
     height: tier.height,
@@ -86,9 +116,9 @@ export function normalizePixabayClip(
 }
 
 /**
- * Wyszukanie ujęć. `safesearch=true` jest tu nie dla grzeczności: materiał
- * ma wejść na konto firmowe, a nagie ciało w tle to dokładnie ten kłopot,
- * którego nie znajdzie później żadna kontrola przed publikacją.
+ * Wyszukanie ujęć. `safesearch=true` nie jest dla grzeczności: materiał ma
+ * wejść na konto firmowe, a nagi tors w tle to dokładnie ten kłopot, którego
+ * nie złapie później żadna kontrola przed publikacją.
  */
 export async function searchPixabayClips(
   query: string,
@@ -101,9 +131,8 @@ export async function searchPixabayClips(
   if (!term) return { clips: [], notice: "Wpisz frazę po angielsku, np. ‚empty street night'." };
 
   // Klucz Pixabaya to sam ciąg znaków z pola na górze dokumentacji. Spacja albo
-  // `=` w środku znaczy, że do `.env` trafił kawałek przykładowego adresu
-  // razem z `key=` — katalog odpowiedziałby 400 bez wyjaśnienia, więc
-  // wyjaśniamy tu.
+  // `=` w środku znaczy, że do `.env` trafił kawałek przykładowego adresu razem
+  // z `key=` — katalog odpowiedziałby 400 bez wyjaśnienia, więc wyjaśniamy tu.
   const key = String(process.env.PIXABAY_API_KEY);
   if (/\s|=/.test(key)) {
     return {
@@ -112,14 +141,14 @@ export async function searchPixabayClips(
     };
   }
 
+  // Katalog nie ma filtra proporcji dla wideo (`min_height` tnie rozdzielczość,
+  // nie orientację), więc pytamy o czterokrotność i filtrujemy u siebie —
+  // żądanie kosztuje tyle samo niezależnie od liczby pozycji.
   const url = `${API}?${new URLSearchParams({
-    key: String(process.env.PIXABAY_API_KEY),
+    key,
     q: term,
-    per_page: String(count),
-    // Pion 9:16: wysokość dłuższa niż szerokość, więc minimalne 540x960
-    // odcina poziome ujęcia jeszcze po stronie katalogu.
-    min_width: "540",
-    min_height: "960",
+    per_page: String(Math.min(200, count * 4)),
+    min_height: "720",
     safesearch: "true",
   })}`;
 
@@ -137,11 +166,22 @@ export async function searchPixabayClips(
     const payload = (await res.json()) as Record<string, unknown>;
     const clips = asArray(payload.hits)
       .map((hit) => normalizePixabayClip(hit))
-      .filter((clip): clip is StockClip => clip !== null);
+      .filter((clip): clip is StockClip => clip !== null)
+      .sort((a, b) => Number(b.height > b.width) - Number(a.height > a.width));
+
+    if (clips.length === 0) {
+      return { clips: [], notice: "Katalog nie ma pod tę frazę niczego poza klipem generowanym." };
+    }
+    const vertical = clips.filter((clip) => clip.height > clip.width).length;
 
     return {
       clips: clips.slice(0, count),
-      notice: clips.length ? "" : "Katalog nie ma pionowego ujęcia pod tę frazę.",
+      // Poziomy klip w kadrze 9:16 to mocne przybliżenie środka — nie
+      // ukrywamy tego pod listą, która wyglądałaby na pełny wynik.
+      notice:
+        vertical === 0
+          ? "Pod tę frazę katalog ma tylko poziome ujęcia — w pionie będą mocno przycięte."
+          : "",
     };
   } catch (err) {
     return {

@@ -317,7 +317,6 @@ export default function StarkFocusApp() {
                 initialReel={reelPreset?.reel}
                 initialBgUrl={reelPreset?.bgUrl}
                 availablePosts={data.posts}
-                vaultAssets={data.vault_assets}
                 excludeHooks={usedHooks}
                 onSendToPost={handleSendToPost}
                 onMarkPublished={handleMarkPublished}

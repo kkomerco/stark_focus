@@ -52,15 +52,6 @@ export interface Post {
   spec?: UniversalLayoutSpec;
 }
 
-export interface VaultAsset {
-  id: string;
-  filename: string;
-  url: string;
-  type: "bg" | "video" | "inspiration";
-  created_date: string;
-  notes?: string;
-}
-
 /**
  * Ujęcie z katalogu, jeszcze nie ściągnięte: miniaturka, adres pliku i
  * wymiary. Ciężar znany dopiero po pobraniu, więc sejf pyta o niego osobno.
@@ -289,7 +280,6 @@ export interface StarkFocusData {
   xp: number;
   streak: number;
   created_at: string | null;
-  vault_assets: VaultAsset[];
   notificationsEnabled?: boolean;
   saved_trends?: TrendItem[];
   social_handles?: SocialHandles;

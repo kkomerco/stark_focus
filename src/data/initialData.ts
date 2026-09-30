@@ -31,7 +31,6 @@ export const INITIAL_DATA: StarkFocusData = {
   xp: 0,
   streak: 1,
   created_at: new Date().toISOString().split("T")[0],
-  vault_assets: [], // Puste – zero sztucznych teł
   social_handles: {
     instagram: "stark_focus",
     tiktok: "stark_focus",

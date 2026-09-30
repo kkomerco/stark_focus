@@ -71,26 +71,11 @@ export function loadStoredData(): StarkFocusData {
 // Import z pliku jest niezaufany, więc musi przejść dokładnie tę samą walidację co odczyt
 // z localStorage; nadmiarowe pola ze starych wersji (np. account_stats) po prostu odpadają.
 function normalizeParsedData(parsed: any, base: StarkFocusData): StarkFocusData {
-  // Filtracja starych sztywnych teł .webp i posągów z galerii na życzenie użytkownika
-  const rawAssets = Array.isArray(parsed?.vault_assets) ? parsed.vault_assets : [];
-  const cleanedAssets = rawAssets.filter((a: any) => {
-    if (!a) return false;
-    const fn = String(a.filename || a.name || "").toLowerCase();
-    const u = String(a.url || "").toLowerCase();
-    if (fn.includes(".webp") || u.includes(".webp")) return false;
-    if (fn.includes("seneca") || u.includes("seneca")) return false;
-    if (fn.includes("marcus_aurelius") || u.includes("marcus_aurelius")) return false;
-    if (fn.includes("brutalist_concrete") || u.includes("brutalist_concrete")) return false;
-    if (fn.includes("solitary_shadow") || u.includes("solitary_shadow")) return false;
-    if (fn.includes("obsidian_basalt") || u.includes("obsidian_basalt")) return false;
-    return true;
-  });
-
   // Wcześniejsze `{ ...base, ...parsed }` wlewało do stanu KAŻDY klucz z pliku,
   // a `loadStoredData` zapisywało go potem z powrotem do localStorage — więc
   // pole po wersji, której już nie ma, rosło razem z kopią w nieskończoność.
   // Przy 5 MB limicie przeglądarki walka o miejsce kończyła się tak, że
-  // `shrinkForQuota` wycinało `vault_assets`, żeby ratować czyjeś śmieci.
+  // `shrinkForQuota` wycinało ciężar, żeby ratować czyjeś śmieci.
   // Dozwolone klucze to te z danych domyślnych (compiler pilnuje, by były
   // kompletne) plus pola opcjonalne, których typ sam z siebie nie wymusza.
   const allowed = new Set([...Object.keys(base), "notificationsEnabled"]);
@@ -106,7 +91,6 @@ function normalizeParsedData(parsed: any, base: StarkFocusData): StarkFocusData 
     ...base,
     ...known,
     posts: Array.isArray(parsed?.posts) ? parsed.posts : [],
-    vault_assets: cleanedAssets,
     // Dziennik publikacji: bez tego aplikacja nie wie, co naprawdę wyszło.
     published: normalizePublished(parsed?.published),
     // Wzorce ręczne: niepuste teksty ≤300 znaków, bez duplikatów, max 50 najnowszych.
@@ -130,7 +114,10 @@ function readStreak(parsed: any): number {
 
 // Etapy odzyskiwania miejsca: 1 = tylko ciężar odtwarzalny, 2 = + skrócona historia
 function shrinkForQuota(data: StarkFocusData, step: number): StarkFocusData {
-  const trimmed: StarkFocusData = { ...data, vault_assets: [] };
+  // Rezultat radaru jest największy i wraca z jednego kliknięcia, więc to on
+  // zwalnia miejsce pierwszy — dawniej rolę tę pełnił sejf, ale pliki ujęć
+  // mieszkają na dysku i do kopii danych w ogóle nie wchodzą.
+  const trimmed: StarkFocusData = { ...data, saved_trends: [] };
   if (step >= 2) {
     trimmed.used_idea_fingerprints = (data.used_idea_fingerprints || []).slice(-HISTORY_KEEP);
   }
@@ -154,7 +141,7 @@ export function saveStoredData(data: StarkFocusData): void {
         localStorage.setItem(STORAGE_KEY, serialize(shrinkForQuota(data, step)));
         console.warn(
           step === 1
-            ? "Zapis bez vault_assets (tła doczytają się ponownie)."
+            ? "Zapis bez rezultatów radaru (doczytają się ponownie)."
             : "Zapis ze skróconą historią odtwarzalnych danych.",
         );
         written = true;
@@ -197,7 +184,7 @@ export function importStoredData(rawJson: string): ImportResult {
   // przypadkowym plikiem JSON z innej aplikacji.
   const recognizable =
     Array.isArray(source.posts) ||
-    Array.isArray(source.vault_assets) ||
+    Array.isArray(source.exemplars) ||
     Array.isArray(source.published) ||
     typeof source.xp === "number";
   if (!recognizable) {
