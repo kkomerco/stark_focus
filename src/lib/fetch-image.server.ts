@@ -107,3 +107,84 @@ export async function fetchSafeImage(rawUrl: unknown): Promise<SafeImage | null>
     return null;
   }
 }
+
+/**
+ * Pliki do sejfu (ujęcia wideo, miniatury) wolno ściągać wyłącznie z hostów
+ * podanych przez wołającego. Obraz z oEmbed jest jeden i jego adres ocenia
+ * `isSafeUrl()`; adresy z katalogu stockowego przychodzą strumieniem, a każdy
+ * z nich mógłby wskazywać na sieć wewnętrzną — biała lista hostów jest tu
+ * twardsza niż ocena kształtu adresu i nie da się jej obejść przekierowaniem,
+ * bo przekierowań nie obsługujemy w ogóle.
+ */
+export interface SafeFileRequest {
+  maxBytes: number;
+  hosts: readonly string[];
+  /** Pobieranie 40 MB przez wolne łącze nie mieści się w ośmiu sekundach. */
+  timeoutMs?: number;
+}
+
+const ALLOWED_FILE_TYPES = ["video/mp4", "video/webm", "image/jpeg", "image/png"];
+
+/**
+ * Adres pliku do sejfu musi być https i trafić w listę hostów podaną przez
+ * wołającego. Oddzielone od pobierania, bo to jedyna bramka, którą da się
+ * zbadać bez wychodzenia do sieci.
+ */
+export function isAllowedFileUrl(rawUrl: unknown, hosts: readonly string[]): boolean {
+  if (typeof rawUrl !== "string" || !isSafeUrl(rawUrl)) return false;
+  try {
+    return hosts.includes(new URL(rawUrl).hostname.toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Typ i deklarowany rozmiar decydują, zanim przeczytamy pierwszy bajt ciała.
+ * Zwraca znormalizowany MIME albo null — „plik odrzucony".
+ */
+export function allowedFileType(
+  contentType: string | null,
+  contentLength: string | null,
+  maxBytes: number,
+): string | null {
+  const mimeType = (contentType || "").split(";")[0].trim().toLowerCase();
+  // SVG i HTML odrzucamy: to wykonywalny skrypt udający zasób.
+  if (!ALLOWED_FILE_TYPES.includes(mimeType)) return null;
+  const declared = Number(contentLength);
+  if (Number.isFinite(declared) && declared > maxBytes) return null;
+  return mimeType;
+}
+
+export async function fetchSafeFile(
+  rawUrl: unknown,
+  options: SafeFileRequest,
+): Promise<SafeImage | null> {
+  if (typeof rawUrl !== "string" || !isAllowedFileUrl(rawUrl, options.hosts)) return null;
+  if (!(await resolvesPublicly(rawUrl))) return null;
+
+  try {
+    const res = await fetch(rawUrl, {
+      headers: { "User-Agent": "VisionaryMediaLab/1.0" },
+      redirect: "manual",
+      signal: AbortSignal.timeout(options.timeoutMs ?? 30_000),
+    });
+
+    if (res.status >= 300 && res.status < 400) return null;
+    if (!res.ok) return null;
+
+    const mimeType = allowedFileType(
+      res.headers.get("content-type"),
+      res.headers.get("content-length"),
+      options.maxBytes,
+    );
+    if (!mimeType) return null;
+
+    const bytes = res.body ? await readCapped(res.body, options.maxBytes) : null;
+    if (!bytes || bytes.byteLength === 0) return null;
+
+    return { buffer: Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength), mimeType };
+  } catch {
+    return null;
+  }
+}

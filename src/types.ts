@@ -61,6 +61,26 @@ export interface VaultAsset {
   notes?: string;
 }
 
+/**
+ * Ujęcie z katalogu, jeszcze nie ściągnięte: miniaturka, adres pliku i
+ * wymiary. Ciężar znany dopiero po pobraniu, więc sejf pyta o niego osobno.
+ */
+export interface StockClip {
+  id: string;
+  previewUrl: string;
+  fileUrl: string;
+  width: number;
+  height: number;
+  durationSec: number;
+}
+
+/** Plik, który realnie leży w sejfie na dysku. */
+export interface VaultFile {
+  filename: string;
+  url: string;
+  bytes: number;
+}
+
 export interface TrendItem {
   id: string;
   title: string;

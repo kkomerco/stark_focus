@@ -13,6 +13,12 @@ export const LIMITS = {
   maxExcludeHooks: 500,
   /** Rozmiar odpowiedzi proxy obrazu (bajty). */
   maxImageBytes: 8 * 1024 * 1024,
+  /**
+   * Plik ściągnięty do sejfu. Kilkanaście sekund w 1080×1920 to zwykle
+   * 5–30 MB; powyżej tej granicy jest to albo 4K, albo cały film, a sejf
+   * ma trzymać ujęcia pod kadr, nie archiwum.
+   */
+  maxVaultBytes: 45 * 1024 * 1024,
 } as const;
 
 /** Bezpieczne Integer z zakresu `[min, max]`; wartość spoza zakresu/NaN wraca do fallbacku. */

@@ -18,6 +18,7 @@ import {
   SlidersHorizontal,
   BookmarkCheck,
   Upload,
+  Search,
   Trash2,
   Image as ImageIcon,
   Package,
@@ -26,7 +27,8 @@ import {
 } from "lucide-react";
 import JSZip from "jszip";
 import { Post, PublishedItem, ReelHandoff, VaultAsset } from "../types";
-import type { FrameTweak } from "../types";
+import type { FrameTweak, StockClip, VaultFile } from "../types";
+import { formatMegabytes, readVault, searchVaultClips, takeVaultClip } from "../lib/vaultClient";
 import { starkCaption, starkCta, starkHashtags, stripHashtagTail } from "../lib/caption";
 import { publishedEntry } from "../lib/published";
 import { BRAND_ACCENT } from "../utils/starkBrandTheme";
@@ -304,35 +306,112 @@ export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
   const customVideoRef = useRef<HTMLVideoElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  /**
+   * Jedno wejście dla tła z adresu: i to z pakietu generatora, i to z sejfu.
+   * Dwa loadersy to dwa rendery, a eksport ma rysować tym samym kodem co
+   * podgląd — dlatego adres, który się nie dopisał, pokazuje powód zamiast
+   * cicho zostawiać czarną planszę.
+   */
+  const loadBackgroundUrl = useCallback((url: string, label: string) => {
+    const flash = (message: string) => {
+      setToastMessage(message);
+      setTimeout(() => setToastMessage(null), 3000);
+    };
+
+    if (/\.(mp4|webm|mov)(\?.*)?$/i.test(url)) {
+      const vid = document.createElement("video");
+      vid.crossOrigin = "anonymous";
+      vid.src = url;
+      vid.muted = true;
+      vid.loop = true;
+      vid.playsInline = true;
+      vid.autoplay = true;
+      vid.onloadeddata = () => {
+        customImageRef.current = null;
+        customVideoRef.current = vid;
+        setCustomBgType("video");
+        setCustomBgName(label);
+        vid.play().catch(() => {});
+      };
+      vid.onerror = () => flash(`Ujęcie nie czyta się z sejfu: ${label}`);
+      return;
+    }
+
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.src = url;
+    img.onload = () => {
+      customVideoRef.current?.pause();
+      customVideoRef.current = null;
+      customImageRef.current = img;
+      setCustomBgType("image");
+      setCustomBgName(label);
+    };
+    img.onerror = () => flash(`Grafika nie czyta się z sejfu: ${label}`);
+  }, []);
+
   // Auto-load initial background if provided
   useEffect(() => {
-    if (initialBgUrl) {
-      const isVid = initialBgUrl.match(/\.(mp4|webm|mov)(\?.*)?$/i);
-      if (isVid) {
-        const vid = document.createElement("video");
-        vid.crossOrigin = "anonymous";
-        vid.src = initialBgUrl;
-        vid.muted = true;
-        vid.loop = true;
-        vid.playsInline = true;
-        vid.onloadeddata = () => {
-          customVideoRef.current = vid;
-          setCustomBgType("video");
-          setCustomBgName("Vault Video");
-          vid.play().catch(() => {});
-        };
-      } else {
-        const img = new Image();
-        img.crossOrigin = "anonymous";
-        img.src = initialBgUrl;
-        img.onload = () => {
-          customImageRef.current = img;
-          setCustomBgType("image");
-          setCustomBgName("Vault Background");
-        };
-      }
+    if (initialBgUrl) loadBackgroundUrl(initialBgUrl, "Tło z pakietu");
+  }, [initialBgUrl, loadBackgroundUrl]);
+
+  /**
+   * Sejf ujęć: fraza z treści rolki wchodzi do szukania, plik spada na dysk i
+   * wchodzi do tła tym samym wejściem co własny upload. Zero zapytań do modelu,
+   * więc przycisk nie musi obiecywać kosztu, którego nie ma.
+   */
+  const [vaultQuery, setVaultQuery] = useState("");
+  const [vaultClips, setVaultClips] = useState<StockClip[]>([]);
+  const [vaultFiles, setVaultFiles] = useState<VaultFile[]>([]);
+  const [vaultNotice, setVaultNotice] = useState("");
+  const [vaultBusy, setVaultBusy] = useState<"search" | "take" | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    readVault().then((result) => {
+      // Lista jest z dysku, nie z kopii danych: skasowanie stanu w przeglądarce
+      // nie może udawać, że ujęć już nie ma.
+      if (alive) setVaultFiles(result.files);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const handleVaultSearch = async (termOverride?: string) => {
+    const term = (termOverride ?? vaultQuery).trim();
+    if (!term || vaultBusy) return;
+    setVaultQuery(term);
+    setVaultBusy("search");
+    setVaultNotice("");
+    const result = await searchVaultClips(term, 8);
+    setVaultClips(result.clips);
+    setVaultNotice(result.notice);
+    setVaultBusy(null);
+  };
+
+  const handleVaultTake = async (clip: StockClip) => {
+    if (vaultBusy) return;
+    setVaultBusy("take");
+    setVaultNotice("Ściągam ujęcie do sejfu...");
+    const result = await takeVaultClip(clip, vaultQuery);
+    setVaultBusy(null);
+
+    if (!result.file) {
+      setVaultNotice(result.notice);
+      return;
     }
-  }, [initialBgUrl]);
+
+    const taken = result.file;
+    loadBackgroundUrl(taken.url, taken.filename);
+    setVaultFiles((prev) => [taken, ...prev.filter((file) => file.url !== taken.url)]);
+    setVaultNotice("");
+  };
+
+  /** Ujęcie już w sejfie wchodzi do tła bez networku i bez katalogu. */
+  const handleVaultReuse = (file: VaultFile) => {
+    loadBackgroundUrl(file.url, file.filename);
+  };
 
   // Editable phrases for quick preview & correction (kadry z pakietu generatora)
   const [phrases, setPhrases] = useState<string[]>(() => resolvePhrases(initialReel));
@@ -2218,6 +2297,101 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
               </div>
             )}
 
+            {/* Sejf ujęć: prawdziwe ujęcie z katalogu, raz ściągnięte na dysk i
+                potem czytane lokalnie. Nie zużywa zapytania do modelu, więc
+                przycisk nie musi obiecywać kosztu, którego nie ma. */}
+            <div className="rounded-lg border border-white/10 bg-[#0B0B0B] p-2.5 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-mono font-bold uppercase text-neutral-400 flex items-center gap-1.5">
+                  <Film className="w-3.5 h-3.5 text-neutral-300" />
+                  Sejf ujęć
+                </span>
+                <span className="text-[9px] font-mono uppercase text-neutral-500">
+                  0 zapytań do modelu
+                </span>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <input
+                  value={vaultQuery}
+                  onChange={(event) => setVaultQuery(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") handleVaultSearch();
+                  }}
+                  placeholder="fraza po angielsku, np. empty street night"
+                  className="flex-1 min-w-0 bg-[#141414] border border-white/10 rounded px-2 py-1 text-[11px] font-mono text-neutral-200 focus:outline-none focus:border-white/40"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleVaultSearch()}
+                  disabled={vaultBusy !== null || !vaultQuery.trim()}
+                  className="px-2 py-1 rounded bg-[#181818] hover:bg-white hover:text-black disabled:opacity-40 text-neutral-300 border border-white/10 text-[10px] font-mono font-bold uppercase tracking-wider flex items-center gap-1 cursor-pointer transition-colors"
+                  title="Szukaj ujęć w katalogu"
+                >
+                  <Search className="w-3 h-3" />
+                  Szukaj
+                </button>
+              </div>
+
+              {vaultNotice && (
+                <p className="text-[10px] font-mono leading-relaxed text-rose-300">{vaultNotice}</p>
+              )}
+
+              {vaultClips.length > 0 && (
+                <div className="grid grid-cols-4 gap-1.5">
+                  {vaultClips.map((clip) => (
+                    <button
+                      key={clip.id}
+                      type="button"
+                      onClick={() => handleVaultTake(clip)}
+                      disabled={vaultBusy !== null}
+                      className="group rounded border border-white/10 overflow-hidden bg-black text-left cursor-pointer hover:border-white/50 disabled:opacity-50 transition-colors"
+                      title={`Weź ujęcie ${clip.width}x${clip.height}, ${Math.round(clip.durationSec)} s`}
+                    >
+                      <span className="block aspect-[9/16] bg-[#101010]">
+                        {clip.previewUrl && (
+                          <img
+                            src={clip.previewUrl}
+                            alt=""
+                            loading="lazy"
+                            className="w-full h-full object-cover opacity-80 group-hover:opacity-100"
+                          />
+                        )}
+                      </span>
+                      <span className="block px-1 py-0.5 text-[9px] font-mono text-neutral-400 truncate">
+                        {Math.round(clip.durationSec)} s · {clip.height} px
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {vaultFiles.length > 0 && (
+                <div className="space-y-1">
+                  <span className="block text-[9px] font-mono uppercase text-neutral-500">
+                    Na dysku ({vaultFiles.length})
+                  </span>
+                  <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
+                    {vaultFiles.map((file) => (
+                      <button
+                        key={file.url}
+                        type="button"
+                        onClick={() => handleVaultReuse(file)}
+                        className={
+                          customBgName === file.filename
+                            ? "px-1.5 py-0.5 rounded bg-white text-black text-[9px] font-mono cursor-pointer"
+                            : "px-1.5 py-0.5 rounded bg-[#141414] hover:bg-[#1E1E1E] border border-white/10 text-neutral-300 text-[9px] font-mono cursor-pointer"
+                        }
+                        title={`Wczytaj do tła: ${file.url}`}
+                      >
+                        {file.filename} · {formatMegabytes(file.bytes)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Rekomendacja promptu AI do tła */}
             {(() => {
               const bgInfo =
@@ -2311,6 +2485,17 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                       >
                         <Copy className="w-3 h-3" />
                         <span>Kopiuj prompt tła (9:16)</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleVaultSearch(bgInfo.sceneName)}
+                        disabled={vaultBusy !== null}
+                        className="px-2.5 py-1 rounded bg-rose-600/20 hover:bg-rose-600 hover:text-white text-rose-200 text-[10px] font-mono font-bold border border-rose-500/30 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
+                        title="Nie generuj tła — znajdź prawdziwe ujęcie w sejfie"
+                      >
+                        <Search className="w-3 h-3" />
+                        <span>Szukaj tego ujęcia</span>
                       </button>
                     </div>
                   </div>

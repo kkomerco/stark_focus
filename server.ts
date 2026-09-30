@@ -4,6 +4,7 @@ import type { NextFunction, Request, Response } from "express";
 import cors from "cors";
 import path from "path";
 import { handleStarkApi } from "./src/lib/ai/router.server";
+import { VAULT_DIR } from "./src/lib/vault.server";
 
 const PORT = Number(process.env.PORT) || 3000;
 
@@ -96,6 +97,12 @@ async function startServer() {
     }
     next();
   });
+
+  // Sejf ujęć: pliki są na dysku, nie w kopii danych przeglądarki, więc
+  // muszą być oddawane pod tym samym adresem w podglądzie, w eksporcie
+  // klatka-po-klatce i w kolekcji kolażu. Rejestrowane przed middlewarem
+  // Vite i przed fallbackiem SPA, inaczej złapałby je index.html.
+  app.use("/sejf", express.static(VAULT_DIR));
 
   // Vite middleware setup
   if (!PRODUCTION) {
