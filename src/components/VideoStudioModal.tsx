@@ -363,6 +363,7 @@ export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
   const [vaultQuery, setVaultQuery] = useState("");
   const [vaultClips, setVaultClips] = useState<StockClip[]>([]);
   const [vaultFiles, setVaultFiles] = useState<VaultFile[]>([]);
+  const [vaultSource, setVaultSource] = useState("");
   const [vaultNotice, setVaultNotice] = useState("");
   const [vaultBusy, setVaultBusy] = useState<"search" | "take" | null>(null);
 
@@ -386,6 +387,7 @@ export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
     setVaultNotice("");
     const result = await searchVaultClips(term, 8);
     setVaultClips(result.clips);
+    setVaultSource(result.source);
     setVaultNotice(result.notice);
     setVaultBusy(null);
   };
@@ -2305,6 +2307,11 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                 <span className="text-[10px] font-mono font-bold uppercase text-neutral-400 flex items-center gap-1.5">
                   <Film className="w-3.5 h-3.5 text-neutral-300" />
                   Sejf ujęć
+                  {vaultSource && (
+                    <span className="text-[9px] font-normal normal-case text-neutral-500">
+                      z katalogu {vaultSource}
+                    </span>
+                  )}
                 </span>
                 <span className="text-[9px] font-mono uppercase text-neutral-500">
                   0 zapytań do modelu
@@ -2360,6 +2367,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                       </span>
                       <span className="block px-1 py-0.5 text-[9px] font-mono text-neutral-400 truncate">
                         {Math.round(clip.durationSec)} s · {clip.height} px
+                        {clip.bytes > 0 && ` · ${formatMegabytes(clip.bytes)}`}
                       </span>
                     </button>
                   ))}

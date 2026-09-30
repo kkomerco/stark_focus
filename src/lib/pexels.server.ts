@@ -77,6 +77,8 @@ export function normalizeClip(raw: unknown): StockClip | null {
     width: chosen.width,
     height: chosen.height,
     durationSec: asNumber(item.duration, 0),
+    // Pexels nie mówi w odpowiedzi, ile waży plik — dowie się dopiero strumień.
+    bytes: 0,
   };
 }
 

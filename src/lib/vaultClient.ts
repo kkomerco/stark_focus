@@ -29,6 +29,7 @@ function asClip(raw: unknown): StockClip | null {
     width: number(item.width),
     height: number(item.height),
     durationSec: number(item.durationSec),
+    bytes: number(item.bytes),
   };
 }
 
@@ -48,6 +49,8 @@ function asFile(raw: unknown): VaultFile | null {
 export interface VaultSearch {
   clips: StockClip[];
   configured: boolean;
+  /** Który katalog odpowiedział — a właściwie który klucz leży w `.env`. */
+  source: string;
   notice: string;
 }
 
@@ -64,6 +67,7 @@ export async function searchVaultClips(query: string, count = 8): Promise<VaultS
   return {
     clips: clips as StockClip[],
     configured: data.configured === true,
+    source: text(data.source),
     notice:
       text(data.notice) ||
       (status === 0 ? "Serwer nie odpowiada — sejf potrzebuje uruchomionej aplikacji." : ""),

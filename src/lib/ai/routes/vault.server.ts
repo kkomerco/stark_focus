@@ -3,6 +3,7 @@ import type { VaultAsset } from "../../../types";
 import { LIMITS, clampInt, clampText } from "../../limits";
 import { fetchSafeFile } from "../../fetch-image.server";
 import { pexelsConfigured, searchStockClips } from "../../pexels.server";
+import { pixabayConfigured, searchPixabayClips } from "../../pixabay.server";
 import {
   VAULT_HOSTS,
   findVaultFileById,
@@ -26,6 +27,19 @@ import {
 
 const MAX_RESULTS = 12;
 
+/**
+ * Który katalog odpowiada. Pexels wstrzymał wydawanie kluczy, więc sejf nie
+ * może stać na jednym dostawcy: pytamy tego, którego klucz leży w `.env`,
+ * a odpowiedź mówi UI, skąd przyszły miniaturki.
+ */
+export type StockSource = "pexels" | "pixabay";
+
+export function activeStockSource(): StockSource | null {
+  if (pexelsConfigured()) return "pexels";
+  if (pixabayConfigured()) return "pixabay";
+  return null;
+}
+
 function assetFromFile(
   file: { filename: string; url: string; bytes: number },
   id: string,
@@ -45,8 +59,10 @@ function assetFromFile(
 export function registerVaultRoutes(app: MiniApp): void {
   app.get("/api/ai/vault", async (_req: MiniRequest, res: MiniResponse) => {
     const files = await listVaultFiles();
+    const source = activeStockSource();
     res.json({
-      configured: pexelsConfigured(),
+      configured: source !== null,
+      source,
       vaultHosts: VAULT_HOSTS,
       files,
       maxBytes: LIMITS.maxVaultBytes,
@@ -55,12 +71,23 @@ export function registerVaultRoutes(app: MiniApp): void {
 
   app.get("/api/ai/vault/search", async (req, res) => {
     const count = clampInt(req.query?.count, 1, MAX_RESULTS, 8);
-    const { clips, notice } = await searchStockClips(String(req.query?.q ?? ""), count);
-    res.json({ configured: pexelsConfigured(), clips, notice });
+    const term = String(req.query?.q ?? "");
+    const source = activeStockSource();
+    const { clips, notice } =
+      source === "pexels"
+        ? await searchStockClips(term, count)
+        : source === "pixabay"
+          ? await searchPixabayClips(term, count)
+          : {
+              clips: [],
+              notice:
+                "Żaden katalog nie ma klucza — wpisz PIXABAY_API_KEY (wydawany od razu) albo PEXELS_API_KEY do .env.",
+            };
+    res.json({ configured: source !== null, source, clips, notice });
   });
 
   app.post("/api/ai/vault/take", async (req, res) => {
-    const id = clampText(req.body?.id, 20);
+    const id = clampText(req.body?.id, 28);
     const url = clampText(req.body?.url, 400);
     const query = clampText(req.body?.query, 60);
 

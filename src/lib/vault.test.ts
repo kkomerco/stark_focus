@@ -1,16 +1,17 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { allowedFileType, isAllowedFileUrl } from "./fetch-image.server";
-import { vaultExtension, vaultFileName } from "./vault.server";
+import { normalizePixabayClip, pickPixabayTier, searchPixabayClips } from "./pixabay.server";
+import { vaultExtension, vaultFileName, vaultIdPrefix } from "./vault.server";
 import { normalizeClip, pickStockFile, searchStockClips } from "./pexels.server";
 
 /**
- * Sejf ujęć to jedyna ścieżka, w której aplikacja ściąga obcy plik na dysk.
+ * Sejf ujęć to jedyne miejsce, w którym aplikacja ściąga obcy plik na dysk.
  * Bramki (host, typ, rozmiar, nazwa) są więc badane tutaj, bez sieci i bez
  * klucza — reszta to już tylko złożenie ich w jedno pobranie.
  */
 
-const HOSTS = ["videos.pexels.com", "images.pexels.com"];
+const HOSTS = ["videos.pexels.com", "images.pexels.com", "cdn.pixabay.com"];
 const FIVE_MB = 5 * 1024 * 1024;
 
 describe("isAllowedFileUrl", () => {
@@ -132,5 +133,102 @@ describe("searchStockClips", () => {
     assert.deepEqual(result.clips, []);
     assert.match(result.notice, /fraz/);
     delete process.env.PEXELS_API_KEY;
+  });
+});
+
+describe("pixabay", () => {
+  const HIT = {
+    id: 42,
+    duration: 14,
+    picture_2x: "https://cdn.pixabay.com/video/2024/01/01/42-poster.jpg",
+    videos: {
+      large: {
+        url: "https://cdn.pixabay.com/video/2024/01/01/42-large.mp4",
+        width: 2160,
+        height: 3840,
+        size: 90_000_000,
+      },
+      medium: {
+        url: "https://cdn.pixabay.com/video/2024/01/01/42-medium.mp4",
+        width: 1080,
+        height: 1920,
+        size: 8_000_000,
+      },
+      small: {
+        url: "https://cdn.pixabay.com/video/2024/01/01/42-small.mp4",
+        width: 720,
+        height: 1280,
+        size: 3_000_000,
+      },
+    },
+  };
+
+  it("biera pion w jakości, która zmieści się w sejfie", () => {
+    const clip = normalizePixabayClip(HIT);
+
+    assert.equal(clip?.id, "pixabay-42");
+    assert.equal(clip?.fileUrl, "https://cdn.pixabay.com/video/2024/01/01/42-medium.mp4");
+    assert.equal(clip?.bytes, 8_000_000);
+    assert.equal(clip?.height, 1920);
+  });
+
+  it("poziom bierze dopiero bez pionu, a pusty hit nie jest ujęciem", () => {
+    const landscape = pickPixabayTier(
+      {
+        videos: {
+          large: {
+            url: "https://cdn.pixabay.com/video/x.mp4",
+            width: 1920,
+            height: 1080,
+            size: 1000,
+          },
+        },
+      },
+      FIVE_MB,
+    );
+    assert.equal(landscape?.width, 1920);
+    assert.equal(pickPixabayTier({ videos: {} }, FIVE_MB), null);
+    assert.equal(normalizePixabayClip({ id: 42, videos: {} }), null);
+  });
+
+  it("nie ufa adresowi, który nie jest https", () => {
+    assert.equal(
+      normalizePixabayClip({
+        id: 42,
+        videos: {
+          medium: {
+            url: "http://cdn.pixabay.com/video/x.mp4",
+            width: 1080,
+            height: 1920,
+            size: 1000,
+          },
+        },
+      }),
+      null,
+    );
+  });
+
+  it("bez klucza mówi, którego klucza brakuje", async () => {
+    delete process.env.PIXABAY_API_KEY;
+    const result = await searchPixabayClips("cold shower", 8);
+
+    assert.deepEqual(result.clips, []);
+    assert.match(result.notice, /PIXABAY_API_KEY/);
+  });
+
+  it("pliki Pixabaya wolno ściągać, strony już nie", () => {
+    assert.ok(isAllowedFileUrl("https://cdn.pixabay.com/video/2024/x.mp4", HOSTS));
+    assert.equal(isAllowedFileUrl("https://pixabay.com/video/2024/x.mp4", HOSTS), false);
+  });
+});
+
+describe("vaultIdPrefix", () => {
+  it("nazwa katalogu przeżywa, ścieżka nie", () => {
+    assert.equal(vaultIdPrefix("pixabay-42"), "pixabay-42");
+    assert.equal(vaultIdPrefix("Pixabay 42/../x"), "pixabay42x");
+    assert.equal(
+      vaultFileName("pixabay-42", "zimny prysznic", "video/mp4"),
+      "pixabay-42-zimny-prysznic.mp4",
+    );
   });
 });

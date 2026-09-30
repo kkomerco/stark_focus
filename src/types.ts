@@ -72,6 +72,8 @@ export interface StockClip {
   width: number;
   height: number;
   durationSec: number;
+  /** `0` = katalog nie powiedział, ile to waży; limit i tak liczy strumień. */
+  bytes: number;
 }
 
 /** Plik, który realnie leży w sejfie na dysku. */

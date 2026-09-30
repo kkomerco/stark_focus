@@ -17,7 +17,7 @@ export const VAULT_URL_PREFIX = "/sejf/";
  * adres ujęcia przychodzi z katalogu zewnętrznego, a nie od użytkownika:
  * każdy inny host to potencjalnie request do sieci wewnętrznej.
  */
-export const VAULT_HOSTS = ["videos.pexels.com", "images.pexels.com"];
+export const VAULT_HOSTS = ["videos.pexels.com", "images.pexels.com", "cdn.pixabay.com"];
 
 const EXTENSIONS: Record<string, string> = {
   "video/mp4": "mp4",
@@ -29,6 +29,20 @@ const EXTENSIONS: Record<string, string> = {
 /** Rozszerzenie bierziemy z typu odpowiedzi, nigdy z końcówki adresu. */
 export function vaultExtension(mimeType: string): string | null {
   return EXTENSIONS[mimeType] ?? null;
+}
+
+/**
+ * Przedrostek pliku z danego katalogu: `pixabay-1234`, `pexels-9876`. Ten sam
+ * numer u dwóch dostawców to dwa różne ujęcia, a po tym przedrostku sejf
+ * poznaje, czy plik już leży na dysku.
+ */
+export function vaultIdPrefix(id: string): string {
+  return id
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "")
+    .replace(/-{2,}/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 28);
 }
 
 /**
@@ -44,7 +58,7 @@ export function vaultFileName(id: string, title: unknown, mimeType: string): str
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 40);
-  const number = id.replace(/[^a-z0-9]/gi, "").slice(0, 20);
+  const number = vaultIdPrefix(id);
   if (!number) return null;
   return `${number}-${slug || "ujecie"}.${extension}`;
 }
@@ -106,7 +120,7 @@ function extensionToMime(name: string): string {
  * frazy, a fraza zmienia się między wyszukiwaniami.
  */
 export async function findVaultFileById(id: string): Promise<VaultFile | null> {
-  const number = id.replace(/[^a-z0-9]/gi, "");
+  const number = vaultIdPrefix(id);
   if (!number) return null;
   const files = await listVaultFiles(400);
   const matches = files.filter((file) => file.filename.startsWith(`${number}-`));
