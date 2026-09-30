@@ -10,6 +10,7 @@
  */
 import { auditHook, auditLine, hasConcreteImage } from "./hookCraft";
 import { isPolishCopy, STARK_CTAS, starkCaption } from "./caption";
+import { openingSignature, repeatedOpenings } from "./similarity";
 
 export interface ChecklistItem {
   id: string;
@@ -42,6 +43,18 @@ function namesSomeoneToSend(text: string): boolean {
   return hasConcreteImage(text);
 }
 
+/**
+ * Czy początek tego zdania jest już tłuczony w ostatnich postach. Liczymy od
+ * całego ogona, bo „You get" użyte raz po „You get" to nie przypadek, tylko
+ * nawyk — a w feedzie widać go po dwóch kadrach, nie po dwudziestu.
+ */
+function openingEcho(text: string, recent: readonly string[]): string {
+  const mine = openingSignature(text);
+  if (!mine) return "";
+  const hit = repeatedOpenings([...recent, text], 2).find((entry) => entry.opening === mine);
+  return hit ? `${hit.opening} (${hit.count}x)` : "";
+}
+
 function words(text: string): string[] {
   return text.replace(/[*#]/g, "").trim().split(/\s+/).filter(Boolean);
 }
@@ -50,10 +63,14 @@ export function reelChecklist(options: {
   phrases: string[];
   durationSec: number;
   audioEnabled: boolean;
+  /** Ostatnie zdania z konta — patrz `postChecklist`. */
+  recentHooks?: string[];
 }): ChecklistItem[] {
   const phrases = options.phrases.map((p) => p.trim()).filter(Boolean);
   const secondsPerBeat = phrases.length ? options.durationSec / phrases.length : 0;
   const accents = phrases.join(" ").match(/\*\S+\*/g) ?? [];
+  const recent = options.recentHooks ?? [];
+  const opening = openingEcho(phrases[0] ?? "", recent);
 
   return [
     {
@@ -61,6 +78,18 @@ export function reelChecklist(options: {
       label: "Pierwsze zdanie do przeczytania w pół sekundy",
       ok: words(phrases[0] ?? "").length <= 8,
       hint: "Decyzja o przewinięciu zapada około 1,7 s. Osiem słów to górna granica pierwszego kadru.",
+    },
+    {
+      id: "opening",
+      label: "Pierwsze zdanie nie zaczyna się tak samo jak ostatnie klipy",
+      // W rolce to jeszcze ważniejsze niż w kadrze: otwarcie klipu jest tym,
+      // co człowiek słyszy, zanim zdecyduje, czy zostać.
+      ok: recent.length === 0 || !opening,
+      hint: opening
+        ? `Ostatnie materiały zaczynają się od „${opening}”.`
+        : recent.length === 0
+          ? "Brak ostatnich postów do porównania."
+          : "Czysto.",
     },
     {
       id: "beats",
@@ -123,6 +152,8 @@ export function postChecklist(options: {
   primary: string;
   lines?: string[];
   caption: string;
+  /** Ostatnie zdania z konta — bez tego kontrola otwarcia nie ma tła. */
+  recentHooks?: string[];
 }): ChecklistItem[] {
   const tags = (options.caption.match(/#[\p{L}\d_]+/gu) ?? []).map((tag) => tag.toLowerCase());
   const unique = new Set(tags);
@@ -131,6 +162,8 @@ export function postChecklist(options: {
     auditLine(line).issues.map((issue) => `${issue} („${line.slice(0, 24)}…”)`),
   );
   const issues = [...hookIssues, ...bodyIssues];
+  const recent = options.recentHooks ?? [];
+  const opening = openingEcho(options.primary, recent);
 
   return [
     {
@@ -146,6 +179,19 @@ export function postChecklist(options: {
       // kontrola opisu przechodziłaby z automatu i nic by nie mówiła.
       ok: namesSomeoneToSend([options.primary, ...(options.lines ?? [])].join(" ")),
       hint: "Kadr mówiący do „you”, nazywający adresata albo pokazujący scenę dostaje przesyłkę w DM-ie, nie tylko lajka.",
+    },
+    {
+      id: "opening",
+      label: "Początek zdania nie jest ten sam co w ostatnich postach",
+      // Karmazynowy sygnet i ta sama drabinka pisma robią konto; powtarzalne
+      // otwarcie robi z niego generator. Sprawdzamy trzy pierwsze słowa, bo
+      // odcisk całego zdania na to nie wpada.
+      ok: recent.length === 0 || !opening,
+      hint: opening
+        ? `Kilka ostatnich materiałów zaczyna się od „${opening}”.`
+        : recent.length === 0
+          ? "Brak ostatnich postów do porównania."
+          : "Czysto.",
     },
     {
       id: "english",

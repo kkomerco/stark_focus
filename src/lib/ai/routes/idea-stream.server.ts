@@ -1,7 +1,7 @@
 import type { MiniApp, MiniResponse } from "../../mini-express.server";
 import type { IdeaItem } from "../../../types";
 import { GEMINI_MODEL, generateJsonWithFallback, getGeminiClient } from "../gemini.server";
-import { hookFingerprint, maxSimilarity, SIMILARITY } from "../../similarity";
+import { SIMILARITY, hookFingerprint, maxSimilarity, repeatedOpenings } from "../../similarity";
 import { pickN } from "../../random";
 import { clampCount, clampInt, clampText, clampTextList } from "../../limits";
 import {
@@ -392,6 +392,11 @@ ${
     .join("\n") || "   (brak historii)"
 }
 2. NIE powtarzaj struktury zdania w tej samej paczce.
+3. NIE zaczynaj żadnego pomysłu od tych samych trzech pierwszych słów: ${
+        repeatedOpenings(safeExclude, 2, 40)
+          .map((entry) => `„${entry.opening}…" (${entry.count}x)`)
+          .join(", ") || "(brak powtarzalnych otwarć)"
+      }.
 
 Zwróć WYŁĄCZNIE JSON:
 {

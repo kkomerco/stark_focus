@@ -4,7 +4,7 @@ import { clampCount, clampText, clampTextList } from "../../limits";
 import { HOOK_CRAFT_PROMPT, exemplarBlock } from "../../hookCraft";
 import { asArray, asString, asStringArray, sendDegraded } from "../normalize.server";
 import { formatStarkCaption, starkCaption } from "../../caption";
-import { hookFingerprint } from "../../similarity";
+import { hookFingerprint, repeatedOpenings } from "../../similarity";
 import { FRAME_FORMATS, formatById, formatFieldSpec } from "../../formats";
 import { rankFrameCandidates } from "./frames.server";
 
@@ -237,6 +237,7 @@ export function registerBatchRoutes(app: MiniApp): void {
     // Do promptu wchodzi tylko ogon historii: za każdy znak płaci się przy
     // każdym wywołaniu, a realnie grożą powtórki z ostatnich partii.
     const banList = exclude.slice(-25).join("\n- ");
+    const openingRepeats = repeatedOpenings(exclude, 2, 40);
     // Jedno wywołanie, cztery układy: prosimy o tyle wariantów formatu, ile
     // trzeba, żeby cała seria była mieszanką, a nie jednym cytatem.
     const quota = Math.max(1, Math.ceil(count / FRAME_FORMATS.length));
@@ -245,6 +246,13 @@ export function registerBatchRoutes(app: MiniApp): void {
       const prompt = `You are the lead viral copywriter for @stark_focus (dark psychology, realistic discipline, focus, high standards, black background format 9:16).
 Topic or niche focus: "${topic}".
 ${exclude.length ? `\nALREADY PUBLISHED — never repeat these lines or their close variants:\n- ${banList}\n` : ""}
+${
+  openingRepeats.length
+    ? `\nNEVER OPEN a post with these first three words again: ${openingRepeats
+        .map((entry) => `"${entry.opening}..." (${entry.count}x)`)
+        .join(", ")}.`
+    : ""
+}
 Generate EXACTLY ${count} completely UNIQUE, high-variance posts in ENGLISH.
 
 ${HOOK_CRAFT_PROMPT}

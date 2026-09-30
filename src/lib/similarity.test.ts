@@ -1,6 +1,14 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { normalizeHook, hookTokens, hookSimilarity, maxSimilarity, SIMILARITY } from "./similarity";
+import {
+  normalizeHook,
+  hookTokens,
+  hookSimilarity,
+  maxSimilarity,
+  openingSignature,
+  repeatedOpenings,
+  SIMILARITY,
+} from "./similarity";
 
 describe("similarity.ts - Hook Similarity Detector", () => {
   describe("normalizeHook", () => {
@@ -72,6 +80,45 @@ describe("similarity.ts - Hook Similarity Detector", () => {
       const candidate = "Your comfort zone is a coffin with Wi-Fi";
       const match = maxSimilarity(candidate, history);
       assert.ok(match.score >= SIMILARITY.HARD_BLOCK);
+    });
+  });
+
+  describe("openingSignature & repeatedOpenings", () => {
+    it("takes the first three words, lowercased and stripped of punctuation", () => {
+      assert.equal(openingSignature("You Are — not tired."), "you are not");
+    });
+
+    it("counts a repeated opening frame, not a single sentence", () => {
+      const hooks = [
+        "You are not tired, you are untrained.",
+        "You are not lazy, you are unprotected.",
+        "Nobody checks whether you showed up.",
+      ];
+      assert.deepEqual(repeatedOpenings(hooks), [{ opening: "you are not", count: 2 }]);
+      assert.deepEqual(repeatedOpenings([hooks[0]]), []);
+    });
+
+    it("reads only the newest tail when a limit is given", () => {
+      const older = ["Nobody is coming to check.", "Nobody is coming to fix it."];
+      const newest = ["The kettle is cold again at four.", "Discipline outlives the mood."];
+      assert.deepEqual(repeatedOpenings([...older, ...newest], 2), [
+        { opening: "nobody is coming", count: 2 },
+      ]);
+      assert.deepEqual(repeatedOpenings([...older, ...newest], 2, 2), []);
+    });
+
+    it("sorts the worst repetition first", () => {
+      const hooks = [
+        "You are not tired.",
+        "You are not lazy.",
+        "Nobody is coming.",
+        "Nobody is coming.",
+        "Nobody is coming.",
+      ];
+      assert.deepEqual(
+        repeatedOpenings(hooks).map((entry) => entry.opening),
+        ["nobody is coming", "you are not"],
+      );
     });
   });
 });

@@ -92,6 +92,39 @@ export function maxSimilarity(
   return { score: best, similarTo: bestHook };
 }
 
+/**
+ * Początek zdania, nie całe zdanie: trzy pierwsze słowa. Feed czyta się od
+ * lewej, więc „You are not tired…" i „You are not lazy…" to dla czytelnika ten
+ * sam autor mówiący to samo — nawet gdy reszta jest inna i żaden odcisk całego
+ * zdania na to nie wpadnie.
+ */
+export function openingSignature(hook: string, words = 3): string {
+  return normalizeHook(hook).split(" ").slice(0, words).join(" ");
+}
+
+/**
+ * Ile razy każdy początek powtarza się w ostatnich zdaniach. Zwraca tylko
+ * te powtórzone co najmniej `min` razy, posortowane od najgorszego — że pięć
+ * postów z rzędu startuje od „You are not" to widać dopiero po zliczeniu, a nie
+ * po porównaniu dwóch sąsiadów.
+ */
+export function repeatedOpenings(
+  hooks: readonly string[],
+  min = 2,
+  limit = 60,
+): Array<{ opening: string; count: number }> {
+  const counts = new Map<string, number>();
+  for (const hook of hooks.slice(-limit)) {
+    const opening = openingSignature(hook);
+    if (!opening) continue;
+    counts.set(opening, (counts.get(opening) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .filter(([, count]) => count >= min)
+    .map(([opening, count]) => ({ opening, count }))
+    .sort((a, b) => b.count - a.count);
+}
+
 /** Progi podobieństwa. */
 export const SIMILARITY = {
   /** Powyżej tej wartości pomysł jest odrzucany. */

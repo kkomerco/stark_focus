@@ -36,6 +36,9 @@ import {
   clampTweakToBand,
   isIdentity,
   normalizeTweak,
+  NUDGE_STEPS,
+  nudgeStep,
+  nudgeTweak,
   tweakBox,
   TWEAK_LIMITS,
 } from "../utils/frameAdjust";
@@ -1382,6 +1385,29 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
     dragRef.current = null;
   };
 
+  /**
+   * Strzałki po kliknięciu w podgląd: 1 px, Shift 10 px. Na rolce liczy się
+   * każdy kadr, a nie tylko ten na stopklatce — korekta o piksel, której nie
+   * da się zrobić gestem, przekłada się na sześćset klatek.
+   */
+  const onReelKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const step = nudgeStep(event.key, event.shiftKey);
+    const box = step ? reelDragBox() : null;
+    if (!step || !box) return;
+    event.preventDefault();
+    writeReelTweak(
+      reelAdjustTarget,
+      nudgeTweak(
+        activeReelTweak,
+        step,
+        box,
+        safeBand(REEL_HEIGHT, REEL_WIDTH, true),
+        REEL_WIDTH,
+        REEL_HEIGHT,
+      ),
+    );
+  };
+
   const onReelScaleChange = (value: number) => {
     const next = normalizeTweak({ ...activeReelTweak, scale: value });
     const box = reelDragBox();
@@ -1816,11 +1842,13 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
               onPointerMove={onReelDragMove}
               onPointerUp={onReelDragEnd}
               onPointerCancel={onReelDragEnd}
-              className="absolute inset-0 touch-none cursor-grab active:cursor-grabbing"
+              onKeyDown={onReelKeyDown}
+              tabIndex={0}
+              className="absolute inset-0 touch-none cursor-grab active:cursor-grabbing focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/50"
               title={
                 reelAdjustTarget === "content"
-                  ? "Przeciągnij, żeby lekko przesunąć tekst"
-                  : "Przeciągnij, żeby lekko przesunąć ramkę marki"
+                  ? "Przeciągnij albo kliknij i użyj strzałek, żeby lekko przesunąć tekst"
+                  : "Przeciągnij albo kliknij i użyj strzałek, żeby lekko przesunąć ramkę marki"
               }
             />
           </div>
@@ -1974,9 +2002,10 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
             </label>
 
             <p className="text-[10px] font-mono leading-relaxed text-neutral-500">
-              Przesuw {activeReelTweak.x} × {activeReelTweak.y} px. Ciągnij po podglądzie; poza
-              bezpieczny pas uchwyty same stają, żeby interfejs platformy niczego nie zasłonił.
-              Korekta idzie na tekst, tło z oddechem kamery zostaje na swoim miejscu.
+              Przesuw {activeReelTweak.x} × {activeReelTweak.y} px. Ciągnij po podglądzie albo
+              kliknij w niego i przesuń strzałką ({NUDGE_STEPS.key} px, Shift {NUDGE_STEPS.shift}{" "}
+              px). Poza bezpieczny pas uchwyty same stają, żeby interfejs platformy niczego nie
+              zasłonił. Korekta idzie na tekst, tło z oddechem kamery zostaje na swoim miejscu.
             </p>
 
             {reelAdjustTarget === "mark" && (
@@ -2542,6 +2571,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                 phrases,
                 durationSec: Number(duration) || 0,
                 audioEnabled: reelAudioEnabled,
+                recentHooks: excludeHooks,
               })}
             />
 

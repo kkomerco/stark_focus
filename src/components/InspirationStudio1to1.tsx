@@ -35,6 +35,9 @@ import {
   clampTweakToBand,
   isIdentity,
   normalizeTweak,
+  NUDGE_STEPS,
+  nudgeStep,
+  nudgeTweak,
   tweakBox,
   tweakOf,
   TWEAK_LIMITS,
@@ -571,6 +574,28 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
     dragRef.current = null;
   };
 
+  /**
+   * Strzałki po kliknięciu w podgląd: 1 px, Shift 10 px. Mysz wystarczy do
+   * grubszej poprawki, ale zdanie odsunięte o piksel od paska lajków wymaga
+   * kroku mniejszego niż jakikolwiek gest.
+   */
+  const onTweakKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const step = nudgeStep(event.key, event.shiftKey);
+    if (!step || !frame || !dragBox) return;
+    event.preventDefault();
+    writeTweak(
+      adjustTarget,
+      nudgeTweak(
+        activeTweak,
+        step,
+        dragBox,
+        safeBand(frame.height, frame.width, false),
+        frame.width,
+        frame.height,
+      ),
+    );
+  };
+
   const hasAdjust =
     !isIdentity(tweakOf(spec.adjust, "content")) || !isIdentity(tweakOf(spec.adjust, "mark"));
 
@@ -1021,15 +1046,17 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
               onPointerMove={onDragMove}
               onPointerUp={onDragEnd}
               onPointerCancel={onDragEnd}
+              onKeyDown={onTweakKeyDown}
+              tabIndex={dragBox ? 0 : -1}
               className={
                 dragBox
-                  ? "absolute inset-0 touch-none cursor-grab active:cursor-grabbing"
+                  ? "absolute inset-0 touch-none cursor-grab active:cursor-grabbing focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/50"
                   : "absolute inset-0 touch-none"
               }
               title={
                 adjustTarget === "content"
-                  ? "Przeciągnij, żeby lekko przesunąć tekst"
-                  : "Przeciągnij, żeby lekko przesunąć ramkę marki"
+                  ? "Przeciągnij albo kliknij i użyj strzałek, żeby lekko przesunąć tekst"
+                  : "Przeciągnij albo kliknij i użyj strzałek, żeby lekko przesunąć ramkę marki"
               }
             />
           </div>
@@ -1105,8 +1132,9 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
             </label>
 
             <p className="text-[10px] font-mono leading-relaxed text-neutral-500">
-              Przesuw {activeTweak.x} × {activeTweak.y} px. Ciągnij po podglądzie; poza bezpieczny
-              pas uchwyty same stają, żeby interfejs platformy niczego nie zasłonił.
+              Przesuw {activeTweak.x} × {activeTweak.y} px. Ciągnij po podglądzie albo kliknij w
+              niego i przesuń strzałką ({NUDGE_STEPS.key} px, Shift {NUDGE_STEPS.shift} px). Poza
+              bezpieczny pas uchwyty same stają, żeby interfejs platformy niczego nie zasłonił.
             </p>
           </div>
 
@@ -1513,6 +1541,9 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
                   .filter((layer) => layer.id !== PRIMARY_LAYER_ID)
                   .map((layer) => layer.text?.trim() ?? "")
                   .filter(Boolean),
+                // Ogon ostatnichMaterialów: kontrola otwarcia nie ma czym
+                // porównać bez tła, więc dostaje tę samą listę co generatory.
+                recentHooks: usedHooks,
                 caption: spec.caption,
               })}
             />

@@ -82,6 +82,21 @@ describe("reelChecklist", () => {
       false,
     );
   });
+
+  it("rolka otwierająca się jak ostatnie klipy dostaje ostrzeżenie", () => {
+    const items = reelChecklist({
+      phrases: [
+        "Nobody is coming to fix your year.",
+        "Do it scared, and do it alone.",
+        "The log does not care how you feel.",
+      ],
+      durationSec: 12,
+      audioEnabled: true,
+      recentHooks: ["Nobody is coming to check your streak."],
+    });
+
+    assert.ok(!items.find((item) => item.id === "opening")?.ok);
+  });
 });
 
 describe("postChecklist", () => {
@@ -158,5 +173,27 @@ describe("postChecklist", () => {
       checklistProblems(items).map((item) => item.id),
       [],
     );
+  });
+
+  it("pokazuje otwarcie, które było już w ostatnich postach", () => {
+    const items = postChecklist({
+      primary: "You are not tired, you are untrained.",
+      caption: formatStarkCaption("You are not tired, you are untrained."),
+      recentHooks: ["You are not lazy, you are unprotected."],
+    });
+    const opening = items.find((item) => item.id === "opening");
+
+    assert.ok(opening, "kontrola otwarcia zniknęła z listy");
+    assert.ok(!opening.ok, "dwa materiały startujące tak samo to nawyk, nie zbieg okoliczności");
+    assert.match(opening.hint, /you are not/);
+  });
+
+  it("nie wymaga oryginalnego otwarcia, gdy nie ma do czego porównać", () => {
+    const items = postChecklist({
+      primary: "You are not tired, you are untrained.",
+      caption: formatStarkCaption("You are not tired, you are untrained."),
+    });
+
+    assert.equal(items.find((item) => item.id === "opening")?.ok, true);
   });
 });

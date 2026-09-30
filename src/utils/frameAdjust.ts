@@ -111,16 +111,42 @@ export function tweakBox(box: InkBox, tweak: FrameTweak, width: number, height: 
 }
 
 /**
- * Przesunięcie zgromadzone podczas ciągnięcia myszą, w pikselach kadrze 1080 —
- * studio liczy je z ułamka szerokości, żeby ten sam gest na małym podglądzie
- * dawał tę samą korektę co na dużym.
+ * Przesuw klawiaturą. Mysz jest dobra do grubszej poprawki, ale człowiek, który
+ * chce odsunąć puentę o jeden piksel, nie zrobi tego ciągnięciem — więc strzałka
+ * to 1 px przy kadrze 1080, a Shift to 10 px.
  */
-export function nudgeTweak(tweak: FrameTweak, deltaXFrac: number, deltaYFrac: number): FrameTweak {
-  return normalizeTweak({
-    x: tweak.x + deltaXFrac * 1080,
-    y: tweak.y + deltaYFrac * 1920,
-    scale: tweak.scale,
-  });
+export const NUDGE_STEPS = { key: 1, shift: 10 } as const;
+
+/** Kierunek ze strzałki; null oznacza, że klawiatura nie ma tu nic do rzeczy. */
+export function nudgeStep(key: string, shiftKey: boolean): { x: number; y: number } | null {
+  const step = shiftKey ? NUDGE_STEPS.shift : NUDGE_STEPS.key;
+  if (key === "ArrowLeft") return { x: -step, y: 0 };
+  if (key === "ArrowRight") return { x: step, y: 0 };
+  if (key === "ArrowUp") return { x: 0, y: -step };
+  if (key === "ArrowDown") return { x: 0, y: step };
+  return null;
+}
+
+/**
+ * Krok klawiaturą z tym samym hamulcem co ciągnięcie myszą — inaczej dwadzieścia
+ * naciśnięć strzałki wywlokłoby tekst pod pasek lajków, choć pojedynczy gest
+ * nigdy by na to nie pozwolił.
+ */
+export function nudgeTweak(
+  tweak: FrameTweak,
+  step: { x: number; y: number },
+  box: InkBox,
+  band: { top: number; bottom: number; side: number },
+  width: number,
+  height: number,
+): FrameTweak {
+  return clampTweakToBand(
+    normalizeTweak({ x: tweak.x + step.x, y: tweak.y + step.y, scale: tweak.scale }),
+    box,
+    band,
+    width,
+    height,
+  );
 }
 
 /**
@@ -149,14 +175,15 @@ export function clampTweakToBand(
   };
   if (fits(base)) return base;
 
-  // Cofamy po 4 px na osi, aż blok wróci do pasa. Proste i przewidywalne:
-  // uchwyty stają, a kadr nadal jest czytelny na telefonie.
+  // Cofamy o 1 px na osi, aż blok wróci do pasa. Większy krok przeskakiwałby
+  // przez granicę i przy korekcie klawiaturą cofałby uchwyt o cztery piksele
+  // wstecz zamiast go zatrzymać.
   let { x, y } = base;
-  while (x !== 0 && !fits({ x, y, scale: base.scale })) x -= Math.sign(x) * 4;
-  while (y !== 0 && !fits({ x, y, scale: base.scale })) y -= Math.sign(y) * 4;
+  while (x !== 0 && !fits({ x, y, scale: base.scale })) x -= Math.sign(x);
+  while (y !== 0 && !fits({ x, y, scale: base.scale })) y -= Math.sign(y);
   let scale = base.scale;
   // Skala powyżej jedynki powiększa blok od środka, więc to ona wyczerpuje
   // pas ostatnia; poniżej jedynki zmniejsza i hamulca nie potrzebuje.
-  while (scale > 1 && !fits({ x, y, scale })) scale = round(scale - 0.02);
+  while (scale > 1 && !fits({ x, y, scale })) scale = Math.max(1, round(scale - 0.01));
   return { x, y, scale };
 }

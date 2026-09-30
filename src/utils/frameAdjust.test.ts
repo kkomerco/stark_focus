@@ -5,14 +5,16 @@ import {
   clampTweakToBand,
   isIdentity,
   normalizeTweak,
+  nudgeStep,
+  nudgeTweak,
   tweakBox,
   TWEAK_LIMITS,
 } from "./frameAdjust";
 
 /**
- * Korekta myszą to jedyna rzecz w rendererze, którą człowiek wprowadza palcem,
- * więc jej granice muszą być liczone w kodzie, nie w zaufaniu do UI: suwak
- * może przyjść ze starej kopii danych, a przesunięcie z pliku JSON.
+ * Korekta myszą i klawiaturą to jedyna rzecz w rendererze, którą człowiek
+ * wprowadza palcem, więc jej granice muszą być liczone w kodzie, nie w zaufaniu
+ * do UI: suwak może przyjść ze starej kopii danych, a przesunięcie z pliku JSON.
  */
 
 const W = 1080;
@@ -115,5 +117,35 @@ describe("applyTweak", () => {
     } as unknown as CanvasRenderingContext2D;
     applyTweak(ctx, { x: 100, y: 0, scale: 1.1 }, W, H);
     assert.deepEqual(ops, ["t 100 0", "t 540 960", "s 1.1", "t -540 -960"]);
+  });
+});
+
+describe("korekta klawiaturą", () => {
+  it("strzałka to 1 px, Shift to 10 px, inny klawisz nie rusza kadru", () => {
+    assert.deepEqual(nudgeStep("ArrowRight", false), { x: 1, y: 0 });
+    assert.deepEqual(nudgeStep("ArrowUp", true), { x: 0, y: -10 });
+    assert.equal(nudgeStep("Enter", false), null);
+  });
+
+  it("staje dokładnie na granicy pasa, nie cofa się o cały krok", () => {
+    // Lewa krawędź bloku ma przed sobą 44 px wolnego pasa (130 - 86), więc
+    // przesuw -45 jeszcze mieści się w tolerancji, a -46 już nie. Dawniej
+    // cofanie szło po 4 px i uchwyt wyskakiwał na -44.
+    assert.equal(nudgeTweak({ ...ID, x: -40 }, { x: -10, y: 0 }, BOX, BAND, W, H).x, -45);
+    // Blok przy dolnej krawędzi: 1700 + 67 = 1767 to ostatnia pozycja, która
+    // jeszcze mieści się w tolerancji pasa.
+    const low = { left: 130, top: 1500, right: 950, bottom: 1700 };
+    assert.equal(nudgeTweak({ ...ID, y: 60 }, { x: 0, y: 10 }, low, BAND, W, H).y, 67);
+  });
+
+  it("wielokrotne naciskanie strzałki zostaje na granicy pasa", () => {
+    // Krok jest mały, więc korekta uzbiera się z powtarzania — dokładnie tu
+    // dawny hamulec cofający po 4 px gubił piksele.
+    let tweak = ID;
+    for (let i = 0; i < 30; i++) {
+      tweak = nudgeTweak(tweak, { x: -10, y: 0 }, BOX, BAND, W, H);
+    }
+    assert.equal(tweak.x, -45);
+    assert.ok(tweakBox(BOX, tweak, W, H).left >= BAND.side - 1);
   });
 });
