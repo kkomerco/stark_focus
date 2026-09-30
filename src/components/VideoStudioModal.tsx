@@ -22,13 +22,23 @@ import {
   Image as ImageIcon,
   Package,
   Flame,
+  Move,
 } from "lucide-react";
 import JSZip from "jszip";
 import { Post, PublishedItem, ReelHandoff, VaultAsset } from "../types";
+import type { FrameTweak } from "../types";
 import { starkCaption, starkCta, starkHashtags, stripHashtagTail } from "../lib/caption";
 import { publishedEntry } from "../lib/published";
 import { BRAND_ACCENT } from "../utils/starkBrandTheme";
-import { bracketGeometry } from "../utils/brandMark";
+import { bracketGeometry, type InkBox } from "../utils/brandMark";
+import {
+  applyTweak,
+  clampTweakToBand,
+  isIdentity,
+  normalizeTweak,
+  tweakBox,
+  TWEAK_LIMITS,
+} from "../utils/frameAdjust";
 import { REEL_SAFE, bandCenter, safeBand } from "../utils/safeZones";
 import { beatTimesFrom, renderReelBed } from "../utils/reelAudio";
 import { exactExportSupported, exportReelExact } from "../utils/reelExport";
@@ -71,6 +81,7 @@ import {
   layoutLines,
   narrativeFormatFor,
   parseTokens,
+  reelTextColumnBox,
   VISUAL_THEMES,
 } from "./video/reel-helpers";
 import { pickBackground } from "../utils/backgroundPicker";
@@ -405,6 +416,29 @@ export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
   const timeRef = useRef<number>(0);
   const isPlayingRef = useRef<boolean>(isPlaying);
 
+  /**
+   * Mikrokorekta człowieka: drabinka pisma i bezpieczny pas nadal liczą układ,
+   * mysz dokłada tylko przesuw i skalę. Rolka nie ma `spec` — te dwie wartości
+   * żyją w stanie studia, a trwałość bierze się z presetu.
+   */
+  const [reelTweak, setReelTweak] = useState<FrameTweak>(() =>
+    normalizeTweak(savedPreset?.reelTweak),
+  );
+  const [reelMarkTweak, setReelMarkTweak] = useState<FrameTweak>(() =>
+    normalizeTweak(savedPreset?.reelMarkTweak),
+  );
+  // Którą warstwę ciągniemy: kolumnę tekstu czy klamry outro.
+  const [reelAdjustTarget, setReelAdjustTarget] = useState<"content" | "mark">("content");
+  /**
+   * Pole kolumny tekstu z ostatniego renderu. Hamulec pasa musi dostawać tę
+   * samą geometrię, po której rysuje `renderFrame` — inaczej „lekko w dół"
+   * zatrzymałby się w połowie drogi do interfejsu platformy.
+   */
+  const textColumnRef = useRef<InkBox | null>(null);
+  const dragRef = useRef<{ x: number; y: number; from: FrameTweak; w: number; h: number } | null>(
+    null,
+  );
+
   useEffect(() => {
     isPlayingRef.current = isPlaying;
   }, [isPlaying]);
@@ -567,7 +601,18 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
     // Zapisujemy tylko to, co studio naprawdę umie odtworzyć. Wcześniej
     // lądowało tu dziewięć pól, z których pięć to stałe — przycisk obiecywał
     // „mój styl", a przywracał motyw.
-    const preset = { duration, selectedTheme, fontFamily, captionStyle };
+    //
+    // Mikrokorektę dorzucamy WYŁĄCZNIE gdy coś rusza: stary preset bez tych
+    // pól musi pozostać czytelny (odczyt idzie przez `normalizeTweak`, który z
+    // braku pola robi korektę zerową), a key zostaje ten sam.
+    const preset = {
+      duration,
+      selectedTheme,
+      fontFamily,
+      captionStyle,
+      ...(isIdentity(reelTweak) ? {} : { reelTweak }),
+      ...(isIdentity(reelMarkTweak) ? {} : { reelMarkTweak }),
+    };
     try {
       localStorage.setItem(PRESET_STORAGE_KEY, JSON.stringify(preset));
       setToastMessage("Zapisano Twój domyślny styl rolek.");
@@ -1071,7 +1116,22 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
       );
       const tops = stackBlocks(blockHeights, band, blockGap);
 
+      // Geometria kolumny w jednej postaci: z niej liczy hamulec pasa, a klamry
+      // outro obejmują nią ostatni blok. To TE SAME `tops` i te same szerokości
+      // wierszy, po których maluje pętla niżej — nie osobna, zgadywana liczba.
+      const columnGeometry = blocks.map((block, index) => ({
+        top: tops[index],
+        lineHeight: block.layout.lineHeight,
+        lineWidths: block.layout.lines.map((line) => line.width),
+      }));
+      textColumnRef.current = reelTextColumnBox(columnGeometry, leftMargin);
+
       ctx.save();
+      // Mikrokorekta idzie NA BLOK TEKSTU, wewnątrz tego `save()`: oddech kamery,
+      // winieta i ziarno zostają na swoim miejscu, a `renderFrame` obsługuje
+      // podgląd, eksport WebCodecs klatka-po-klatce i ścieżkę MediaRecorder naraz
+      // — jedna zmiana w tym miejscu trafia wszędzie, eksportu nie poprawiamy osobno.
+      applyTweak(ctx, reelTweak, width, height);
       ctx.textBaseline = "middle";
       ctx.textAlign = "left";
       ctx.shadowColor = "rgba(0, 0, 0, 0.95)";
@@ -1153,21 +1213,18 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
       // statyczny sygnet kadru (`bracketGeometry`), tylko kreskę malujemy
       // etapami przez setLineDash.
       const outroProgress = outroBracketProgress(timeSec, totalDuration);
-      if (outroProgress > 0 && blocks.length > 0) {
-        const lastIndex = blocks.length - 1;
-        const lastBlock = blocks[lastIndex];
-        const lastTop = tops[lastIndex];
-        let widest = 0;
-        for (const line of lastBlock.layout.lines) {
-          if (line.width > widest) widest = line.width;
-        }
-        const outroBox = {
-          left: leftMargin,
-          top: lastTop,
-          right: leftMargin + widest,
-          bottom: lastTop + lastBlock.layout.lines.length * lastBlock.layout.lineHeight,
-        };
-        const g = bracketGeometry(width, height, outroBox);
+      // Pole klamer to ostatni blok tej samej kolumny, przesunięty najpierw
+      // korektą treści, a potem własną korektą znaku — klamry podpisują zdanie,
+      // więc muszą iść za nim, nie zostawać tam, gdzie stał przed poprawką.
+      const outroBox = reelTextColumnBox(columnGeometry.slice(-1), leftMargin);
+      if (outroProgress > 0 && outroBox) {
+        const markedBox = tweakBox(
+          tweakBox(outroBox, reelTweak, width, height),
+          reelMarkTweak,
+          width,
+          height,
+        );
+        const g = bracketGeometry(width, height, markedBox);
         // Kreska rośnie od czubka ramienia, przez róg, do czubka drugiego
         // ramienia — długość jednej klamry to dwa ramiona.
         const cornerLength = g.arm * 2;
@@ -1264,8 +1321,83 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
       duration,
       fontFamily,
       pacingMode,
+      reelTweak,
+      reelMarkTweak,
     ],
   );
+
+  /**
+   * Uchwyt mikrokorekty nad podglądem. Sam układ nadal liczy drabinka pisma i
+   * bezpieczny pas — mysz dokłada wyłącznie przesuw, a suwak wyłącznie skalę.
+   * Pole do hamowania bierzemy z ostatniego renderu (`textColumnRef`), więc
+   * uchwyt kończy dokładnie tam, gdzie kończy się kolumna, którą widać.
+   */
+  const activeReelTweak = reelAdjustTarget === "content" ? reelTweak : reelMarkTweak;
+
+  const writeReelTweak = (role: "content" | "mark", tweak: FrameTweak) => {
+    if (role === "content") setReelTweak(tweak);
+    else setReelMarkTweak(tweak);
+  };
+
+  /** Kolumna tekstu albo klamry po korekcie treści — to samo połączenie co w renderze. */
+  const reelDragBox = (): InkBox | null => {
+    const column = textColumnRef.current;
+    if (!column) return null;
+    if (reelAdjustTarget === "content") return column;
+    return tweakBox(column, reelTweak, REEL_WIDTH, REEL_HEIGHT);
+  };
+
+  const onReelDragStart = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!reelDragBox()) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    dragRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+      from: activeReelTweak,
+      w: rect.width,
+      h: rect.height,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const onReelDragMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    const box = reelDragBox();
+    if (!drag || !box) return;
+    // Gest liczony jako ułamek podglądu, zapisany w pikselach kadru 1080: ten sam
+    // ruch myszą na małym i dużym ekranie daje tę samą korektę na eksporcie.
+    const next = normalizeTweak({
+      x: drag.from.x + ((event.clientX - drag.x) / drag.w) * REEL_WIDTH,
+      y: drag.from.y + ((event.clientY - drag.y) / drag.h) * REEL_HEIGHT,
+      scale: drag.from.scale,
+    });
+    writeReelTweak(
+      reelAdjustTarget,
+      clampTweakToBand(next, box, safeBand(REEL_HEIGHT, REEL_WIDTH, true), REEL_WIDTH, REEL_HEIGHT),
+    );
+  };
+
+  const onReelDragEnd = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (dragRef.current) event.currentTarget.releasePointerCapture(event.pointerId);
+    dragRef.current = null;
+  };
+
+  const onReelScaleChange = (value: number) => {
+    const next = normalizeTweak({ ...activeReelTweak, scale: value });
+    const box = reelDragBox();
+    // Bez pola kolumny (pusty kadr) nie ma czego hamować — nie ma też co skalać,
+    // więc korekta czeka, aż render zapisze geometrię.
+    if (!box) {
+      writeReelTweak(reelAdjustTarget, next);
+      return;
+    }
+    writeReelTweak(
+      reelAdjustTarget,
+      clampTweakToBand(next, box, safeBand(REEL_HEIGHT, REEL_WIDTH, true), REEL_WIDTH, REEL_HEIGHT),
+    );
+  };
+
+  const hasReelAdjust = !isIdentity(reelTweak) || !isIdentity(reelMarkTweak);
 
   // Pętla podglądu w czasie rzeczywistym (taktowana requestAnimationFrame)
   useEffect(() => {
@@ -1626,7 +1758,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
             type="button"
             onClick={handleSaveAsDefault}
             className="px-2.5 py-1.5 rounded-lg bg-[#141414] hover:bg-white hover:text-black text-neutral-300 border border-white/10 hover:border-white text-[11px] font-mono font-bold flex items-center gap-1.5 transition-all cursor-pointer"
-            title="Zapisz aktualny czas, czcionkę, motyw i pozycję jako domyślne"
+            title="Zapisz aktualny czas, czcionkę, motyw, styl opisu i mikrokorektę jako domyślne"
           >
             <BookmarkCheck className="w-3.5 h-3.5" />
             <span>Zapisz mój styl</span>
@@ -1676,6 +1808,21 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
             <div className="absolute top-3 left-3 px-2 py-0.5 rounded bg-white/10 border border-white/20 font-mono text-[9px] text-white font-bold backdrop-blur-sm uppercase">
               {duration}.0s • Full HD
             </div>
+
+            {/* Warstwa przeciągania: podgląd jest jedynym miejscem, gdzie kadr
+                się ocenia, więc to na nim łapie się treść i ramkę. */}
+            <div
+              onPointerDown={onReelDragStart}
+              onPointerMove={onReelDragMove}
+              onPointerUp={onReelDragEnd}
+              onPointerCancel={onReelDragEnd}
+              className="absolute inset-0 touch-none cursor-grab active:cursor-grabbing"
+              title={
+                reelAdjustTarget === "content"
+                  ? "Przeciągnij, żeby lekko przesunąć tekst"
+                  : "Przeciągnij, żeby lekko przesunąć ramkę marki"
+              }
+            />
           </div>
 
           {/* Playback Controls & Time Scrub */}
@@ -1769,6 +1916,75 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                 </div>
               )}
             </div>
+          </div>
+
+          {/* Mikrokorekta ponad domyślnym układem — nie edytor kompozycji: drabinka
+              pisma i bezpieczny pas nadal liczą kadr, mysz dokłada tylko przesuw. */}
+          <div className="w-full max-w-[290px] mt-3 space-y-2 rounded-lg border border-white/10 bg-[#0B0B0B] p-3">
+            <div className="flex items-center gap-2">
+              {(
+                [
+                  ["content", "Tekst"],
+                  ["mark", "Ramka"],
+                ] as const
+              ).map(([role, label]) => (
+                <button
+                  key={role}
+                  type="button"
+                  onClick={() => setReelAdjustTarget(role)}
+                  className={
+                    reelAdjustTarget === role
+                      ? "px-2.5 py-1 rounded bg-white text-black text-[10px] font-mono font-bold uppercase tracking-wider cursor-pointer"
+                      : "px-2.5 py-1 rounded bg-[#141414] hover:bg-[#1E1E1E] text-neutral-300 border border-white/10 text-[10px] font-mono font-bold uppercase tracking-wider cursor-pointer"
+                  }
+                >
+                  {label}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => {
+                  setReelTweak({ x: 0, y: 0, scale: 1 });
+                  setReelMarkTweak({ x: 0, y: 0, scale: 1 });
+                }}
+                disabled={!hasReelAdjust}
+                className="ml-auto px-2.5 py-1 rounded bg-[#141414] hover:bg-white hover:text-black disabled:opacity-40 text-neutral-300 border border-white/10 text-[10px] font-mono font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer transition-colors"
+                title="Wróć do układu, który wyszedł z drabinki pisma"
+              >
+                <RefreshCw className="w-3 h-3" />
+                Układ
+              </button>
+            </div>
+
+            <label className="flex items-center gap-2 text-[10px] font-mono text-neutral-400 uppercase tracking-wider">
+              <Move className="w-3 h-3 shrink-0" />
+              Rozmiar
+              <input
+                type="range"
+                min={TWEAK_LIMITS.scaleMin}
+                max={TWEAK_LIMITS.scaleMax}
+                step={0.01}
+                value={activeReelTweak.scale}
+                onChange={(event) => onReelScaleChange(Number(event.target.value))}
+                className="flex-1 accent-rose-600"
+              />
+              <span className="w-9 text-right text-neutral-300">
+                {activeReelTweak.scale.toFixed(2)}
+              </span>
+            </label>
+
+            <p className="text-[10px] font-mono leading-relaxed text-neutral-500">
+              Przesuw {activeReelTweak.x} × {activeReelTweak.y} px. Ciągnij po podglądzie; poza
+              bezpieczny pas uchwyty same stają, żeby interfejs platformy niczego nie zasłonił.
+              Korekta idzie na tekst, tło z oddechem kamery zostaje na swoim miejscu.
+            </p>
+
+            {reelAdjustTarget === "mark" && (
+              <p className="text-[10px] font-mono leading-relaxed text-neutral-500">
+                Ramka to sygnet outro: rysuje się przez ostatnią sekundę rolki, więc naprowadź suwak
+                czasu na koniec kadru, żeby widzieć, co przesuwasz.
+              </p>
+            )}
           </div>
         </div>
 

@@ -3,6 +3,7 @@
 // Wyodrębnione z VideoStudioModal.tsx — brak zależności od Reacta.
 import type { NarrativeFormat, ReelVisualTheme } from "../../data/reelTemplates";
 import type { ReelDuration } from "../../types";
+import type { InkBox } from "../../utils/brandMark";
 import { MIN_TEXT_PX } from "../../utils/safeZones";
 
 export type VisualTheme = ReelVisualTheme;
@@ -334,4 +335,44 @@ export function layoutLines(
     fontSize: minFontSize,
     lineHeight: Math.round(minFontSize * 1.25),
   };
+}
+
+/** Blok kolumny w postaci, którą liczy render: góra, wysokość linii, szerokości wierszy. */
+export interface ReelColumnBlock {
+  top: number;
+  lineHeight: number;
+  lineWidths: readonly number[];
+}
+
+/**
+ * Pole kolumny tekstu rolki: od lewego marginesu pasa do NAJSZERSZEGO wiersza,
+ * od góry pierwszego bloku do dołu ostatniego.
+ *
+ * Liczone z TYCH SAMYCH liczb, po których rysuje `renderFrame` (`tops` ze
+ * `stackBlocks`, `lineHeight` i szerokości z `layoutLines`). Hamulec
+ * mikrokorekty nie może wynikać z innej geometrii niż ta, która trzyma tekst,
+ * inaczej „lekko w dół" zatrzymałby się metr nad miejscem, gdzie kolumna
+ * faktycznie się kończy, a kadr wyszedłby pod interfejs platformy.
+ *
+ * Bez tekstu zwraca null — nie ma czego hamować ani czego przeciągać.
+ */
+export function reelTextColumnBox(blocks: readonly ReelColumnBlock[], left: number): InkBox | null {
+  if (blocks.length === 0) return null;
+
+  let top = Number.POSITIVE_INFINITY;
+  let bottom = Number.NEGATIVE_INFINITY;
+  let widest = 0;
+
+  for (const block of blocks) {
+    if (block.top < top) top = block.top;
+    const blockBottom = block.top + block.lineWidths.length * block.lineHeight;
+    if (blockBottom > bottom) bottom = blockBottom;
+    for (const width of block.lineWidths) {
+      if (width > widest) widest = width;
+    }
+  }
+
+  if (!Number.isFinite(top) || !Number.isFinite(bottom) || widest <= 0) return null;
+
+  return { left, top, right: left + widest, bottom };
 }

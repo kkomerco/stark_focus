@@ -4,7 +4,12 @@
 // studio sklejało je w jeden kadr — stąd sześć linijek w „2 szybkich taktach".
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { beatsForReelFormat, clipToBeats, narrativeFormatFor } from "./reel-helpers";
+import {
+  beatsForReelFormat,
+  clipToBeats,
+  narrativeFormatFor,
+  reelTextColumnBox,
+} from "./reel-helpers";
 
 const FOUR = [
   "You stare at your phone screen.",
@@ -47,5 +52,48 @@ describe("kontrakt formatu rolki", () => {
     assert.deepEqual(clipToBeats(["Only one line here."], "five_beats_20s"), [
       "Only one line here.",
     ]);
+  });
+});
+
+/**
+ * Hamulec mikrokorekty musi dostawać pole liczone z TYCH SAMYCH liczb, po
+ * których rysuje `renderFrame` (`tops` ze `stackBlocks`, wysokość linii,
+ * szerokości wierszy) — inaczej „lekko w dół" stanęłoby w połowie drogi do
+ * interfejsu platformy albo puściłoby ostatni wers pod pasek lajków.
+ */
+describe("pole kolumny tekstu rolki", () => {
+  const blocks = [
+    { top: 600, lineHeight: 80, lineWidths: [700, 400] },
+    { top: 820, lineHeight: 80, lineWidths: [300, 840, 250] },
+  ];
+
+  it("ogarnia całą kolumnę: góra pierwszego bloku, dół ostatniego", () => {
+    assert.deepEqual(reelTextColumnBox(blocks, 120), {
+      left: 120,
+      top: 600,
+      right: 120 + 840,
+      bottom: 820 + 3 * 80,
+    });
+  });
+
+  it("prawa krawędź bierze najszerszy wiersz, nie pierwszy z brzegu", () => {
+    const box = reelTextColumnBox(blocks, 120);
+    // 120 + 840 = 960, czyli dokładnie lewy margines pasa plus jego szerokość.
+    assert.equal(box?.right, 960);
+    assert.ok(box && box.right <= 1080 - 120, "kolumna nie może wyjść za pas");
+  });
+
+  it("pojedynczy blok daje pole klamer outro z tej samej geometrii", () => {
+    assert.deepEqual(reelTextColumnBox(blocks.slice(-1), 120), {
+      left: 120,
+      top: 820,
+      right: 960,
+      bottom: 1060,
+    });
+  });
+
+  it("bez tekstu nie ma czego hamować ani przeciągać", () => {
+    assert.equal(reelTextColumnBox([], 120), null);
+    assert.equal(reelTextColumnBox([{ top: 600, lineHeight: 80, lineWidths: [] }], 120), null);
   });
 });
