@@ -28,7 +28,14 @@ import {
 import JSZip from "jszip";
 import type { FrameTweak, Post, PublishedItem, ReelHandoff, StockClip, VaultFile } from "../types";
 import { formatMegabytes, readVault, searchVaultClips, takeVaultClip } from "../lib/vaultClient";
-import { starkCaption, starkCta, starkHashtags, stripHashtagTail } from "../lib/caption";
+import { VAULT_QUERY_GROUPS } from "../lib/vaultQueries";
+import {
+  starkCaption,
+  starkCta,
+  starkHashtags,
+  stripFrameLines,
+  stripHashtagTail,
+} from "../lib/caption";
 import { publishedEntry } from "../lib/published";
 import { BRAND_ACCENT } from "../utils/starkBrandTheme";
 import { bracketGeometry, type InkBox } from "../utils/brandMark";
@@ -883,7 +890,13 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
 
   // Copy Caption to Clipboard
   const handleCopyCaption = () => {
-    const fullText = `${phrases.join("\n")}\n\n${caption}\n\n${hashtags.join(" ")}`;
+    // Wiersze klipy idą na początek, ale opis od modelu zaczyna się od tej
+    // samej tezy — bez cięcia nagłówek wychodził dwa razy pod rolką.
+    const body = stripFrameLines(caption, phrases);
+    const fullText = [phrases.join("\n"), body, hashtags.join(" ")]
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .join("\n\n");
     navigator.clipboard.writeText(fullText);
     setToastMessage("Opis ze znacznikami w schowku.");
     setTimeout(() => setToastMessage(null), 2500);
@@ -2374,6 +2387,35 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                   <Search className="w-3 h-3" />
                   Szukaj
                 </button>
+              </div>
+
+              {/* Widełki: frazy zmierzone na żywym katalogu, nie wymyślone
+                  przy biurku. Klik nadal pyta Pixabaya, tylko nie każe
+                  zgadywać, które słowo daje pion. */}
+              <div className="max-h-28 overflow-y-auto space-y-1 pr-1">
+                {VAULT_QUERY_GROUPS.map((group) => (
+                  <div key={group.title} className="flex flex-wrap items-center gap-1">
+                    <span className="w-full text-[9px] font-mono uppercase text-neutral-600">
+                      {group.title}
+                    </span>
+                    {group.queries.map((item) => (
+                      <button
+                        key={item.query}
+                        type="button"
+                        onClick={() => handleVaultSearch(item.query)}
+                        disabled={vaultBusy !== null}
+                        className={
+                          vaultQuery === item.query
+                            ? "px-1.5 py-0.5 rounded bg-white text-black text-[9px] font-mono cursor-pointer"
+                            : "px-1.5 py-0.5 rounded bg-[#141414] hover:bg-[#1E1E1E] border border-white/10 text-neutral-300 text-[9px] font-mono cursor-pointer disabled:opacity-40"
+                        }
+                        title={`Szukaj w katalogu: ${item.query}`}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                ))}
               </div>
 
               {vaultNotice && (

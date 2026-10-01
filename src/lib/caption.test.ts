@@ -8,6 +8,7 @@ import {
   starkCta,
   starkHashtags,
   starkShortCaption,
+  stripFrameLines,
   stripHashtagTail,
 } from "./caption";
 
@@ -305,5 +306,31 @@ describe("wezwanie w partii", () => {
       (hook, index) => formatStarkCaption(hook, [], "", index).split("\n\n").slice(-2)[0],
     );
     assert.ok(new Set(tails).size >= 3, tails.join("\n"));
+  });
+});
+
+describe("stripFrameLines", () => {
+  it("zdejmuje z opisu nagłówek, który i tak jest na kadrze", () => {
+    const caption = formatStarkCaption("Nobody checks your log.");
+
+    const stripped = stripFrameLines(caption, ["Nobody checks your log."]);
+    assert.ok(!stripped.toUpperCase().includes("NOBODY CHECKS YOUR LOG"), stripped);
+    assert.ok(stripped.length > 0, "opis nie może zostać skasowany do zera");
+  });
+
+  it("nie tnie opisu, który zaczyna się od czegoś innego", () => {
+    const caption = "The kettle is cold again.\n\nNobody checks your log.";
+
+    assert.equal(stripFrameLines(caption, ["Nobody checks your log."]), caption);
+  });
+
+  it("tnie tylko prowadzące wiersze, bo reszta jest treścią opisu", () => {
+    const caption = "Rust works.\n\nA later line repeats: Rust works.";
+
+    assert.equal(stripFrameLines(caption, ["rust WORKS"]), "A later line repeats: Rust works.");
+  });
+
+  it("bez wierszy klipy nie miesza w opisie", () => {
+    assert.equal(stripFrameLines("Cokolwiek.", []), "Cokolwiek.");
   });
 });

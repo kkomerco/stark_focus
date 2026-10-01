@@ -307,6 +307,31 @@ export function formatStarkCaption(
 }
 
 /**
+ * Wiersze, które i tak są na kadrze, nie muszą powtarzać się w opisie. Klik
+ * „kopiuj opis" dokleja wiersze klipy przed opis, a opis zaczyna się od tej
+ * samej tezy — nagłówek wychodził dwa razy. Ten sam grzech co z hashtagami.
+ */
+export function stripFrameLines(caption: string, lines: readonly string[]): string {
+  const frame = new Set(lines.map(copyLineKey).filter(Boolean));
+  if (frame.size === 0) return caption;
+
+  const kept = caption.split(/\r?\n/);
+  while (kept.length > 0 && frame.has(copyLineKey(kept[0]))) kept.shift();
+  // Po wyciętym nagłówku zostaje pusty wers — opis ma zaczynać się od treści.
+  while (kept.length > 0 && kept[0].trim() === "") kept.shift();
+  return kept.join("\n");
+}
+
+function copyLineKey(line: string): string {
+  return line
+    .replace(/[*#"]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/[.!?]+$/, "")
+    .toLowerCase();
+}
+
+/**
  * Pole hashtagów żyje obok opisu i dokleja się je raz, przy kopiowaniu.
  * Bez tego caption od modelu, z szablonu i z banku kończył się swoją listą
  * tagów, a stopka doklejała drugą — pod rolką lądowały dwa identyczne rzędy.
