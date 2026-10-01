@@ -12,25 +12,14 @@ export interface BackgroundScene {
   previewColor: string;
 }
 
-// Kolekcja ponad 100+ unikalnych stoickich motywów tła (Dark Stoic / Void / Architecture / Chiaroscuro)
+// Stoickie motywy tła (Dark Stoic / Void / Architecture / Natura). Liczba scen nie jest
+// obietnica: panel pokazuje dlugosc tablicy, a nie marketingowa setke.
 export const EXPANDED_BACKGROUND_LIBRARY: BackgroundScene[] = [
-  // 1. ANTYCZNA ARCHITEKTURA I MONUMENTY (15)
-  {
-    id: "arch_01",
-    name: "Marmurowe Popiersie Seneki w Cieniu",
-    category: "Architektura & Rzeźba",
-    theme: "obsidian_void",
-    description:
-      "Mroczne marmurowe popiersie Seneki, zimne boczne światło, czarna bezkresna pustka",
-    rationale: "Podkreśla bezkompromisowy autorytet myśli i stoickie opanowanie wobec chaosu.",
-    bingPrompt:
-      "Minimalist dark marble statue bust of Seneca philosopher, dramatic directional side rim light, pitch black void background, cinematic chiaroscuro, 8k vertical 9:16",
-    previewColor: "#0A0A0C",
-  },
+  // 1. ANTYCZNA ARCHITEKTURA I MONUMENTY (10)
   {
     id: "arch_02",
     name: "Korynckie Kolumny w Nocnej Mgle",
-    category: "Architektura & Rzeźba",
+    category: "Architektura & Monumenty",
     theme: "carbon_aura",
     description: "Monumentalne antyczne kolumny wyłaniające się z gęstej, ciemnej mgły",
     rationale: "Trwałość i niezmienność zasad w obliczu przemijającego czasu.",
@@ -41,7 +30,7 @@ export const EXPANDED_BACKGROUND_LIBRARY: BackgroundScene[] = [
   {
     id: "arch_03",
     name: "Monumentalny Portyk Panteonu o Północy",
-    category: "Architektura & Rzeźba",
+    category: "Architektura & Monumenty",
     theme: "silver_mist",
     description:
       "Ciemne, kamienne wejście do rzymskiego panteonu z subtelną bursztynowo-złotą poświatą",
@@ -51,31 +40,9 @@ export const EXPANDED_BACKGROUND_LIBRARY: BackgroundScene[] = [
     previewColor: "#14110A",
   },
   {
-    id: "arch_04",
-    name: "Skrzydlata Nike z Samotraki w Mroku",
-    category: "Architektura & Rzeźba",
-    theme: "silver_mist",
-    description: "Marmurowa Nike bez głowy stojąca na krawędzi czerni, srebrzysty światłocień",
-    rationale: "Symbol triumfu osiąganego przez surowe poświęcenie bez pragnienia poklasku.",
-    bingPrompt:
-      "Dramatic Winged Victory of Samothrace marble statue in deep black shadows, cold silver rim light, high contrast chiaroscuro, 8k vertical 9:16",
-    previewColor: "#0E1114",
-  },
-  {
-    id: "arch_05",
-    name: "Popiersie Epikteta z Brązu w Pustce",
-    category: "Architektura & Rzeźba",
-    theme: "obsidian_void",
-    description: "Ciemna patyna brązowej rzeźby Epikteta, surowy wyraz twarzy, zero rozproszeń",
-    rationale: "Odzwierciedla wewnętrzną wolność człowieka, który panuje nad własnym umysłem.",
-    bingPrompt:
-      "Dark weathered bronze sculpture bust of Epictetus, raw textured surface, single cold spotlight in pure black abyss, editorial composition 9:16",
-    previewColor: "#080808",
-  },
-  {
     id: "arch_06",
     name: "Starożytne Kamienne Schody do Pustki",
-    category: "Architektura & Rzeźba",
+    category: "Architektura & Monumenty",
     theme: "carbon_aura",
     description: "Wąskie, wydeptane przez stulecia stopnie wiodące w nieprzenikniony mrok",
     rationale: "Stopniowa, bezszelestna wspinaczka na szczyt samokontroli.",
@@ -86,7 +53,7 @@ export const EXPANDED_BACKGROUND_LIBRARY: BackgroundScene[] = [
   {
     id: "arch_07",
     name: "Czysty Łuk Triumfalny w Deszczu",
-    category: "Architektura & Rzeźba",
+    category: "Architektura & Monumenty",
     theme: "silver_mist",
     description: "Masywny kamienny łuk mokry od nocnego deszczu, odbicia chłodnego światła",
     rationale: "Triumf cichy, wywalczony w samotności, bez świadków.",
@@ -97,7 +64,7 @@ export const EXPANDED_BACKGROUND_LIBRARY: BackgroundScene[] = [
   {
     id: "arch_08",
     name: "Monolityczna Krypta Filozofów",
-    category: "Architektura & Rzeźba",
+    category: "Architektura & Monumenty",
     theme: "obsidian_void",
     description: "Surowy podziemny grobowiec z bazaltu, bezkresna cisza i prostota",
     rationale: "Poczucie wieczności i nieuchronności stoickiego rachunku sumienia.",
@@ -108,7 +75,7 @@ export const EXPANDED_BACKGROUND_LIBRARY: BackgroundScene[] = [
   {
     id: "arch_09",
     name: "Ciemny Amfiteatr pod Gwiazdami",
-    category: "Architektura & Rzeźba",
+    category: "Architektura & Monumenty",
     theme: "carbon_aura",
     description: "Opuszczone kamienne trybuny rzymskiego teatru w świetle zimnego księżyca",
     rationale: "Odrzucenie pragnienia oklasków – scena jest pusta, liczy się tylko twoja cnota.",
@@ -119,7 +86,7 @@ export const EXPANDED_BACKGROUND_LIBRARY: BackgroundScene[] = [
   {
     id: "arch_10",
     name: "Bazaltowy Cokół Ognia",
-    category: "Architektura & Rzeźba",
+    category: "Architektura & Monumenty",
     theme: "crimson_eclipse",
     description: "Ciemny kamienny cokół z tlącym się głęboko karmazynowym żarem",
     rationale: "Wewnętrzny ogień (Logos), który spala wszelkie wymówki i słabości.",
@@ -130,7 +97,7 @@ export const EXPANDED_BACKGROUND_LIBRARY: BackgroundScene[] = [
   {
     id: "arch_11",
     name: "Kolumnada Forum Romanum o Świcie",
-    category: "Architektura & Rzeźba",
+    category: "Architektura & Monumenty",
     theme: "silver_mist",
     description:
       "Zarys ruin przed wschodem słońca, pierwsze zimne złote promienie na szczytach kapiteli",
@@ -140,20 +107,9 @@ export const EXPANDED_BACKGROUND_LIBRARY: BackgroundScene[] = [
     previewColor: "#12100A",
   },
   {
-    id: "arch_12",
-    name: "Głowa Zeusa z Ciemnego Granitu",
-    category: "Architektura & Rzeźba",
-    theme: "obsidian_void",
-    description: "Masywna rzeźba o surowym spojrzeniu częściowo ukryta w cieniu",
-    rationale: "Obojętność praw natury wobec ludzkich skarg i narzekań.",
-    bingPrompt:
-      "Granite sculpted head of Olympian sovereign deity emerging from obsidian shadow, sharp dramatic side lighting, austere stoic expression 9:16",
-    previewColor: "#070709",
-  },
-  {
     id: "arch_13",
     name: "Monolityczna Brama z Czarnego Marmuru",
-    category: "Architektura & Rzeźba",
+    category: "Architektura & Monumenty",
     theme: "carbon_aura",
     description: "Geometryczny portal z polerowanego czarnego kamienia o matowym połysku",
     rationale: "Przejście ze stanu chaosu i emocji w stan żelaznej suwerenności.",
@@ -162,20 +118,9 @@ export const EXPANDED_BACKGROUND_LIBRARY: BackgroundScene[] = [
     previewColor: "#0B0D10",
   },
   {
-    id: "arch_14",
-    name: "Popiersie Cycerona w Półcieniu",
-    category: "Architektura & Rzeźba",
-    theme: "silver_mist",
-    description: "Rzymski mówca z kamiennym, nieruchomym wzrokiem w srebrzystym świetle",
-    rationale: "Waga wypowiadanych słów i bezwzględna wartość prawdy.",
-    bingPrompt:
-      "Classical marble bust of Cicero, high contrast chiaroscuro, cold silver directional spotlight, pure dark background, 8k 9:16",
-    previewColor: "#0D1116",
-  },
-  {
     id: "arch_15",
     name: "Antyczny Basen Lustrzany w Ciemności",
-    category: "Architektura & Rzeźba",
+    category: "Architektura & Monumenty",
     theme: "emerald_abyss",
     description: "Ciemna, idealnie gładka tafla wody w rzymskim atrium pod nocnym niebem",
     rationale: "Niewzruszony umysł jako idealne lustro rzeczywistości bez zniekształceń.",
@@ -686,7 +631,7 @@ export const EXPANDED_BACKGROUND_LIBRARY: BackgroundScene[] = [
   },
 ];
 
-// Losowanie tła z gwarancją braku powtórzeń (z puli 100+ wariacji)
+// Losowanie tła z gwarancją braku powtórzeń (z calej puli scen)
 export function getRandomBackgroundScene(filterTheme?: ReelVisualTheme): BackgroundScene {
   const pool = filterTheme
     ? EXPANDED_BACKGROUND_LIBRARY.filter((s) => s.theme === filterTheme)

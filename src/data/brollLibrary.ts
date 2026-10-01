@@ -5,12 +5,7 @@ export interface BrollScene {
   id: string;
   name: string;
   category:
-    | "stoic_marble"
-    | "nocturnal_city"
-    | "brutalist_void"
-    | "dawn_rain"
-    | "dark_training"
-    | "infinite_horizon";
+    "nocturnal_city" | "brutalist_void" | "dawn_rain" | "dark_training" | "infinite_horizon";
   description: string;
   ambientVibe: string;
   suggestedTheme:
@@ -21,45 +16,6 @@ export interface BrollScene {
 }
 
 export const CINEMATIC_BROLL_LIBRARY: BrollScene[] = [
-  {
-    id: "antyczny_marmur_posag",
-    name: "Antyczny Rzymski Marmur & Cienie",
-    category: "stoic_marble",
-    description:
-      "Ciemne, surowe ujęcie marmurowego popiersia cesarza w głębokim chiaroscuro z zimnym oświetleniem krawędziowym.",
-    ambientVibe: "Cesarski spokój, nieśmiertelna godność, asceza myśli.",
-    suggestedTheme: "silver_mist",
-    matchKeywords: [
-      "stoic",
-      "stoicyzm",
-      "marcus",
-      "aurelius",
-      "seneca",
-      "epictetus",
-      "mind",
-      "control",
-      "emotions",
-      "inner citadel",
-      "cesarz",
-      "rzym",
-      "mądrość",
-      "filozofia",
-      "calm",
-      "unshakable",
-    ],
-    tags: [
-      "stoic",
-      "philosophy",
-      "marble",
-      "wisdom",
-      "antiquity",
-      "seneca",
-      "aurelius",
-      "serenity",
-      "meditation",
-      "legacy",
-    ],
-  },
   {
     id: "nocna_metropolia_stal",
     name: "Nocna Metropolia & Stalowy Zmierzch",

@@ -65,3 +65,55 @@ export const VAULT_QUERY_GROUPS: VaultQueryGroup[] = [
 
 /** Płaska lista do liczenia i do ewentualnego losowania. */
 export const VAULT_QUERIES: VaultQuery[] = VAULT_QUERY_GROUPS.flatMap((group) => group.queries);
+
+/**
+ * Słowa, które nic nie mówią wyszukiwarce: to opis obróbki, nie treść kadru.
+ * Prompt obrazowy („cinematic … 8k vertical 9:16 no watermark") w katalogu
+ * nie daje nic, więc zanim weźmiemy go jako zapytanie, zostawiamy rzeczowniki.
+ */
+const QUERY_NOISE = new Set([
+  "cinematic",
+  "vertical",
+  "horizontal",
+  "9",
+  "16",
+  "8k",
+  "4k",
+  "no",
+  "text",
+  "watermark",
+  "high",
+  "contrast",
+  "dramatic",
+  "photorealistic",
+  "realistic",
+  "atmospheric",
+  "moody",
+  "background",
+  "studio",
+  "shot",
+  "footage",
+  "the",
+  "of",
+  "in",
+  "with",
+  "and",
+  "format",
+]);
+
+/** Pierwsze cztery rzeczownikowe słowa promptu — tyle, ile lubi wyszukiwarka. */
+export function stockQueryFromPrompt(prompt: string): string {
+  const words = prompt
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+
+  const kept: string[] = [];
+  for (const word of words) {
+    if (QUERY_NOISE.has(word) || /^\d/.test(word)) continue;
+    kept.push(word);
+    if (kept.length === 4) break;
+  }
+  return kept.join(" ");
+}

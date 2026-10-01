@@ -38,7 +38,16 @@ describe("pickBackground", () => {
   it("słucha motywu z treści: o ciszy nie trafia w miejski tłum", () => {
     const silent = pickBackground("Monolith silence in complete isolation.");
     assert.equal(silent.motif.id, "brutalizm_monolit");
-    assert.ok(["Geometria & Void", "Architektura & Rzeźba"].includes(silent.scene.category));
+    assert.ok(["Geometria & Void", "Architektura & Monumenty"].includes(silent.scene.category));
+  });
+
+  it("w bazie nie ma już posągów — właściciel konta kazał je wyrzucić", () => {
+    const pomnik =
+      /posąg|popiersie|rzeźb|statue|bust|nike of|cicero|zeus|epictetus|seneca|aurelius|samothrace/i;
+    for (const scene of EXPANDED_BACKGROUND_LIBRARY) {
+      const tekst = `${scene.name} ${scene.description} ${scene.bingPrompt}`;
+      assert.ok(!pomnik.test(tekst), `scena ${scene.id} znowu opowiada o pomniku: ${scene.name}`);
+    }
   });
 
   it("rotuje ujęcia w paczce dzięki wykluczeniom", () => {

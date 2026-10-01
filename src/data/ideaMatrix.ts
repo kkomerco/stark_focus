@@ -352,13 +352,12 @@ export interface BackgroundRecommendation {
 export const CATEGORY_BACKGROUND_RECOMMENDATIONS: Record<string, BackgroundRecommendation> = {
   discipline_vs_motivation: {
     theme: "obsidian_void",
-    sceneName: "Posąg Marka Aureliusza w Cieniu",
-    description:
-      "Ciemne marmurowe popiersie cesarza z zimnym oświetleniem krawędziowym na tle czerni",
+    sceneName: "Mokry Asfalt i Samotna Sylwetka o 4:30 AM",
+    description: "Mokra ulica o czwartej trzydzieści, jedna sylwetka, odbicie latarni w asfalcie",
     rationale:
-      "Głęboka czerń i chłodny marmur skupiają wzrok widza wyłącznie na surowym tekście dyscypliny bez rozpraszaczy.",
+      "Godzina i kałuża robią więcej niż pomnik: widz poznaje własny poranek, a nie muzealne tło, więc tekst zostaje na wierzchu.",
     bingPrompt:
-      "Minimalist dark marble statue of Marcus Aurelius stoic emperor, dramatic side rim light, pitch black void background, cinematic moody atmosphere, photorealistic 8k, vertical 9:16",
+      "lone silhouette walking wet asphalt street at 4:30 am, single street lamp reflection in puddles, cold dark blue hour, cinematic vertical 9:16",
     previewColor: "#111111",
   },
   solitude_monk_mode: {
@@ -901,7 +900,7 @@ export function generateCombinatorialFormula(
     suggestedDuration = 7;
   }
 
-  // Dynamiczne losowanie tła z bogatej biblioteki (ponad 100+ unikalnych motywów) dopasowanej do motywu wizualnego
+  // Dynamiczne losowanie tła z biblioteki scen, dopasowanej do motywu wizualnego
   const randomScene = getRandomBackgroundScene(theme);
   const bgRec = {
     sceneName: randomScene.name,

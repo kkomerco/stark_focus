@@ -11,16 +11,15 @@ import { BackgroundScene, EXPANDED_BACKGROUND_LIBRARY } from "../data/expandedBa
 import { hashKey } from "../lib/hash";
 import { pickBroll } from "./brollPicker";
 
-const POOL_STOIC_MARBLE = "Architektura & Rzeźba";
+const POOL_MONUMENTS = "Architektura & Monumenty";
 const POOL_NATURE = "Natura & Żywioły";
 const POOL_GEOMETRY = "Geometria & Void";
 const POOL_CITY = "Miasto & Monk Mode";
 
 /** Kolejność pul ma znaczenie: pierwsza to naturalne środowisko sceny. */
 const POOLS_BY_SCENE: Record<string, string[]> = {
-  antyczny_marmur_posag: [POOL_STOIC_MARBLE, POOL_GEOMETRY],
   nocna_metropolia_stal: [POOL_CITY, POOL_GEOMETRY],
-  brutalizm_monolit: [POOL_GEOMETRY, POOL_STOIC_MARBLE],
+  brutalizm_monolit: [POOL_GEOMETRY, POOL_MONUMENTS],
   deszcz_asfalt_430am: [POOL_CITY, POOL_NATURE],
   ciemna_sala_asceza: [POOL_CITY, POOL_GEOMETRY],
   mgla_horyzont_pustka: [POOL_NATURE, POOL_GEOMETRY],

@@ -18,7 +18,6 @@ export interface CodexRule {
   rationale: string;
   suggestedTheme:
     "obsidian_void" | "crimson_eclipse" | "emerald_abyss" | "carbon_aura" | "silver_mist";
-  suggestedBroll: string;
   /**
    * Slajdy banku: `headline` + `bodyText`, bez `highlightWords`. Bank je
    * dostarczał, a trasa paczki dnia i tak je wyrzucała przy mapowaniu na
@@ -44,7 +43,6 @@ export const STARK_CODEX_RULES: CodexRule[] = [
     rationale:
       "Podświadomość rejestruje pierwsze zawahanie jako dowód, że Twoje słowo jest negocjowalne.",
     suggestedTheme: "obsidian_void",
-    suggestedBroll: "deszcz_asfalt_430am",
     carouselSlides: [
       {
         headline: "THE SILENT CONTRACT",
@@ -79,7 +77,6 @@ export const STARK_CODEX_RULES: CodexRule[] = [
     rationale:
       "Mówienie o celach uwalnia przedwczesną dopaminę, osłabiając determinację do ich realizacji.",
     suggestedTheme: "carbon_aura",
-    suggestedBroll: "brutalizm_monolit",
     carouselSlides: [
       {
         headline: "SHUT YOUR MOUTH",
@@ -113,7 +110,6 @@ export const STARK_CODEX_RULES: CodexRule[] = [
     actionDirective: "Strip away your opinion about the catastrophe. What remains is just facts.",
     rationale: "Emocjonalna reakcja to zawsze dobrowolny wybór, nigdy przymus.",
     suggestedTheme: "silver_mist",
-    suggestedBroll: "antyczny_marmur_posag",
     carouselSlides: [
       {
         headline: "THE INNER CITADEL",
@@ -149,7 +145,6 @@ export const STARK_CODEX_RULES: CodexRule[] = [
     rationale:
       "Przełamanie oporu aktywuje przednią korę zakrętu obręczy (aMCC), fizyczne źródło siły woli.",
     suggestedTheme: "emerald_abyss",
-    suggestedBroll: "ciemna_sala_asceza",
     carouselSlides: [
       {
         headline: "THE WILLPOWER MUSCLE",
@@ -185,7 +180,6 @@ export const STARK_CODEX_RULES: CodexRule[] = [
     rationale:
       "Zmęczenie decyzyjne prowadzi do kompromisów; żelazna reguła wyklucza potrzebę motywacji.",
     suggestedTheme: "crimson_eclipse",
-    suggestedBroll: "nocna_metropolia_stal",
     carouselSlides: [
       {
         headline: "CUT THE CHOICES",
@@ -220,7 +214,6 @@ export const STARK_CODEX_RULES: CodexRule[] = [
     rationale:
       "Głębia myślenia i unikalna przewaga rynkowa rodzą się wyłącznie w przedłużonej ascezie społecznej.",
     suggestedTheme: "obsidian_void",
-    suggestedBroll: "mgla_horyzont_pustka",
     carouselSlides: [
       {
         headline: "THE ISOLATION EDGE",
@@ -254,7 +247,6 @@ export const STARK_CODEX_RULES: CodexRule[] = [
     actionDirective: "Operate at constant temperature regardless of mood spikes.",
     rationale: "Uzależnienie działania od stanu emocjonalnego gwarantuje sinusoidalną niespójność.",
     suggestedTheme: "carbon_aura",
-    suggestedBroll: "brutalizm_monolit",
     carouselSlides: [
       {
         headline: "SEVER THE TIES",
@@ -289,7 +281,6 @@ export const STARK_CODEX_RULES: CodexRule[] = [
     rationale:
       "Świadomość natychmiastowej śmiertelności (Memento Mori) jest najczystszym filtrem priorytetów.",
     suggestedTheme: "crimson_eclipse",
-    suggestedBroll: "antyczny_marmur_posag",
     carouselSlides: [
       {
         headline: "STOP WASTING IT",
@@ -325,7 +316,6 @@ export const STARK_CODEX_RULES: CodexRule[] = [
     actionDirective: "Stop asking what they think. Double down on raw utility.",
     rationale: "Im bardziej zabiegasz o aprobatę, tym mniej Twoja obecność budzi autorytet.",
     suggestedTheme: "silver_mist",
-    suggestedBroll: "nocna_metropolia_stal",
     carouselSlides: [
       {
         headline: "STOP CHASING",
@@ -360,7 +350,6 @@ export const STARK_CODEX_RULES: CodexRule[] = [
     rationale:
       "Każda niedotrzymana obietnica złożona samemu sobie obniża wewnętrzne poczucie sprawczości.",
     suggestedTheme: "obsidian_void",
-    suggestedBroll: "deszcz_asfalt_430am",
     carouselSlides: [
       {
         headline: "THE INNER BETRAYAL",

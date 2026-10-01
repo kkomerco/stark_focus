@@ -28,7 +28,7 @@ import {
 import JSZip from "jszip";
 import type { FrameTweak, Post, PublishedItem, ReelHandoff, StockClip, VaultFile } from "../types";
 import { formatMegabytes, readVault, searchVaultClips, takeVaultClip } from "../lib/vaultClient";
-import { VAULT_QUERY_GROUPS } from "../lib/vaultQueries";
+import { stockQueryFromPrompt, VAULT_QUERY_GROUPS } from "../lib/vaultQueries";
 import {
   starkCaption,
   starkCta,
@@ -2520,7 +2520,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                             Sugerowane ujęcie w tle:
                           </span>
                           <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-white/5 border border-white/10 text-neutral-400">
-                            Baza 100+ ujęć
+                            {EXPANDED_BACKGROUND_LIBRARY.length} scen
                           </span>
                         </div>
                         <h4 className="text-xs font-bold text-white font-mono">
@@ -2548,7 +2548,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                         title="Wylosuj inne z ponad 100 unikalnych ujęć"
                       >
                         <Sparkles className="w-3 h-3 text-rose-400" />
-                        <span>Losuj inne (100+)</span>
+                        <span>Losuj inne ({EXPANDED_BACKGROUND_LIBRARY.length})</span>
                       </button>
 
                       {/* Darmowy tier nie ma modelu obrazów, więc kadr i tak
@@ -2576,7 +2576,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
 
                       <button
                         type="button"
-                        onClick={() => handleVaultSearch(bgInfo.sceneName)}
+                        onClick={() => handleVaultSearch(stockQueryFromPrompt(activePrompt))}
                         disabled={vaultBusy !== null}
                         className="px-2.5 py-1 rounded bg-rose-600/20 hover:bg-rose-600 hover:text-white text-rose-200 text-[10px] font-mono font-bold border border-rose-500/30 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
                         title="Nie generuj tła — znajdź prawdziwe ujęcie w sejfie"
