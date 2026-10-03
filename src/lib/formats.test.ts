@@ -3,10 +3,10 @@ import { describe, it } from "node:test";
 import { FRAME_FORMATS, formatById } from "./formats";
 
 describe("FRAME_FORMATS", () => {
-  it("studio ma cztery formaty i ani jednego więcej", () => {
+  it("studio ma pięć formatów, w tym nową konfrontację", () => {
     assert.deepEqual(
       FRAME_FORMATS.map((format) => format.id),
-      ["quote", "protocol", "cost", "collage"],
+      ["quote", "protocol", "cost", "reality_check", "collage"],
     );
   });
 

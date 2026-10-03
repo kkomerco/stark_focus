@@ -382,7 +382,7 @@ export function exemplarBlock(hooks: string[]): string {
     .map((hook) => `- ${hook}`)
     .join("\n");
   return (
-    "WZORCE - to sa nasze zdania, ktore najwiecej zarobily. Trzymaj ich rytm i gestosc,\n" +
+    "WZORCE MARKI - zdania wybrane przez wlasciciela lub z dziennika publikacji. Trzymaj ich rytm i gestosc,\n" +
     "ale NIE kopiuj z nich slow:\n" +
     lines
   );

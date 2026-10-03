@@ -1,95 +1,88 @@
-# Visionary Media Lab — AI Post Pro
+# Visionary Media Lab — Stark Focus
 
-Platforma kreatywna do generowania treści social media (posty 1:1, karuzele 4:5, rolki 9:16, prompty do generatorów grafik) napędzana przez Google Gemini.
+Lokalne studio produkcji materiałów dla @stark_focus. Interfejs jest po polsku, materiał po angielsku. Aplikacja łączy generowanie tekstu, reguły marki, edycję kadru i eksport; decyzję o publikacji podejmuje właściciel konta.
 
-## 🚀 Stack technologiczny
+Ocena architektury, porównanie z narzędziami rynkowymi i priorytety rozwoju: [przegląd z 3 października 2026](docs/project-review-2026-10-03.md).
 
-- **Frontend:** React 19, TypeScript, Vite 8, Tailwind CSS 4, lucide-react
-- **Backend:** Node.js, Express 5 (`server.ts`) + moduły tras w `src/lib/ai/`
-- **Silnik AI:** Google Gemini (`gemini-3.8-flash`, zapasowo `gemini-3.1-flash-lite`)
-- **Renderowanie:** Canvas API (klatki rolek, slajdy karuzel), JSZip (pakiety eksportu)
-- **Stan aplikacji:** localStorage (bez bazy danych) — narzędzie jednoosobowe
+## Uruchomienie
 
-## 📁 Struktura projektu
-
-```
-server.ts                        # serwer Express: /api/health + przekierowanie /api/ai/* do routera tras
-src/lib/ai/gemini.server.ts      # JEDYNE miejsce z klientem Gemini, modelami, retry i parsowaniem JSON
-src/lib/ai/normalize.server.ts   # normalizacja odpowiedzi modelu + znakowanie treści zapasowych
-src/lib/limits.ts                # clamp każdego parametru liczbowego i tekstowego z req.body
-src/lib/fetch-image.server.ts    # pobieranie zewnętrznych obrazków z ochroną SSRF (jedyna droga)
-src/lib/random.ts                # Fisher-Yates, pick, pickN, pickForDay
-src/lib/ai/router.server.ts      # spina moduly tras
-src/lib/ai/routes/               # trasy AI podzielone domenowo:
-  deconstruct.server.ts          #   dekonstrukcja viralowych postow + warianty @stark_focus
-  generate.server.ts             #   ghostwriting rolki
-  trends.server.ts               #   skaner trendow, matryca katow, cognitive friction, evergreen
-  daily-pack.server.ts           #   paczka dnia (rolki + karuzela + post)
-  idea-stream.server.ts          #   nieskonczony generator pomyslow z anty-powtorka
-  status.server.ts               #   status klucza API
-src/lib/safe-url.ts              # ochrona SSRF (jedna implementacja dla calego projektu)
-src/lib/cache.ts                 # cache TTL + LRU (jedna implementacja)
-src/lib/caption.ts               # format opisow marki @stark_focus
-src/lib/mini-express.server.ts   # lekki adapter Web Request -> handlery tras
-src/components/StarkFocusApp.tsx # powloka aplikacji (zakladki + modale)
-src/components/tabs/             # AiRadarTab, PipelineTab, VaultTab, MentorTab
-src/components/                  # VideoStudioModal, CarouselStudioModal, HookBattleModal,
-                                 # InspirationStudio1to1, QRModal, Header,
-                                 # DailyPackModal, IdeaStreamModal, DeconstructViralModal
-src/hooks/useIdeaStream.ts       # anty-powtorka: fingerprinty pomyslow w localStorage
-src/data/                        # banki tresci i motywow (ideaMatrix, reelTemplates, starkCodex, ...)
-src/utils/canvasRenderer.ts      # renderer klatek i slajdow
-scripts/smoke-ai.mjs             # smoke test endpointow AI (npm run smoke)
+```sh
+npm install
 ```
 
-## 🔑 Zmienne środowiskowe
+Skopiuj `.env.example` do `.env`. `GEMINI_API_KEY` jest potrzebny do generacji tekstu. Do katalogu ujęć wystarczy jeden z kluczy: `PIXABAY_API_KEY` lub `PEXELS_API_KEY`. Klucze są używane wyłącznie przez serwer.
 
-Skopiuj `.env.example` do `.env` i uzupełnij klucz (używany **wyłącznie po stronie serwera**):
-
-```bash
-GEMINI_API_KEY="twoj-klucz"
+```sh
+npm run dev
 ```
 
-Bez klucza aplikacja działa w trybie offline (endpointy zwracają treści zapasowe), a `/api/ai/status` zwraca `configured: false`.
+Domyślny adres: `http://127.0.0.1:3000`. Jeden proces obsługuje API i frontend Vite. `HOST` i `PORT` można ustawić w `.env`.
 
-## 🛠️ Uruchomienie lokalne
-
-```bash
-bun install        # lub: npm install
-bun run dev        # lub: npm run dev   -> http://localhost:3000
+```sh
+npm run build
+npm start
 ```
 
-Serwer dev (`tsx server.ts`) uruchamia jednocześnie API i Vite w trybie middleware — jeden port (3000), jeden proces.
+Produkcja korzysta z `dist/`; przełącznikiem jest `--prod` w skrypcie startowym.
 
-## 📜 Skrypty
+### Skrót na pulpicie Windows
 
-| Skrypt              | Działanie                                                           |
-| ------------------- | ------------------------------------------------------------------- |
-| `npm run dev`       | serwer dev (API + frontend na porcie 3000)                          |
-| `npm run client`    | sam frontend przez Vite                                             |
-| `npm run build`     | typecheck + build frontendu + bundling serwera do `dist/server.cjs` |
-| `npm start`         | uruchomienie builda produkcyjnego                                   |
-| `npm run lint`      | ESLint (z regułą prettier)                                          |
-| `npm run typecheck` | `tsc --noEmit`                                                      |
-| `npm run smoke`     | smoke test endpointów AI (startuje serwer, sprawdza 3 endpointy)    |
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-desktop-shortcut.ps1
+```
 
-## 🧠 Silnik treści (fazy 1–2)
+Skrót **Stark Focus** uruchamia aktualny kod projektu w tle, czeka na gotowość serwera i otwiera domyślną przeglądarkę pod `http://localhost:3000`. Kolejne uruchomienie korzysta z działającego serwera. Nie trzeba otwierać terminala. Logi uruchomienia są w `logs/`; błąd startu pokazuje komunikat. Serwer działa do zakończenia procesu lub wyłączenia komputera.
 
-- **Paczka dnia** (`POST /api/ai/daily-pack`) — 3 rolki + karuzela 4:5 + post 1:1 z auto-rotacją 8 kategorii dark motivation. Klik „Zaplanuj publikację” tworzy zadania w plannerze (12:00 / 14:00 / 15:00 / 18:00).
-- **Nieskończone pomysły** (`POST /api/ai/idea-stream`) — generator bez limitu z **anty-powtórką**: każdy hook trafia do historii fingerprintów w `localStorage` (`used_idea_fingerprints`), a kolejne paczki dostają listę wykluczeń. Dodatkowo macierz kombinatoryczna: 10 kategorii × 10 archetypów × 8 celów emocjonalnych × 5 formatów.
-- **Analiza virala** (`POST /api/ai/deconstruct-viral`) — wklejasz link (TikTok/IG/Shorts), AI rozbiera post na hook, strukturę, wyzwalacze psychologiczne i generuje 3 własne warianty w stylu @stark_focus.
-- **Silnik wzrostu** (`POST /api/ai/ab-variants`, `/api/ai/ab-conclusion`, `/api/ai/weekly-autopilot`, `/api/ai/reroll-prompt`) — eksperymenty A/B z pętlą uczenia, tygodniowy autopilot i reroll promptów tła w tym samym stylu.
-- **Generator masowy** (`POST /api/ai/batch-generator`) — paczka N unikalnych cytatów 9:16 (hook + podpis + caption).
+Skrót używa adresu dotychczasowego launchera Windows. Dane przeglądarki dla `localhost` i `127.0.0.1` są osobne — materiały zapisane pod drugim adresem pozostają dostępne właśnie tam. Launcher zawsze wiąże serwer do `127.0.0.1:3000`, niezależnie od `HOST` i `PORT` w `.env`.
 
-> **Architektura:** runtime używa wyłącznie modularnych tras z `src/lib/ai/routes/*` spiętych przez `src/lib/ai/router.server.ts`. Jedyne źródło prawdy dla klienta Gemini, modeli (`GEMINI_MODEL` / `GEMINI_LITE_MODEL`) i retry/fallbacku (503/429) to `src/lib/ai/gemini.server.ts`. Każda trasa ma własny bank treści zapasowych (oznaczany nagłówkiem `x-stark-degraded`).
+### Aktualizacje na GitHubie
 
-## 🧭 Roadmapa automatyzacji (docelowo 1–2–3 kliknięcia)
+Repozytorium: [kkomerco/stark_focus](https://github.com/kkomerco/stark_focus). Przed wysłaniem zmian uruchamiamy kontrole z sekcji „Weryfikacja”, zapisujemy commit i wykonujemy zwykły push. GitHub Actions ponawia kontrole po pushu i dla pull requestów. `package-lock.json` jest wersjonowany, aby `npm ci` instalowało ustalone wersje zależności. `.env`, logi i pliki sejfu pozostają lokalne. Dane konta i szkice przeglądarki nie są częścią repozytorium.
 
-1. **Klik 1 — „Wygeneruj paczkę dnia”:** jeden endpoint orkiestrujący zwracający komplet (rolki + karuzela + post 1:1) z auto-doborem teł i opisów.
-2. **Klik 2 — „Renderuj wszystko”:** render canvasem + ZIP + auto-zapis do Pipeline i schowka.
-3. **Klik 3 — „Eksport/Schedule”:** pobranie pakietu, QR lub webhook do zewnętrznego schedulera.
+## Zakres aplikacji
 
-## 📝 Konwencje pracy
+- Kadr: cytat, protokół, koszt, kolaż i wymówka kontra fakt; edycja tekstu, kroju i położenia; PNG/JPG i pakiety materiałów.
+- Rolka: osobna grafika lub klip do każdego zdania, przycinanie i opcjonalna pętla ujęcia, animacja tekstu oraz eksport bez dźwięku przez WebCodecs z zapasowym MediaRecorder. Muzykę dodaje właściciel na platformie społecznościowej.
+- Szkice: automatyczny lokalny zapis studiów posta, rolki i karuzeli oraz tematów i wyników radaru. Powrót do tego samego materiału przywraca ostatnią edycję.
+- Karuzela: ręczne studio 4:5 dostępne z radaru, edytowalny opis, ostrzeżenie po zmianie slajdów, minimum 48 px dla treści oraz wskazówka przy przepełnieniu. ZIP przygotowuje się przed pobraniem; zmiana materiału unieważnia link do poprzedniej wersji.
+- Radar: propozycje tematów, różne spojrzenia, kontrast i rozwijanie własnego tekstu. Nie mierzy bieżących trendów ani zasięgu. Zmiana zakładki nie wywołuje AI.
+- Narzędzia: pomysły, paczka dnia na własny temat (jedna rolka, karuzela i post), serie postów, analiza materiału, A/B, cytaty z transkryptu i ręczne archiwum promptów. Autopilot, masowe rolki oraz matryca „sprawdzonych wirali” zostały usunięte z interfejsu. [Decyzje i sprawdzenie formatów](docs/format-review-2026-10-03.md).
+- Sejf: ręczny wybór ujęć z katalogów, przechowywanie plików na dysku w `sejf/`.
+- Oprawa marki: wspólny panel opisu i planu scen w studiu posta i rolki. Stylizowany bohater ROOK, karta referencyjna i pionowy kadr do wypróbowania. Plan przypisuje działania do aktualnych zdań i pozwala pobrać prompty. Nie generuje obrazów ani animacji w aplikacji. [Kierunek wizualny i instrukcja](docs/brand/identity.md).
+- Wzorce: właściciel wskazuje przykłady dla generatorów. Historia publikacji pochodzi z kliknięcia „Poszło na konto” i testów A/B; nie ma osobnej zakładki publikacji ani automatycznego publikowania.
 
-- Nie przepisujemy opublikowanej historii git (force push / rebase opublikowanych commitów) — patrz `AGENTS.md`.
-- Końcówki linii: LF w repozytorium (`.gitattributes`), formatowanie przez prettier.
+Generator rolek i paczka dnia nie zastępują materiału bankiem tekstów. Radar, generator A/B i analiza materiału odrzucają starsze odpowiedzi zapasowe, zachowując poprzedni wynik. Starsze endpointy pozostają dla zgodności, ale ich obecność nie oznacza dostępności usuniętych narzędzi w interfejsie. Brak klucza nie oznacza pełnej funkcjonalności offline.
+
+## Architektura
+
+| Obszar                                         | Źródło                                                          |
+| ---------------------------------------------- | --------------------------------------------------------------- |
+| Serwer API i frontend                          | `server.ts`                                                     |
+| Klient Gemini, modele, limity czasu i fallback | `src/lib/ai/gemini.server.ts`                                   |
+| Trasy treści i rejestracja                     | `src/lib/ai/routes/`, `src/lib/ai/router.server.ts`             |
+| Rzemiosło hooka i wspólny prompt               | `src/lib/hookCraft.ts`                                          |
+| Formaty kadru                                  | `src/lib/formats.ts`                                            |
+| Wzorce i dziennik publikacji                   | `src/lib/published.ts`                                          |
+| Historia użytej treści                         | `src/lib/usedContent.ts`, `src/lib/similarity.ts`               |
+| CTA, hashtagi i opisy                          | `src/lib/caption.ts`                                            |
+| Render posta                                   | `src/utils/canvasRenderer.ts`                                   |
+| Układ i eksport rolki                          | `src/components/video/reelLayout.ts`, `src/utils/reelExport.ts` |
+| Pobieranie obcych plików                       | `src/lib/fetch-image.server.ts`                                 |
+| Dane i kopie JSON                              | `src/utils/storage.ts`                                          |
+
+Stack: React, TypeScript, Vite, Tailwind, Node/Express, Google GenAI SDK, Canvas, WebCodecs i JSZip. Konkretne modele są definiowane wyłącznie w `gemini.server.ts`.
+
+Dane konta mieszkają w localStorage tej przeglądarki. Szkice studiów i wgrane pliki są w IndexedDB, poza limitem localStorage. Status w studio pokazuje powodzenie lub błąd zapisu. Czyszczenie danych strony usuwa szkice. Pliki sejfu mieszkają na dysku; eksport danych konta i paczka JSON scen nie są kopią plików ani szkiców. Paczkę scen można ponownie wczytać w panelu oprawy marki. API nie ma kont ani uwierzytelnienia — ustawienie `HOST=0.0.0.0` udostępnia je w sieci lokalnej.
+
+## Weryfikacja
+
+```sh
+npm run typecheck
+npm run lint
+npm test
+npm run build
+```
+
+Testy regresji generatora rolek używają stubu SDK i nie zużywają limitu modelu. `npm run smoke` uruchamia integracyjne sprawdzenie starszych endpointów; przy skonfigurowanym kluczu może wywołać zewnętrzne API.
+
+Konwencje architektury, marki i gita: [AGENTS.md](AGENTS.md). Formatowanie Prettier, końcówki linii LF; bez przepisywania opublikowanej historii.

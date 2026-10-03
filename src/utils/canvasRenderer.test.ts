@@ -13,12 +13,14 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   drawSlideToCanvas,
+  buildCarouselZip,
   renderUniversalLayout,
   type RenderSlideOptions,
 } from "./canvasRenderer";
 import { BRAND_ACCENT } from "./starkBrandTheme";
 import { structuredSpec } from "./ideaLayout";
 import { UniversalLayoutSpec } from "../types";
+import JSZip from "jszip";
 
 const WIDTH = 1080;
 const HEIGHT = 1920;
@@ -326,6 +328,71 @@ const SLIDE: RenderSlideOptions = {
 };
 
 describe("drawSlideToCanvas (karuzela)", () => {
+  it("ZIP niesie wszystkie slajdy w kolejności i dokładnie edytowany opis", async () => {
+    const { canvas, drawn } = fakeCanvas();
+    const previous = globalThis.document;
+    const target = canvas as unknown as HTMLCanvasElement;
+    target.toBlob = (callback) =>
+      callback(new Blob([JSON.stringify(drawn.splice(0))], { type: "image/png" }));
+    globalThis.document = { createElement: () => target } as unknown as Document;
+    try {
+      const slides = [
+        {
+          headline: "Leave your phone outside the bedroom.",
+          bodyText: "Write one page before breakfast.",
+        },
+        { headline: "Make the first action obvious.", bodyText: "Put a pen beside the open page." },
+      ];
+      const captionText = "Prepare tonight.\n\n#starkfocus";
+      const blob = await buildCarouselZip(slides, { ...SLIDE, captionText });
+      const zip = await JSZip.loadAsync(await blob.arrayBuffer());
+      assert.deepEqual(Object.keys(zip.files), [
+        "slide_1.png",
+        "slide_2.png",
+        "caption_and_hashtags.txt",
+      ]);
+      assert.equal(await zip.file("caption_and_hashtags.txt")!.async("string"), captionText);
+      for (const [index, slide] of slides.entries()) {
+        const rendered = JSON.parse(
+          await zip.file(`slide_${index + 1}.png`)!.async("string"),
+        ) as Drawn[];
+        assert.equal(
+          rendered
+            .filter((entry) => /^500 /.test(entry.font))
+            .map((entry) => entry.text)
+            .join(" "),
+          slide.bodyText,
+        );
+      }
+    } finally {
+      globalThis.document = previous;
+    }
+  });
+  it("tekst slajdu pozostaje czytelny, a nadmiar treści jest zgłaszany bez usuwania słów", () => {
+    const { canvas, drawn } = fakeCanvas();
+    const bodyText =
+      "Leave the notebook open beside the kettle. Write one page before opening the app.";
+    const fit = drawSlideToCanvas(canvas as unknown as HTMLCanvasElement, { ...SLIDE, bodyText });
+    assert.equal(fit?.fits, true);
+    assert.ok((fit?.headlineFontSize ?? 0) >= 48);
+    assert.ok((fit?.bodyFontSize ?? 0) >= 48);
+    const body = drawn.filter((entry) => /^500 /.test(entry.font));
+    assert.equal(body.map((entry) => entry.text).join(" "), bodyText);
+    assert.ok(
+      body.every((entry) => entry.y < 1170),
+      "treść weszła w stopkę",
+    );
+
+    const long = fakeCanvas();
+    const excessive = Array.from({ length: 100 }, () => "notebook").join(" ");
+    const overflow = drawSlideToCanvas(long.canvas as unknown as HTMLCanvasElement, {
+      ...SLIDE,
+      bodyText: excessive,
+    });
+    assert.equal(overflow?.fits, false);
+    assert.ok((overflow?.bodyFontSize ?? 0) >= 48);
+    assert.equal(long.drawn.filter((entry) => /^500 /.test(entry.font)).length, 100);
+  });
   // Sygnet marki: te same klamry co na karcie posta — cztery rogi pola
   // treści, karmazyn tylko w górnym lewym. Stopka (handle) zostaje na
   // zewnątrz: klamra nigdy nie obejmuje podpisu profilu.

@@ -660,12 +660,13 @@ export function registerTrendsRoutes(app: MiniApp): void {
     }
 
     try {
-      const prompt = `Jesteś analitykiem wirusowości dla konta @stark_focus (brutalny stoicyzm, mroczny minimalizm).
-  Nisza: "${niche}". Platforma: "${platform}".
-  Z własnej pamięci o tej niszy podaj 3 wątki, które NAJCZĘŚCIEJ powtarzają się u dużych
-  nadawców, wraz z hookami 0-3s. Nie wymyślaj, że coś sprawdziłeś w sieci — "source_context"
-  ma mówić, u kogo i w jakiej formie ten wątek chodzi (np. "powtarza się u kont 100k+ w
-  formatie mówiącej głowy"). Nie oceniaj szans na zasięg — procentu z głowy nie pokazujemy.
+      const prompt = `Jesteś redaktorem treści dla konta @stark_focus.
+  Nisza lub temat: "${niche}". Format docelowy: "${platform}".
+  Zaproponuj 3 oryginalne tematy, które można rozwinąć w użyteczny materiał.
+  Nie masz wyszukiwarki ani danych o popularności. Nie wymyślaj nazw kont, liczby obserwujących,
+  aktualnych trendów, źródeł, wyników ani procentu zasięgu. "source_context" jest tylko krótkim
+  uzasadnieniem: dlaczego ten temat pasuje do odbiorcy. Zaznacz, że jest propozycją.
+
 
   ${HOOK_CRAFT_PROMPT}
   ${excludeBlock(exclude)}
@@ -675,8 +676,8 @@ export function registerTrendsRoutes(app: MiniApp): void {
       {
         "id": "trend-1",
         "title": "Tytuł trendu po angielsku",
-        "suggested_format": "Rolka 7-Sekundowa" | "3D Wall Letters" | "Karuzela 5-Slajdowa",
-        "source_context": "U kogo i w jakiej formie ten wątek się powtarza",
+        "suggested_format": "Rolka pionowa" | "Post" | "Karuzela",
+        "source_context": "Uzasadnienie propozycji, bez twierdzeń o popularności",
         "audience_pain": "Dokładna frustracja widza po polsku",
         "viral_hooks": ["Hook 1 (EN)", "Hook 2 (EN)", "Hook 3 (EN)"],
         "core_message": "Główne przesłanie po polsku",
@@ -730,7 +731,8 @@ export function registerTrendsRoutes(app: MiniApp): void {
       if (trends.length > 0) {
         return res.json({
           trends,
-          message: "Wątki z pamięci modelu — wzorce, które powtarzają się w tej niszy.",
+          message:
+            "Propozycje tematów od modelu, bez sprawdzania bieżących trendów i pomiaru zasięgu.",
           trimmedDetails: tally(craft.reasons),
         });
       }
@@ -822,7 +824,7 @@ export function registerTrendsRoutes(app: MiniApp): void {
   Rozbij temat: "${topic}" na 4 skrajnie odmienne kąty psychologiczne:
   1. Prowokacja / Kontrowersja (uderzenie w schemat myślowy)
   2. Rzymski Stoicyzm (asceza, ciężar nieodwracalnych decyzji, niewzruszoność — po angielsku, bez słów o śmierci)
-  3. Neurobiologia & Układ Dopaminy (konkretna anatomia woli i oporu)
+  3. Przeszkoda w codziennym działaniu (np. telefon przy łóżku, wyciszony budzik — bez twierdzeń medycznych)
   4. Zero-Empathy Reality Check (twarda konfrontacja bez owijania w bawełnę)
 
   Dla każdego kąta przygotuj:
@@ -831,7 +833,7 @@ export function registerTrendsRoutes(app: MiniApp): void {
   - hook: magnetyczny hook 0-3s po angielsku (Sentence Case lub ALL CAPS)
   - phrases: dokładnie 3 frazy po angielsku [Hook, Kontrast, Climax]
   - caption: 2-3 zdania głębokiego opisu stoickiego PO ANGIELSKU, bez hashtagów i bez CTA (ogon doklejamy u siebie)
-  - rationale: dlaczego ten kąt działa psychologicznie (po polsku)
+  - rationale: jaką obserwację rozwija ten kąt (po polsku), bez obietnic efektów i naukowego autorytetu
 
   ${HOOK_CRAFT_PROMPT}
   ${excludeBlock(exclude)}

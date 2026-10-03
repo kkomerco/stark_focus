@@ -12,7 +12,6 @@ import {
   Sliders,
   Copy,
   Smartphone,
-  Volume2,
   Type,
   RefreshCw,
   SlidersHorizontal,
@@ -51,7 +50,6 @@ import {
   TWEAK_LIMITS,
 } from "../utils/frameAdjust";
 import { REEL_SAFE, bandCenter, safeBand } from "../utils/safeZones";
-import { beatTimesFrom, renderReelBed } from "../utils/reelAudio";
 import { exactExportSupported, exportReelExact } from "../utils/reelExport";
 import { reelChecklist } from "../lib/prepublish";
 import {
@@ -67,12 +65,27 @@ import {
   wordStagger,
 } from "./video/reelLayout";
 import { ChecklistPanel } from "./ChecklistPanel";
-import { VIRAL_REEL_TEMPLATES, type ReelTemplate } from "../data/reelTemplates";
+import { MaterialDirectorPanel } from "./MaterialDirectorPanel";
+import { ReelMontagePanel } from "./ReelMontagePanel";
+import { useStudioMedia, seekStudioVideo } from "./useStudioMedia";
+import { useStudioDraft } from "./useStudioDraft";
 import {
-  STOIC_CATEGORIES,
-  getRandomUniqueFormula,
-  CATEGORY_BACKGROUND_RECOMMENDATIONS,
-} from "../data/ideaMatrix";
+  directorStateFor,
+  readDirectorState,
+  type MaterialDirectorState,
+} from "../lib/materialPlan";
+import {
+  mediaFromFile,
+  mediaFromUrl,
+  readStudioMedia,
+  readReelShots,
+  montageShotAt,
+  shotVideoTime,
+  type StudioMedia,
+  type ReelShot,
+} from "../lib/reelMontage";
+import { VIRAL_REEL_TEMPLATES, type ReelTemplate } from "../data/reelTemplates";
+import { STOIC_CATEGORIES, CATEGORY_BACKGROUND_RECOMMENDATIONS } from "../data/ideaMatrix";
 import {
   EXPANDED_BACKGROUND_LIBRARY,
   getRandomBackgroundScene,
@@ -98,6 +111,7 @@ import {
 } from "./video/reel-helpers";
 import { pickBackground } from "../utils/backgroundPicker";
 import { fetchJson } from "../lib/fetchJson";
+import { pick } from "../lib/random";
 
 interface VideoStudioModalProps {
   onClose?: () => void;
@@ -107,12 +121,29 @@ interface VideoStudioModalProps {
   availablePosts?: Post[];
   /** Odciski treści, która już poszła na konto — jedyna lista anty-powtórkowa. */
   excludeHooks?: string[];
+  exemplarHooks?: string[];
   /** Jeden klik „poszło na konto" — wpis do dziennika buduje `publishedEntry`. */
   onMarkPublished?: (item: PublishedItem) => void;
   onSchedulePostFor1300?: (postData: any) => void;
   onSchedulePost?: (postData: any) => void;
   embedded?: boolean;
   onSendToPost?: (text: string, caption?: string) => void;
+}
+
+interface ReelDraft {
+  phrases: string[];
+  caption: string;
+  captionShort?: string;
+  captionDeep?: string;
+  captionStyle?: "short" | "deep";
+  duration: ReelDuration;
+  fontFamily: FontFamily;
+  theme: VisualTheme;
+  director: MaterialDirectorState | null;
+  background: StudioMedia | null;
+  shots: ReelShot[];
+  tweak: FrameTweak;
+  markTweak: FrameTweak;
 }
 
 export type ViralReelFormat =
@@ -137,7 +168,6 @@ const DEFAULT_CAPTION = `${DEFAULT_PHRASES[0].toUpperCase()}\n\n${starkCta(DEFAU
 
 // Hashtagi liczą się z treści rolki, nie ze stałej listy: Meta ucina ich
 // pięć, a sztywny ogon sprawiał, że każdy post miał identyczną stopkę.
-const DEFAULT_HASHTAGS = starkHashtags(DEFAULT_PHRASES[0]);
 
 /** Studio ogarnia maksymalnie 4 kadry — dłuższe listy z modelu tniemy, nie renderujemy. */
 const MAX_PHRASES = 5;
@@ -261,6 +291,7 @@ export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
   embedded = false,
   onSendToPost,
   excludeHooks = [],
+  exemplarHooks = [],
   onMarkPublished,
 }) => {
   // Read saved preset from localStorage if exists
@@ -306,10 +337,21 @@ export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
   );
 
   // Custom Background State (Image or Video)
-  const [customBgType, setCustomBgType] = useState<"none" | "image" | "video">("none");
-  const [customBgName, setCustomBgName] = useState<string>("");
-  const customImageRef = useRef<HTMLImageElement | null>(null);
-  const customVideoRef = useRef<HTMLVideoElement | null>(null);
+  const [backgroundAsset, setBackgroundAsset] = useState<StudioMedia | null>(null);
+  const [shots, setShots] = useState<ReelShot[]>([]);
+  const [director, setDirector] = useState<MaterialDirectorState | null>(() =>
+    directorStateFor({ lines: resolvePhrases(initialReel), medium: "reel", duration }),
+  );
+  const mediaInputs = useMemo(
+    () =>
+      [backgroundAsset, ...shots.map((shot) => shot.media)]
+        .filter((item): item is StudioMedia => !!item)
+        .filter((item, index, items) => items.findIndex((other) => other.id === item.id) === index),
+    [backgroundAsset, shots],
+  );
+  const studioMedia = useStudioMedia(mediaInputs);
+  const customBgType = backgroundAsset?.kind ?? "none";
+  const customBgName = backgroundAsset?.name ?? "";
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   /**
@@ -319,41 +361,11 @@ export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
    * cicho zostawiać czarną planszę.
    */
   const loadBackgroundUrl = useCallback((url: string, label: string) => {
-    const flash = (message: string) => {
-      setToastMessage(message);
-      setTimeout(() => setToastMessage(null), 3000);
-    };
-
-    if (/\.(mp4|webm|mov)(\?.*)?$/i.test(url)) {
-      const vid = document.createElement("video");
-      vid.crossOrigin = "anonymous";
-      vid.src = url;
-      vid.muted = true;
-      vid.loop = true;
-      vid.playsInline = true;
-      vid.autoplay = true;
-      vid.onloadeddata = () => {
-        customImageRef.current = null;
-        customVideoRef.current = vid;
-        setCustomBgType("video");
-        setCustomBgName(label);
-        vid.play().catch(() => {});
-      };
-      vid.onerror = () => flash(`Ujęcie nie czyta się z sejfu: ${label}`);
-      return;
+    try {
+      setBackgroundAsset(mediaFromUrl(url, label));
+    } catch (error) {
+      setToastMessage((error as Error).message);
     }
-
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.src = url;
-    img.onload = () => {
-      customVideoRef.current?.pause();
-      customVideoRef.current = null;
-      customImageRef.current = img;
-      setCustomBgType("image");
-      setCustomBgName(label);
-    };
-    img.onerror = () => flash(`Grafika nie czyta się z sejfu: ${label}`);
   }, []);
 
   // Auto-load initial background if provided
@@ -432,10 +444,9 @@ export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
   const [caption, setCaption] = useState<string>(
     initialReel ? stripHashtagTail(initialTpl.captionShort) || DEFAULT_CAPTION : DEFAULT_CAPTION,
   );
-  const [hashtags, setHashtags] = useState<string[]>(
-    initialReel && initialTpl.hashtags.length > 0 ? initialTpl.hashtags : DEFAULT_HASHTAGS,
-  );
+  const hashtags = starkHashtags(phrases.join(" "));
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [generationNotice, setGenerationNotice] = useState<string | null>(null);
 
   // Każdy pakiet — także ten wysłany bez przeładowania studia — nadpisuje kadry,
   // motyw, czas i opis. Bez tego studio zostawało z treścią poprzedniej rolki.
@@ -456,7 +467,6 @@ export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
     // zrobił `pickTemplate` na treści pakietu i oba pola muszą się zgadzać.
     setSelectedTheme(nextTemplate.suggestedTheme);
     setCaption(stripHashtagTail(nextTemplate.captionShort));
-    setHashtags(starkHashtags(nextPhrases.join(" ")));
     timeRef.current = 0;
     setCurrentTime(0);
   }, [initialReel]);
@@ -465,8 +475,6 @@ export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [showTikTokGuides, setShowTikTokGuides] = useState<boolean>(false);
-  // Bed proceduralny (dron + uderzenia na grzbietach) zamiast cichego pliku.
-  const [reelAudioEnabled, setReelAudioEnabled] = useState<boolean>(true);
   const [isGeneratingAi, setIsGeneratingAi] = useState<boolean>(false);
   /**
    * Podpis materiału na kadrze. `x-stark-degraded` niesie też odpowiedź, w której
@@ -500,6 +508,8 @@ export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const [exportProgress, setExportProgress] = useState<number>(0);
   const isExportingRef = useRef<boolean>(false);
+  const exportController = useRef<AbortController | null>(null);
+  useEffect(() => () => exportController.current?.abort(), []);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const animationFrameRef = useRef<number | null>(null);
@@ -516,6 +526,106 @@ export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
   );
   const [reelMarkTweak, setReelMarkTweak] = useState<FrameTweak>(() =>
     normalizeTweak(savedPreset?.reelMarkTweak),
+  );
+  const draftKey = `reel:${JSON.stringify(initialReel?.phrases ?? initialReel?.hook ?? "default")}`;
+  const draftValue = useMemo<ReelDraft>(
+    () => ({
+      phrases,
+      caption,
+      captionShort: activeTemplate.captionShort,
+      captionDeep: activeTemplate.captionDeep,
+      captionStyle,
+      duration,
+      fontFamily,
+      theme: selectedTheme,
+      director,
+      background: backgroundAsset,
+      shots,
+      tweak: reelTweak,
+      markTweak: reelMarkTweak,
+    }),
+    [
+      phrases,
+      caption,
+      activeTemplate.captionShort,
+      activeTemplate.captionDeep,
+      captionStyle,
+      duration,
+      fontFamily,
+      selectedTheme,
+      director,
+      backgroundAsset,
+      shots,
+      reelTweak,
+      reelMarkTweak,
+    ],
+  );
+  const draft = useStudioDraft(draftKey, draftValue, (saved) => {
+    if (
+      Array.isArray(saved.phrases) &&
+      saved.phrases.length &&
+      saved.phrases.every((line) => typeof line === "string")
+    ) {
+      const restored = saved.phrases.slice(0, MAX_PHRASES);
+      setPhrases(restored);
+      setReelFormat(formatForPhraseCount(restored.length));
+    }
+    if (typeof saved.caption === "string") {
+      setCaption(saved.caption);
+      setActiveTemplate((previous) => ({
+        ...previous,
+        captionShort: typeof saved.captionShort === "string" ? saved.captionShort : saved.caption,
+        captionDeep: typeof saved.captionDeep === "string" ? saved.captionDeep : saved.caption,
+      }));
+    }
+    if (saved.captionStyle === "short" || saved.captionStyle === "deep")
+      setCaptionStyle(saved.captionStyle);
+    const savedDuration = asReelDuration(saved.duration);
+    if (savedDuration) setDuration(savedDuration);
+    if (["cinzel", "sans", "inter", "cormorant"].includes(saved.fontFamily))
+      setFontFamily(saved.fontFamily);
+    const theme = asReelTheme(saved.theme);
+    if (theme) setSelectedTheme(theme);
+    setDirector((previous) => readDirectorState(saved.director) ?? previous);
+    setBackgroundAsset(readStudioMedia(saved.background));
+    setShots(readReelShots(saved.shots));
+    setReelTweak(normalizeTweak(saved.tweak));
+    setReelMarkTweak(normalizeTweak(saved.markTweak));
+  });
+  const assignShot = (index: number, media: StudioMedia) => {
+    setShots((previous) => [
+      ...previous.filter((shot) => shot.lineIndex !== index),
+      {
+        lineIndex: index,
+        sourceLine: phrases[index] ?? "",
+        media,
+        trimStart: 0,
+        trimEnd: null,
+        loop: false,
+        review: {},
+      },
+    ]);
+  };
+  const frameMediaAt = useCallback(
+    (at: number) => {
+      const shot = montageShotAt(shots, phrases, activeTimeline, at);
+      const asset = shot?.media ?? backgroundAsset;
+      const loaded = asset ? studioMedia.media.get(asset.id) : undefined;
+      if (!loaded) return null;
+      const localTime = shot ? at - activeTimeline[shot.lineIndex].start : at;
+      const target = shot
+        ? shotVideoTime(shot, localTime, loaded.duration)
+        : backgroundFrameTime(at, loaded.duration);
+      return { loaded, target };
+    },
+    [shots, phrases, activeTimeline, backgroundAsset, studioMedia.media],
+  );
+  const seekBackgroundForFrame = useCallback(
+    async (at: number) => {
+      const chosen = frameMediaAt(at);
+      if (chosen) await seekStudioVideo(chosen.loaded, chosen.target);
+    },
+    [frameMediaAt],
   );
   // Którą warstwę ciągniemy: kolumnę tekstu czy klamry outro.
   const [reelAdjustTarget, setReelAdjustTarget] = useState<"content" | "mark">("content");
@@ -538,6 +648,7 @@ export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
   const [isExportingZip, setIsExportingZip] = useState<boolean>(false);
 
   const handleExportZipBundle = async () => {
+    if (isExportingRef.current) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     setIsExportingZip(true);
@@ -550,12 +661,14 @@ export const VideoStudioModal: React.FC<VideoStudioModalProps> = ({
       const zip = new JSZip();
 
       // Klatka okładkowa (Hook)
+      await seekBackgroundForFrame(0.5);
       renderFrame(0.5);
       const coverDataUrl = canvas.toDataURL("image/png");
       const coverBlob = await (await fetch(coverDataUrl)).blob();
       zip.file("1_COVER_HOOK_1080x1920.png", coverBlob);
 
       // Klatka finałowa (Climax)
+      await seekBackgroundForFrame(Math.max(1, duration - 0.5));
       renderFrame(Math.max(1, duration - 0.5));
       const climaxDataUrl = canvas.toDataURL("image/png");
       const climaxBlob = await (await fetch(climaxDataUrl)).blob();
@@ -614,68 +727,22 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
     }
   };
 
-  // Handle Custom Media Upload (Image or Video)
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  // Plik w szkicu jest Blobem, a URL odtwarzacza ma własny cykl życia.
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
     if (!file) return;
-
-    const fileUrl = URL.createObjectURL(file);
-    setCustomBgName(file.name);
-
-    if (file.type.startsWith("video/")) {
-      const vid = document.createElement("video");
-      vid.src = fileUrl;
-      vid.muted = true;
-      vid.loop = true;
-      vid.playsInline = true;
-      vid.autoplay = true;
-      vid.play().catch(() => {});
-      customVideoRef.current = vid;
-      customImageRef.current = null;
-      setCustomBgType("video");
-      // Wideo nie zna swoich wymiarów przed załadowaniem metadanych.
-      vid.onloadedmetadata = () => {
-        setToastMessage(
-          vid.videoWidth < 720 || vid.videoHeight < 1280
-            ? `Uwaga: wideo ma ${vid.videoWidth}x${vid.videoHeight} — na kadrze 1080x1920 będzie miękkie.`
-            : "Własne tło wideo załadowane.",
-        );
-      };
-    } else if (file.type.startsWith("image/")) {
-      const img = new Image();
-      img.src = fileUrl;
-      img.onload = () => {
-        customImageRef.current = img;
-        customVideoRef.current = null;
-        setCustomBgType("image");
-        // Material w niższej rozdzielczości platformy tłumią, a my i tak
-        // rysujemy na 1080x1920 — więc rozciągnięty kadr to podwójna strata.
-        setToastMessage(
-          img.naturalWidth < 720 || img.naturalHeight < 1280
-            ? `Uwaga: tło ma ${img.naturalWidth}x${img.naturalHeight}, a kadr ma 1080x1920 — będzie rozciągnięte.`
-            : "Własne tło graficzne załadowane.",
-        );
-      };
+    try {
+      setBackgroundAsset(mediaFromFile(file));
+    } catch (error) {
+      setToastMessage((error as Error).message);
     }
-    setTimeout(() => setToastMessage(null), 3000);
+    event.target.value = "";
   };
 
   const handleClearCustomBg = () => {
-    if (customVideoRef.current) {
-      customVideoRef.current.pause();
-      customVideoRef.current.src = "";
-      customVideoRef.current = null;
-    }
-    customImageRef.current = null;
-    setCustomBgType("none");
-    setCustomBgName("");
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-    setToastMessage("Przywrócono domyślny motyw wizualny.");
-    setTimeout(() => setToastMessage(null), 2500);
+    setBackgroundAsset(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
-
   // Toggle between Short Punchy Caption vs Deep Stoic Breakdown
   const handleCaptionStyleToggle = (style: "short" | "deep") => {
     setCaptionStyle(style);
@@ -715,17 +782,15 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
   // 1-Click AI Reel Director (Łamacz algorytmów: Viral 6s loop, 5s hook-payoff, dynamic B-roll cut)
   const handleGenerateAiReel = async () => {
     setIsGeneratingAi(true);
+    setGenerationNotice(null);
 
     // Automatyczny losowy dobór kąta stoickiego
-    const randomCat = STOIC_CATEGORIES[Math.floor(Math.random() * STOIC_CATEGORIES.length)];
+    const randomCat = pick(STOIC_CATEGORIES.filter((category) => category.id !== "all"));
     const chosenCategoryId = randomCat?.id || "sovereign_mindset";
 
     try {
-      const controller = new AbortController();
-      // Serwer ma własny budżet 20 s na próbę; wcześniejszy abort klienta
-      // przerywał połączenie, którego model już nie zwróci, a request był płatny.
-      const timeoutId = setTimeout(() => controller.abort(), 25000);
-
+      // Budżet czasu i zapasowe modele należą do serwera. Klient nie ucina
+      // odpowiedzi po 25 s i nie zastępuje jej tekstem z lokalnego banku.
       const {
         data: json,
         degraded,
@@ -734,21 +799,27 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          topic:
-            "Ruthless stoic discipline, sovereign posture, high-leverage focus, psychological power shift",
+          topic: randomCat?.name || "A specific everyday decision and its consequence",
           // Nie `reelFormat`: trasa nie zna id układów studia i brałaby wtedy
           // domyślne cztery frazy, które studio sklejało w jeden takt.
           format: narrativeFormatFor(reelFormat),
           category: chosenCategoryId,
-          excludeTitles: seenTitlesRef.current,
           // Jedna lista anty-powtórkowa z konta: dawniej studio mówiło trasie
           // tylko o tytułach z tej sesji i rolka potrafiła oddać zdanie, które
           // już wyszło na konto.
           excludeHooks,
+          exemplarHooks,
         }),
-        signal: controller.signal,
       });
-      clearTimeout(timeoutId);
+
+      if (degraded || status < 200 || status >= 300) {
+        setGenerationNotice(
+          typeof json.notice === "string"
+            ? json.notice
+            : "Nie udało się wygenerować nowej rolki. Twój materiał pozostaje w studio.",
+        );
+        return;
+      }
 
       if (status >= 200 && status < 300) {
         let parsedData: Record<string, any> = json;
@@ -766,7 +837,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
           Array.isArray(parsedData.phrases) &&
           parsedData.phrases.length > 0
         ) {
-          const freshTitle = parsedData.title || "Sovereign Mindset Protocol";
+          const freshTitle = parsedData.title || parsedData.phrases[0];
           seenTitlesRef.current.push(freshTitle.toLowerCase().replace(/\s+/g, "_"));
           if (seenTitlesRef.current.length > 60) seenTitlesRef.current.shift();
 
@@ -775,8 +846,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
           // tylko zgadzała się liczba na ekranie.
           const finalPhrases = clipToBeats(parsedData.phrases, reelFormat);
           setPhrases(finalPhrases);
-          // Karta formatu pokazuje to, co jest na osi czasu, nie to, o co prosiliśmy:
-          // bank treści potrafi oddać mniej taktów niż wybrany układ.
+          // Karta formatu pokazuje to, co jest na osi czasu.
           setReelFormat(formatForPhraseCount(finalPhrases.length));
 
           // Trasa oddaje `suggestedDuration`; `duration` w odpowiedzi nie
@@ -796,11 +866,10 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
           const hook = finalPhrases[0];
           // Krótki i głębszy muszą się różnić treścią, nie tylko wysokością
           // pola — inaczej przełącznik kłamie.
-          const shortC = starkCaption(hook, String(parsedData.captionShort || ""));
-          const deepC = starkCaption(
-            hook,
-            String(parsedData.captionDeep || parsedData.captionShort || ""),
-          );
+          // Serwer już dodał markowy ogon. Ponowne formatowanie doklejało
+          // niektóre CTA po raz drugi.
+          const shortC = parsedData.captionShort || starkCaption(hook);
+          const deepC = parsedData.captionDeep || shortC;
 
           const validThemes: VisualTheme[] = [
             "obsidian_void",
@@ -830,62 +899,22 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
 
           setActiveTemplate(dynamicTpl);
           setCaption(stripHashtagTail(captionStyle === "deep" ? deepC : shortC));
-          setHashtags(starkHashtags(dynamicTpl.phrases.join(" ")));
           setSelectedTheme(nextTheme);
           timeRef.current = 0;
           setCurrentTime(0);
 
-          // Nagłówek `x-stark-degraded` mówi, że te zdania wyszły z banku
-          // treści, nie z tej odpowiedzi — kadr musi mieć to napisane przy sobie.
-          setReelBankNote(degraded ? BANK_LABEL : "");
-          setToastMessage(
-            degraded
-              ? `Bank treści: „${freshTitle}" — ${finalPhrases.length} kadrów, model nie odpowiedział.`
-              : `Rolka „${freshTitle}" — ${finalPhrases.length} kadrów.`,
-          );
+          setReelBankNote("");
+          setToastMessage(`Rolka „${freshTitle}" — ${finalPhrases.length} kadrów.`);
           setTimeout(() => setToastMessage(null), 2800);
-          setIsGeneratingAi(false);
           return;
         }
       }
+      setGenerationNotice("Model zwrócił pusty materiał. Twój materiał pozostaje w studio.");
     } catch {
-      // fallback to instant combinatorial matrix
+      setGenerationNotice("Nie udało się odebrać odpowiedzi. Twój materiał pozostaje w studio.");
+    } finally {
+      setIsGeneratingAi(false);
     }
-
-    // Dynamic Combinatorial Matrix Fallback (Zero duplicates, 28,000+ linked stoic formulas)
-    const formula = getRandomUniqueFormula("three_phases", chosenCategoryId, seenTitlesRef.current);
-    seenTitlesRef.current.push(formula.title.toLowerCase().replace(/\s+/g, "_"));
-    if (seenTitlesRef.current.length > 60) seenTitlesRef.current.shift();
-
-    let fallbackPhrases = formula.phrases;
-    if (reelFormat === "viral_loop_6s") {
-      fallbackPhrases = [
-        formula.phrases[0] || "Walk like a king, or walk like you don't care who the king is.",
-      ];
-      setDuration(6);
-    } else if (reelFormat === "hook_payoff_5s") {
-      fallbackPhrases = [formula.phrases[0], formula.phrases[formula.phrases.length - 1]];
-      setDuration(5);
-    } else {
-      setDuration(9);
-    }
-
-    setActiveTemplate(formula);
-    setPhrases(fallbackPhrases);
-    setCaption(
-      stripHashtagTail(captionStyle === "deep" ? formula.captionDeep : formula.captionShort),
-    );
-    setHashtags(starkHashtags(fallbackPhrases.join(" ")));
-    setSelectedTheme(formula.suggestedTheme);
-    timeRef.current = 0;
-    setCurrentTime(0);
-
-    // Bez odpowiedzi od modelu kładziemy na kadr to, co mamy w pliku. Zdanie
-    // z matrycy nie może stać pod rolką jako rzekomo napisana dziś fraza.
-    setReelBankNote(BANK_LABEL);
-    setToastMessage(`Model nie odpowiedział — kadr z lokalnego banku treści: „${formula.title}".`);
-    setTimeout(() => setToastMessage(null), 2800);
-    setIsGeneratingAi(false);
   };
 
   // Copy Caption to Clipboard
@@ -938,7 +967,9 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
       // „dokumentalnego", przez który kadr przestaje wyglądać na wygenerowany.
       // Kwantowanie tekstu przenosiłoby literę z linii bazowej.
       const bgTime = quantizeToFps(timeSec, 12);
-      const isDynamicCut = reelFormat === "dynamic_broll_cut" && timeSec >= totalDuration * 0.48;
+      const hasShot = !!montageShotAt(shots, phrases, activeTimeline, timeSec);
+      const isDynamicCut =
+        !hasShot && reelFormat === "dynamic_broll_cut" && timeSec >= totalDuration * 0.48;
       // Oddech kamery liczy czysta funkcja z reelLayout — jedna wartość dla
       // podglądu i eksportu, bo oba maluje ten sam słupek. Skala idzie tylko
       // na tło (obraz/gradient), tekst zostaje na pełnej rozdzielczości kadru.
@@ -955,8 +986,9 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
       }
       ctx.translate(-width / 2, -height / 2);
 
-      if (customBgType === "video" && customVideoRef.current) {
-        const vid = customVideoRef.current;
+      const chosenMedia = frameMediaAt(timeSec)?.loaded;
+      if (chosenMedia?.asset.kind === "video") {
+        const vid = chosenMedia.source as HTMLVideoElement;
         const vidW = vid.videoWidth || 1080;
         const vidH = vid.videoHeight || 1920;
         const scale = Math.max(width / vidW, height / vidH);
@@ -968,8 +1000,8 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
         // Dark overlay for contrast
         ctx.fillStyle = "rgba(0, 0, 0, 0.45)";
         ctx.fillRect(0, 0, width, height);
-      } else if (customBgType === "image" && customImageRef.current) {
-        const img = customImageRef.current;
+      } else if (chosenMedia?.asset.kind === "image") {
+        const img = chosenMedia.source as HTMLImageElement;
         const imgW = img.naturalWidth || 1080;
         const imgH = img.naturalHeight || 1920;
         const scale = Math.max(width / imgW, height / imgH);
@@ -1409,7 +1441,6 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
       }
     },
     [
-      customBgType,
       selectedTheme,
       showTikTokGuides,
       phrases,
@@ -1419,6 +1450,9 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
       pacingMode,
       reelTweak,
       reelMarkTweak,
+      frameMediaAt,
+      shots,
+      activeTimeline,
     ],
   );
 
@@ -1444,6 +1478,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
   };
 
   const onReelDragStart = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (isExportingRef.current) return;
     if (!reelDragBox()) return;
     const rect = event.currentTarget.getBoundingClientRect();
     dragRef.current = {
@@ -1457,6 +1492,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
   };
 
   const onReelDragMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (isExportingRef.current) return;
     const drag = dragRef.current;
     const box = reelDragBox();
     if (!drag || !box) return;
@@ -1484,6 +1520,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
    * da się zrobić gestem, przekłada się na sześćset klatek.
    */
   const onReelKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (isExportingRef.current) return;
     const step = nudgeStep(event.key, event.shiftKey);
     const box = step ? reelDragBox() : null;
     if (!step || !box) return;
@@ -1546,6 +1583,10 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
         lastShown = shown;
         setCurrentTime(shown);
       }
+      const previewMedia = frameMediaAt(timeRef.current);
+      if (previewMedia && !previewMedia.loaded.pendingSeek) {
+        void seekStudioVideo(previewMedia.loaded, previewMedia.target).catch(() => {});
+      }
       renderFrame(timeRef.current);
 
       animationFrameRef.current = requestAnimationFrame(loop);
@@ -1556,7 +1597,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
     return () => {
       if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
     };
-  }, [duration, renderFrame]);
+  }, [duration, renderFrame, frameMediaAt]);
 
   const downloadBlob = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
@@ -1572,40 +1613,12 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
   };
 
   /**
-   * Przewinięcie tła na czas klatki, zanim eksport ją narysuje. Bez czekania
-   * na `seeked` `drawImage` łapie kadr sprzed skoku, czyli plik dostaje tło
-   * żywego podglądu zamiast tego, co wypada w naszym liczniku klatek.
-   * Pułap czasu jest dlatego, że jeden niezdecode'owany klip nie ma prawa
-   * zatrzymać eksportu na trzydziestu klatkach.
-   */
-  const seekBackgroundForFrame = (at: number) =>
-    new Promise<void>((resolve) => {
-      const vid = customVideoRef.current;
-      const clip = vid?.duration ?? 0;
-      if (customBgType !== "video" || !vid || !(clip > 0)) return resolve();
-
-      const target = backgroundFrameTime(at, clip);
-      if (Math.abs(vid.currentTime - target) < 0.001) return resolve();
-
-      let settled = false;
-      const finish = () => {
-        if (settled) return;
-        settled = true;
-        vid.removeEventListener("seeked", finish);
-        clearTimeout(timer);
-        resolve();
-      };
-      const timer = setTimeout(finish, 500);
-      vid.addEventListener("seeked", finish);
-      vid.currentTime = target;
-    });
-
-  /**
    * Ścieżka pierwszego wyboru: klatka po klatce przez WebCodecs. Licznik
    * klatek jest nasz, więc plik ma dokładnie `duration` sekund, a przy
    * zamrożonej karcie nie zamienia się w jedną stojącą klatkę.
    */
   const handleExportVideo = async () => {
+    if (isExportingRef.current) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     if (!exactExportSupported()) {
@@ -1622,17 +1635,10 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
     setIsPlaying(false);
     // Żywy playhead przerywa walkę z naszym licznikiem klatek: bez pauzy
     // element przewijałby się sam w trakcie, gdy my ustawiamy `currentTime`.
-    const bgVideo = customVideoRef.current;
-    bgVideo?.pause();
 
+    const controller = new AbortController();
+    exportController.current = controller;
     try {
-      const bed = reelAudioEnabled
-        ? await renderReelBed({
-            durationSec: totalDur,
-            beatTimes: beatTimesFrom(getPhraseTimeline(phrases, totalDur, pacingMode)),
-          })
-        : null;
-
       const blob = await exportReelExact({
         canvas,
         width: REEL_WIDTH,
@@ -1640,14 +1646,14 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
         durationSec: totalDur,
         drawFrame: renderFrame,
         beforeFrame: seekBackgroundForFrame,
-        audio: bed,
         onProgress: setExportProgress,
+        signal: controller.signal,
       });
 
       isExportingRef.current = false;
       setIsExporting(false);
       setIsPlaying(true);
-      bgVideo?.play().catch(() => {});
+
       downloadBlob(
         blob,
         `stark_reel_${REEL_WIDTH}x${REEL_HEIGHT}_${totalDur}s_${selectedTheme}_${Date.now()}.mp4`,
@@ -1655,6 +1661,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
       setToastMessage(`Rolka pobrana klatka po klatce — ${totalDur}.00 s w 30 fps.`);
       setTimeout(() => setToastMessage(null), 3000);
     } catch (err) {
+      if (controller.signal.aborted) return;
       // Enkoder H.264 nie istnieje w każdej przeglądarce. Zamiast zostawiać
       // użytkownika z błędem, wracamy na nagrywanie czasu rzeczywistego —
       // gorszy plik, ale plik.
@@ -1662,7 +1669,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
       isExportingRef.current = false;
       setIsExporting(false);
       // Ścieżka zapasowa nagrywa żywy podgląd, więc tło musi znowu lecieć.
-      bgVideo?.play().catch(() => {});
+
       await exportReelWithRecorder();
     }
   };
@@ -1691,6 +1698,8 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
     setIsExporting(true);
     setExportProgress(0);
     setIsPlaying(false);
+    const controller = new AbortController();
+    exportController.current = controller;
 
     try {
       // FIX BŁĘDU PODWAJANIA DŁUGOŚCI ROLKI:
@@ -1701,54 +1710,16 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
       // więc stałe taktowanie captureStream(30) z bitrate 18 Mbps gwarantuje:
       // 1. Idealny czas trwania 1:1 (film 7s ma dokładnie 7.00s na każdym odtwarzaczu i w social media).
       // 2. Maksymalną ostrość typografii i brak zacinania.
-      // Strumień z canvasu jest wyłącznie wideo — dlatego na liście nie ma kodka audio, a eksport
-      // ścieżki dźwiękowej, więc na liście nie było kodka audio; teraz bed jest
-      // proceduralny (`reelAudio.ts`) i dokłada się do strumienia.
+      // Eksport zawiera tylko obraz; właściciel dodaje dźwięk na platformie.
       const stream = canvas.captureStream(30);
-
-      // Dźwięk składamy w kodzie, nie z pliku: aplikacja jest lokalna, bez
-      // konta i bez prawa do bibliotek platformowych (konto firmowe dostaje
-      // tylko próbkę komercyjną). Render jest deterministyczny, więc ten sam
-      // kadr brzmi identycznie przy każdym eksporcie.
-      let audioCtx: AudioContext | null = null;
-      let audioSource: AudioBufferSourceNode | null = null;
-      if (reelAudioEnabled) {
-        try {
-          const bed = await renderReelBed({
-            durationSec: totalDur,
-            beatTimes: beatTimesFrom(getPhraseTimeline(phrases, totalDur, pacingMode)),
-          });
-          audioCtx = new AudioContext();
-          audioSource = audioCtx.createBufferSource();
-          audioSource.buffer = bed;
-          const out = audioCtx.createMediaStreamDestination();
-          audioSource.connect(out);
-          for (const track of out.stream.getAudioTracks()) stream.addTrack(track);
-        } catch (err) {
-          console.error("Bed dźwiękowy nie powstał, nagrywamy bez niego:", err);
-          void audioCtx?.close();
-          audioCtx = null;
-          audioSource = null;
-        }
-      }
-
-      const mimeTypes = audioSource
-        ? [
-            'video/mp4;codecs="avc1.42E01E,mp4a.40.2"',
-            "video/mp4;codecs=avc1.42E01E,mp4a.40.2",
-            "video/mp4",
-            'video/webm;codecs="vp9,opus"',
-            "video/webm;codecs=vp9,opus",
-            "video/webm",
-          ]
-        : [
-            "video/mp4;codecs=avc1.42E01E",
-            "video/mp4;codecs=avc1",
-            "video/mp4",
-            "video/webm;codecs=vp9",
-            "video/webm;codecs=vp8",
-            "video/webm",
-          ];
+      const mimeTypes = [
+        "video/mp4;codecs=avc1.42E01E",
+        "video/mp4;codecs=avc1",
+        "video/mp4",
+        "video/webm;codecs=vp9",
+        "video/webm;codecs=vp8",
+        "video/webm",
+      ];
       const selectedMime = mimeTypes.find((t) => MediaRecorder.isTypeSupported(t)) || "video/webm";
       // Firefox/Safari wybierają z listy webm — plik .mp4 z bajtami webm nie da się otworzyć.
       const extension = selectedMime.includes("mp4") ? "mp4" : "webm";
@@ -1762,19 +1733,15 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
       // kolejna eksport zostawia w karcie aktywny strumień.
       const releaseStream = () => {
         stream.getTracks().forEach((track) => track.stop());
-        try {
-          audioSource?.stop();
-        } catch {
-          // już zatrzymany przez odtworzenie do końca bufora
-        }
-        void audioCtx?.close();
       };
 
       const chunks: Blob[] = [];
+      let failed = false;
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) chunks.push(e.data);
       };
       recorder.onerror = () => {
+        failed = true;
         console.error("Błąd MediaRecorder:", recorder.state);
         releaseStream();
         isExportingRef.current = false;
@@ -1785,6 +1752,14 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
 
       recorder.onstop = () => {
         releaseStream();
+        controller.signal.removeEventListener("abort", abortRecording);
+        if (controller.signal.aborted) return;
+        if (failed) {
+          isExportingRef.current = false;
+          setIsExporting(false);
+          setIsPlaying(true);
+          return;
+        }
         const blob = new Blob(chunks, { type: selectedMime });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
@@ -1805,13 +1780,11 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
       };
 
       recorder.start();
-      // Ten sam takt co nagrywarka: bed startuje w momencie, w którym klatka
-      // zero idzie do pliku, więc uderzenia trafiają w grzbiety fraz.
-      try {
-        audioSource?.start();
-      } catch (err) {
-        console.error("Nie udało się wystartować ścieżki dźwiękowej:", err);
-      }
+      const abortRecording = () => {
+        if (recorder.state === "recording") recorder.stop();
+        releaseStream();
+      };
+      controller.signal.addEventListener("abort", abortRecording, { once: true });
 
       const startTime = performance.now();
 
@@ -1836,20 +1809,31 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
         }, 150);
       };
 
-      const step = (stamp: number) => {
-        const elapsed = (stamp - startTime) / 1000;
-        if (elapsed >= totalDur) {
-          // Ostatnia klatka tuż przed końcem fade-outu — inaczej film urywa się
-          // czarnym kadrze bez tekstu.
-          renderFrame(Math.max(0, totalDur - 1 / 30));
-          setExportProgress(100);
-          stopRecording();
-          return;
-        }
+      const step = async (stamp: number) => {
+        if (controller.signal.aborted || recorder.state !== "recording") return;
+        try {
+          const elapsed = (stamp - startTime) / 1000;
+          if (elapsed >= totalDur) {
+            // Ostatnia klatka tuż przed końcem fade-outu — inaczej film urywa się
+            // czarnym kadrze bez tekstu.
+            await seekBackgroundForFrame(Math.max(0, totalDur - 1 / 30));
+            renderFrame(Math.max(0, totalDur - 1 / 30));
+            setExportProgress(100);
+            stopRecording();
+            return;
+          }
 
-        renderFrame(elapsed);
-        setExportProgress(Math.min(99, Math.round((elapsed / totalDur) * 100)));
-        requestAnimationFrame(step);
+          await seekBackgroundForFrame(elapsed);
+          if (controller.signal.aborted || recorder.state !== "recording") return;
+          renderFrame(elapsed);
+          setExportProgress(Math.min(99, Math.round((elapsed / totalDur) * 100)));
+          requestAnimationFrame(step);
+        } catch (error) {
+          failed = true;
+          if (!controller.signal.aborted)
+            setToastMessage(`Eksport przerwany: ${(error as Error).message}`);
+          stopRecording();
+        }
       };
 
       requestAnimationFrame(step);
@@ -1864,28 +1848,41 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
   };
 
   // Export Still Frame PNG (Full HD 1080x1920)
-  const handleExportPng = () => {
+  const handleExportPng = async () => {
+    if (isExportingRef.current) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     // Kadr jest rysowany dopiero tu i teraz — inaczej schodzi ostatnia klatka
     // podglądu, razem z polskimi prowadzącymi.
     isExportingRef.current = true;
-    renderFrame(timeRef.current);
-    const url = canvas.toDataURL("image/png");
-    isExportingRef.current = false;
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `stark_reel_frame_1080x1920_${Date.now()}.png`;
-    a.click();
+    setIsExporting(true);
+    try {
+      await seekBackgroundForFrame(timeRef.current);
+      renderFrame(timeRef.current);
+      const a = document.createElement("a");
+      a.href = canvas.toDataURL("image/png");
+      a.download = `stark_reel_frame_1080x1920_${Date.now()}.png`;
+      a.click();
+    } catch (error) {
+      setToastMessage((error as Error).message);
+    } finally {
+      isExportingRef.current = false;
+      setIsExporting(false);
+    }
   };
 
   const studioBody = (
     <div
       className={`relative w-full ${
-        embedded ? "min-h-[85vh]" : "max-w-6xl max-h-[95vh]"
-      } bg-[#0A0A0A] border border-white/10 rounded-2xl shadow-[0_0_50px_rgba(0,0,0,0.9)] flex flex-col overflow-hidden text-neutral-200 select-none`}
+        embedded ? "min-h-[85vh] overflow-clip" : "max-w-6xl max-h-[95vh] overflow-hidden"
+      } bg-[#0A0A0A] border border-white/10 rounded-2xl shadow-[0_0_50px_rgba(0,0,0,0.9)] flex flex-col text-neutral-200 select-none`}
     >
       {/* Toast Notification */}
+      {generationNotice && (
+        <div role="alert" className="px-5 py-3 border-b border-rose-900/50 text-sm text-rose-200">
+          {generationNotice}
+        </div>
+      )}
       {toastMessage && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-white text-black font-mono text-xs font-black tracking-wider shadow-2xl flex items-center gap-2 border border-neutral-300">
           <Check className="w-4 h-4 text-emerald-600" />
@@ -1933,9 +1930,12 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
       </div>
 
       {/* Main Workspace: Left 9:16 Stage + Right Director Controls */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 p-4 sm:p-5 flex-1 overflow-y-auto">
+      <fieldset
+        disabled={isExporting || isExportingZip}
+        className={`grid min-w-0 grid-cols-1 lg:grid-cols-12 gap-5 p-4 sm:p-5 flex-1 ${embedded ? "overflow-visible" : "overflow-y-auto"}`}
+      >
         {/* Left: 9:16 Live Canvas Player */}
-        <div className="lg:col-span-5 flex flex-col items-center justify-center bg-[#050505] border border-white/10 rounded-xl p-3 sm:p-4">
+        <div className="lg:col-span-5 lg:sticky lg:top-4 self-start w-full flex flex-col items-center bg-[#050505] border border-white/10 rounded-xl p-3 sm:p-4">
           <div className="relative w-full max-w-[270px] sm:max-w-[290px] aspect-[9/16] rounded-xl overflow-hidden shadow-2xl border border-white/15 bg-black">
             <canvas ref={canvasRef} className="w-full h-full object-cover" />
 
@@ -2016,20 +2016,6 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
               >
                 <Smartphone className="w-3.5 h-3.5" />
                 TikTok UI
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setReelAudioEnabled(!reelAudioEnabled)}
-                className={`px-2.5 py-1.5 rounded border text-[10px] font-mono flex items-center gap-1 transition-colors cursor-pointer ${
-                  reelAudioEnabled
-                    ? "bg-rose-500/20 border-rose-500 text-rose-300 font-bold"
-                    : "bg-[#141414] border-white/10 text-neutral-400 hover:text-white"
-                }`}
-                title="Dodaj do eksportu proceduralny bed: dron basowy i uderzenia na grzbietach fraz"
-              >
-                <Volume2 className="w-3.5 h-3.5" />
-                {reelAudioEnabled ? "Dźwięk w pliku" : "Bez dźwięku"}
               </button>
             </div>
 
@@ -2170,7 +2156,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                 </div>
                 <h3 className="text-sm font-black text-white font-mono uppercase tracking-wider flex items-center gap-1.5 mt-0.5">
                   <Sparkles className="w-4 h-4 text-white" />
-                  Formaty łamiące algorytmy (Viral Architecture)
+                  Format narracji
                 </h3>
               </div>
 
@@ -2545,7 +2531,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                           setTimeout(() => setToastMessage(null), 2500);
                         }}
                         className="px-2 py-1 rounded bg-[#202020] hover:bg-white hover:text-black text-neutral-300 text-[10px] font-mono font-bold border border-white/10 transition-all flex items-center gap-1 cursor-pointer"
-                        title="Wylosuj inne z ponad 100 unikalnych ujęć"
+                        title={`Wylosuj inne z ${EXPANDED_BACKGROUND_LIBRARY.length} scen`}
                       >
                         <Sparkles className="w-3 h-3 text-rose-400" />
                         <span>Losuj inne ({EXPANDED_BACKGROUND_LIBRARY.length})</span>
@@ -2741,6 +2727,64 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
             </div>
           </div>
 
+          <ReelMontagePanel
+            lines={phrases}
+            shots={shots}
+            timeline={activeTimeline}
+            media={studioMedia.media}
+            plan={director?.plan ?? null}
+            rook={director?.treatment !== "live"}
+            background={backgroundAsset}
+            disabled={isExporting}
+            onFile={(index, file) => {
+              try {
+                assignShot(index, mediaFromFile(file));
+              } catch (error) {
+                setToastMessage((error as Error).message);
+              }
+            }}
+            onUpdate={(index, patch) =>
+              setShots((previous) =>
+                previous.map((shot) => (shot.lineIndex === index ? { ...shot, ...patch } : shot)),
+              )
+            }
+            onRemove={(index) =>
+              setShots((previous) => previous.filter((shot) => shot.lineIndex !== index))
+            }
+            onUseBackground={(index) => {
+              if (backgroundAsset) assignShot(index, backgroundAsset);
+            }}
+            onSeek={(at) => {
+              timeRef.current = at;
+              setCurrentTime(at);
+              setIsPlaying(false);
+            }}
+          />
+
+          <MaterialDirectorPanel
+            state={director}
+            onStateChange={setDirector}
+            lines={phrases}
+            medium="reel"
+            caption={caption}
+            duration={duration}
+            onApplyCaption={(next, plan) => {
+              const clean = stripHashtagTail(next);
+              setCaption(clean);
+              setActiveTemplate((previous) => ({
+                ...previous,
+                captionShort: next,
+                captionDeep: next,
+                suggestedBackground: plan.scenes[0]?.setting ?? "",
+                backgroundRationale: plan.scenes[0]?.reason ?? "",
+              }));
+            }}
+            onStockSearch={(query) => {
+              void handleVaultSearch(query);
+            }}
+            onUseBackground={loadBackgroundUrl}
+          />
+
           {/* 5. Gotowy Opis (Caption) & Hashtagi: Krótki vs Głębszy */}
           <div className="bg-[#111111] p-3 rounded-xl border border-white/10 space-y-2">
             <div className="flex items-center justify-between">
@@ -2771,7 +2815,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                         : "text-neutral-400 hover:text-white"
                     }`}
                   >
-                    Głębszy (3 Lekcje)
+                    Głębszy
                   </button>
                 </div>
               </div>
@@ -2794,10 +2838,9 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
             />
 
             <div className="text-[10px] font-mono text-neutral-400 px-1 flex items-center gap-1.5">
-              <span className="text-emerald-400">✓</span>
               <span>
-                Opis nie powiela słów z wideo — dostarcza nową perspektywę i rozwija lekcję pod
-                algorytm.
+                Opis powinien rozwijać temat rolki: dodaj przyczynę, konsekwencję lub działanie,
+                którego nie ma na kadrze.
               </span>
             </div>
 
@@ -2814,6 +2857,14 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
           </div>
 
           {/* 6. Eksport 1080x1920 Full HD (30 FPS, precyzyjny czas 1:1 bez podwajania) */}
+          <p role="status" className="text-xs text-neutral-400">
+            {draft.notice}
+          </p>
+          {studioMedia.notice && (
+            <p role="status" className="text-xs text-rose-300">
+              {studioMedia.notice}
+            </p>
+          )}
           <div className="pt-2 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2 text-xs font-mono text-neutral-400">
               <span>
@@ -2822,12 +2873,8 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
                 Czas: <strong className="text-emerald-400">{duration}.00s (Dokładny 1:1)</strong>
               </span>
 
-              {/* captureStream(30) daje sam obraz — audio doklejamy osobnym trackiem. */}
-              <span
-                className="text-[10px] text-rose-300"
-                title="Bed dokleja się do strumienia przy eksporcie; jeśli go wyłączysz, zostaje cichy plik."
-              >
-                bed w pliku albo własny dźwięk w aplikacji social media
+              <span className="text-[10px] text-neutral-400">
+                Eksport bez dźwięku — muzykę dodaj na platformie.
               </span>
 
               {isExporting && (
@@ -2842,7 +2889,6 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
               items={reelChecklist({
                 phrases,
                 durationSec: Number(duration) || 0,
-                audioEnabled: reelAudioEnabled,
                 recentHooks: excludeHooks,
               })}
             />
@@ -2874,7 +2920,7 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
               <button
                 type="button"
                 onClick={handleExportPng}
-                disabled={isExporting}
+                disabled={isExporting || studioMedia.loading}
                 className="px-3 py-2 rounded-lg bg-[#181818] hover:bg-[#222222] text-neutral-200 border border-white/10 text-xs font-mono font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all"
                 title="Pobierz klatkę jako grafikę PNG 1080x1920"
               >
@@ -2885,14 +2931,14 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
               <button
                 type="button"
                 onClick={handleExportVideo}
-                disabled={isExporting}
+                disabled={isExporting || studioMedia.loading}
                 className="flex-1 sm:flex-initial px-5 py-2.5 rounded-lg bg-white hover:bg-neutral-200 text-black text-xs font-mono font-black uppercase tracking-wider flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(255,255,255,0.2)] hover:shadow-[0_0_25px_rgba(255,255,255,0.35)] transition-all cursor-pointer disabled:opacity-50"
-                title={`Pobierz wideo w pętli 1080x1920 (30 FPS, ${duration}.00s, ${reelAudioEnabled ? "bed w pliku" : "bez dźwięku"})`}
+                title={`Pobierz wideo w pętli 1080x1920 (30 FPS, ${duration}.00s, bez dźwięku)`}
               >
                 <Film className="w-4 h-4" />
                 {isExporting
                   ? `Eksportowanie (${exportProgress}%)...`
-                  : ` Pobierz Rolkę (${duration}s • 30 FPS • ${reelAudioEnabled ? "z bedem" : "bez dźwięku"})`}
+                  : ` Pobierz Rolkę (${duration}s • 30 FPS)`}
               </button>
 
               {onMarkPublished && (
@@ -2920,10 +2966,16 @@ Wygenerowano przez STARK FOCUS TURNKEY BUNDLE PIPELINE.`;
             </div>
           </div>
         </div>
-      </div>
+      </fieldset>
     </div>
   );
 
+  if (!draft.ready)
+    return (
+      <p role="status" className="p-6 text-sm text-neutral-400">
+        Odczytuję lokalny szkic rolki…
+      </p>
+    );
   if (embedded) {
     return <div className="w-full animate-in fade-in duration-200">{studioBody}</div>;
   }

@@ -31,6 +31,8 @@ const asLines = (value: unknown, max: number): string[] =>
  */
 export function applyFrameFill(idea: IdeaItem, frame: Record<string, unknown> | null): IdeaItem {
   const steps = asLines(frame?.steps, 4);
+  const belief = asLine(frame?.belief);
+  const reality = asLine(frame?.reality);
   const cost = asLines(frame?.cost, 3);
   const forfeit = asLines(frame?.forfeit, 3);
   const closing = asLine(frame?.closing);
@@ -44,6 +46,8 @@ export function applyFrameFill(idea: IdeaItem, frame: Record<string, unknown> | 
       ...idea.structure,
       statement: idea.hook,
       ...(steps.length ? { steps } : {}),
+      ...(belief ? { belief } : {}),
+      ...(reality ? { reality } : {}),
       // Para bez swojej połówki jest innym rzędem, nie rzędem krótszym.
       ...(cost.length && cost.length === forfeit.length ? { cost, forfeit } : {}),
       ...(closing ? { closing } : {}),

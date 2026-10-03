@@ -8,7 +8,7 @@
 // studio budujące `textLayers`.
 import { UniversalLayoutSpec } from "../types";
 
-export type FrameFormatId = "quote" | "protocol" | "cost" | "collage";
+export type FrameFormatId = "quote" | "protocol" | "cost" | "collage" | "reality_check";
 
 export interface FrameFormat {
   id: FrameFormatId;
@@ -20,7 +20,7 @@ export interface FrameFormat {
   shape: string;
   /** Pola struktury wraz z limitem wierszy — po to, żeby dało to zweryfikować. */
   fields: Array<{
-    key: "primary" | "steps" | "cost" | "forfeit" | "closing" | "rows";
+    key: "primary" | "steps" | "cost" | "forfeit" | "closing" | "rows" | "belief" | "reality";
     label: string;
     /** 0 = pole pojedyncze (zdanie), >0 = lista o dokładnie tylu wierszach. */
     list?: number;
@@ -76,6 +76,20 @@ export const FRAME_FORMATS: readonly FrameFormat[] = [
       { key: "primary", label: "Pytanie", words: "5-12" },
       { key: "rows", label: "Cena i utrata", list: 3, words: "3-6 + 3-6", pair: true },
       { key: "closing", label: "Puenta", words: "4-10" },
+    ],
+  },
+  {
+    id: "reality_check",
+    label: "Wymówka kontra fakt",
+    gridType: "split_horizontal",
+    layoutName: "Wymówka kontra fakt",
+    shape:
+      "Teza, wymówka czytelnika i konkretna rzeczywistość, która ją obala. Wymówka ma brzmieć wiarygodnie, " +
+      "a fakt ma dotyczyć tej samej decyzji, bez wymyślonych statystyk i moralizowania.",
+    fields: [
+      { key: "primary", label: "Teza", words: "4-10" },
+      { key: "belief", label: "Wymówka", words: "4-10" },
+      { key: "reality", label: "Fakt", words: "4-10" },
     ],
   },
   {

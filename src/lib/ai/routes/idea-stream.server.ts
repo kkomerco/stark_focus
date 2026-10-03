@@ -296,6 +296,8 @@ export function normalizeModelIdea(
   if (!statement) return null;
 
   const steps = lineList(structure.steps, listSize(format, "steps"));
+  const belief = line(structure.belief);
+  const reality = line(structure.reality);
   const { cost, forfeit } = pairRows(structure.rows, listSize(format, "rows"));
   const closing = steps.length || cost.length ? line(structure.closing) : "";
   // Cyfra jest dekoracją kadru, ale wchodzi na render — polski dopisek odpada.
@@ -306,8 +308,15 @@ export function normalizeModelIdea(
   // jeszcze niewypełniony. Dawniej taka karta zwijała się do cytatu i znikała
   // z niej informacja, że pomysł był protokołem; teraz niesie flagę, na której
   // studio dopytuje jeden pełny kadr.
-  const wantsRows = listSize(format, "steps") > 0 || listSize(format, "rows") > 0;
-  const needsFill = wantsRows && steps.length === 0 && cost.length === 0;
+  const needsFill = format.fields.some((field) => {
+    if (field.key === "primary") return false;
+    if (field.key === "steps") return steps.length === 0;
+    if (field.key === "rows") return cost.length === 0;
+    if (field.key === "belief") return !belief;
+    if (field.key === "reality") return !reality;
+    if (field.key === "closing") return !closing;
+    return false;
+  });
 
   return {
     id: `idea-${Date.now()}-${index + 1}`,
@@ -318,6 +327,8 @@ export function normalizeModelIdea(
     structure: {
       statement,
       ...(steps.length ? { steps } : {}),
+      ...(belief ? { belief } : {}),
+      ...(reality ? { reality } : {}),
       ...(cost.length ? { cost, forfeit } : {}),
       ...(closing ? { closing } : {}),
       ...(figure ? { figure } : {}),
@@ -382,6 +393,12 @@ MACIERZ (używaj różnych kombinacji; "archetype" to id figury z listy powyżej
 
 ZIARNO LOSOWOŚCI: ${dynamicSeed}
 LICZBA WCZEŚNIEJSZYCH POMYSŁÓW UŻYTKOWNIKA: ${safeUsed}
+
+KONTROLA REDAKCYJNA PRZED JSON:
+- Każda teza ma być pełną myślą, której sens da się wyjaśnić jednym prostym zdaniem.
+- Teza musi wynikać z podanego tematu i pasować do wybranego układu; nie dopisuj luźnego sloganu tylko po to, by wypełnić partię.
+- Sprawdź naturalność angielskiego, jasny podmiot i brak sprzeczności. Gdy zdanie może pasować do dowolnego motywu albo wymaga zgadywania, napisz je od nowa.
+- Przed zwrotem oceń każdą tezę jak redaktor i zostaw tylko wersje, które są konkretne, logiczne i zrozumiałe bez dopowiedzeń. Zwróć wyłącznie finalny JSON.
 
 ZAKAZY:
 1. NIE używaj żadnego z tych zdań ani ich mutacji:

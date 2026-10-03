@@ -62,7 +62,6 @@ function words(text: string): string[] {
 export function reelChecklist(options: {
   phrases: string[];
   durationSec: number;
-  audioEnabled: boolean;
   /** Ostatnie zdania z konta — patrz `postChecklist`. */
   recentHooks?: string[];
 }): ChecklistItem[] {
@@ -130,12 +129,6 @@ export function reelChecklist(options: {
       label: "Da się ją przesłać jednej konkretnej osobie",
       ok: namesSomeoneToSend(phrases.join(" ")),
       hint: "Wysyłki idą przez DM-y. „You”, nazwany adresat albo scena z życia dają powód do przesłania — goła sentencja kończy na lajku.",
-    },
-    {
-      id: "audio",
-      label: "Rolka ma ścieżkę dźwiękową",
-      ok: options.audioEnabled,
-      hint: "Wysyłki idą przez DM-y, a tam ogląda się ze dźwiękiem. Bez bedu eksport jest cichy.",
     },
   ];
 }

@@ -1,20 +1,7 @@
-// PromptLibraryModal.tsx — Biblioteka promptów tła (spójny feed) + "reroll" w tym samym stylu.
-// Zbiera bingPrompty z postów w galerię i pozwala wygenerować nowy prompt w identycznym
-// stylu wizualnym (endpoint /api/ai/reroll-prompt) — estetyka feedu bez myślenia.
+// Ręczne archiwum promptów. Nowe plany oprawy powstają przy konkretnej treści w studiu.
 import React, { useState } from "react";
-import {
-  Check,
-  Copy,
-  Image as ImageIcon,
-  Loader2,
-  Plus,
-  RefreshCw,
-  Sparkles,
-  Trash2,
-  X,
-} from "lucide-react";
+import { Check, Copy, Image as ImageIcon, Plus, Trash2, X } from "lucide-react";
 import { PromptLibraryItem, StarkFocusData } from "../types";
-import { fetchJson } from "../lib/fetchJson";
 
 interface PromptLibraryModalProps {
   isOpen: boolean;
@@ -23,15 +10,13 @@ interface PromptLibraryModalProps {
   onUpdateData: (updater: (prev: StarkFocusData) => StarkFocusData) => void;
 }
 
-const PANEL = "bg-[#0F121C] border border-[#2C354B] rounded-xl";
+const PANEL = "bg-[#0E0E0E] border border-[#303030] rounded-xl";
 const ACTION_BTN =
-  "py-1.5 px-3 rounded bg-[#141824] hover:bg-[#1E2638] border border-[#2C354B] text-[11px] font-mono font-bold text-slate-200 hover:text-white transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50";
-const REROLL_BTN =
-  "py-1.5 px-3 rounded bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/40 text-[11px] font-mono font-bold text-rose-300 uppercase tracking-wider flex items-center gap-1.5 cursor-pointer disabled:opacity-50";
+  "py-1.5 px-3 rounded bg-[#161616] hover:bg-[#242424] border border-[#303030] text-[11px] font-mono font-bold text-neutral-200 hover:text-white transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50";
 const META_BADGE =
   "text-[9px] font-mono px-1.5 py-0.5 rounded bg-zinc-500/15 text-zinc-200 border border-zinc-500/40";
 const STYLE_BADGE =
-  "text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-500/10 text-slate-300 border border-slate-500/25";
+  "text-[9px] font-mono px-1.5 py-0.5 rounded bg-neutral-500/10 text-neutral-300 border border-neutral-500/25";
 const BANK_BADGE =
   "text-[9px] font-mono px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-300 border border-rose-500/30";
 
@@ -48,14 +33,12 @@ export const PromptLibraryModal: React.FC<PromptLibraryModalProps> = ({
 }) => {
   const library = data.prompt_library || [];
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [rerollingId, setRerollingId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
 
   const addPrompt = (prompt: string, style: string, source: string) => {
     const item: PromptLibraryItem = {
-      id: `pl-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      id: `pl-${Date.now()}-${crypto.randomUUID()}`,
       prompt,
       style,
       source,
@@ -84,42 +67,15 @@ export const PromptLibraryModal: React.FC<PromptLibraryModalProps> = ({
     }));
   };
 
-  const handleCopy = (id: string, text: string) => {
-    navigator.clipboard.writeText(text);
-    bumpUses(id);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
-  };
-
-  const handleReroll = async (item?: PromptLibraryItem) => {
-    const reference = (item?.prompt || draft).trim();
-    if (reference.length < 10) return;
-    const style = item?.style || "dark_minimalist";
+  const handleCopy = async (id: string, text: string) => {
     setError(null);
-    setNotice(null);
-    setRerollingId(item?.id || "__draft__");
     try {
-      const {
-        data: payload,
-        degraded,
-        status,
-      } = await fetchJson("/api/ai/reroll-prompt", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ referencePrompt: reference, format: "1:1" }),
-      });
-      const prompt = typeof payload.prompt === "string" ? payload.prompt.trim() : "";
-      if (status < 200 || status >= 300 || prompt.length < 20) {
-        setError("Nie udało się wygenerować nowego promptu — spróbuj ponownie.");
-        return;
-      }
-      addPrompt(prompt, style, degraded ? BANK_SOURCE : item ? "reroll" : "manual");
-      if (degraded) {
-        setNotice(`${BANK_NOTE}: zapisaliśmy ten prompt jako szablon, nie jako reroll stylu.`);
-      }
-      setDraft("");
-    } finally {
-      setRerollingId(null);
+      await navigator.clipboard.writeText(text);
+      bumpUses(id);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch {
+      setError("Nie udało się skopiować promptu. Zaznacz tekst i skopiuj go ręcznie.");
     }
   };
 
@@ -135,11 +91,11 @@ export const PromptLibraryModal: React.FC<PromptLibraryModalProps> = ({
   return (
     <div className="fixed inset-0 z-60 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
       <div className={`w-full max-w-3xl max-h-[88vh] flex flex-col ${PANEL} p-5 space-y-4`}>
-        <div className="flex items-center justify-between pb-3 border-b border-[#2C354B]">
+        <div className="flex items-center justify-between pb-3 border-b border-[#303030]">
           <div className="flex items-center gap-2">
             <ImageIcon className="w-4 h-4 text-rose-400" />
             <h3 className="text-sm font-mono font-black uppercase tracking-wider text-white">
-              Biblioteka Promptów
+              Zapisane prompty
             </h3>
             <span className="text-[9px] font-mono px-2 py-0.5 rounded font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30">
               {library.length} zapisanych
@@ -148,24 +104,23 @@ export const PromptLibraryModal: React.FC<PromptLibraryModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-white cursor-pointer"
+            className="p-1.5 text-neutral-400 hover:text-white cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <p className="text-[11px] font-mono text-slate-400">
-          Zbierz prompty tła w jedno miejsce i rób „reroll"{" "}
-          <span className="text-slate-200">w tym samym stylu</span> — spójna estetyka feedu bez
-          zastanawiania się.
+        <p className="text-[11px] font-mono text-neutral-400">
+          Zachowaj prompty, do których chcesz wracać. Nowy plan oprawy przygotujesz przy treści w
+          studiu posta lub rolki. Zapisywanie i kopiowanie nie wywołuje AI.
         </p>
 
         <div className="space-y-2">
           <textarea
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            placeholder="Wklej prompt tła (z paczki dnia lub studia 1:1)..."
-            className="w-full h-20 px-3 py-2 rounded bg-[#141824] border border-[#2C354B] text-[11px] font-mono text-slate-200 placeholder-slate-600 resize-none"
+            placeholder="Wklej prompt z panelu oprawy lub własny opis sceny..."
+            className="w-full h-20 px-3 py-2 rounded bg-[#161616] border border-[#303030] text-[11px] font-mono text-neutral-200 placeholder-neutral-600 resize-none"
           />
           <div className="flex flex-wrap items-center gap-2">
             <button
@@ -177,19 +132,6 @@ export const PromptLibraryModal: React.FC<PromptLibraryModalProps> = ({
               <Plus className="w-3 h-3" />
               Dodaj do biblioteki
             </button>
-            <button
-              type="button"
-              onClick={() => handleReroll()}
-              disabled={draft.trim().length < 10 || rerollingId === "__draft__"}
-              className={REROLL_BTN}
-            >
-              {rerollingId === "__draft__" ? (
-                <Loader2 className="w-3 h-3 animate-spin" />
-              ) : (
-                <Sparkles className="w-3 h-3" />
-              )}
-              Reroll w tym stylu
-            </button>
           </div>
         </div>
 
@@ -199,33 +141,27 @@ export const PromptLibraryModal: React.FC<PromptLibraryModalProps> = ({
           </div>
         )}
 
-        {notice && (
-          <div className="p-2 bg-rose-500/10 border border-rose-500/30 rounded-lg text-[10px] font-mono text-rose-300">
-            {notice}
-          </div>
-        )}
-
         <div className="flex-1 overflow-y-auto space-y-2 pr-1">
           {library.length === 0 && (
-            <div className="text-center py-12 text-xs font-mono text-slate-500">
-              Biblioteka jest pusta. Wklej prompt tła powyżej albo użyj „Reroll w tym stylu".
+            <div className="text-center py-12 text-xs font-mono text-neutral-500">
+              Biblioteka jest pusta. Wklej prompt, który chcesz zachować.
             </div>
           )}
 
           {library.map((item) => (
             <div
               key={item.id}
-              className="p-3 bg-[#141824] border border-[#2C354B] rounded-lg space-y-2"
+              className="p-3 bg-[#161616] border border-[#303030] rounded-lg space-y-2"
             >
               <div className="flex items-start justify-between gap-2">
-                <p className="text-[11px] font-mono text-slate-200 flex-1 whitespace-pre-wrap">
+                <p className="text-[11px] font-mono text-neutral-200 flex-1 whitespace-pre-wrap">
                   {item.prompt}
                 </p>
                 <button
                   type="button"
                   onClick={() => removePrompt(item.id)}
                   title="Usuń z biblioteki"
-                  className="p-1 text-slate-500 hover:text-red-400 cursor-pointer"
+                  className="p-1 text-neutral-500 hover:text-red-400 cursor-pointer"
                 >
                   <Trash2 className="w-3 h-3" />
                 </button>
@@ -247,24 +183,11 @@ export const PromptLibraryModal: React.FC<PromptLibraryModalProps> = ({
                   className={ACTION_BTN}
                 >
                   {copiedId === item.id ? (
-                    <Check className="w-3 h-3 text-emerald-400" />
+                    <Check className="w-3 h-3 text-neutral-200" />
                   ) : (
                     <Copy className="w-3 h-3" />
                   )}
                   {copiedId === item.id ? "Skopiowano" : "Kopiuj"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleReroll(item)}
-                  disabled={rerollingId === item.id}
-                  className={REROLL_BTN}
-                >
-                  {rerollingId === item.id ? (
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                  ) : (
-                    <RefreshCw className="w-3 h-3" />
-                  )}
-                  Reroll
                 </button>
               </div>
             </div>

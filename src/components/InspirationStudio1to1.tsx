@@ -1,9 +1,16 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import JSZip from "jszip";
 import { formatStarkCaption, isPolishCopy, starkCaption, starkPinned } from "../lib/caption";
 import { fetchJson } from "../lib/fetchJson";
 import { postChecklist } from "../lib/prepublish";
 import { ChecklistPanel } from "./ChecklistPanel";
+import { MaterialDirectorPanel } from "./MaterialDirectorPanel";
+import { useStudioDraft } from "./useStudioDraft";
+import {
+  directorStateFor,
+  readDirectorState,
+  type MaterialDirectorState,
+} from "../lib/materialPlan";
 import {
   Link2,
   Sparkles,
@@ -13,7 +20,6 @@ import {
   CheckCircle2,
   Copy,
   Check,
-  Music,
   Upload,
   Type,
   Maximize2,
@@ -65,6 +71,15 @@ interface InspirationStudioProps {
   onMarkPublished?: (item: PublishedItem) => void;
 }
 
+interface PostDraft {
+  spec: UniversalLayoutSpec;
+  slotImages: (string | null)[];
+  fontFamily: string;
+  textScale: number;
+  pinnedQuestion: string;
+  director: MaterialDirectorState | null;
+}
+
 /** Nazwy figur zwracanych przez `/api/ai/hooks` — w UI po polsku, w materiale po angielsku. */
 const ARCHETYPE_LABELS: Record<string, string> = {
   accusation: "oskarżenie o gest",
@@ -94,6 +109,8 @@ export interface BatchPostItem {
   gridType?: string;
   primary?: string;
   steps?: string[];
+  belief?: string;
+  reality?: string;
   cost?: string[];
   forfeit?: string[];
   closing?: string;
@@ -117,6 +134,8 @@ function specForBatchItem(item: BatchPostItem, base: UniversalLayoutSpec): Unive
   const content: StructuredContent = {
     primary: item.primary || item.sayingMain,
     steps: item.steps ?? [],
+    belief: item.belief,
+    reality: item.reality,
     cost: item.cost ?? [],
     forfeit: item.forfeit ?? [],
     closing: item.closing ?? "",
@@ -138,6 +157,9 @@ function specForBatchItem(item: BatchPostItem, base: UniversalLayoutSpec): Unive
  */
 function batchPreviewLines(item: BatchPostItem): string[] {
   if (item.steps?.length) return item.steps.slice(0, 3);
+  if (item.belief || item.reality) {
+    return [item.belief, item.reality].filter((line): line is string => Boolean(line));
+  }
   if (item.cost?.length) {
     return item.cost
       .map((price, idx) => `${price} -> ${item.forfeit?.[idx] ?? ""}`.trim())
@@ -233,6 +255,12 @@ const SPEC_COST_REWARD = structuredSpec("Koszt i utrata", "cost_vs_reward", {
   closing: "You already paid. Decide what it bought.",
 });
 
+const SPEC_REALITY_CHECK = structuredSpec("Wymówka kontra fakt", "split_horizontal", {
+  primary: "You are not waiting for more time.",
+  belief: "",
+  reality: "",
+});
+
 /**
  * Lista formatów w jednym miejscu — dawniej każdy układ był dodawanym
  * przyciskiem w JSX, przez co pasek rósł szybciej niż możliwości.
@@ -245,6 +273,7 @@ const LAYOUT_PICKER: Array<{
   { gridType: "none_solid", label: "Cytat", spec: SPEC_BLACK_QUOTE },
   { gridType: "protocol_list", label: "Protokół", spec: SPEC_PROTOCOL },
   { gridType: "cost_vs_reward", label: "Koszt", spec: SPEC_COST_REWARD },
+  { gridType: "split_horizontal", label: "Wymówka / fakt", spec: SPEC_REALITY_CHECK },
   { gridType: "grid_2x2", label: "Kolaż", spec: SPEC_COLLAGE_4 },
 ];
 
@@ -281,6 +310,8 @@ function asCandidate(
   format: FrameFormat | undefined,
 ): FrameCandidate | null {
   const steps = asStringList(frame.steps);
+  const belief = String(frame.belief ?? "").trim();
+  const reality = String(frame.reality ?? "").trim();
   const cost = asStringList(frame.cost);
   const forfeit = asStringList(frame.forfeit);
   const primary = String(frame.primary ?? "").trim();
@@ -292,7 +323,11 @@ function asCandidate(
   // Para zostaje parą na liście: dwa osobne słupki w podglądzie nie mówią,
   // która utrata pada z której ceny.
   const rows = paired ? cost.map((left, i) => `${left}  ->  ${forfeit[i] ?? ""}`) : [];
-  const lists = paired ? [rows] : [steps, cost, forfeit].filter((list) => list.length > 0);
+  const lists = paired
+    ? [rows]
+    : [steps, cost, forfeit, belief ? [belief] : [], reality ? [reality] : []].filter(
+        (list) => list.length > 0,
+      );
   return {
     key: `${primary}|${lists.map((list) => list.join(" ")).join("|")}`,
     preview: primary,
@@ -306,6 +341,8 @@ function asCandidate(
     content: {
       primary,
       steps: keeps("steps") ? steps : undefined,
+      belief: keeps("belief") ? belief : undefined,
+      reality: keeps("reality") ? reality : undefined,
       cost: keeps("cost") ? cost : undefined,
       forfeit: keeps("forfeit") ? forfeit : undefined,
       closing: keeps("closing") ? closing : "",
@@ -326,6 +363,8 @@ const ROLE_LABELS: Record<string, string> = {
 const EXACT_LAYER_LABELS: Record<string, string> = {
   closing: "Puenta:",
   figure: "Cyfra:",
+  belief: "Wymówka:",
+  reality: "Fakt:",
   [PRIMARY_LAYER_ID]: "Teza:",
 };
 
@@ -389,6 +428,33 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
   const [copiedPinned, setCopiedPinned] = useState(false);
   /** Pytanie od modelu. Puste = pytanie liczona z układu kadru. */
   const [pinnedQuestion, setPinnedQuestion] = useState("");
+  const [director, setDirector] = useState<MaterialDirectorState | null>(() =>
+    directorStateFor({ lines: spec.textLayers.map((layer) => layer.text), medium: "post" }),
+  );
+  const draftKey = `post:${JSON.stringify([initialSpec?.gridType ?? "default", initialSpec?.textLayers.map((layer) => layer.text) ?? initialText ?? "default"])}`;
+  const draftValue = useMemo<PostDraft>(
+    () => ({ spec, slotImages, fontFamily, textScale, pinnedQuestion, director }),
+    [spec, slotImages, fontFamily, textScale, pinnedQuestion, director],
+  );
+  const draft = useStudioDraft(draftKey, draftValue, (saved) => {
+    if (
+      saved.spec &&
+      Array.isArray(saved.spec.textLayers) &&
+      saved.spec.textLayers.every(
+        (layer) => layer && typeof layer.text === "string" && typeof layer.id === "string",
+      ) &&
+      typeof saved.spec.caption === "string"
+    )
+      setSpec(saved.spec);
+    if (Array.isArray(saved.slotImages))
+      setSlotImages(
+        saved.slotImages.slice(0, 4).map((image) => (typeof image === "string" ? image : null)),
+      );
+    if (typeof saved.fontFamily === "string") setFontFamily(saved.fontFamily);
+    if (Number.isFinite(saved.textScale)) setTextScale(saved.textScale);
+    if (typeof saved.pinnedQuestion === "string") setPinnedQuestion(saved.pinnedQuestion);
+    setDirector((previous) => readDirectorState(saved.director) ?? previous);
+  });
   const [savedSuccess, setSavedSuccess] = useState(false);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -921,6 +987,12 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
       ? { label: "Scena", options: SIGN_SCENES.map((s) => ({ value: s.scene, label: s.label })) }
       : { label: "", options: [] };
 
+  if (!draft.ready)
+    return (
+      <p role="status" className="p-6 text-sm text-neutral-400">
+        Odczytuję lokalny szkic posta…
+      </p>
+    );
   return (
     <div className="bg-[#0A0A0A] border border-white/10 rounded-2xl p-4 sm:p-6 shadow-2xl space-y-6 text-neutral-200">
       {/* Pasek linku */}
@@ -1337,11 +1409,6 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
               <span className="text-xs font-mono font-bold text-white uppercase">
                 Edycja Tekstu ({spec.layoutName})
               </span>
-              {spec.detectedAudio && (
-                <span className="text-[10px] font-mono text-neutral-300 flex items-center gap-1">
-                  <Music className="w-3 h-3" /> {spec.detectedAudio}
-                </span>
-              )}
             </div>
 
             {/* Opcjonalne wgranie zdjęć dla slotów siatki */}
@@ -1444,7 +1511,22 @@ export const InspirationStudio1to1: React.FC<InspirationStudioProps> = ({
             </div>
           </div>
 
+          <MaterialDirectorPanel
+            state={director}
+            onStateChange={setDirector}
+            lines={spec.textLayers.map((layer) => layer.text)}
+            medium="post"
+            caption={spec.caption}
+            onApplyCaption={(caption, plan) => {
+              setSpec((previous) => ({ ...previous, caption }));
+              setPinnedQuestion(plan.question);
+            }}
+          />
+
           {/* Opis posta z hashtagami */}
+          <p role="status" className="text-xs text-neutral-400">
+            {draft.notice}
+          </p>
           <div className="bg-[#121212] p-4 rounded-xl border border-white/10 space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-[10px] font-mono text-neutral-400 uppercase">

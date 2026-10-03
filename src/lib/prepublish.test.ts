@@ -12,7 +12,6 @@ describe("reelChecklist", () => {
         "So do it scared, and do it alone.",
       ],
       durationSec: 12,
-      audioEnabled: true,
     });
 
     assert.deepEqual(
@@ -21,7 +20,7 @@ describe("reelChecklist", () => {
     );
   });
 
-  it("mowi o kliszy, gluszym takcie i dwoch akcentach", () => {
+  it("mowi o kliszy, krótkim takcie i dwoch akcentach", () => {
     const items = reelChecklist({
       phrases: [
         "Unlock your *potential* and *embrace* the grind.",
@@ -29,21 +28,19 @@ describe("reelChecklist", () => {
         "Believe in yourself.",
       ],
       durationSec: 5,
-      audioEnabled: false,
     });
     const problems = checklistProblems(items).map((item) => item.id);
 
     assert.ok(problems.includes("cliches"));
     assert.ok(problems.includes("beats"));
     assert.ok(problems.includes("accent"));
-    assert.ok(problems.includes("audio"));
+    assert.ok(!items.some((item) => item.id === "audio"));
   });
 
   it("wyłapuje polski material", () => {
     const items = reelChecklist({
       phrases: ["Nie tłumacz się, rób swoje."],
       durationSec: 6,
-      audioEnabled: true,
     });
 
     assert.ok(checklistProblems(items).some((item) => item.id === "english"));
@@ -57,7 +54,6 @@ describe("reelChecklist", () => {
         "Success demands consistency.",
       ],
       durationSec: 12,
-      audioEnabled: true,
     });
 
     const sendTest = items.find((item) => item.id === "send-test");
@@ -74,7 +70,6 @@ describe("reelChecklist", () => {
         "So do it scared, and do it alone.",
       ],
       durationSec: 12,
-      audioEnabled: true,
     });
 
     assert.equal(
@@ -91,7 +86,6 @@ describe("reelChecklist", () => {
         "The log does not care how you feel.",
       ],
       durationSec: 12,
-      audioEnabled: true,
       recentHooks: ["Nobody is coming to check your streak."],
     });
 

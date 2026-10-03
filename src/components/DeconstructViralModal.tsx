@@ -25,9 +25,9 @@ interface DeconstructViralModalProps {
   onOpenBlueprint?: (spec: UniversalLayoutSpec) => void;
 }
 
-const PANEL = "bg-[#0F121C] border border-[#2C354B] rounded-xl";
+const PANEL = "bg-[#0E0E0E] border border-[#303030] rounded-xl";
 const ACTION_BTN =
-  "py-1.5 px-3 rounded bg-[#141824] hover:bg-[#1E2638] border border-[#2C354B] text-[11px] font-mono font-bold text-slate-200 hover:text-white transition-colors flex items-center gap-1.5 cursor-pointer";
+  "py-1.5 px-3 rounded bg-[#161616] hover:bg-[#242424] border border-[#303030] text-[11px] font-mono font-bold text-neutral-200 hover:text-white transition-colors flex items-center gap-1.5 cursor-pointer";
 /** Uczciwy podpis: warianty z pliku nie mogą wyglądać na napisane pod ten post. */
 const BANK_LABEL = "treść z banku — model nie odpowiedział";
 const BANK_TAG =
@@ -91,7 +91,6 @@ export const DeconstructViralModal: React.FC<DeconstructViralModalProps> = ({
     }
     setLoading(true);
     setError(null);
-    onResultChange(null);
     try {
       const {
         data: json,
@@ -102,6 +101,12 @@ export const DeconstructViralModal: React.FC<DeconstructViralModalProps> = ({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: url.trim(), imageDataUrl: shot }),
       });
+      if (degraded) {
+        setError(
+          `${typeof json.notice === "string" ? json.notice : "Model nie przygotował analizy tego materiału."} Poprzedni wynik pozostaje zachowany.`,
+        );
+        return;
+      }
       if (status < 200 || status >= 300) {
         setError(
           status
@@ -137,11 +142,11 @@ export const DeconstructViralModal: React.FC<DeconstructViralModalProps> = ({
   return (
     <div className="fixed inset-0 z-60 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
       <div className={`w-full max-w-4xl max-h-[88vh] flex flex-col ${PANEL} p-5 space-y-4`}>
-        <div className="flex items-center justify-between pb-3 border-b border-[#2C354B]">
+        <div className="flex items-center justify-between pb-3 border-b border-[#303030]">
           <div className="flex items-center gap-2">
             <Link2 className="w-4 h-4 text-rose-400" />
             <h3 className="text-sm font-mono font-black uppercase tracking-wider text-white">
-              Analiza Virala
+              Analiza materiału
             </h3>
             <span className="text-[9px] font-mono px-2 py-0.5 rounded font-bold bg-zinc-500/15 text-zinc-300 border border-zinc-500/30">
               Dekonstrukcja + warianty
@@ -150,7 +155,7 @@ export const DeconstructViralModal: React.FC<DeconstructViralModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-white cursor-pointer"
+            className="p-1.5 text-neutral-400 hover:text-white cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -163,7 +168,7 @@ export const DeconstructViralModal: React.FC<DeconstructViralModalProps> = ({
             onChange={(e) => onUrlChange(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && analyze()}
             placeholder="https://www.tiktok.com/@user/video/... lub link IG / Shorts"
-            className="flex-1 min-w-[240px] px-3 py-2 rounded-lg bg-[#141824] border border-[#2C354B] text-xs font-mono text-white placeholder-slate-500 focus:outline-none focus:border-rose-500/50"
+            className="flex-1 min-w-[240px] px-3 py-2 rounded-lg bg-[#161616] border border-[#303030] text-xs font-mono text-white placeholder-neutral-500 focus:outline-none focus:border-rose-500/50"
           />
           <button
             type="button"
@@ -171,7 +176,7 @@ export const DeconstructViralModal: React.FC<DeconstructViralModalProps> = ({
             className={`py-2 px-3 rounded-lg border text-xs font-mono font-bold flex items-center gap-1.5 cursor-pointer transition-colors ${
               shot
                 ? "bg-rose-500/25 border-rose-500/50 text-rose-200"
-                : "bg-[#141824] border-[#2C354B] text-slate-300 hover:text-white"
+                : "bg-[#161616] border-[#303030] text-neutral-300 hover:text-white"
             }`}
             title="Zrzut ekranu całego posta — dla Instagramu to jedyne źródło, które widać"
           >
@@ -207,7 +212,7 @@ export const DeconstructViralModal: React.FC<DeconstructViralModalProps> = ({
           {loading && (
             <div className="flex flex-col items-center gap-3 py-16">
               <Loader2 className="w-7 h-7 animate-spin text-rose-400" />
-              <p className="text-xs font-mono text-slate-400">
+              <p className="text-xs font-mono text-neutral-400">
                 Pobieram metadane i dekonstruuję wzorzec...
               </p>
             </div>
@@ -222,45 +227,47 @@ export const DeconstructViralModal: React.FC<DeconstructViralModalProps> = ({
           {result && !loading && (
             <>
               {textOf(result.message) && (
-                <div className="p-3 bg-[#141824] border border-[#2C354B] rounded-lg text-xs font-mono text-slate-300">
+                <div className="p-3 bg-[#161616] border border-[#303030] rounded-lg text-xs font-mono text-neutral-300">
                   {textOf(result.message)}
                 </div>
               )}
 
               {blueprints.length > 0 && (
                 <section className="space-y-2">
-                  <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500">
+                  <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500">
                     Przepisy na nasz kadr
                   </h4>
                   {blueprints.map((bp) => (
                     <div
                       key={bp.id}
-                      className="p-3 bg-[#141824] border border-[#2C354B] rounded-lg space-y-2"
+                      className="p-3 bg-[#161616] border border-[#303030] rounded-lg space-y-2"
                     >
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-[10px] font-mono text-rose-300 uppercase">
                           {bp.gridType}
                         </span>
                         {bp.needsImage && (
-                          <span className="text-[9px] font-mono text-slate-500 border border-[#2C354B] px-1.5 py-0.5 rounded">
+                          <span className="text-[9px] font-mono text-neutral-500 border border-[#303030] px-1.5 py-0.5 rounded">
                             wymaga obrazu
                           </span>
                         )}
                       </div>
                       <p className="text-sm font-mono font-bold text-white">{textOf(bp.line)}</p>
                       {textOf(bp.subline) && (
-                        <p className="text-[11px] font-mono text-slate-400">{textOf(bp.subline)}</p>
+                        <p className="text-[11px] font-mono text-neutral-400">
+                          {textOf(bp.subline)}
+                        </p>
                       )}
                       {textList(bp.steps).map((s, i) => (
-                        <p key={i} className="text-[11px] font-mono text-slate-400">
+                        <p key={i} className="text-[11px] font-mono text-neutral-400">
                           {i + 1}. {s}
                         </p>
                       ))}
                       {textOf(bp.why) && (
-                        <p className="text-[10px] font-mono text-slate-500">{textOf(bp.why)}</p>
+                        <p className="text-[10px] font-mono text-neutral-500">{textOf(bp.why)}</p>
                       )}
                       {textOf(bp.imagePrompt) && (
-                        <p className="text-[10px] font-mono text-slate-500 italic break-words">
+                        <p className="text-[10px] font-mono text-neutral-500 italic break-words">
                           {textOf(bp.imagePrompt)}
                         </p>
                       )}
@@ -282,19 +289,19 @@ export const DeconstructViralModal: React.FC<DeconstructViralModalProps> = ({
                 </section>
               )}
 
-              <section className="p-3 bg-[#141824] border border-[#2C354B] rounded-lg space-y-2">
-                <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500">
+              <section className="p-3 bg-[#161616] border border-[#303030] rounded-lg space-y-2">
+                <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500">
                   Oryginał ({textOf(result.platform)})
                 </h4>
-                <p className="text-xs font-mono text-slate-300 break-all">
+                <p className="text-xs font-mono text-neutral-300 break-all">
                   {textOf(original?.url)}
                 </p>
                 {textOf(original?.title) && (
-                  <p className="text-[11px] font-mono text-slate-400">
+                  <p className="text-[11px] font-mono text-neutral-400">
                     Tytuł: {textOf(original?.title)}
                   </p>
                 )}
-                <div className="flex flex-wrap gap-2 text-[10px] font-mono text-slate-500">
+                <div className="flex flex-wrap gap-2 text-[10px] font-mono text-neutral-500">
                   {textOf(original?.author) && <span>{textOf(original?.author)}</span>}
                   {textOf(original?.audioTrack) && <span>{textOf(original?.audioTrack)}</span>}
                   <span
@@ -315,35 +322,35 @@ export const DeconstructViralModal: React.FC<DeconstructViralModalProps> = ({
                 </div>
               </section>
 
-              <section className="p-3 bg-[#141824] border border-[#2C354B] rounded-lg space-y-2">
-                <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500">
+              <section className="p-3 bg-[#161616] border border-[#303030] rounded-lg space-y-2">
+                <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500">
                   Dekonstrukcja wzorca
                 </h4>
                 <div className="space-y-1.5 text-[11px] font-mono">
                   {textOf(deconstruction?.hookType) && (
                     <p>
-                      <span className="text-slate-500">Typ hooka:</span>{" "}
+                      <span className="text-neutral-500">Typ hooka:</span>{" "}
                       <span className="text-white">{textOf(deconstruction?.hookType)}</span>
                     </p>
                   )}
                   {textOf(deconstruction?.hookText) ? (
                     <p>
-                      <span className="text-slate-500">Z kadru:</span>{" "}
+                      <span className="text-neutral-500">Z kadru:</span>{" "}
                       <span className="text-rose-300">„{textOf(deconstruction?.hookText)}”</span>{" "}
                       {textOf(deconstruction?.attribution) && (
-                        <span className="text-slate-500">
+                        <span className="text-neutral-500">
                           — {textOf(deconstruction?.attribution)}
                         </span>
                       )}
                     </p>
                   ) : (
-                    <p className="text-slate-500">
+                    <p className="text-neutral-500">
                       Cudzego zdania nie przepisujemy — nie było go widać na załączonym kadrze.
                     </p>
                   )}
                   <p>
-                    <span className="text-slate-500">Struktura:</span>{" "}
-                    <span className="text-slate-300">
+                    <span className="text-neutral-500">Struktura:</span>{" "}
+                    <span className="text-neutral-300">
                       {textList(deconstruction?.structure).join(" → ")}
                     </span>
                   </p>
@@ -357,19 +364,19 @@ export const DeconstructViralModal: React.FC<DeconstructViralModalProps> = ({
                       </span>
                     ))}
                   </div>
-                  <p className="text-slate-300 pt-1">{textOf(deconstruction?.whyItWorks)}</p>
+                  <p className="text-neutral-300 pt-1">{textOf(deconstruction?.whyItWorks)}</p>
                   {textOf(deconstruction?.visualStyle) && (
-                    <p className="text-slate-500">{textOf(deconstruction?.visualStyle)}</p>
+                    <p className="text-neutral-500">{textOf(deconstruction?.visualStyle)}</p>
                   )}
                   {textOf(deconstruction?.audioStrategy) && (
-                    <p className="text-slate-500">{textOf(deconstruction?.audioStrategy)}</p>
+                    <p className="text-neutral-500">{textOf(deconstruction?.audioStrategy)}</p>
                   )}
                 </div>
               </section>
 
               <section className="space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500">
+                  <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500">
                     Twoje warianty @stark_focus
                   </h4>
                   {result.source === "offline" && variants.length > 0 && (
@@ -379,7 +386,7 @@ export const DeconstructViralModal: React.FC<DeconstructViralModalProps> = ({
                 {/* Warianty to nasza treść: gdy nie ma ich od czego złożyć, pusta
                     sekcja pod nagłówkiem wygląda jak brak pomysłu, nie brak odpowiedzi. */}
                 {variants.length === 0 && (
-                  <p className="text-[10px] font-mono text-slate-500">
+                  <p className="text-[10px] font-mono text-neutral-500">
                     {result.source === "error"
                       ? "Model nie odpowiedział na ten materiał — nie ma twoich wariantów, jest tylko to, co widać wyżej."
                       : "Nie ma twoich wariantów: bez odpowiedzi modelu nie dokładamy zdań z pliku."}
@@ -391,13 +398,13 @@ export const DeconstructViralModal: React.FC<DeconstructViralModalProps> = ({
                   return (
                     <div
                       key={textOf(v.id) || hook}
-                      className="p-3 bg-[#141824] border border-[#2C354B] rounded-lg space-y-2"
+                      className="p-3 bg-[#161616] border border-[#303030] rounded-lg space-y-2"
                     >
                       <p className="text-sm font-mono font-black text-white">{hook}</p>
                       <p className="text-[10px] font-mono text-zinc-200">{textOf(v.angle)}</p>
-                      <div className="space-y-0.5 pl-2 border-l border-[#2C354B]">
+                      <div className="space-y-0.5 pl-2 border-l border-[#303030]">
                         {phrases.map((p, i) => (
-                          <p key={i} className="text-[10px] font-mono text-slate-400">
+                          <p key={i} className="text-[10px] font-mono text-neutral-400">
                             {i + 1}. {p}
                           </p>
                         ))}
@@ -437,7 +444,7 @@ export const DeconstructViralModal: React.FC<DeconstructViralModalProps> = ({
           )}
 
           {!result && !loading && !error && (
-            <div className="text-center py-16 text-xs font-mono text-slate-500">
+            <div className="text-center py-16 text-xs font-mono text-neutral-500">
               Wklej link do viralowego posta, aby rozłożyć go na czynniki i stworzyć własne
               warianty.
             </div>

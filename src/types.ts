@@ -300,6 +300,8 @@ export interface StarkFocusData {
 export interface IdeaStructure {
   statement?: string;
   steps?: string[];
+  belief?: string;
+  reality?: string;
   figure?: string;
   question?: string;
   cost?: string[];
@@ -319,7 +321,13 @@ export interface IdeaItem {
   hashtags: string[];
   theme: string;
   /** Układ wizualny wybrany przez model — bez niego każdy pomysł lądowałby jako cytat. */
-  layout?: "quote" | "protocol_list" | "cost_vs_reward" | "studio_wall_3d" | "grid_2x2";
+  layout?:
+    | "quote"
+    | "protocol_list"
+    | "cost_vs_reward"
+    | "studio_wall_3d"
+    | "grid_2x2"
+    | "split_horizontal";
   structure?: IdeaStructure;
   /**
    * Tani prompt strumienia daje tylko tezę i układ. Kadr, któremu brakuje

@@ -98,6 +98,7 @@ export interface ExactReelExport {
    * pokazuje żywy element, a nie to, co wypada w liczniku klatek.
    */
   beforeFrame?: (t: number) => void | Promise<void>;
+  signal?: AbortSignal;
   /** Gotowy podkład z `renderReelBed`; bez niego plik jest niemy. */
   audio?: AudioBuffer | null;
   onProgress?: (percent: number) => void;
@@ -109,8 +110,11 @@ export interface ExactReelExport {
  * istnieje. Nigdy nie udajemy sukcesu pustym plikiem.
  */
 export async function exportReelExact(options: ExactReelExport): Promise<Blob> {
-  const { canvas, width, height, durationSec, drawFrame, beforeFrame, audio, onProgress } = options;
+  const { canvas, width, height, durationSec, drawFrame, beforeFrame, audio, onProgress, signal } =
+    options;
+  signal?.throwIfAborted();
   const codec = await pickVideoCodec(width, height);
+  signal?.throwIfAborted();
   if (!codec) throw new Error("Brak wspieranego enkodera H.264 dla tego kadru.");
 
   const withAudio = !!audio && typeof AudioEncoder !== "undefined";
@@ -161,8 +165,10 @@ export async function exportReelExact(options: ExactReelExport): Promise<Blob> {
   const totalFrames = Math.max(1, Math.round(durationSec * REEL_FPS));
   try {
     for (let index = 0; index < totalFrames; index++) {
+      signal?.throwIfAborted();
       const at = index / REEL_FPS;
       await beforeFrame?.(at);
+      signal?.throwIfAborted();
       await drawFrame(at);
       const frame = new VideoFrame(canvas, {
         timestamp: Math.round(at * 1e6),
@@ -194,6 +200,7 @@ export async function exportReelExact(options: ExactReelExport): Promise<Blob> {
     }
 
     await encoder.flush();
+    signal?.throwIfAborted();
     onProgress?.(99);
   } catch (err) {
     // Niedomknięty enkoder zostaje w karcie i blokuje następny eksport.

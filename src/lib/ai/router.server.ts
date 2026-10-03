@@ -10,6 +10,7 @@ import { registerBatchRoutes } from "./routes/batch.server";
 import { registerFrameRoutes } from "./routes/frames.server";
 import { registerClipRoutes } from "./routes/clips.server";
 import { registerVaultRoutes } from "./routes/vault.server";
+import { registerMaterialPlanRoutes } from "./routes/material-plan.server";
 
 const app = createApp();
 
@@ -27,6 +28,7 @@ registerFrameRoutes(app);
 registerClipRoutes(app);
 // Sejf ujęć: katalog zewnętrzny, zero zapytań do modelu, plik na dysk poza repo.
 registerVaultRoutes(app);
+registerMaterialPlanRoutes(app);
 
 export async function handleStarkApi(request: Request): Promise<Response> {
   return app.handle(request);

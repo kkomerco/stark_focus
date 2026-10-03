@@ -49,7 +49,7 @@ export function clampText(value: unknown, max = 500, fallback = ""): string {
  */
 export function clampTextList(
   value: unknown,
-  max = LIMITS.maxExcludeHooks,
+  max: number = LIMITS.maxExcludeHooks,
   itemMax = 80,
 ): string[] {
   if (!Array.isArray(value)) return [];

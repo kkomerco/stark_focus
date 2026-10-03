@@ -1,10 +1,7 @@
 import type { MiniApp } from "../../mini-express.server";
 import { GEMINI_MODEL, generateJsonWithFallback, getGeminiClient } from "../gemini.server";
-import { VIRAL_REEL_TEMPLATES } from "../../../data/reelTemplates";
-import { STARK_CODEX_RULES } from "../../../data/starkCodex";
-import { getRandomBackgroundScene } from "../../../data/expandedBackgrounds";
 import { hookFingerprint } from "../../similarity";
-import { pick, pickForDay, shuffle } from "../../random";
+import { pickForDay } from "../../random";
 import { clampInt, clampText, clampTextList } from "../../limits";
 import { CAROUSEL_MAX_SLIDES, CAROUSEL_TARGET_SLIDES } from "../../carousel";
 import {
@@ -12,6 +9,7 @@ import {
   HOOK_IDEAL_WORDS,
   HOOK_MAX_WORDS,
   exemplarBlock,
+  auditLine,
 } from "../../hookCraft";
 import {
   asArray,
@@ -21,18 +19,13 @@ import {
   oneOf,
   sendDegraded,
 } from "../normalize.server";
-import { publishableLine, publishableLines } from "../../prepublish";
-import { starkCaption, starkHashtags, starkShortCaption } from "../../caption";
+import { publishableLine } from "../../prepublish";
+import { isPolishCopy, starkCaption, starkHashtags, starkShortCaption } from "../../caption";
+import { reelCaptionBody, validateReelPhrases } from "./generate.server";
 
-const REEL_THEMES = [
-  "obsidian_void",
-  "crimson_eclipse",
-  "emerald_abyss",
-  "carbon_aura",
-  "silver_mist",
-] as const;
+const REEL_THEMES = ["obsidian_void", "crimson_eclipse", "carbon_aura", "silver_mist"] as const;
 
-/** Ile rolek w paczce maksymalnie — każda to osobne, płatne wywołanie modelu. */
+/** Sufit dla starszych klientów API; studio prosi o jedną rolkę w jednym wywołaniu. */
 const MAX_PACK_REELS = 6;
 
 /**
@@ -53,18 +46,27 @@ const REEL_DURATION_MAX = 15;
  * i polszczyzna nie mogą dojść do paczki, a potem do konta.
  */
 /** `index` wchodzi z `map()` jako sol wezwania — patrz `starkCta`. */
-function normalizeReel(item: unknown, index = 0, usedCtas?: Set<string>) {
+export function normalizePackReel(
+  item: unknown,
+  index = 0,
+  usedCtas?: Set<string>,
+  history: string[] = [],
+) {
   const reel = (item ?? {}) as Record<string, unknown>;
-  const phrases = publishableLines(asStringArray(reel.phrases, 5));
+  const rawPhrases = asStringArray(reel.phrases, 5);
+  const phrases = validateReelPhrases(rawPhrases, rawPhrases.length, history);
+  if (!phrases?.length) return null;
   const rawHook = asString(reel.hook);
-  const hook = publishableLine(rawHook) ? rawHook : phrases[0] || "";
+  // Pierwsza fraza jest tezą rolki. Oddzielne pole nie może zmienić jej w studiu.
+  const hook = phrases[0];
+  if (rawHook && hookFingerprint(rawHook) !== hookFingerprint(hook)) return null;
 
   return {
     hook,
-    phrases: phrases.length > 0 ? phrases : hook ? [hook] : [],
+    phrases,
     theme: oneOf(reel.theme, REEL_THEMES, "obsidian_void"),
     duration: clampInt(reel.duration, REEL_DURATION_MIN, REEL_DURATION_MAX, 8),
-    captionShort: starkCaption(hook, asString(reel.captionShort), index, usedCtas),
+    captionShort: starkCaption(hook, reelCaptionBody(reel.captionShort, phrases), index, usedCtas),
     // Hashtagi liczymy z tego, co jest na kadrze. Model niech ich nie prosi:
     // każdy własny zestaw to inny ogon pod kolejnym postem tego samego konta.
     hashtags: starkHashtags((hook + " " + phrases.join(" ")).trim()),
@@ -87,62 +89,48 @@ function pickDailyCategory(): string {
   return pickForDay(DARK_MOTIVATION_CATEGORIES);
 }
 
-/** Paczka z lokalnych banków treści — działa w 100% offline (zero klucza API, zero limitów). */
-function buildOfflinePack(topic: string, reelsCount: number, excludeHooks: string[] = []) {
-  const excluded = new Set(excludeHooks.map(hookFingerprint));
-  // Cała paczka dnia to jedna partia: trzy powierzchnie (rolka, zasada, post)
-  // nie mogą mieć tego samego wezwania pod spodem, bo wtedy dzień wygląda
-  // jak wygenerowany z jednego szablonu.
-  const usedCtas = new Set<string>();
-  const reels = shuffle(VIRAL_REEL_TEMPLATES)
-    .filter((t) => !excluded.has(hookFingerprint(String(t.phrases[0] || t.title))))
-    .slice(0, reelsCount)
-    .map((template, idx) => {
-      const hook = template.phrases[0] || template.title;
-      return {
-        hook,
-        phrases: template.phrases,
-        theme: template.suggestedTheme,
-        duration: clampInt(template.suggestedDuration, REEL_DURATION_MIN, REEL_DURATION_MAX, 8),
-        // Bank ma własne ogony („Save this reminder and execute in silence") —
-        // bez puli z `caption.ts` na koncie ląduje pięć różnych stopek pisanych
-        // przez pięć osób. `starkCaption` bierze ze zdania banku treść, a CTA
-        // i hashtagy dokłada zawsze markowe.
-        captionShort: starkCaption(hook, template.captionShort, idx, usedCtas),
-        hashtags: starkHashtags(template.phrases.join(" ")),
-      };
-    });
-
-  const rule = pick(STARK_CODEX_RULES);
-  const carousel = {
-    title: rule.title,
-    slides: rule.carouselSlides.map((slide) => ({
-      headline: slide.headline,
-      bodyText: slide.bodyText,
-    })),
-  };
-
-  const post = {
-    headline: rule.hook0to3s,
-    body: starkShortCaption(rule.hook0to3s, rule.corePrinciple, 0, usedCtas),
-    bingPrompt: getRandomBackgroundScene(pick(REEL_THEMES)).bingPrompt,
-  };
-
+/** Nie podstawiamy materiału z banku pod temat właściciela konta. */
+function unavailablePack(topic: string) {
   return {
     generatedAt: new Date().toISOString(),
-    source: "offline" as const,
+    source: "offline",
     topic,
-    category: pickDailyCategory(),
-    reels,
-    carousel,
-    post,
+    reels: [],
+    carousel: { title: "", slides: [] },
+    post: { headline: "", body: "", bingPrompt: "" },
   };
 }
 
-/**
- * ONE-CLICK FACTORY: jeden endpoint, jedna paczka treści na cały dzień publikacji.
- * Rolki + karuzela + post 1:1. Bez klucza API zwraca wariant offline z banków lokalnych.
- */
+/** Cały wywód przechodzi kontrolę: usunięcie środkowego slajdu zmieniłoby argument. */
+export function normalizePackCarousel(value: unknown, history: string[] = []) {
+  const source = (value ?? {}) as Record<string, unknown>;
+  const slides = asArray(source.slides)
+    .slice(0, CAROUSEL_MAX_SLIDES)
+    .map((item) => {
+      const slide = (item ?? {}) as Record<string, unknown>;
+      return { headline: asString(slide.headline), bodyText: asString(slide.bodyText) };
+    });
+  if (
+    !slides.length ||
+    !publishableLine(slides[0].headline) ||
+    history.some((line) => hookFingerprint(line) === hookFingerprint(slides[0].headline))
+  )
+    return { title: "", slides: [] };
+  const seen = new Set<string>();
+  for (const slide of slides) {
+    const id = hookFingerprint(slide.headline);
+    if (
+      isPolishCopy(slide.headline) ||
+      !auditLine(slide.headline).ok ||
+      seen.has(id) ||
+      (slide.bodyText && (isPolishCopy(slide.bodyText) || !auditLine(slide.bodyText, 32).ok))
+    )
+      return { title: "", slides: [] };
+    seen.add(id);
+  }
+  return { title: asString(source.title), slides };
+}
+
 export function registerDailyPackRoutes(app: MiniApp): void {
   app.post("/api/ai/daily-pack", async (req, res) => {
     const topic = clampText(
@@ -150,7 +138,7 @@ export function registerDailyPackRoutes(app: MiniApp): void {
       300,
       "dark motivation, brutal discipline, hard work and mental toughness",
     );
-    const reelsCount = clampInt(req.body?.reelsCount, 1, MAX_PACK_REELS, 3);
+    const reelsCount = clampInt(req.body?.reelsCount, 1, MAX_PACK_REELS, 1);
     // Lista od klienta wchodzi w prompt, więc każdy wiersz jest przycinany
     // osobno: bez tego jedno `excludeHooks: ["a".repeat(1e6)]` płaci za siebie
     // przy każdym wywołaniu w łańcuchu fallbacku modeli.
@@ -158,18 +146,22 @@ export function registerDailyPackRoutes(app: MiniApp): void {
     const exemplars = clampTextList(req.body?.exemplars).slice(0, 8);
 
     if (!getGeminiClient()) {
-      return sendDegraded(res, buildOfflinePack(topic, reelsCount, safeExclude));
+      return sendDegraded(
+        res.status(503),
+        unavailablePack(topic),
+        "Brak GEMINI_API_KEY. Dodaj klucz darmowej warstwy lub pracuj ręcznie w studiu.",
+      );
     }
 
     try {
-      const dailyCategory = pickDailyCategory();
+      const dailyCategory = clampText(req.body?.topic, 300) || pickDailyCategory();
       const prompt = `Jesteś strategiem treści dla marki @stark_focus (dark motivation, brutalna dyscyplina, hard work ethos, treści 100% po angielsku).
 Dla tematu: "${topic}" i kategorii dnia: "${dailyCategory}" wygeneruj JEDNĄ spójną "paczkę dnia" do publikacji.
 
 WYMAGANIA TREŚCI:
 - Ton: bezwzględny, konkretny, zero "inspiration porn"
-- Styl: David Goggins meets Marcus Aurelius — surowy, ale filozoficzny
-- Każdy hook musi zatrzymać scroll w 0.8s (konkret, liczby, konfrontacja)
+- Oryginalny głos marki: bez podszywania się pod cudzy styl; jedna obserwowalna sytuacja i jej konsekwencje
+- Każdy hook nazywa zachowanie lub koszt. Nie obiecuj zasięgu ani retencji.
 - Zero ogólników: zamiast hasła ma być jedna z figur z katalogu poniżej, na geście, który czytelnik naprawdę robi
 - NIE powtarzaj żadnego z tych hooków (ani ich mutacji):
 ${
@@ -185,14 +177,14 @@ ${
 ${HOOK_CRAFT_PROMPT}
 ${exemplarBlock(exemplars)}
    - phrases: dokładnie 3 frazy po angielsku [hook, bolesny kontrast, puenta/climax]
-   - theme: jeden z: "obsidian_void" | "crimson_eclipse" | "emerald_abyss" | "carbon_aura" | "silver_mist"
+   - theme: jeden z: "obsidian_void" | "crimson_eclipse" | "carbon_aura" | "silver_mist"
    - duration: liczba sekund ${REEL_DURATION_MIN}-${REEL_DURATION_MAX}
    - captionShort: jedno-dwa zdania po angielsku rozwijające hook. BEZ wezwania do działania i BEZ hashtagów — ogon z puli marki dokłada \`caption.ts\`, a dwa ogony pod jednym postem wyglądają jak dwóch autorów.
-2. Karuzela 4:5: title + ${CAROUSEL_TARGET_SLIDES} slajdów {headline, bodyText}. Długość nie jest kaprysem: u kont poniżej 10k obserwujących karuzele 11-20 slajdów wychodzą ponad medianę autora w 23,5% przypadków, te 2-4 slajdy w 18,0% (Eden, 655 385 karuzeli).
+2. Karuzela 4:5: title + ${CAROUSEL_TARGET_SLIDES} slajdów {headline, bodyText}.
    ROZKŁAD: slajd 1 to teza, nie tytuł; slajdy 2-${CAROUSEL_TARGET_SLIDES - 2} ROZWIJAJĄ TĘ SAMĄ tezę o jeden krok każdy — to jest jeden wywód, nie zbiór aforyzmów; slajd ${CAROUSEL_TARGET_SLIDES - 1} konkretna cena za brak zmiany; slajd ${CAROUSEL_TARGET_SLIDES} jedno zdanie do zapisania.
-   CO SPISUJE NAJGORSZE KARUZELE (sprawdzane na żywo na naszym koncie): każdy slajd o nowym przedmiocie. „Zmywasz blat dwa razy", „krzesło stoi pięćdziesiąt centymetrów od kaloryfera", „siedem nieprzeczytanych maili" — to jest lista rekwizytów, nie argument. Konkret z „ZASADY RZEMIOSLA" ma SŁUŻYĆ tezie, a nie ją zastępować; jeśli slajd da się przenieść do karuzeli o innym temacie i nic się nie zmienia, slajd jest zły — przepisz go tak, żeby bez tematu z slajdu 1 nie dało się go zrozumieć.
+   UNIKAJ TEGO BŁĘDU: każdy slajd o nowym przedmiocie. „Zmywasz blat dwa razy", „krzesło stoi pięćdziesiąt centymetrów od kaloryfera", „siedem nieprzeczytanych maili" — to jest lista rekwizytów, nie argument. Konkret z „ZASADY RZEMIOSLA" ma SŁUŻYĆ tezie, a nie ją zastępować; jeśli slajd da się przenieść do karuzeli o innym temacie i nic się nie zmienia, slajd jest zły — przepisz go tak, żeby bez tematu z slajdu 1 nie dało się go zrozumieć.
    bodyText: 1-2 zdania po angielsku (18-30 słów). Trzecie zdanie na slajdzie to już nie swipe, tylko ściana tekstu.
-3. Grafika 1:1: {headline, body, bingPrompt} — bingPrompt po angielsku do generatora obrazów (ciemne, brutalistyczne, minimalistyczne tło, 1:1, bez tekstu, moody lighting). \`headline\` to jedno zdanie na czarnym kadrze (4-10 słów, PO ANGIELSKU), a \`body\` to JEDNO zdanie po angielsku (max 22 słowa), które dopowiada to, czego nie widać na kadrze. Pod cytatem na czerni nie ma wykładu na pięć linijek — nikt go nie czyta, a kadr zostaje tym samym zdaniem.
+3. Grafika 1:1: {headline, body}. \`headline\` to jedno zdanie na czarnym kadrze (4-10 słów, PO ANGIELSKU), a \`body\` to JEDNO zdanie po angielsku (max 22 słowa), które dopowiada to, czego nie widać na kadrze. Pod cytatem na czerni nie ma wykładu na pięć linijek — nikt go nie czyta, a kadr zostaje tym samym zdaniem.
 
 Zwróć WYŁĄCZNIE poprawny JSON wg schematu:
 {
@@ -203,7 +195,7 @@ Zwróć WYŁĄCZNIE poprawny JSON wg schematu:
       "phrases": ["string", "string", "string"],
       "theme": "obsidian_void",
       "duration": 8,
-      "captionShort": "string",
+      "captionShort": "string"
     }
   ],
   "carousel": {
@@ -212,8 +204,7 @@ Zwróć WYŁĄCZNIE poprawny JSON wg schematu:
   },
   "post": {
     "headline": "string",
-    "body": "string",
-    "bingPrompt": "string"
+    "body": "string"
   }
 }`;
 
@@ -226,28 +217,35 @@ Zwróć WYŁĄCZNIE poprawny JSON wg schematu:
       // Jedna paczka dnia = jeden zestaw użytych wezwań, więc deklaracja
       // wyprzedza pierwsze zdanie, które może je zabrać.
       const usedCtas = new Set<string>();
+      const history = [...safeExclude];
       const reels = asArray(parsed.reels)
-        .map((item, index) => normalizeReel(item, index, usedCtas))
-        .filter((reel) => reel.phrases.length > 0 && reel.hook)
-        .slice(0, MAX_PACK_REELS);
-
-      const slides = asArray(parsed.carousel?.slides)
-        .map((slide: unknown) => ({
-          headline: asString((slide as Record<string, unknown>)?.headline),
-          bodyText: asString((slide as Record<string, unknown>)?.bodyText),
-        }))
-        .filter((slide) => slide.headline || slide.bodyText)
-        .slice(0, CAROUSEL_MAX_SLIDES);
-
-      const postHeadline = asString(parsed.post?.headline);
+        .slice(0, reelsCount)
+        .flatMap((item, index) => {
+          const reel = normalizePackReel(item, index, usedCtas, history);
+          if (!reel) return [];
+          history.push(...reel.phrases);
+          return [reel];
+        });
+      const carousel = normalizePackCarousel(parsed.carousel, safeExclude);
+      const slides = carousel.slides;
+      const rawPostHeadline = asString(parsed.post?.headline);
+      const postHeadline =
+        publishableLine(rawPostHeadline) &&
+        !safeExclude.some((line) => hookFingerprint(line) === hookFingerprint(rawPostHeadline))
+          ? rawPostHeadline
+          : "";
 
       // Zapytanie już zostało zapłacone, więc jedno puste pole nie może kasować
       // całej paczki: oddajemy to, co przyszło dobre, a brak nazywa UI (pola
-      // wracają puste). Bank wchodzi do gry dopiero, gdy nie ma niczyjego zdania.
+      // wracają puste). Jeśli nie ma dobrego materiału, zwracamy komunikat bez banku treści.
       const hasReels = reels.length > 0;
       const hasCarousel = slides.length > 0;
       if (!hasReels && !hasCarousel && !postHeadline) {
-        return sendDegraded(res, buildOfflinePack(topic, reelsCount, safeExclude));
+        return sendDegraded(
+          res.status(422),
+          unavailablePack(topic),
+          "Materiał nie przeszedł kontroli jakości. Nie wstawiamy zastępczej paczki z banku.",
+        );
       }
 
       return res.json({
@@ -256,23 +254,28 @@ Zwróć WYŁĄCZNIE poprawny JSON wg schematu:
         topic,
         category: asString(parsed.category, dailyCategory),
         reels,
-        carousel: { title: hasCarousel ? asString(parsed.carousel?.title) : "", slides },
+        carousel,
+        notice:
+          !hasReels || !hasCarousel || !postHeadline
+            ? "Nie wszystkie części przeszły kontrolę jakości. Zachowano poprawny materiał; brakujące formaty przygotuj w studiu."
+            : "",
         post: postHeadline
           ? {
               headline: postHeadline,
-              body: starkShortCaption(postHeadline, asString(parsed.post?.body), 0, usedCtas),
-              bingPrompt: asString(parsed.post?.bingPrompt),
+              body: starkShortCaption(
+                postHeadline,
+                reelCaptionBody(parsed.post?.body, [postHeadline]),
+                0,
+                usedCtas,
+              ),
+              bingPrompt: "",
             }
           : { headline: "", body: "", bingPrompt: "" },
       });
     } catch (err) {
       console.warn("Błąd daily-pack:", err);
-      // Bank z powodem awarii w `notice` — treść z banku nigdy nie udaje odpowiedzi modelu.
-      return sendDegraded(
-        res,
-        buildOfflinePack(topic, reelsCount, safeExclude),
-        degradedReason(err),
-      );
+      // Powód awarii w `notice`; klient zachowuje poprzednią paczkę.
+      return sendDegraded(res.status(503), unavailablePack(topic), degradedReason(err));
     }
   });
 }

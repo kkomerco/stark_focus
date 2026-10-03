@@ -19,6 +19,8 @@ export interface StructuredContent {
   /** Teza, pytanie albo nagłówek — zawsze pierwsza warstwa (`t1`). */
   primary: string;
   steps?: string[];
+  belief?: string;
+  reality?: string;
   cost?: string[];
   forfeit?: string[];
   closing?: string;
@@ -32,6 +34,7 @@ const LAYOUT_NAMES: Record<string, string> = {
   cost_vs_reward: "Koszt i utrata",
   studio_wall_3d: "Napis w scenie",
   grid_2x2: "Kolaż",
+  split_horizontal: "Wymówka kontra fakt",
 };
 
 const BODY_FONT_SIZE = 38;
@@ -52,6 +55,26 @@ export function structuredSpec(
         fontSize: BODY_FONT_SIZE,
         firstY: 0.42,
         stepY: 0.1,
+      }),
+    );
+  }
+  if (content.belief || gridType === "split_horizontal") {
+    layers.push(
+      textLayer("belief", content.belief ?? "", {
+        fontFamily: "sans",
+        fontSize: 48,
+        fontWeight: "bold",
+        posY: 0.49,
+      }),
+    );
+  }
+  if (content.reality || gridType === "split_horizontal") {
+    layers.push(
+      textLayer("reality", content.reality ?? "", {
+        fontFamily: "sans",
+        fontSize: 48,
+        fontWeight: "bold",
+        posY: 0.71,
       }),
     );
   }
@@ -113,6 +136,8 @@ export function specFromIdea(idea: IdeaItem): UniversalLayoutSpec {
     forfeit: structure.forfeit,
     closing: structure.closing,
     figure: structure.figure,
+    belief: structure.belief,
+    reality: structure.reality,
   });
 
   return { ...spec, caption: idea.caption?.trim() || spec.caption };

@@ -14,7 +14,6 @@ dist-ssr
 .vinxi
 .env
 *.local
-package-lock.json
 
 # Sejf ujęć ściągniętych z katalogu: dziesiątki megabajtów obcego materiału,
 # do którego prawa ma Pexels, nie to repo.

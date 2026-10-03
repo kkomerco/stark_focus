@@ -73,10 +73,10 @@ interface AbModalProps {
   onSendToReel?: (reel: ReelHandoff) => void;
 }
 
-const PANEL = "bg-[#0F121C] border border-[#2C354B] rounded-xl";
+const PANEL = "bg-[#0E0E0E] border border-[#303030] rounded-xl";
 const FIELD =
-  "bg-[#0F121C] border border-[#2C354B] px-2 py-1 font-mono text-[10px] text-white placeholder:text-slate-600 focus:outline-none focus:border-slate-500";
-const LABEL = "text-[9px] font-mono uppercase text-slate-500";
+  "bg-[#0E0E0E] border border-[#303030] px-2 py-1 font-mono text-[10px] text-white placeholder:text-neutral-600 focus:outline-none focus:border-neutral-500";
+const LABEL = "text-[9px] font-mono uppercase text-neutral-500";
 
 /** Uczciwy podpis pary: gotowiec z pliku nie może wyglądać jak odpowiedź modelu na ten temat. */
 const BANK_NOTE = "treść z banku — model nie odpowiedział";
@@ -160,7 +160,7 @@ const publishTimeLine = (variants: AbVariant[]): { line: string; confounded: boo
         confounded: true,
       }
     : {
-        line: `Publikacje dzieli ${gapLabel(gap)} — mieści się w ${AB_PUBLISH_GAP_MAX_MINUTES} min, więc czas nie miesza w porównaniu.`,
+        line: `Publikacje dzieli ${gapLabel(gap)} — mieści się w ${AB_PUBLISH_GAP_MAX_MINUTES} min, ogranicza różnicę czasu. Sam ten warunek nie dowodzi przewagi hooka.`,
         confounded: false,
       };
 };
@@ -188,9 +188,6 @@ export const AbModal: React.FC<AbModalProps> = ({
     setLoading(true);
     setError(null);
     setNotice(null);
-    setBankLabel(null);
-    patch({ conclusion: null });
-    setSaved(false);
     try {
       // Pętla uczenia: przekazujemy historię zakończonych eksperymentów do generatora,
       // aby nowe warianty uczyły się na zwycięskich wzorcach.
@@ -221,6 +218,12 @@ export const AbModal: React.FC<AbModalProps> = ({
           excludeHooks: usedHookFingerprints(data),
         }),
       });
+      if (degraded) {
+        setError(
+          `${textOf(json.notice) || "Model nie przygotował obu wariantów do Twojego tematu."} Poprzednia para i wyniki pozostają zachowane.`,
+        );
+        return;
+      }
       if (status < 200 || status >= 300) {
         setError(
           status
@@ -231,28 +234,17 @@ export const AbModal: React.FC<AbModalProps> = ({
       }
 
       const vs: AbVariant[] = Array.isArray(json.variants) ? json.variants : [];
-      // Bank dokłada ramię, gdy model odda tylko jedno: para jest, ale nie cała
-      // wyszła z jednej odpowiedzi — karta musi to mieć napisane na sobie.
-      const filled = Number(json.bankFilled ?? 0);
-      setBankLabel(
-        degraded
-          ? BANK_NOTE
-          : Number.isFinite(filled) && filled > 0
-            ? "jedno ramię pary jest z banku treści — model nie oddał obu"
-            : null,
-      );
-
-      if (vs.length === 0) {
-        // Trasa oddaje pustą parę razem z powodem. Bez tego zdania znikała cała
-        // sekcja wyników, a kliknięcie wyglądało na martwe.
-        setNotice(
+      if (vs.length !== 2) {
+        setError(
           textOf(json.notice) ||
-            textOf(json.message) ||
-            "Model nie oddał żadnego wariantu A/B — spróbuj ponownie.",
+            "Do porównania potrzebne są oba warianty od modelu. Poprzednia para pozostaje zachowana.",
         );
+        return;
       }
+      setBankLabel(null);
 
       patch({
+        conclusion: null,
         variants: vs,
         experimentId: String(json.experimentId || `ab-${Date.now()}`),
         results: vs.map((v) => ({
@@ -264,6 +256,7 @@ export const AbModal: React.FC<AbModalProps> = ({
           saves: 0,
         })),
       });
+      setSaved(false);
     } finally {
       setLoading(false);
     }
@@ -476,7 +469,7 @@ export const AbModal: React.FC<AbModalProps> = ({
   return (
     <div className="fixed inset-0 z-60 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
       <div className={`w-full max-w-2xl max-h-[88vh] flex flex-col ${PANEL} p-5 space-y-4`}>
-        <div className="flex items-center justify-between pb-3 border-b border-[#2C354B]">
+        <div className="flex items-center justify-between pb-3 border-b border-[#303030]">
           <div className="flex items-center gap-2">
             <Repeat className="w-4 h-4 text-rose-400" />
             <h3 className="text-sm font-mono font-black uppercase tracking-wider text-white">
@@ -486,19 +479,19 @@ export const AbModal: React.FC<AbModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-white cursor-pointer"
+            className="p-1.5 text-neutral-400 hover:text-white cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <label className="text-[11px] font-mono text-slate-400">
+        <label className="text-[11px] font-mono text-neutral-400">
           Temat eksperymentu:
           <input
             type="text"
             value={topic}
             onChange={(e) => patch({ topic: e.target.value })}
-            className="ml-2 w-full max-w-xs px-2 py-1 rounded bg-[#141824] border border-[#2C354B] text-xs font-mono text-white"
+            className="ml-2 w-full max-w-xs px-2 py-1 rounded bg-[#161616] border border-[#303030] text-xs font-mono text-white"
           />
         </label>
         <button
@@ -514,7 +507,7 @@ export const AbModal: React.FC<AbModalProps> = ({
         {/* Generator karmi się listą zakończonych eksperymentów z tej karty, nie
             dziennikiem publikacji. Właściciel konta klika w dwie różne rzeczy i
             nie może się mylić, która z nich uczy modelu. */}
-        <p className="text-[9px] font-mono text-slate-500">
+        <p className="text-[9px] font-mono text-neutral-500">
           Pętla uczenia karmi się zakończonymi eksperymentami tej karty ({teachingLoops}), a nie
           dziennikiem publikacji. Zapis wariantów w dzienniku nic do generatora nie dokłada — to
           osobny przycisk i osobna rzeczywistość.
@@ -539,13 +532,13 @@ export const AbModal: React.FC<AbModalProps> = ({
             return (
               <div
                 key={textOf(v.label) || phrases.join("-")}
-                className="p-3 bg-[#141824] border border-[#2C354B] rounded-lg space-y-2"
+                className="p-3 bg-[#161616] border border-[#303030] rounded-lg space-y-2"
               >
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-mono font-black text-white">
                     WARIANT {textOf(v.label)}
                   </span>
-                  <span className="text-[9px] font-mono text-slate-500">{textOf(v.theme)}</span>
+                  <span className="text-[9px] font-mono text-neutral-500">{textOf(v.theme)}</span>
                 </div>
                 <p className="text-sm font-mono font-bold text-white">{hook}</p>
                 <p className="text-[10px] font-mono text-zinc-200">{textOf(v.angle)}</p>
@@ -565,9 +558,9 @@ export const AbModal: React.FC<AbModalProps> = ({
                     className={FIELD}
                   />
                 </div>
-                <div className="space-y-0.5 pl-2 border-l border-[#2C354B]">
+                <div className="space-y-0.5 pl-2 border-l border-[#303030]">
                   {phrases.map((p, i) => (
-                    <p key={i} className="text-[10px] font-mono text-slate-400">
+                    <p key={i} className="text-[10px] font-mono text-neutral-400">
                       {i + 1}. {p}
                     </p>
                   ))}
@@ -587,8 +580,8 @@ export const AbModal: React.FC<AbModalProps> = ({
           })}
 
           {pastExperiments.length > 0 && (
-            <div className="p-3 bg-[#141824] border border-[#2C354B] rounded-lg space-y-2">
-              <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500">
+            <div className="p-3 bg-[#161616] border border-[#303030] rounded-lg space-y-2">
+              <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500">
                 Poprzednie eksperymenty ({pastExperiments.length})
               </h4>
               {pastExperiments.map((experiment) => {
@@ -600,7 +593,7 @@ export const AbModal: React.FC<AbModalProps> = ({
                     <p className="text-[10px] font-mono text-white truncate">
                       {experiment.topic || experiment.id}
                     </p>
-                    <p className="text-[9px] font-mono text-slate-500">
+                    <p className="text-[9px] font-mono text-neutral-500">
                       {(experiment.createdAt || "").slice(0, 10)} ·{" "}
                       {experiment.winner
                         ? `wygrana: wariant ${experiment.winner}`
@@ -608,7 +601,7 @@ export const AbModal: React.FC<AbModalProps> = ({
                       · w dzienniku: {ledgerRows}
                     </p>
                     {experiment.lesson && (
-                      <p className="text-[10px] font-mono text-slate-400">{experiment.lesson}</p>
+                      <p className="text-[10px] font-mono text-neutral-400">{experiment.lesson}</p>
                     )}
                   </div>
                 );
@@ -618,8 +611,8 @@ export const AbModal: React.FC<AbModalProps> = ({
         </div>
 
         {variants.length >= 2 && (
-          <div className="p-3 bg-[#141824] border border-[#2C354B] rounded-lg space-y-2">
-            <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500">
+          <div className="p-3 bg-[#161616] border border-[#303030] rounded-lg space-y-2">
+            <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500">
               Wyniki (wpisz po publikacji obu wariantów)
             </h4>
             <div className="flex flex-wrap items-center gap-2">
@@ -639,45 +632,45 @@ export const AbModal: React.FC<AbModalProps> = ({
                 <div key={r.label} className="space-y-1">
                   <div className="flex flex-wrap gap-1 items-center">
                     <span className="text-rose-300 font-bold w-4">{r.label}</span>
-                    <span className="text-slate-400">Wyśw.:</span>
+                    <span className="text-neutral-400">Wyśw.:</span>
                     <input
                       type="number"
                       min="0"
                       value={r.views}
                       onChange={(e) => setMetric(idx, "views", e.target.value)}
-                      className="w-16 bg-[#0F121C] border border-[#2C354B] py-1 text-center font-mono text-white text-[10px]"
+                      className="w-16 bg-[#0E0E0E] border border-[#303030] py-1 text-center font-mono text-white text-[10px]"
                     />
-                    <span className="text-slate-400">Lajki:</span>
+                    <span className="text-neutral-400">Lajki:</span>
                     <input
                       type="number"
                       min="0"
                       value={r.likes}
                       onChange={(e) => setMetric(idx, "likes", e.target.value)}
-                      className="w-14 bg-[#0F121C] border border-[#2C354B] py-1 text-center font-mono text-white text-[10px]"
+                      className="w-14 bg-[#0E0E0E] border border-[#303030] py-1 text-center font-mono text-white text-[10px]"
                     />
-                    <span className="text-slate-400">Koment.:</span>
+                    <span className="text-neutral-400">Koment.:</span>
                     <input
                       type="number"
                       min="0"
                       value={r.comments}
                       onChange={(e) => setMetric(idx, "comments", e.target.value)}
-                      className="w-14 bg-[#0F121C] border border-[#2C354B] py-1 text-center font-mono text-white text-[10px]"
+                      className="w-14 bg-[#0E0E0E] border border-[#303030] py-1 text-center font-mono text-white text-[10px]"
                     />
-                    <span className="text-slate-400">Udost.:</span>
+                    <span className="text-neutral-400">Udost.:</span>
                     <input
                       type="number"
                       min="0"
                       value={r.shares}
                       onChange={(e) => setMetric(idx, "shares", e.target.value)}
-                      className="w-14 bg-[#0F121C] border border-[#2C354B] py-1 text-center font-mono text-white text-[10px]"
+                      className="w-14 bg-[#0E0E0E] border border-[#303030] py-1 text-center font-mono text-white text-[10px]"
                     />
-                    <span className="text-slate-400">Zapisy:</span>
+                    <span className="text-neutral-400">Zapisy:</span>
                     <input
                       type="number"
                       min="0"
                       value={r.saves}
                       onChange={(e) => setMetric(idx, "saves", e.target.value)}
-                      className="w-14 bg-[#0F121C] border border-[#2C354B] py-1 text-center font-mono text-white text-[10px]"
+                      className="w-14 bg-[#0E0E0E] border border-[#303030] py-1 text-center font-mono text-white text-[10px]"
                     />
                   </div>
                   <div className="flex flex-wrap items-center gap-2 pl-5">
@@ -688,7 +681,7 @@ export const AbModal: React.FC<AbModalProps> = ({
                       onChange={(e) => setPublishedAt(idx, e.target.value)}
                       className={`${FIELD} w-40`}
                     />
-                    <span className="text-[9px] font-mono text-slate-500">
+                    <span className="text-[9px] font-mono text-neutral-500">
                       {ledgerFingerprints.has(hookFingerprint(textOf(variants[idx]?.hook)))
                         ? "ta myśl już jest w dzienniku"
                         : dateOf(variants[idx]?.publishedAt)
@@ -702,7 +695,7 @@ export const AbModal: React.FC<AbModalProps> = ({
             {publishCheck.line && (
               <p
                 className={`text-[9px] font-mono ${
-                  publishCheck.confounded ? "text-rose-300" : "text-slate-500"
+                  publishCheck.confounded ? "text-rose-300" : "text-neutral-500"
                 }`}
               >
                 {publishCheck.line}
@@ -722,7 +715,7 @@ export const AbModal: React.FC<AbModalProps> = ({
               Wyciągnij zwycięski wzorzec
             </button>
             {!canConclude && (
-              <p className="text-[9px] font-mono text-slate-500">
+              <p className="text-[9px] font-mono text-neutral-500">
                 {short.length > 0
                   ? `Każdy wariant potrzebuje co najmniej ${MIN_AB_VIEWS} wyświetleń — brakuje: ${short
                       .map((r) => `${r.label}: ${MIN_AB_VIEWS - r.views}`)
@@ -734,30 +727,30 @@ export const AbModal: React.FC<AbModalProps> = ({
         )}
 
         {notice && (
-          <div className="p-2 bg-[#141824] border border-[#2C354B] rounded-lg text-[10px] font-mono text-slate-400">
+          <div className="p-2 bg-[#161616] border border-[#303030] rounded-lg text-[10px] font-mono text-neutral-400">
             {notice}
           </div>
         )}
 
         {conclusion && refused && (
-          <div className="p-3 bg-[#141824] border border-[#2C354B] rounded-lg space-y-2">
+          <div className="p-3 bg-[#161616] border border-[#303030] rounded-lg space-y-2">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-300">
+              <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-300">
                 Bez rozstrzygnięcia
               </p>
               {conclusionWithoutModel && (
-                <p className="text-[10px] font-mono text-slate-500">
+                <p className="text-[10px] font-mono text-neutral-500">
                   Odmowa liczona jest z samych liczb — model nie był o nią pytany.
                 </p>
               )}
             </div>
-            <p className="text-[11px] font-mono text-slate-300">{conclusion.lesson}</p>
+            <p className="text-[11px] font-mono text-neutral-300">{conclusion.lesson}</p>
             {(conclusion.missing ?? []).map((row) => (
-              <p key={textOf(row.label)} className="text-[10px] font-mono text-slate-400">
+              <p key={textOf(row.label)} className="text-[10px] font-mono text-neutral-400">
                 Wariant {textOf(row.label)}: {row.views ?? 0} wyświetleń, brakuje {row.needs ?? 0}.
               </p>
             ))}
-            <p className="text-[9px] font-mono text-slate-500">
+            <p className="text-[9px] font-mono text-neutral-500">
               Nic nie poszło do pętli uczenia — wzorzec z jednego pomiaru wracałby potem do
               generatora jako dowód.
             </p>
@@ -775,8 +768,8 @@ export const AbModal: React.FC<AbModalProps> = ({
                 <BankTag label={NO_MODEL_NOTE} />
               </div>
             )}
-            <p className="text-[11px] font-mono text-slate-300">{conclusion.lesson}</p>
-            <p className="text-[9px] font-mono text-slate-500">
+            <p className="text-[11px] font-mono text-neutral-300">{conclusion.lesson}</p>
+            <p className="text-[9px] font-mono text-neutral-500">
               W kolejnych generacjach stosuj więcej tego typu hooków.
               {saved && " Wzorzec zapisany do pętli uczenia."}
             </p>
@@ -801,7 +794,7 @@ export const AbModal: React.FC<AbModalProps> = ({
                   ? "Warianty są już w dzienniku"
                   : "Zapisz oba warianty w dzienniku publikacji"}
               </button>
-              <p className="w-full text-[9px] font-mono text-slate-500">
+              <p className="w-full text-[9px] font-mono text-neutral-500">
                 Dziennik to liczby z konta — pętla uczenia ich nie czyta. Wzorzec do generatora
                 wnosi rozstrzygnięty eksperyment z tej karty.
               </p>

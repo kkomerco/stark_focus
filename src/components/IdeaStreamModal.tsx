@@ -51,6 +51,7 @@ interface IdeaStreamModalProps {
 
 const PANEL = "bg-[#0F121C] border border-[#2C354B] rounded-xl";
 const CARD = "p-3 bg-[#141824] border border-[#2C354B] rounded-lg space-y-2";
+const DEFAULT_IDEA_TOPIC = "dark motivation and brutal discipline";
 const ACTION_BTN =
   "py-1.5 px-3 rounded bg-[#141824] hover:bg-[#1E2638] border border-[#2C354B] text-[11px] font-mono font-bold text-slate-200 hover:text-white transition-colors flex items-center gap-1.5 cursor-pointer";
 const GENERATE_BTN =
@@ -85,6 +86,8 @@ export const IdeaStreamModal: React.FC<IdeaStreamModalProps> = ({
   const { ideas, loading, error, notice, usedCount, generateIdeas, markUsed, clearHistory, abort } =
     stream;
   const [copiedId, setCopiedId] = React.useState<string | null>(null);
+  const [topic, setTopic] = React.useState(DEFAULT_IDEA_TOPIC);
+  const [batchSize, setBatchSize] = React.useState(10);
   // Karta z taniej partii niesie tylko tezę i układ. Wypełnienie jest jednym
   // zapytaniem do modelu, więc klik musi mówić, że płaci, a nie udawać darmowy.
   const [fillingId, setFillingId] = React.useState<string | null>(null);
@@ -148,10 +151,39 @@ export const IdeaStreamModal: React.FC<IdeaStreamModalProps> = ({
             </h3>
             <span className={META_TAG}>{usedCount} w historii</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="flex items-center gap-1.5 text-[10px] font-mono text-slate-400">
+              Temat
+              <input
+                type="text"
+                value={topic}
+                onChange={(event) => setTopic(event.target.value)}
+                maxLength={300}
+                placeholder="Np. dyscyplina bez motywacji"
+                aria-label="Temat generowanych pomysłów"
+                disabled={loading}
+                className="w-44 rounded border border-[#2C354B] bg-[#141824] px-2 py-1.5 text-[11px] text-white placeholder:text-slate-600 focus:border-rose-600/60 focus:outline-none disabled:opacity-50"
+              />
+            </label>
+            <label className="flex items-center gap-1.5 text-[10px] font-mono text-slate-400">
+              Liczba
+              <select
+                value={batchSize}
+                onChange={(event) => setBatchSize(Number(event.target.value))}
+                aria-label="Liczba pomysłów w partii"
+                disabled={loading}
+                className="rounded border border-[#2C354B] bg-[#141824] px-2 py-1.5 text-[11px] text-white focus:border-rose-600/60 focus:outline-none disabled:opacity-50"
+              >
+                {[5, 10, 15, 20].map((count) => (
+                  <option key={count} value={count}>
+                    {count}
+                  </option>
+                ))}
+              </select>
+            </label>
             <button
               type="button"
-              onClick={() => generateIdeas(5)}
+              onClick={() => generateIdeas(batchSize, topic.trim() || DEFAULT_IDEA_TOPIC)}
               disabled={loading}
               className={GENERATE_BTN}
             >
@@ -160,7 +192,7 @@ export const IdeaStreamModal: React.FC<IdeaStreamModalProps> = ({
               ) : (
                 <RefreshCw className="w-3 h-3" />
               )}
-              Nowa partia
+              Generuj {batchSize}
             </button>
             <button
               type="button"
@@ -224,11 +256,13 @@ export const IdeaStreamModal: React.FC<IdeaStreamModalProps> = ({
           {!loading &&
             ideas.map((idea) => {
               const steps = idea.structure?.steps ?? [];
+              const belief = idea.structure?.belief ?? "";
+              const reality = idea.structure?.reality ?? "";
               const cost = idea.structure?.cost ?? [];
               const forfeit = idea.structure?.forfeit ?? [];
               const closing = idea.structure?.closing ?? "";
               const figure = idea.structure?.figure ?? "";
-              const structured = steps.length > 0 || cost.length > 0;
+              const structured = steps.length > 0 || cost.length > 0 || !!belief || !!reality;
               return (
                 <div key={idea.id} className={CARD}>
                   <div className="flex items-start justify-between gap-3">
@@ -252,6 +286,23 @@ export const IdeaStreamModal: React.FC<IdeaStreamModalProps> = ({
                         </li>
                       ))}
                     </ol>
+                  )}
+
+                  {(belief || reality) && (
+                    <div className="grid grid-cols-2 gap-2">
+                      {belief && (
+                        <div className="space-y-1">
+                          <span className={META_TAG}>Wymówka</span>
+                          <p className="text-[10px] font-mono text-slate-400">{belief}</p>
+                        </div>
+                      )}
+                      {reality && (
+                        <div className="space-y-1">
+                          <span className={ACCENT_TAG}>Fakt</span>
+                          <p className="text-[10px] font-mono text-slate-400">{reality}</p>
+                        </div>
+                      )}
+                    </div>
                   )}
 
                   {cost.length > 0 && (

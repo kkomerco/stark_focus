@@ -1,17 +1,7 @@
 // DailyPackModal.tsx — Klik 1: jedna paczka treści na cały dzień publikacji.
 // Każdy element paczki przekazujemy jednym kliknięciem do istniejących studiów.
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import {
-  ArrowRight,
-  Check,
-  Copy,
-  Film,
-  Image as ImageIcon,
-  Layers,
-  RefreshCw,
-  Sparkles,
-  X,
-} from "lucide-react";
+import { ArrowRight, Check, Copy, Film, Layers, RefreshCw, Sparkles, X } from "lucide-react";
 import { DailyPack, ReelHandoff } from "../types";
 import { fetchJson } from "../lib/fetchJson";
 
@@ -34,13 +24,13 @@ interface DailyPackModalProps {
   exemplarHooks?: string[];
 }
 
-const PANEL = "bg-[#0F121C] border border-[#2C354B] rounded-xl";
+const PANEL = "bg-[#0E0E0E] border border-[#303030] rounded-xl";
 const ACTION_BTN =
-  "py-1.5 px-3 rounded bg-[#141824] hover:bg-[#1E2638] border border-[#2C354B] text-[11px] font-mono font-bold text-slate-200 hover:text-white transition-colors flex items-center gap-1.5 cursor-pointer";
+  "py-1.5 px-3 rounded bg-[#161616] hover:bg-[#242424] border border-[#303030] text-[11px] font-mono font-bold text-neutral-200 hover:text-white transition-colors flex items-center gap-1.5 cursor-pointer";
 const PRIMARY_BTN =
   "py-1.5 px-3 rounded bg-white hover:bg-neutral-200 border border-white text-[11px] font-mono font-bold text-black transition-colors flex items-center gap-1.5 cursor-pointer";
-const SECTION_H = "text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500";
-const CARD = "p-3 bg-[#141824] border border-[#2C354B] rounded-lg space-y-2";
+const SECTION_H = "text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500";
+const CARD = "p-3 bg-[#161616] border border-[#303030] rounded-lg space-y-2";
 /** Uczciwy podpis na karcie: właściciel konta nie może wkleić zdania z banku, myśląc, że model napisał je do tego tematu. */
 const BANK_NOTE = "treść z banku — model nie odpowiedział";
 
@@ -84,6 +74,7 @@ export const DailyPackModal: React.FC<DailyPackModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [topic, setTopic] = useState(() => pack?.topic || "");
 
   // Trasa ma własny łańcuch fallbacku modeli (3 modele × 2 próby × limit czasu),
   // więc bez abortu spinner kręciłby się długo po zamknięciu okna, a wynik
@@ -114,14 +105,28 @@ export const DailyPackModal: React.FC<DailyPackModalProps> = ({
       } = await fetchJson("/api/ai/daily-pack", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ excludeHooks: usedHooks ?? [], exemplars: exemplarHooks ?? [] }),
+        body: JSON.stringify({
+          topic,
+          reelsCount: 1,
+          excludeHooks: usedHooks ?? [],
+          exemplars: exemplarHooks ?? [],
+        }),
         signal: controller.signal,
       });
-      if (status < 200 || status >= 300) throw new Error("HTTP " + status);
+      if (cancelledRef.current || controller.signal.aborted) return;
+      if (degraded || status < 200 || status >= 300) {
+        const notice =
+          typeof json.notice === "string"
+            ? json.notice
+            : typeof json.error === "string"
+              ? json.error
+              : "Model nie przygotował paczki do Twojego tematu.";
+        setError(`${notice} Poprzednia paczka pozostaje zachowana.`);
+        return;
+      }
       const next = json as unknown as DailyPack;
-      // Nagłówek `x-stark-degraded` jest mocniejszy niż pole w payloadzie: trasa
-      // może oddać bank bez `source`, a pod rolką nie może stać „MODEL GEMINI".
-      onPackChange(degraded ? { ...next, source: "offline" } : next);
+      onPackChange(next);
+      if (typeof json.notice === "string" && json.notice) setError(json.notice);
     } catch {
       if (!cancelledRef.current) {
         setError("Nie udało się wygenerować paczki. Spróbuj ponownie.");
@@ -130,7 +135,7 @@ export const DailyPackModal: React.FC<DailyPackModalProps> = ({
       if (abortRef.current === controller) abortRef.current = null;
       if (!cancelledRef.current) setLoading(false);
     }
-  }, [onPackChange, usedHooks, exemplarHooks]);
+  }, [onPackChange, usedHooks, exemplarHooks, topic]);
 
   const handleCopy = (id: string, text: string) => {
     navigator.clipboard.writeText(text);
@@ -146,7 +151,6 @@ export const DailyPackModal: React.FC<DailyPackModalProps> = ({
   const carouselSlides = slidesOf(pack?.carousel?.slides);
   const postHeadline = textOf(pack?.post?.headline);
   const postBody = textOf(pack?.post?.body);
-  const postPrompt = textOf(pack?.post?.bingPrompt);
 
   // Trasa oddaje to, co przyszło od modelu, nawet gdy któraś część jest pusta —
   // płacenie drugi raz za całą paczkę przez jedno martwe pole byłoby uczciwsze
@@ -160,7 +164,7 @@ export const DailyPackModal: React.FC<DailyPackModalProps> = ({
     <div className="fixed inset-0 z-60 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
       <div className={`w-full max-w-3xl max-h-[88vh] flex flex-col ${PANEL} p-5 space-y-4`}>
         {/* Nagłówek */}
-        <div className="flex items-center justify-between pb-3 border-b border-[#2C354B]">
+        <div className="flex items-center justify-between pb-3 border-b border-[#303030]">
           <div className="flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-rose-400" />
             <h3 className="text-sm font-mono font-black uppercase tracking-wider text-white">
@@ -171,14 +175,14 @@ export const DailyPackModal: React.FC<DailyPackModalProps> = ({
                 className={`text-[9px] font-mono px-2 py-0.5 rounded font-bold ${
                   fromBank
                     ? "bg-rose-500/15 text-rose-400 border border-rose-500/30"
-                    : "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
+                    : "bg-neutral-500/15 text-neutral-400 border border-neutral-500/30"
                 }`}
               >
                 {fromBank ? "BANK TREŚCI" : "MODEL GEMINI"}
               </span>
             )}
             {pack?.category && (
-              <span className="text-[9px] font-mono px-2 py-0.5 rounded font-bold bg-white/5 text-slate-400 border border-[#2C354B]">
+              <span className="text-[9px] font-mono px-2 py-0.5 rounded font-bold bg-white/5 text-neutral-400 border border-[#303030]">
                 {pack.category}
               </span>
             )}
@@ -199,7 +203,7 @@ export const DailyPackModal: React.FC<DailyPackModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="p-1 text-slate-400 hover:text-white cursor-pointer"
+              className="p-1 text-neutral-400 hover:text-white cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -208,12 +212,28 @@ export const DailyPackModal: React.FC<DailyPackModalProps> = ({
 
         {/* Zawartość */}
         <div className="overflow-y-auto pr-1 flex-1 space-y-4">
+          <label className="block text-[11px] font-mono text-neutral-300">
+            Temat paczki — jedna myśl rozwinięta w trzech formatach
+            <input
+              aria-label="Temat paczki"
+              value={topic}
+              maxLength={300}
+              disabled={loading}
+              onChange={(event) => setTopic(event.target.value)}
+              placeholder="Np. odkładanie telefonu przed snem i odzyskanie poranka"
+              className="mt-2 w-full rounded px-3 py-2 bg-[#050505] border border-white/15 text-white"
+            />
+          </label>
+          <p className="text-[10px] font-mono text-neutral-500">
+            1 rolka, karuzela i post · 1 generacja AI. Materiał sprawdzisz i poprawisz w odpowiednim
+            studiu.
+          </p>
           {loading && (
             <div className="flex items-center justify-center py-16">
               <div className="flex flex-col items-center gap-3">
-                <div className="w-6 h-6 border-2 border-[#2C354B] border-t-rose-400 rounded-full animate-spin" />
-                <div className="text-[11px] font-mono text-slate-400 animate-pulse">
-                  Składam paczkę dnia (rolki + karuzela + post)...
+                <div className="w-6 h-6 border-2 border-[#303030] border-t-rose-400 rounded-full animate-spin" />
+                <div className="text-[11px] font-mono text-neutral-400 animate-pulse">
+                  Składam paczkę (rolka + karuzela + post)...
                 </div>
               </div>
             </div>
@@ -231,13 +251,13 @@ export const DailyPackModal: React.FC<DailyPackModalProps> = ({
               bez żadnego sposobu na ponowną próbę. */}
           {!loading && !pack && (
             <div className="py-14 flex flex-col items-center gap-4 text-center">
-              <p className="text-[11px] font-mono text-slate-400 max-w-md">
-                Paczka dnia składa rolki 9:16, karuzelę 4:5 i kadr 1:1 na dziś. Nic nie zeszło z
-                licznika przy otwarciu tego okna.
+              <p className="text-[11px] font-mono text-neutral-400 max-w-md">
+                Paczka dnia składa rolkę 9:16, karuzelę 4:5 i kadr 1:1 na wybrany temat. Nic nie
+                zeszło z licznika przy otwarciu tego okna.
               </p>
               <button type="button" onClick={() => generate()} className={PRIMARY_BTN}>
                 <Sparkles className="w-3 h-3" />
-                Pobierz paczkę · 1 zapytanie
+                Generuj paczkę · 1 generacja AI
               </button>
             </div>
           )}
@@ -248,7 +268,7 @@ export const DailyPackModal: React.FC<DailyPackModalProps> = ({
               <section className="space-y-2">
                 <h4 className={SECTION_H}>Rolki 9:16 ({reels.length})</h4>
                 {reels.length === 0 && (
-                  <p className={`${CARD} text-[10px] font-mono text-slate-500`}>
+                  <p className={`${CARD} text-[10px] font-mono text-neutral-500`}>
                     {missingNote("rolek")}
                   </p>
                 )}
@@ -264,22 +284,22 @@ export const DailyPackModal: React.FC<DailyPackModalProps> = ({
                         <p className="text-xs font-mono font-black text-rose-300">"{hook}"</p>
                         <div className="flex items-center gap-1.5 shrink-0">
                           {fromBank && <BankTag />}
-                          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-white/5 border border-[#2C354B] text-slate-400">
+                          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-white/5 border border-[#303030] text-neutral-400">
                             {textOf(reel.theme)}
                           </span>
-                          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-white/5 border border-[#2C354B] text-slate-400">
+                          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-white/5 border border-[#303030] text-neutral-400">
                             {Number.isFinite(duration) ? duration : ""}s
                           </span>
                         </div>
                       </div>
                       <ol className="space-y-0.5 list-decimal list-inside">
                         {phrases.map((phrase, pIdx) => (
-                          <li key={pIdx} className="text-[11px] font-mono text-slate-300">
+                          <li key={pIdx} className="text-[11px] font-mono text-neutral-300">
                             {phrase}
                           </li>
                         ))}
                       </ol>
-                      <p className="text-[10px] font-mono text-slate-500">{hashtags.join(" ")}</p>
+                      <p className="text-[10px] font-mono text-neutral-500">{hashtags.join(" ")}</p>
                       <div className="flex flex-wrap items-center gap-2 pt-1">
                         <button
                           type="button"
@@ -310,11 +330,11 @@ export const DailyPackModal: React.FC<DailyPackModalProps> = ({
                           className={ACTION_BTN}
                         >
                           {copiedId === `reel-caption-${idx}` ? (
-                            <Check className="w-3 h-3 text-emerald-400" />
+                            <Check className="w-3 h-3 text-neutral-400" />
                           ) : (
                             <Copy className="w-3 h-3" />
                           )}
-                          {copiedId === `reel-caption-${idx}` ? "Skopiowano" : "Kopiuj caption"}
+                          {copiedId === `reel-caption-${idx}` ? "Skopiowano" : "Kopiuj opis"}
                         </button>
                       </div>
                     </div>
@@ -326,18 +346,18 @@ export const DailyPackModal: React.FC<DailyPackModalProps> = ({
               <section className="space-y-2">
                 <h4 className={SECTION_H}>Karuzela 4:5 · {pluralSlides(carouselSlides.length)}</h4>
                 {carouselSlides.length === 0 ? (
-                  <p className={`${CARD} text-[10px] font-mono text-slate-500`}>
+                  <p className={`${CARD} text-[10px] font-mono text-neutral-500`}>
                     {missingNote("karuzeli")}
                   </p>
                 ) : (
                   <div className={CARD}>
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-xs font-mono font-black text-purple-300">
+                      <p className="text-xs font-mono font-black text-neutral-300">
                         {carouselTitle}
                       </p>
                       {fromBank && <BankTag />}
                     </div>
-                    <p className="text-[10px] font-mono text-slate-500">
+                    <p className="text-[10px] font-mono text-neutral-500">
                       {carouselSlides.map((s) => s.headline).join(" → ")}
                     </p>
                     <button
@@ -346,7 +366,7 @@ export const DailyPackModal: React.FC<DailyPackModalProps> = ({
                         onClose();
                         onOpenCarouselStudio(carouselTitle, carouselSlides);
                       }}
-                      className="py-1.5 px-3 rounded bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/40 text-[11px] font-mono font-bold text-purple-300 uppercase tracking-wider flex items-center gap-1.5 cursor-pointer"
+                      className="py-1.5 px-3 rounded bg-neutral-500/15 hover:bg-neutral-500/25 border border-neutral-500/40 text-[11px] font-mono font-bold text-neutral-300 uppercase tracking-wider flex items-center gap-1.5 cursor-pointer"
                     >
                       <Layers className="w-3 h-3" />
                       Studio Karuzeli
@@ -357,23 +377,22 @@ export const DailyPackModal: React.FC<DailyPackModalProps> = ({
 
               {/* Post 1:1 */}
               <section className="space-y-2">
-                <h4 className={SECTION_H}>Post 1:1 + prompt tła</h4>
+                <h4 className={SECTION_H}>Post 1:1</h4>
                 {!postHeadline ? (
-                  <p className={`${CARD} text-[10px] font-mono text-slate-500`}>
+                  <p className={`${CARD} text-[10px] font-mono text-neutral-500`}>
                     {missingNote("postu 1:1")}
                   </p>
                 ) : (
                   <div className={CARD}>
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-xs font-mono font-black text-emerald-300">
+                      <p className="text-xs font-mono font-black text-neutral-300">
                         {postHeadline}
                       </p>
                       {fromBank && <BankTag />}
                     </div>
-                    <p className="text-[11px] font-mono text-slate-300 whitespace-pre-line">
+                    <p className="text-[11px] font-mono text-neutral-300 whitespace-pre-line">
                       {postBody}
                     </p>
-                    <p className="text-[10px] font-mono text-slate-500 italic">{postPrompt}</p>
                     <div className="flex flex-wrap items-center gap-2 pt-1">
                       {onOpenPostStudio && (
                         <button
@@ -396,23 +415,11 @@ export const DailyPackModal: React.FC<DailyPackModalProps> = ({
                         className={ACTION_BTN}
                       >
                         {copiedId === "post-body" ? (
-                          <Check className="w-3 h-3 text-emerald-400" />
+                          <Check className="w-3 h-3 text-neutral-400" />
                         ) : (
                           <Copy className="w-3 h-3" />
                         )}
                         {copiedId === "post-body" ? "Skopiowano" : "Kopiuj opis"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleCopy("post-prompt", postPrompt)}
-                        className={ACTION_BTN}
-                      >
-                        {copiedId === "post-prompt" ? (
-                          <Check className="w-3 h-3 text-emerald-400" />
-                        ) : (
-                          <ImageIcon className="w-3 h-3" />
-                        )}
-                        {copiedId === "post-prompt" ? "Skopiowano" : "Kopiuj prompt tła"}
                       </button>
                     </div>
                   </div>

@@ -16,6 +16,7 @@ const LAYOUT_BY_GRID: Record<string, string> = {
   cost_vs_reward: "Koszt i utrata",
   studio_wall_3d: "Napis w scenie",
   grid_2x2: "Kolaż",
+  split_horizontal: "Wymówka kontra fakt",
 };
 
 export type FrameGrid = UniversalLayoutSpec["gridType"];

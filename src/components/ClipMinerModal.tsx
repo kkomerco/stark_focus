@@ -55,7 +55,6 @@ export const ClipMinerModal: React.FC<ClipMinerModalProps> = ({
         body: JSON.stringify({ transcript, speaker, source, count: 5 }),
       });
       if (status < 200 || status >= 300) {
-        setClips([]);
         setNotice(
           status
             ? `Serwer nie oddał cytatów (HTTP ${status}) — spróbuj ponownie.`
@@ -66,7 +65,7 @@ export const ClipMinerModal: React.FC<ClipMinerModalProps> = ({
       const list = Array.isArray(data?.clips)
         ? data.clips.filter((clip): clip is Clip => !!clip && typeof clip === "object")
         : [];
-      setClips(list);
+      if (list.length > 0) setClips(list);
       if (list.length === 0) {
         setNotice(
           typeof data?.notice === "string"

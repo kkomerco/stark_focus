@@ -11,7 +11,7 @@ import {
   auditLine,
 } from "../../hookCraft";
 import { hookFingerprint } from "../../similarity";
-import { isPolishCopy } from "../../caption";
+import { isPolishCopy, repeatsFrame } from "../../caption";
 import { softenForPlatform } from "../../platformSafe";
 import {
   FRAME_FORMATS,
@@ -82,6 +82,14 @@ DOPISZ JESZCZE DWA POLA — one trafia POD kadr, nie na kadr:
 ${HOOK_CRAFT_PROMPT}
 REJESTR: ${HOOK_REGISTER}
 ZAKAZY: ${SLOP_BAN_LIST}
+
+KONTROLA REDAKCYJNA PRZED ZWROTEM JSON:
+- Przeczytaj tezę i wszystkie pola układu jako jeden wywód. Każdy krok, cena, utrata i puenta muszą wynikać z tej konkretnej tezy.
+- Usuń zdania, które sobie przeczą, zmieniają temat albo brzmią mocno, ale nie mówią czytelnikowi nic konkretnego.
+- W protokole kroki mają tworzyć wykonalną kolejność. W koszcie każda utrata ma być bezpośrednim skutkiem ceny w tym samym wierszu.
+- Podpis ma rozwijać tę samą myśl nową konsekwencją, a pytanie ma dotyczyć decyzji czytelnika związanej z tym kadrem.
+- Jeśli dowolny element nie przechodzi tej kontroli, przepisz go i sprawdź cały wywód ponownie. Zwróć wyłącznie finalny JSON, bez komentarza.
+
 ${
   exclude.length
     ? `JUŻ OPUBLIKOWANE — nie powtarzaj tych linii ani ich mutacji:\n${exclude
@@ -120,22 +128,6 @@ ${format.fields
 const PAIRING_RULE: Record<string, string> = {
   cost: 'ZASADA PAR: „forfeit[0]" jest bezposlednia konsekwencja „cost[0]", „forfeit[1]" konsekwencja „cost[1]" itd. Ten sam rzad to ta sama scena i ten sam rekwizyt — nie dwie niezalezne listy straconych rzeczy. Trzy rzedy to trzy ROZNE decyzje: zadne dwa wiersze nie moga zaczynac sie od tego samego slowa.',
 };
-
-/** Zdanie z kadru nie może wrócić w opisie — inaczej opis jest powtórką podglądu. */
-function repeatsFrame(caption: string, lines: string[]): boolean {
-  const flat = ` ${caption
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, " ")
-    .replace(/\s+/g, " ")} `;
-  return lines.some((line) => {
-    const needle = line
-      .toLowerCase()
-      .replace(/[^a-z0-9\s]/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-    return needle.length > 8 && flat.includes(` ${needle}`);
-  });
-}
 
 function cleanLine(value: unknown): string {
   return asString(value).replace(/[*#"]/g, "").replace(/\s+/g, " ").trim();

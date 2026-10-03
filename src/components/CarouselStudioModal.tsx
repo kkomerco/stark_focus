@@ -2,18 +2,16 @@
 // istniejącego silnika (drawSlideToCanvas), eksport to ZIP lub pojedynczy PNG.
 // Rodzic montuje modal tylko gdy jest otwarty, więc slajdy normalizujemy raz —
 // przy inicjalizacji stanu.
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, Download, FileArchive, Layers, Loader2, X } from "lucide-react";
-import {
-  drawSlideToCanvas,
-  exportAllSlidesAsZip,
-  exportSlideToBlob,
-} from "../utils/canvasRenderer";
+import { drawSlideToCanvas, buildCarouselZip, exportSlideToBlob } from "../utils/canvasRenderer";
 import type { RenderSlideOptions } from "../utils/canvasRenderer";
 import type { CarouselFontFamily, SlideData, TopHeaderMode, VisualTheme } from "../types";
-import { formatStarkCaption, stripHashtagTail, starkHashtags } from "../lib/caption";
+import { stripHashtagTail } from "../lib/caption";
 import { CAROUSEL_MAX_SLIDES, CAROUSEL_TARGET_SLIDES } from "../lib/carousel";
 import { ensureBrandFonts } from "../utils/fonts";
+import { useStudioDraft } from "./useStudioDraft";
+import { carouselContentKey, carouselCaptionText } from "../lib/carouselDraft";
 
 const SLIDE_W = 1080;
 const SLIDE_H = 1350; // 4:5 — standard karuzeli IG/TikTok
@@ -22,8 +20,6 @@ const BODY_MAX = 700;
 
 const THEMES: Array<{ id: VisualTheme; label: string }> = [
   { id: "obsidian_monolith", label: "Obsydian (kość)" },
-  { id: "titanium_slate", label: "Tytan (stal)" },
-  { id: "pantheon_mist", label: "Panteon (złoto)" },
   { id: "crimson_eclipse", label: "Karmazyn (czerwień)" },
 ];
 
@@ -31,13 +27,10 @@ const FONTS: Array<{ id: CarouselFontFamily; label: string }> = [
   { id: "plus_jakarta", label: "Plus Jakarta Sans" },
   { id: "cinzel", label: "Cinzel" },
   { id: "cormorant", label: "Cormorant Garamond" },
-  { id: "inter", label: "Inter" },
 ];
 
 const HEADERS: Array<{ id: TopHeaderMode; label: string }> = [
   { id: "protocol_standard", label: "STARK FOCUS" },
-  { id: "daily_discipline", label: "DAILY DISCIPLINE" },
-  { id: "cold_truth", label: "THE COLD TRUTH" },
   { id: "clean_void", label: "Czysta góra" },
 ];
 
@@ -121,6 +114,15 @@ const slugify = (value: string): string =>
     .replace(/^_+|_+$/g, "")
     .slice(0, 40) || "karuzela";
 
+interface CarouselDraft {
+  slides: SlideData[];
+  theme: VisualTheme;
+  fontChoice: CarouselFontFamily;
+  topHeaderMode: TopHeaderMode;
+  caption: string;
+  captionSourceKey: string;
+}
+
 export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
   title,
   slides: incomingSlides,
@@ -136,6 +138,54 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
   const [isExportingZip, setIsExportingZip] = useState(false);
   const [busyPngIndex, setBusyPngIndex] = useState<number | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [captionDraft, setCaptionDraft] = useState(() => stripHashtagTail(caption || ""));
+  const [captionSourceKey, setCaptionSourceKey] = useState(() => carouselContentKey(slides));
+  const [overflowSlides, setOverflowSlides] = useState<number[]>([]);
+  const [draftKey] = useState(
+    () => `carousel:${title}:${carouselContentKey(normalizeSlides(incomingSlides))}`,
+  );
+  const contentKey = useMemo(() => carouselContentKey(slides), [slides]);
+  const draftValue = useMemo<CarouselDraft>(
+    () => ({ slides, theme, fontChoice, topHeaderMode, caption: captionDraft, captionSourceKey }),
+    [slides, theme, fontChoice, topHeaderMode, captionDraft, captionSourceKey],
+  );
+  const restoreDraft = useCallback((saved: CarouselDraft) => {
+    setSlides(normalizeSlides(saved.slides));
+    setTheme(THEMES.some((item) => item.id === saved.theme) ? saved.theme : "obsidian_monolith");
+    setFontChoice(
+      FONTS.some((item) => item.id === saved.fontChoice) ? saved.fontChoice : "plus_jakarta",
+    );
+    setTopHeaderMode(
+      HEADERS.some((item) => item.id === saved.topHeaderMode)
+        ? saved.topHeaderMode
+        : "protocol_standard",
+    );
+    setCaptionDraft(text(saved.caption, 5000));
+    setCaptionSourceKey(typeof saved.captionSourceKey === "string" ? saved.captionSourceKey : "");
+  }, []);
+  const draft = useStudioDraft(draftKey, draftValue, restoreDraft);
+  const busy = isExportingZip || busyPngIndex !== null;
+  const zipKey = useMemo(
+    () =>
+      JSON.stringify([
+        contentKey,
+        slides.map((slide) => slide.highlightWords),
+        theme,
+        fontChoice,
+        topHeaderMode,
+        handle,
+        captionDraft,
+      ]),
+    [contentKey, slides, theme, fontChoice, topHeaderMode, handle, captionDraft],
+  );
+  const [readyZip, setReadyZip] = useState<{ url: string; name: string; key: string } | null>(null);
+  const zipUrlRef = useRef("");
+  useEffect(
+    () => () => {
+      if (zipUrlRef.current) URL.revokeObjectURL(zipUrlRef.current);
+    },
+    [],
+  );
 
   const canvasRefs = useRef<Array<HTMLCanvasElement | null>>([]);
   // Ten sam ZIP pobrany trzy razy nie może dać trzech wpisów w historii postów.
@@ -159,15 +209,19 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
   );
 
   useEffect(() => {
+    if (!draft.ready) return;
     let cancelled = false;
     // 150 ms wstrzymania: pełny kadr 1080x1350 rysujemy dopiero gdy user przestanie pisać
     const timer = setTimeout(() => {
       void ensureBrandFonts().then(() => {
         if (cancelled) return;
+        const overflow: number[] = [];
         slides.forEach((_, index) => {
           const canvas = canvasRefs.current[index];
-          if (canvas) drawSlideToCanvas(canvas, buildOptions(index));
+          if (canvas && drawSlideToCanvas(canvas, buildOptions(index))?.fits === false)
+            overflow.push(index + 1);
         });
+        setOverflowSlides(overflow);
       });
     }, 150);
 
@@ -175,7 +229,7 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [slides, buildOptions]);
+  }, [slides, buildOptions, draft.ready]);
 
   const patchSlide = (index: number, field: "headline" | "bodyText", value: string) => {
     const max = field === "headline" ? HEADLINE_MAX : BODY_MAX;
@@ -216,7 +270,7 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
       link.href = url;
       link.download = `stark_slide_${index + 1}.png`;
       link.click();
-      URL.revokeObjectURL(url);
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch {
       setExportError("Nie udało się wygenerować PNG tego slajdu.");
     } finally {
@@ -232,13 +286,9 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
    */
   const buildCaptionText = useCallback(
     (thesis: string): string => {
-      const source = text(caption, 5000);
-      if (!source) return formatStarkCaption(thesis, []);
-      const bare = stripHashtagTail(source);
-      if (!bare) return formatStarkCaption(thesis, []);
-      return `${bare}\n\n${starkHashtags(`${thesis} ${bare}`).join(" ")}`;
+      return carouselCaptionText(slides, captionDraft, thesis);
     },
-    [caption],
+    [slides, captionDraft],
   );
 
   const handleDownloadZip = async () => {
@@ -250,13 +300,17 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
       // bez niego opis nie miałby czego rozwijać.
       const thesis = slides.find((slide) => slide.headline.trim())?.headline || title;
       const captionText = buildCaptionText(thesis);
-      await exportAllSlidesAsZip(slides, {
+      const zipName = `stark_karuzela_${slugify(thesis || title)}_${Date.now()}.zip`;
+      const blob = await buildCarouselZip(slides, {
         ...buildOptions(0),
         slideNumber: 1,
         totalSlides: slides.length,
         captionText,
-        zipName: `stark_karuzela_${slugify(title)}_${Date.now()}.zip`,
       });
+      const url = URL.createObjectURL(blob);
+      if (zipUrlRef.current) URL.revokeObjectURL(zipUrlRef.current);
+      zipUrlRef.current = url;
+      setReadyZip({ url, name: zipName, key: zipKey });
       if (!recordedRef.current) {
         recordedRef.current = true;
         onSave?.({ hook: thesis, title, caption: captionText, slideCount: slides.length });
@@ -278,7 +332,7 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
         <div className="flex items-start justify-between gap-3 p-4 border-b border-[rgba(255,255,255,0.1)]">
           <div className="min-w-0">
             <h3 className="text-sm font-mono font-black uppercase tracking-wider text-white flex items-center gap-2">
-              <Layers className="w-4 h-4 text-emerald-400" />
+              <Layers className="w-4 h-4 text-rose-400" />
               Studio Karuzeli 4:5
             </h3>
             <p className="text-[11px] font-mono text-neutral-400 mt-1 truncate">
@@ -295,163 +349,209 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
           </button>
         </div>
 
-        {/* Sterowanie kadrem */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-4 border-b border-[rgba(255,255,255,0.1)]">
-          <label className="space-y-1">
-            <span className="text-[10px] text-neutral-500 font-mono uppercase font-bold block">
-              Motyw marki
-            </span>
-            <select
-              value={theme}
-              onChange={(e) => setTheme(e.target.value as VisualTheme)}
-              className={FIELD}
-            >
-              {THEMES.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="space-y-1">
-            <span className="text-[10px] text-neutral-500 font-mono uppercase font-bold block">
-              Krój pisma
-            </span>
-            <select
-              value={fontChoice}
-              onChange={(e) => setFontChoice(e.target.value as CarouselFontFamily)}
-              className={FIELD}
-            >
-              {FONTS.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="space-y-1">
-            <span className="text-[10px] text-neutral-500 font-mono uppercase font-bold block">
-              Belka nagłówka
-            </span>
-            <select
-              value={topHeaderMode}
-              onChange={(e) => setTopHeaderMode(e.target.value as TopHeaderMode)}
-              className={FIELD}
-            >
-              {HEADERS.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-
-        {/* Podgląd slajdów */}
-        <div className="overflow-y-auto p-4 flex-1">
-          {isEmptyCarousel && (
-            <p className="mb-3 p-2.5 bg-[#F59E0B]/10 border border-[#F59E0B]/30 rounded text-[11px] font-mono text-[#F59E0B]">
-              Slajdy są puste — wpisz nagłówki i treść poniżej, a potem pobierz ZIP.
-            </p>
-          )}
-          {isShort && (
-            <p className="mb-3 p-2.5 bg-[#161616] border border-[rgba(255,255,255,0.12)] rounded text-[11px] font-mono text-neutral-300">
-              Materiał ma {pluralSlides(slides.length)}, kontrakt karuzeli to{" "}
-              {CAROUSEL_TARGET_SLIDES}+ slajdów. Bank treści (Codex) podaje pięć i nie dorabiamy ich
-              automatycznie — dodaj slajdy ręcznie albo weź karuzelę od modelu.
-            </p>
-          )}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {slides.map((slide, index) => (
-              <div
-                key={index}
-                className="p-3 bg-[#050505] border border-[rgba(255,255,255,0.1)] rounded-lg space-y-2"
+        <fieldset disabled={!draft.ready || busy} className="contents">
+          {/* Sterowanie kadrem */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-4 border-b border-[rgba(255,255,255,0.1)]">
+            <label className="space-y-1">
+              <span className="text-[10px] text-neutral-500 font-mono uppercase font-bold block">
+                Motyw marki
+              </span>
+              <select
+                value={theme}
+                onChange={(e) => setTheme(e.target.value as VisualTheme)}
+                className={FIELD}
               >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[10px] font-mono font-bold uppercase text-neutral-400">
-                    Slajd {index + 1} / {slides.length}
-                  </span>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => moveSlide(index, -1)}
-                      disabled={index === 0}
-                      className={MINI_BTN}
-                      title="Przesuń slajd wyżej"
-                    >
-                      Góra
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => moveSlide(index, 1)}
-                      disabled={index === slides.length - 1}
-                      className={MINI_BTN}
-                      title="Przesuń slajd niżej"
-                    >
-                      Dół
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => removeSlide(index)}
-                      disabled={slides.length <= 1}
-                      className={MINI_BTN}
-                      title="Usuń ten slajd"
-                    >
-                      Usuń
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDownloadPng(index)}
-                      disabled={busyPngIndex !== null}
-                      className="flex items-center gap-1 px-2 py-1 rounded bg-[#161616] hover:bg-white hover:text-black border border-[rgba(255,255,255,0.1)] text-[10px] font-mono uppercase font-bold text-neutral-300 transition-all cursor-pointer disabled:opacity-40"
-                      title={`Pobierz slajd ${index + 1} jako PNG`}
-                    >
-                      {busyPngIndex === index ? (
-                        <Loader2 className="w-3 h-3 animate-spin" />
-                      ) : (
-                        <Download className="w-3 h-3" />
-                      )}
-                      PNG
-                    </button>
-                  </div>
-                </div>
-
-                <canvas
-                  ref={(el) => {
-                    canvasRefs.current[index] = el;
-                  }}
-                  width={SLIDE_W}
-                  height={SLIDE_H}
-                  className="w-full h-auto block rounded border border-[rgba(255,255,255,0.08)] bg-black"
-                />
-
-                <input
-                  type="text"
-                  value={slide.headline}
-                  onChange={(e) => patchSlide(index, "headline", e.target.value)}
-                  placeholder="NAGŁÓWEK SLAJDU"
-                  className={FIELD}
-                />
-                <textarea
-                  value={slide.bodyText}
-                  onChange={(e) => patchSlide(index, "bodyText", e.target.value)}
-                  placeholder="Treść slajdu (1-2 zdania)"
-                  rows={3}
-                  className={`${FIELD} resize-y leading-relaxed`}
-                />
-                {slide.highlightWords && (
-                  <p className="text-[10px] font-mono text-neutral-500 truncate">
-                    Wyróżnienia: {slide.highlightWords}
-                  </p>
-                )}
-              </div>
-            ))}
+                {THEMES.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="space-y-1">
+              <span className="text-[10px] text-neutral-500 font-mono uppercase font-bold block">
+                Krój pisma
+              </span>
+              <select
+                value={fontChoice}
+                onChange={(e) => setFontChoice(e.target.value as CarouselFontFamily)}
+                className={FIELD}
+              >
+                {FONTS.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="space-y-1">
+              <span className="text-[10px] text-neutral-500 font-mono uppercase font-bold block">
+                Belka nagłówka
+              </span>
+              <select
+                value={topHeaderMode}
+                onChange={(e) => setTopHeaderMode(e.target.value as TopHeaderMode)}
+                className={FIELD}
+              >
+                {HEADERS.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
-        </div>
+
+          {/* Podgląd slajdów */}
+          <div className="overflow-y-auto p-4 flex-1">
+            {isEmptyCarousel && (
+              <p className="mb-3 p-2.5 bg-white/5 border border-white/15 rounded text-[11px] font-mono text-neutral-300">
+                Slajdy są puste — wpisz nagłówki i treść poniżej, a potem pobierz ZIP.
+              </p>
+            )}
+            {isShort && (
+              <p className="mb-3 p-2.5 bg-[#161616] border border-[rgba(255,255,255,0.12)] rounded text-[11px] font-mono text-neutral-300">
+                Materiał ma {pluralSlides(slides.length)}. Dłuższy wywód możesz rozwinąć do{" "}
+                {CAROUSEL_TARGET_SLIDES}+ slajdów. Każdy slajd powinien dopowiadać coś do jednej
+                tezy; nie dodawaj slajdów tylko dla liczby.
+              </p>
+            )}
+            {overflowSlides.length > 0 && (
+              <p
+                role="status"
+                className="mb-3 p-2.5 bg-rose-500/10 border border-rose-500/30 rounded text-[11px] font-mono text-rose-300"
+              >
+                Tekst nie mieści się w polu treści: slajdy {overflowSlides.join(", ")}. Skróć go lub
+                podziel slajd. Nie zmniejszam pisma poniżej 48 px. To wskazówka; decyzja o eksporcie
+                należy do Ciebie.
+              </p>
+            )}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {slides.map((slide, index) => (
+                <div
+                  key={index}
+                  className="p-3 bg-[#050505] border border-[rgba(255,255,255,0.1)] rounded-lg space-y-2"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-mono font-bold uppercase text-neutral-400">
+                      Slajd {index + 1} / {slides.length}
+                    </span>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => moveSlide(index, -1)}
+                        disabled={index === 0}
+                        className={MINI_BTN}
+                        title="Przesuń slajd wyżej"
+                      >
+                        Góra
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => moveSlide(index, 1)}
+                        disabled={index === slides.length - 1}
+                        className={MINI_BTN}
+                        title="Przesuń slajd niżej"
+                      >
+                        Dół
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeSlide(index)}
+                        disabled={slides.length <= 1}
+                        className={MINI_BTN}
+                        title="Usuń ten slajd"
+                      >
+                        Usuń
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDownloadPng(index)}
+                        disabled={busyPngIndex !== null}
+                        className="flex items-center gap-1 px-2 py-1 rounded bg-[#161616] hover:bg-white hover:text-black border border-[rgba(255,255,255,0.1)] text-[10px] font-mono uppercase font-bold text-neutral-300 transition-all cursor-pointer disabled:opacity-40"
+                        title={`Pobierz slajd ${index + 1} jako PNG`}
+                      >
+                        {busyPngIndex === index ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <Download className="w-3 h-3" />
+                        )}
+                        PNG
+                      </button>
+                    </div>
+                  </div>
+
+                  <canvas
+                    ref={(el) => {
+                      canvasRefs.current[index] = el;
+                    }}
+                    width={SLIDE_W}
+                    height={SLIDE_H}
+                    className="w-full h-auto block rounded border border-[rgba(255,255,255,0.08)] bg-black"
+                  />
+
+                  <input
+                    type="text"
+                    aria-label={`Nagłówek slajdu ${index + 1}`}
+                    value={slide.headline}
+                    onChange={(e) => patchSlide(index, "headline", e.target.value)}
+                    placeholder="NAGŁÓWEK SLAJDU"
+                    className={FIELD}
+                  />
+                  <textarea
+                    aria-label={`Treść slajdu ${index + 1}`}
+                    value={slide.bodyText}
+                    onChange={(e) => patchSlide(index, "bodyText", e.target.value)}
+                    placeholder="Treść slajdu (1-2 zdania)"
+                    rows={3}
+                    className={`${FIELD} resize-y leading-relaxed`}
+                  />
+                  {slide.highlightWords && (
+                    <p className="text-[10px] font-mono text-neutral-500 truncate">
+                      Wyróżnienia: {slide.highlightWords}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+            <section className="mt-4 p-3 bg-[#050505] border border-white/10 rounded-lg space-y-2">
+              <label className="block text-[11px] font-mono text-neutral-300">
+                Opis do publikacji (po angielsku, bez hashtagów)
+                <textarea
+                  aria-label="Opis karuzeli"
+                  value={captionDraft}
+                  maxLength={5000}
+                  onChange={(event) => setCaptionDraft(event.target.value)}
+                  rows={4}
+                  placeholder="Rozwiń temat karuzeli. Bez opisu eksport zawiera tylko tezę i stopkę marki."
+                  className={`${FIELD} mt-2 resize-y leading-relaxed`}
+                />
+              </label>
+              <p className="text-[10px] font-mono text-neutral-500">
+                Hashtagi dobieram do aktualnej treści slajdów. Opis trafia do ZIP-a.
+              </p>
+              {captionDraft.trim() && captionSourceKey !== contentKey && (
+                <div className="text-[11px] font-mono text-rose-300 space-y-2">
+                  <p>Treść slajdów zmieniła się. Sprawdź, czy opis nadal pasuje do materiału.</p>
+                  <button
+                    type="button"
+                    className={MINI_BTN}
+                    onClick={() => setCaptionSourceKey(contentKey)}
+                  >
+                    Opis sprawdzony
+                  </button>
+                </div>
+              )}
+            </section>
+          </div>
+        </fieldset>
 
         {/* Stopka eksportu */}
         <div className="flex flex-wrap items-center justify-between gap-3 p-4 border-t border-[rgba(255,255,255,0.1)]">
           <div className="flex items-center gap-2 min-w-0">
+            <span role="status" className="text-[10px] font-mono text-neutral-500">
+              {draft.notice}
+            </span>
             {exportError && (
               <span className="flex items-center gap-1.5 text-[11px] font-mono text-rose-400">
                 <AlertCircle className="w-3.5 h-3.5" />
@@ -463,7 +563,7 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
             <button
               type="button"
               onClick={addSlide}
-              disabled={slides.length >= CAROUSEL_MAX_SLIDES}
+              disabled={!draft.ready || busy || slides.length >= CAROUSEL_MAX_SLIDES}
               className="flex items-center gap-1.5 px-3 py-2 rounded bg-[#161616] hover:bg-white hover:text-black border border-[rgba(255,255,255,0.12)] text-[11px] font-mono uppercase font-bold text-neutral-300 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               title={
                 slides.length >= CAROUSEL_MAX_SLIDES
@@ -473,19 +573,29 @@ export const CarouselStudioModal: React.FC<CarouselStudioModalProps> = ({
             >
               <span>Dodaj slajd</span>
             </button>
-            <button
-              type="button"
-              onClick={handleDownloadZip}
-              disabled={isExportingZip}
-              className="px-5 py-2 rounded bg-white hover:bg-neutral-200 text-black text-xs font-mono font-bold uppercase tracking-wider transition-all disabled:opacity-50 cursor-pointer flex items-center gap-2"
-            >
-              {isExportingZip ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <FileArchive className="w-4 h-4" />
-              )}
-              <span>{isExportingZip ? "Pakuję slajdy..." : "Pobierz ZIP (4:5)"}</span>
-            </button>
+            {readyZip?.key === zipKey ? (
+              <a
+                href={readyZip.url}
+                download={readyZip.name}
+                className="px-5 py-2 rounded bg-white hover:bg-neutral-200 text-black text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2"
+              >
+                <Download className="w-4 h-4" /> Pobierz ZIP (4:5)
+              </a>
+            ) : (
+              <button
+                type="button"
+                onClick={handleDownloadZip}
+                disabled={!draft.ready || busy}
+                className="px-5 py-2 rounded bg-white hover:bg-neutral-200 text-black text-xs font-mono font-bold uppercase tracking-wider transition-all disabled:opacity-50 cursor-pointer flex items-center gap-2"
+              >
+                {isExportingZip ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <FileArchive className="w-4 h-4" />
+                )}
+                <span>{isExportingZip ? "Pakuję slajdy..." : "Przygotuj ZIP (4:5)"}</span>
+              </button>
+            )}
           </div>
         </div>
       </div>

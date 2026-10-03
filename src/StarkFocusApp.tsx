@@ -8,7 +8,6 @@ import {
   Lightbulb,
   Link2,
   TestTubes,
-  Rocket,
   Quote,
   Image as ImageIcon,
 } from "lucide-react";
@@ -53,17 +52,12 @@ const DeconstructViralModal = lazy(() =>
   import("./components/DeconstructViralModal").then((m) => ({ default: m.DeconstructViralModal })),
 );
 const AbModal = lazy(() => import("./components/AbModal").then((m) => ({ default: m.AbModal })));
-const AutopilotModal = lazy(() =>
-  import("./components/AutopilotModal").then((m) => ({ default: m.AutopilotModal })),
-);
 const PromptLibraryModal = lazy(() =>
   import("./components/PromptLibraryModal").then((m) => ({ default: m.PromptLibraryModal })),
 );
 const ClipMinerModal = lazy(() =>
   import("./components/ClipMinerModal").then((m) => ({ default: m.ClipMinerModal })),
 );
-
-const QRModal = lazy(() => import("./components/QRModal").then((m) => ({ default: m.QRModal })));
 
 function TabFallback() {
   return (
@@ -117,15 +111,8 @@ export default function StarkFocusApp() {
   const [ideaStreamOpen, setIdeaStreamOpen] = useState(false);
   const [deconstructOpen, setDeconstructOpen] = useState(false);
   const [abOpen, setAbOpen] = useState(false);
-  const [autopilotOpen, setAutopilotOpen] = useState(false);
   const [promptLibOpen, setPromptLibOpen] = useState(false);
   const [clipOpen, setClipOpen] = useState(false);
-
-  const [qrModal, setQrModal] = useState<{ isOpen: boolean; title: string; data: string }>({
-    isOpen: false,
-    title: "",
-    data: "",
-  });
 
   useEffect(() => {
     saveStoredData(data);
@@ -241,8 +228,7 @@ export default function StarkFocusApp() {
     { label: "Pomysły", icon: Lightbulb, open: () => setIdeaStreamOpen(true) },
     { label: "Analiza linku", icon: Link2, open: () => setDeconstructOpen(true) },
     { label: "Test A/B", icon: TestTubes, open: () => setAbOpen(true) },
-    { label: "Autopilot", icon: Rocket, open: () => setAutopilotOpen(true) },
-    { label: "Prompty tła", icon: ImageIcon, open: () => setPromptLibOpen(true) },
+    { label: "Zapisane prompty", icon: ImageIcon, open: () => setPromptLibOpen(true) },
     { label: "Cytaty z transkryptu", icon: Quote, open: () => setClipOpen(true) },
   ];
 
@@ -318,6 +304,7 @@ export default function StarkFocusApp() {
                 initialBgUrl={reelPreset?.bgUrl}
                 availablePosts={data.posts}
                 excludeHooks={usedHooks}
+                exemplarHooks={exemplarHooks}
                 onSendToPost={handleSendToPost}
                 onMarkPublished={handleMarkPublished}
               />
@@ -328,7 +315,6 @@ export default function StarkFocusApp() {
                 onUpdateData={handleUpdateData}
                 incomingCarousel={pendingCarousel}
                 onIncomingCarouselUsed={() => setPendingCarousel(null)}
-                onOpenQR={(title, payload) => setQrModal({ isOpen: true, title, data: payload })}
                 onNavigateToTab={(tabIdx) => setActiveTab(tabIdx)}
                 onSendToPost={(text, caption, lines) =>
                   handleSendToPost(text, caption, undefined, lines)
@@ -341,12 +327,6 @@ export default function StarkFocusApp() {
       </div>
 
       <Suspense fallback={null}>
-        <QRModal
-          isOpen={qrModal.isOpen}
-          onClose={() => setQrModal((prev) => ({ ...prev, isOpen: false }))}
-          title={qrModal.title}
-          data={qrModal.data}
-        />
         {dailyPackOpen && (
           <DailyPackModal
             isOpen={dailyPackOpen}
@@ -416,13 +396,6 @@ export default function StarkFocusApp() {
               setAbOpen(false);
               handleSendToReel(reel);
             }}
-          />
-        )}
-        {autopilotOpen && (
-          <AutopilotModal
-            isOpen={autopilotOpen}
-            onClose={() => setAutopilotOpen(false)}
-            data={data}
           />
         )}
         {promptLibOpen && (

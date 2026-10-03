@@ -1042,6 +1042,19 @@ function drawLayeredTextSlide(
   const margin = Math.round(width * 0.09);
   const usableWidth = width - margin * 2;
 
+  if (spec.gridType === "split_horizontal") {
+    ctx.fillStyle = BRAND_ACCENT;
+    ctx.fillRect(
+      margin,
+      Math.round(height * 0.565),
+      usableWidth,
+      Math.max(2, Math.round(width * 0.003)),
+    );
+    ctx.font = `800 ${Math.round(width * 0.022)}px ${getFontFamilySpec("sans")}`;
+    ctx.fillText("THE EXCUSE", margin, Math.round(height * 0.405));
+    ctx.fillText("THE FACT", margin, Math.round(height * 0.625));
+  }
+
   for (const layer of spec.textLayers) {
     const rawText = applyCasing(String(layer.text || ""), layer.casing).trim();
     if (!rawText) continue;
@@ -1049,8 +1062,12 @@ function drawLayeredTextSlide(
     const desired = layer.fontSize || 64;
     const size = Math.max(floorFor(desired), Math.min(340, Math.round(desired * textScale)));
     const style = layer.fontStyle === "italic" ? "italic " : "";
+    const layerFont =
+      spec.gridType === "split_horizontal"
+        ? spec.fontFamilyCustom || layer.fontFamily || "sans"
+        : layer.fontFamily || spec.fontFamilyCustom || "sans";
     ctx.font = `${style}${cssFontWeight(layer.fontWeight)} ${size}px ${getFontFamilySpec(
-      layer.fontFamily || "sans",
+      layerFont,
     )}`;
 
     const lines = wrapTextLines(ctx, rawText, usableWidth);
@@ -1253,7 +1270,10 @@ function renderLayoutBody(
   //
   // Bez klamer: ten kadr jest wierną kopią cudzej kompozycji i własny sygnet
   // wjechałby w cudzy układ.
-  if (spec.gridType !== "none_solid" && spec.textLayers.length > 2) {
+  if (
+    spec.gridType !== "none_solid" &&
+    (spec.gridType === "split_horizontal" || spec.textLayers.length > 2)
+  ) {
     drawLayeredTextSlide(canvas, spec, {
       width,
       height,
@@ -1403,21 +1423,19 @@ function computeFittedSlideLayout(
   bodyFontFamily: string = '"Plus Jakarta Sans", sans-serif',
 ): FittedSlideLayout {
   const availableH = bottomLimit - topLimit;
-  let headlineFontSize = headline.length > 55 ? 48 : headline.length > 30 ? 54 : 62;
-  let bodyFontSize = bodyText.length > 250 ? 32 : bodyText.length > 140 ? 36 : 40;
-  const minHeadlineSize = 30;
-  const minBodySize = 20;
+  let headlineFontSize = headline.length > 55 ? 68 : headline.length > 30 ? 78 : 88;
+  let bodyFontSize = bodyText.length > 250 ? 48 : bodyText.length > 140 ? 52 : 56;
+  const minHeadlineSize = MIN_TEXT_PX;
+  const minBodySize = MIN_TEXT_PX;
 
   let headlineLines: string[] = [];
   let bodyLines: string[] = [];
   let headlineLineHeight = Math.round(headlineFontSize * 1.25);
   let bodyLineHeight = Math.round(bodyFontSize * 1.48);
   let paragraphGap = Math.round(bodyFontSize * 0.85);
-  const eyebrowH = 48;
-  const dividerH = 46;
   let totalContentH = 0;
 
-  for (let iter = 0; iter < 18; iter++) {
+  for (let iter = 0; iter <= 40; iter++) {
     headlineLineHeight = Math.round(headlineFontSize * 1.25);
     bodyLineHeight = Math.round(bodyFontSize * 1.48);
     paragraphGap = Math.round(bodyFontSize * 0.85);
@@ -1434,7 +1452,15 @@ function computeFittedSlideLayout(
     );
     const bodyH = bodyLines.reduce((acc, l) => acc + (l === "" ? paragraphGap : bodyLineHeight), 0);
 
-    totalContentH = eyebrowH + headlineH + dividerH + bodyH;
+    // Od startY do dolnej krawędzi atramentu: te same odstępy co malowanie.
+    totalContentH =
+      headlineFontSize +
+      14 +
+      headlineH +
+      14 +
+      bodyFontSize +
+      14 +
+      (bodyLines.length ? bodyH - bodyLineHeight + bodyFontSize * 0.25 : 3);
 
     if (
       totalContentH <= availableH * 0.9 ||
@@ -1895,6 +1921,11 @@ export function drawSlideToCanvas(canvas: HTMLCanvasElement, options: RenderSlid
     box: { left: contentLeftX, top: inkTop, right: width - contentLeftX, bottom: inkBottom },
     onLight: false,
   });
+  return {
+    fits: inkTop >= topSafeLimit && inkBottom <= bottomSafeLimit,
+    headlineFontSize: layout.headlineFontSize,
+    bodyFontSize: layout.bodyFontSize,
+  };
 }
 
 export async function exportSlideToBlob(
@@ -1910,7 +1941,8 @@ export async function exportSlideToBlob(
   });
 }
 
-export async function exportAllSlidesAsZip(slides: SlideData[], options: any) {
+/** Ten sam renderer dla podglądu i plików; budowa nie wymusza pobrania. */
+export async function buildCarouselZip(slides: SlideData[], options: any): Promise<Blob> {
   const zip = new JSZip();
   const hiddenCanvas = document.createElement("canvas");
 
@@ -1927,14 +1959,18 @@ export async function exportAllSlidesAsZip(slides: SlideData[], options: any) {
       // których dany kadr w ogóle nie ma.
       highlightWords: slides[i].highlightWords ?? "",
     });
-    zip.file(`slide_${i + 1}.png`, blob);
+    zip.file(`slide_${i + 1}.png`, await blob.arrayBuffer());
   }
 
   if (options.captionText) {
     zip.file("caption_and_hashtags.txt", options.captionText);
   }
 
-  const content = await zip.generateAsync({ type: "blob" });
+  return zip.generateAsync({ type: "blob" });
+}
+
+export async function exportAllSlidesAsZip(slides: SlideData[], options: any) {
+  const content = await buildCarouselZip(slides, options);
   const url = URL.createObjectURL(content);
   const link = document.createElement("a");
   link.href = url;
@@ -1942,5 +1978,6 @@ export async function exportAllSlidesAsZip(slides: SlideData[], options: any) {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  // Pobranie jest asynchroniczne; nie unieważniaj pliku w tym samym zadaniu co klik.
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }

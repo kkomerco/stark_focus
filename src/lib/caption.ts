@@ -306,11 +306,22 @@ export function formatStarkCaption(
   );
 }
 
-/**
- * Wiersze, które i tak są na kadrze, nie muszą powtarzać się w opisie. Klik
- * „kopiuj opis" dokleja wiersze klipy przed opis, a opis zaczyna się od tej
- * samej tezy — nagłówek wychodził dwa razy. Ten sam grzech co z hashtagami.
- */
+/** Wspólna kontrola powtórek z kadru w opisie, z granicami całych słów. */
+export function repeatsFrame(caption: string, lines: readonly string[]): boolean {
+  const flat = ` ${copyLineKey(caption)
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()} `;
+  return lines.some((line) => {
+    const needle = copyLineKey(line)
+      .replace(/[^a-z0-9\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    return needle.length > 8 && flat.includes(` ${needle} `);
+  });
+}
+
+/** Usuwa prowadzące wiersze kadru, które kopiowanie już dokleja osobno. */
 export function stripFrameLines(caption: string, lines: readonly string[]): string {
   const frame = new Set(lines.map(copyLineKey).filter(Boolean));
   if (frame.size === 0) return caption;

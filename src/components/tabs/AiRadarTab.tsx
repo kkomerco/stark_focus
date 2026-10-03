@@ -1,33 +1,30 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Radio,
   Search,
   Copy,
   Check,
-  PlusCircle,
   ShieldCheck,
   AlertCircle,
   Bookmark,
   Flame,
   RefreshCw,
-  ExternalLink,
   Film,
   Layers,
   Compass,
   Zap,
   Repeat,
   Sparkles,
-  ArrowRight,
   BookOpen,
   Link,
-  CheckCircle2,
 } from "lucide-react";
 import { Post, ReelHandoff, StarkFocusData, TrendItem } from "../../types";
 import { usedHookFingerprints } from "../../lib/usedContent";
-import { exemplarHooksFor, MIN_SAMPLE } from "../../lib/published";
-import { formatStarkCaption, starkCaption } from "../../lib/caption";
+import { formatStarkCaption } from "../../lib/caption";
 import { fetchJson } from "../../lib/fetchJson";
+import { radarMaterial } from "../../lib/radarMaterial";
 import { CarouselStudioModal } from "../CarouselStudioModal";
+import { useStudioDraft } from "../useStudioDraft";
 
 interface IncomingCarousel {
   title: string;
@@ -39,7 +36,7 @@ interface IncomingCarousel {
 interface AiRadarTabProps {
   data: StarkFocusData;
   onUpdateData: (updater: (prev: StarkFocusData) => StarkFocusData) => void;
-  onOpenQR: (title: string, payload: string) => void;
+
   onNavigateToTab: (tabIndex: number) => void;
   onOpenVideoStudio?: (hookText?: string, bgUrl?: string) => void;
   /**
@@ -53,7 +50,7 @@ interface AiRadarTabProps {
   onIncomingCarouselUsed?: () => void;
 }
 
-type SubModule = "radar" | "angles" | "friction" | "recycler" | "batch";
+type SubModule = "radar" | "angles" | "friction" | "recycler";
 
 interface AngleItem {
   angleId: string;
@@ -71,28 +68,16 @@ interface ParadoxItem {
   phrases: string[];
 }
 
-interface ViralFormatItem {
-  formatKey: string;
-  formatName: string;
-  hook: string;
-  phrases: string[];
-  suggestedTheme: string;
-  rationale: string;
+interface RadarDraft {
+  niche: string;
+  platform: string;
+  angleTopic: string;
+  frictionTopic: string;
+  sourceText: string;
+  angles: AngleItem[];
+  paradoxes: ParadoxItem[];
+  recycledData: Record<string, unknown> | null;
 }
-
-interface BatchPostItem {
-  id: string;
-  pillar: string;
-  sayingMain: string;
-  sayingSub?: string;
-  caption: string;
-  template?: string;
-}
-
-/** Uczciwy podpis materiału, który nie przyszedł od modelu. */
-const BANK_LABEL = "treść z banku — model nie odpowiedział";
-const BANK_TAG =
-  "text-[9px] font-mono px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-300 border border-rose-500/30 shrink-0";
 
 /** Trasa nazywa powód w `notice`/`message`; pusty string znaczy, że nic nie zgłosiła. */
 const noticeOf = (payload: Record<string, unknown>): string => {
@@ -116,24 +101,9 @@ function recycleHasContent(payload: Record<string, unknown>): boolean {
   );
 }
 
-/** Podpis partii: cała z banku, część z banku, albo żaden. */
-function bankLabel(whole: boolean, bankCount: number, total: number): string {
-  if (whole || (bankCount > 0 && bankCount >= total && total > 0)) return BANK_LABEL;
-  if (bankCount > 0) {
-    const tail = bankCount % 10;
-    const tens = bankCount % 100;
-    const few = tail >= 2 && tail <= 4 && (tens < 12 || tens > 14);
-    return few
-      ? `${bankCount} z ${total} pozycji jest z banku treści`
-      : `${bankCount} z ${total} pozycji to bank treści`;
-  }
-  return "";
-}
-
 export const AiRadarTab: React.FC<AiRadarTabProps> = ({
   data,
   onUpdateData,
-  onOpenQR,
   onNavigateToTab,
   onOpenVideoStudio,
   onSendToPost,
@@ -151,10 +121,8 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
   const [isScanning, setIsScanning] = useState<boolean>(false);
   const [trends, setTrends] = useState<TrendItem[]>(() => data.saved_trends || []);
   const [scanMessage, setScanMessage] = useState<string>("");
-  const [viralFormats, setViralFormats] = useState<ViralFormatItem[]>([]);
-  const [isLoadingFormats, setIsLoadingFormats] = useState<boolean>(false);
 
-  // 2. Matryca Kątów Psychologicznych
+  // 2. Różne spojrzenia Psychologicznych
   const [angleTopic, setAngleTopic] = useState<string>(
     "Wczesne wstawanie i brak negocjacji z budzikiem",
   );
@@ -173,28 +141,47 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
   const [isRecycling, setIsRecycling] = useState<boolean>(false);
   const [recycledData, setRecycledData] = useState<any | null>(null);
 
-  // 5. Generator Masowy (Batch Generation w Radarze)
-  const [batchCount, setBatchCount] = useState<number>(6);
-  const [isGeneratingBatch, setIsGeneratingBatch] = useState<boolean>(false);
-  const [batchPosts, setBatchPosts] = useState<BatchPostItem[]>([]);
-  const [addedBatchIds, setAddedBatchIds] = useState<Set<string>>(new Set());
-
-  /**
-   * Której partii nie napisał model. Podpis idzie za listą, nie za zakładką:
-   * przełączenie karty Radaru nie może ścierać etykiety z materiału, który
-   * wciąż jest na ekranie, ani zostawiać jej na treści wczytanej z pamięci.
-   */
-  const [scanBank, setScanBank] = useState<boolean>(false);
-  const [formatBank, setFormatBank] = useState<boolean>(false);
-  const [angleBank, setAngleBank] = useState<boolean>(false);
-  const [frictionBank, setFrictionBank] = useState<boolean>(false);
-  const [recycleBank, setRecycleBank] = useState<boolean>(false);
-  const [batchBank, setBatchBank] = useState<boolean>(false);
-  /** Ile wpisów ostatniej serii dołożył bank: trasa liczy je w `bankFilled`. */
-  const [batchBankFilled, setBatchBankFilled] = useState<number>(0);
   /** Powód, który serwer nazwał samą treścią: pusty panel nie może być martwy. */
   const [radarError, setRadarError] = useState<string>("");
   const [recycleNotice, setRecycleNotice] = useState<string>("");
+  const draftValue = useMemo<RadarDraft>(
+    () => ({
+      niche,
+      platform,
+      angleTopic,
+      frictionTopic,
+      sourceText,
+      angles,
+      paradoxes,
+      recycledData,
+    }),
+    [niche, platform, angleTopic, frictionTopic, sourceText, angles, paradoxes, recycledData],
+  );
+  const restoreDraft = useCallback((saved: RadarDraft) => {
+    setNiche(textOf(saved.niche));
+    setPlatform(textOf(saved.platform) || "Instagram Karuzela / TikTok");
+    setAngleTopic(textOf(saved.angleTopic));
+    setFrictionTopic(textOf(saved.frictionTopic));
+    setSourceText(textOf(saved.sourceText));
+    setAngles(
+      Array.isArray(saved.angles)
+        ? saved.angles.filter(
+            (item) => item && typeof item.hook === "string" && Array.isArray(item.phrases),
+          )
+        : [],
+    );
+    setParadoxes(
+      Array.isArray(saved.paradoxes)
+        ? saved.paradoxes.filter(
+            (item) => item && typeof item.hook === "string" && Array.isArray(item.phrases),
+          )
+        : [],
+    );
+    setRecycledData(
+      saved.recycledData && typeof saved.recycledData === "object" ? saved.recycledData : null,
+    );
+  }, []);
+  const draft = useStudioDraft("radar:v1", draftValue, restoreDraft);
 
   // Copy feedback
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -235,20 +222,28 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
         created_date: new Date().toISOString().split("T")[0],
         notes: carousel.title ? `Studio karuzeli: ${carousel.title}.` : "Studio karuzeli.",
       };
-      onUpdateData((prev) => ({
-        ...prev,
-        posts: [newPost, ...prev.posts],
-        xp: prev.xp + 50,
-      }));
+      onUpdateData((prev) =>
+        prev.posts.some(
+          (post) =>
+            post.asset === newPost.asset &&
+            post.title === newPost.title &&
+            post.caption === newPost.caption &&
+            post.notes === newPost.notes &&
+            post.created_date === newPost.created_date,
+        )
+          ? prev
+          : {
+              ...prev,
+              posts: [newPost, ...prev.posts],
+              xp: prev.xp + 50,
+            },
+      );
     },
     [onUpdateData],
   );
 
   useEffect(() => {
-    // Status kontrolki jest darmowy. Formaty wiralowe NIE schodzą na mount: karta
-    // Radaru jest montowana przy każdym przełączeniu zakładki, więc jedno wejście
-    // zabierało jedno z ~20 darmowych zapytań dnia. Trendy startują z localStorage
-    // (`data.saved_trends`), a na formaty naciska się przycisk pod sekcją.
+    // Otwarcie radaru wywołuje wyłącznie bezpłatny status konfiguracji.
     fetch("/api/ai/status")
       .then((res) => res.json())
       .then((data) => setAiStatus(data))
@@ -271,41 +266,6 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const loadViralFormats = async () => {
-    setIsLoadingFormats(true);
-    setRadarError("");
-    try {
-      const {
-        data: json,
-        degraded,
-        status,
-      } = await fetchJson("/api/ai/viral-format-radar", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ niche, excludeHooks: usedHookFingerprints(data) }),
-      });
-      if (status < 200 || status >= 300) {
-        setRadarError(
-          status
-            ? `Serwer nie oddał formatów (HTTP ${status}) — kliknięcie mogło zejść z licznika.`
-            : "Serwer nie odpowiedział — formaty nie zostały pobrane.",
-        );
-        return;
-      }
-      const formats = Array.isArray(json.formats) ? (json.formats as ViralFormatItem[]) : [];
-      setViralFormats(formats);
-      setFormatBank(degraded);
-      if (formats.length === 0) {
-        setRadarError(noticeOf(json) || "Model nie oddał żadnego formatu — spróbuj ponownie.");
-      }
-    } catch (e) {
-      console.warn("Viral format load error:", e);
-      setRadarError("Serwer nie odpowiedział — formaty nie zostały pobrane.");
-    } finally {
-      setIsLoadingFormats(false);
-    }
-  };
-
   const handleScanTrends = async () => {
     setIsScanning(true);
     setRadarError("");
@@ -325,6 +285,13 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
           excludeHooks: usedHookFingerprints(data),
         }),
       });
+      if (degraded) {
+        setRadarError(
+          noticeOf(json) ||
+            "Model nie przygotował materiału do Twojego tematu. Poprzedni wynik pozostaje zachowany.",
+        );
+        return;
+      }
       if (status < 200 || status >= 300) {
         setScanMessage(
           status
@@ -334,8 +301,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
         return;
       }
       const found = Array.isArray(json.trends) ? (json.trends as TrendItem[]) : [];
-      setTrends(found);
-      setScanBank(degraded);
+      if (found.length > 0) setTrends(found);
       if (found.length > 0) {
         onUpdateData((prev) => ({
           ...prev,
@@ -348,13 +314,9 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
             ? "Zaktualizowano wątki z niszy i hooki 0-3s."
             : "Żaden wątek nie przeszedł kontroli rzemiosła — poniżej nie ma czego pokazać."),
       );
-      // Wcześniejsze `loadViralFormats()` w tym miejscu dokładało drugie płatne
-      // zapytanie do jednego kliknięcia. Skan nie karmi formatów ani odwrotnie,
-      // więc formaty mają własny przycisk i własne jedno zapytanie.
     } catch (err) {
       console.error(err);
-      setScanBank(false);
-      setScanMessage("Wystąpił problem podczas pobierania trendów sieci.");
+      setScanMessage("Nie udało się przygotować tematów. Poprzedni wynik pozostaje zachowany.");
     } finally {
       setIsScanning(false);
     }
@@ -374,6 +336,13 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ topic: angleTopic, excludeHooks: usedHookFingerprints(data) }),
       });
+      if (degraded) {
+        setRadarError(
+          noticeOf(json) ||
+            "Model nie przygotował materiału do Twojego tematu. Poprzedni wynik pozostaje zachowany.",
+        );
+        return;
+      }
       if (status < 200 || status >= 300) {
         setRadarError(
           status
@@ -383,8 +352,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
         return;
       }
       const angles = Array.isArray(json.angles) ? (json.angles as AngleItem[]) : [];
-      setAngles(angles);
-      setAngleBank(degraded);
+      if (angles.length > 0) setAngles(angles);
       if (angles.length === 0) {
         setRadarError(
           noticeOf(json) ||
@@ -413,6 +381,13 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ topic: frictionTopic, excludeHooks: usedHookFingerprints(data) }),
       });
+      if (degraded) {
+        setRadarError(
+          noticeOf(json) ||
+            "Model nie przygotował materiału do Twojego tematu. Poprzedni wynik pozostaje zachowany.",
+        );
+        return;
+      }
       if (status < 200 || status >= 300) {
         setRadarError(
           status
@@ -422,8 +397,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
         return;
       }
       const paradoxes = Array.isArray(json.paradoxes) ? (json.paradoxes as ParadoxItem[]) : [];
-      setParadoxes(paradoxes);
-      setFrictionBank(degraded);
+      if (paradoxes.length > 0) setParadoxes(paradoxes);
       if (paradoxes.length === 0) {
         setRadarError(
           noticeOf(json) ||
@@ -440,6 +414,12 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
 
   const handleRecycleContent = async () => {
     if (!sourceText.trim()) return;
+    if (/^https?:\/\//i.test(sourceText.trim())) {
+      setRadarError(
+        "Tu rozwijamy tekst. Wklej własną myśl, a link otwórz w narzędziu „Analiza linku”.",
+      );
+      return;
+    }
     setIsRecycling(true);
     setRadarError("");
     try {
@@ -455,6 +435,13 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
           excludeHooks: usedHookFingerprints(data),
         }),
       });
+      if (degraded) {
+        setRadarError(
+          noticeOf(json) ||
+            "Model nie przygotował materiału do Twojego tematu. Poprzedni wynik pozostaje zachowany.",
+        );
+        return;
+      }
       if (status < 200 || status >= 300) {
         setRadarError(
           status
@@ -466,15 +453,12 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
       // Trasa oddaje cztery null-e, gdy nie ma ani jednego zdania z materiału.
       // Cztery puste karty pod sobą wyglądałyby jak wygenerowana seria.
       if (!recycleHasContent(json)) {
-        setRecycledData(null);
-        setRecycleBank(false);
         setRadarError(
-          noticeOf(json) || "Remiks nie wyszedł — ani model, ani bank treści nie oddał zdania.",
+          noticeOf(json) || "Model nie oddał materiału. Poprzedni wynik pozostaje zachowany.",
         );
         return;
       }
       setRecycledData(json);
-      setRecycleBank(degraded);
       setRecycleNotice(noticeOf(json));
     } catch (e) {
       console.error(e);
@@ -484,126 +468,13 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
     }
   };
 
-  // Obsługa generowania masowego (Batch Generator)
-  const handleGenerateBatch = async () => {
-    setIsGeneratingBatch(true);
-    setRadarError("");
-    try {
-      const {
-        data: result,
-        degraded,
-        status,
-      } = await fetchJson("/api/ai/batch-generator", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          count: batchCount,
-          niche,
-          excludeHooks: usedHookFingerprints(data),
-          exemplars: exemplarHooksFor(data),
-        }),
-      });
-      if (status < 200 || status >= 300) {
-        setRadarError(
-          status
-            ? `Seria nie wyszła (HTTP ${status}) — kliknięcie mogło zejść z licznika.`
-            : "Seria nie wyszła — serwer nie odpowiedział.",
-        );
-        return;
-      }
-      const posts = Array.isArray(result.posts) ? (result.posts as BatchPostItem[]) : [];
-      setBatchPosts(posts);
-      setBatchBank(degraded);
-      // Trasa uzupełnia bankiem każdą kliszę, którą odrzuciła kontrola rzemiosła.
-      const filled = Number(result.bankFilled ?? 0);
-      setBatchBankFilled(Number.isFinite(filled) && filled > 0 ? filled : 0);
-      if (posts.length === 0) {
-        setRadarError(noticeOf(result) || "Model nie oddał żadnego wpisu — spróbuj ponownie.");
-      }
-    } catch (err) {
-      console.error("Batch gen error:", err);
-      setRadarError("Seria nie wyszła — serwer nie odpowiedział.");
-    } finally {
-      setIsGeneratingBatch(false);
-    }
-  };
-
-  const handleAddBatchToPipeline = (post: BatchPostItem) => {
-    const newPost: Post = {
-      id: "post-" + Date.now() + "-" + Math.random().toString(36).substring(2, 6),
-      title: post.sayingMain,
-      platform: "Instagram",
-      format: "Rolka 7-Sekundowa (Short Reel)",
-      asset: "AI_BATCH_" + post.id,
-      caption: post.caption,
-      created_date: new Date().toISOString().split("T")[0],
-      notes: `Filary: ${post.pillar}. Wygenerowano masowo z Radaru AI.`,
-    };
-
-    onUpdateData((prev) => ({
-      ...prev,
-      posts: [newPost, ...prev.posts],
-    }));
-
-    setAddedBatchIds((prev) => new Set(prev).add(post.id));
-  };
-
-  const handleAddAllBatchToPipeline = () => {
-    const unadded = batchPosts.filter((p) => !addedBatchIds.has(p.id));
-    if (unadded.length === 0) return;
-
-    const newPosts: Post[] = unadded.map((post, idx) => ({
-      id: "post-" + (Date.now() + idx),
-      title: post.sayingMain,
-      platform: "Instagram",
-      format: "Rolka 7-Sekundowa (Short Reel)",
-      asset: "AI_BATCH_" + post.id,
-      caption: post.caption,
-      created_date: new Date().toISOString().split("T")[0],
-      notes: `Filary: ${post.pillar}. Wygenerowano masowo z Radaru AI.`,
-      tags: ["stoicism", "discipline", "radar_batch"],
-      status: "draft",
-    }));
-
-    onUpdateData((prev) => ({
-      ...prev,
-      posts: [...newPosts, ...prev.posts],
-    }));
-
-    setAddedBatchIds(new Set(batchPosts.map((p) => p.id)));
-  };
-
-  const handleAddTrendToPipeline = (trend: TrendItem) => {
-    const hooks =
-      Array.isArray(trend.viral_hooks) && trend.viral_hooks.length > 0
-        ? trend.viral_hooks
-        : ["Stay ruthless with your standards."];
-    const primaryHook = hooks[0];
-
-    const newPost: Post = {
-      id: "post-" + Date.now(),
-      title: trend.title,
-      platform: "Instagram",
-      format: trend.suggested_format || "Rolka 7-Sekundowa (Short Reel)",
-      asset: "AI_RADAR_" + trend.id,
-      // Ogon bierze się z `caption.ts`: własne wezwanie i stała lista tagów
-      // sprawiłyby, że post z Radaru wygląda inaczej niż ten ze studia.
-      caption: starkCaption(primaryHook, trend.core_message || ""),
-      created_date: new Date().toISOString().split("T")[0],
-      notes: `Wywiad Trendu: ${trend.source_context || "Sieć"}. Ból widza: ${trend.audience_pain || "N/A"}`,
-    };
-
-    onUpdateData((prev) => ({
-      ...prev,
-      posts: [newPost, ...prev.posts],
-      xp: prev.xp + 25,
-    }));
-  };
+  if (!draft.ready)
+    return <p className="p-4 text-[11px] font-mono text-neutral-400">{draft.notice}</p>;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
       {/* Top Header */}
-      <div className="p-4 bg-[#0E0E0E] border border-[rgba(255,255,255,0.1)] rounded-lg flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div className="p-4 bg-[#0E0E0E] border border-[rgba(255,255,255,0.1)] rounded-lg flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
         <div className="flex items-center gap-3">
           <div className="p-2.5 rounded-sm bg-white/10 border border-white/20 text-white">
             <Radio className="w-5 h-5 animate-pulse" />
@@ -611,29 +482,39 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-sm font-bold text-white uppercase font-mono tracking-wider">
-                INFINITE IDEA ENGINE // NIEOGRANICZONE ŹRÓDŁO WIRALOWYCH TREŚCI
+                Radar pomysłów
               </h2>
               {aiStatus?.configured ? (
-                <span className="px-2 py-0.5 rounded-xs bg-[#10B981]/20 border border-[#10B981]/40 text-[#10B981] font-mono text-[10px] uppercase font-bold flex items-center gap-1">
+                <span className="px-2 py-0.5 rounded-xs bg-[#A0A0A0]/20 border border-[#A0A0A0]/40 text-[#A0A0A0] font-mono text-[10px] uppercase font-bold flex items-center gap-1">
                   <ShieldCheck className="w-3 h-3" />
                   Silnik AI Aktywny
                 </span>
               ) : (
-                <span className="px-2 py-0.5 rounded-xs bg-[#F59E0B]/20 border border-[#F59E0B]/40 text-[#F59E0B] font-mono text-[10px] uppercase font-bold flex items-center gap-1">
+                <span className="px-2 py-0.5 rounded-xs bg-[#A0A0A0]/20 border border-[#A0A0A0]/40 text-[#A0A0A0] font-mono text-[10px] uppercase font-bold flex items-center gap-1">
                   <AlertCircle className="w-3 h-3" />
-                  Tryb Autonomiczny
+                  Brak klucza AI
                 </span>
               )}
             </div>
             <p className="text-xs text-neutral-400 font-mono mt-0.5">
-              4 potężne silniki pomysłów STARK: Radar Trendów, Matryca Kątów, Generator Paradoksów i
-              Remikser Treści.
+              Tematy, różne spojrzenia i rozwijanie własnej myśli. Generacja zaczyna się dopiero po
+              kliknięciu przycisku.
+            </p>
+            <p className="text-[10px] text-neutral-500 font-mono mt-1">
+              Propozycje od modelu, bez sprawdzania bieżących trendów i pomiaru zasięgu.
             </p>
           </div>
         </div>
 
+        <button
+          type="button"
+          onClick={() => openCarouselStudio({ title: "", slides: [] })}
+          className="px-3 py-2 rounded border border-white/15 text-neutral-300 hover:text-white text-[11px] font-mono cursor-pointer"
+        >
+          Studio karuzeli · bez AI
+        </button>
         {/* Sub-Tabs Switcher */}
-        <div className="flex items-center bg-[#050505] p-1 border border-[rgba(255,255,255,0.1)] rounded-lg">
+        <div className="flex flex-wrap items-center bg-[#050505] p-1 border border-[rgba(255,255,255,0.1)] rounded-lg">
           <button
             onClick={() => setActiveSubModule("radar")}
             className={`px-3 py-1.5 rounded text-xs font-mono font-bold uppercase transition-all flex items-center gap-1.5 cursor-pointer ${
@@ -643,13 +524,12 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
             }`}
           >
             <Compass className="w-3.5 h-3.5" />
-            <span>Radar Formatów</span>
+            <span>Tematy</span>
           </button>
 
           <button
             onClick={() => {
               setActiveSubModule("angles");
-              if (angles.length === 0) handleGenerateAngles();
             }}
             className={`px-3 py-1.5 rounded text-xs font-mono font-bold uppercase transition-all flex items-center gap-1.5 cursor-pointer ${
               activeSubModule === "angles"
@@ -658,13 +538,12 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
             }`}
           >
             <Zap className="w-3.5 h-3.5" />
-            <span>Matryca Kątów</span>
+            <span>Różne spojrzenia</span>
           </button>
 
           <button
             onClick={() => {
               setActiveSubModule("friction");
-              if (paradoxes.length === 0) handleGenerateFriction();
             }}
             className={`px-3 py-1.5 rounded text-xs font-mono font-bold uppercase transition-all flex items-center gap-1.5 cursor-pointer ${
               activeSubModule === "friction"
@@ -673,13 +552,12 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
             }`}
           >
             <Sparkles className="w-3.5 h-3.5" />
-            <span>Paradoksy (Friction)</span>
+            <span>Kontrast</span>
           </button>
 
           <button
             onClick={() => {
               setActiveSubModule("recycler");
-              if (!recycledData) handleRecycleContent();
             }}
             className={`px-3 py-1.5 rounded text-xs font-mono font-bold uppercase transition-all flex items-center gap-1.5 cursor-pointer ${
               activeSubModule === "recycler"
@@ -688,26 +566,12 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
             }`}
           >
             <Repeat className="w-3.5 h-3.5" />
-            <span>Klonuj & Remiksuj</span>
-          </button>
-
-          <button
-            onClick={() => {
-              setActiveSubModule("batch");
-              if (batchPosts.length === 0) handleGenerateBatch();
-            }}
-            className={`px-3 py-1.5 rounded text-xs font-mono font-bold uppercase transition-all flex items-center gap-1.5 cursor-pointer ${
-              activeSubModule === "batch"
-                ? "bg-white text-black shadow"
-                : "text-neutral-400 hover:text-white"
-            }`}
-          >
-            <Layers className="w-3.5 h-3.5" />
-            <span>Masowe Rolki</span>
+            <span>Rozwiń własną myśl</span>
           </button>
         </div>
       </div>
 
+      <p className="text-[10px] font-mono text-neutral-500">{draft.notice}</p>
       {/* Awaria jest inną rzeczą niż bank treści: kliknięcie mogło zejść z
           licznika, a na ekranie nie ma niczyjego zdania. */}
       {radarError && (
@@ -744,7 +608,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                   className="w-full px-3 py-2 bg-[#050505] border border-[rgba(255,255,255,0.1)] rounded text-xs font-mono text-white focus:outline-none focus:border-white"
                 >
                   <option value="Instagram Karuzela / TikTok">Instagram Karuzela / TikTok</option>
-                  <option value="Rolka 7s B-Roll z Basem">Rolka 7s B-Roll z Basem</option>
+                  <option value="Rolka pionowa">Rolka pionowa</option>
                 </select>
               </div>
               <div className="flex items-end gap-2">
@@ -756,26 +620,14 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                   {isScanning ? (
                     <>
                       <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      <span>Skanowanie...</span>
+                      <span>Generuję...</span>
                     </>
                   ) : (
                     <>
                       <Search className="w-3.5 h-3.5" />
-                      <span>Skanuj Sieć · 1 zapytanie</span>
+                      <span>Zaproponuj tematy · 1 generacja AI</span>
                     </>
                   )}
-                </button>
-
-                <button
-                  onClick={() => {
-                    setActiveSubModule("batch");
-                    if (batchPosts.length === 0) handleGenerateBatch();
-                  }}
-                  className="w-full sm:w-auto px-4 py-2 rounded bg-[#1A1A1A] hover:bg-neutral-800 text-neutral-200 border border-white/10 text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-1.5"
-                  title="Przejdź do generatora masowego"
-                >
-                  <Layers className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Masowe Rolki</span>
                 </button>
               </div>
             </div>
@@ -788,143 +640,19 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
             </div>
           )}
 
-          {/* Sekcja: Psychologiczne Formaty Wiralowe (Wysoka Konwersja) */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-bold text-white uppercase font-mono tracking-wider flex items-center gap-2">
-                <Flame className="w-4 h-4 text-rose-400" />
-                Matryca Sprawdzonych Formatów Wirali (Reels / TikTok Hooks)
-              </h3>
-              <div className="flex items-center gap-3">
-                {formatBank && viralFormats.length > 0 && (
-                  <span className={BANK_TAG}>{BANK_LABEL}</span>
-                )}
-                <span className="text-[10px] font-mono text-neutral-500">
-                  Szablony o udowodnionej retencji 0-3s
-                </span>
-                <button
-                  onClick={loadViralFormats}
-                  disabled={isLoadingFormats}
-                  className="px-2.5 py-1 rounded bg-[#161616] hover:bg-white hover:text-black border border-[rgba(255,255,255,0.1)] text-[10px] font-mono font-bold uppercase text-neutral-300 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                  title="Jedno zapytanie do modelu"
-                >
-                  <RefreshCw className={`w-3 h-3 ${isLoadingFormats ? "animate-spin" : ""}`} />
-                  <span>
-                    {isLoadingFormats
-                      ? "Pobieram..."
-                      : viralFormats.length > 0
-                        ? "Odśwież · 1 zapytanie"
-                        : "Pobierz formaty · 1 zapytanie"}
-                  </span>
-                </button>
-              </div>
-            </div>
-
-            {viralFormats.length === 0 && (
-              <div className="p-6 text-center bg-[#0E0E0E] border border-[rgba(255,255,255,0.05)] rounded-lg">
-                <p className="text-xs font-mono text-neutral-400">
-                  Formaty nie ładują się same, żeby wejście na kartę nie ruszało limitu.
-                </p>
-                <p className="text-[10px] font-mono text-neutral-500">
-                  Pobierz je przyciskiem wyżej, gdy będziesz ich potrzebować.
-                </p>
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {viralFormats.map((fmt, fIdx) => (
-                <div
-                  key={fmt.formatKey || fIdx}
-                  className="p-4 bg-[#0E0E0E] border border-[rgba(255,255,255,0.1)] hover:border-white/40 rounded-lg space-y-3 transition-all"
-                >
-                  <div className="flex items-center justify-between border-b border-[rgba(255,255,255,0.1)] pb-2">
-                    <span className="text-xs font-mono font-bold text-white uppercase flex items-center gap-1.5">
-                      <span className="text-amber-400"></span>
-                      {fmt.formatName}
-                    </span>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white/10 text-neutral-300">
-                      Format STARK
-                    </span>
-                  </div>
-
-                  <div className="p-2.5 bg-[#050505] rounded border border-[rgba(255,255,255,0.1)] space-y-1">
-                    <span className="text-[10px] text-neutral-500 uppercase font-mono block">
-                      Hook 0-3s:
-                    </span>
-                    <p className="text-xs font-mono text-white font-bold">"{fmt.hook}"</p>
-                  </div>
-
-                  <div className="space-y-1 text-xs font-mono text-neutral-400">
-                    <span className="text-[10px] text-neutral-500 uppercase block">
-                      Struktura 3 Faz:
-                    </span>
-                    <ol className="list-decimal list-inside space-y-0.5 text-[11px] text-neutral-300">
-                      {fmt.phrases.map((phrase, pIdx) => (
-                        <li key={pIdx}>{phrase}</li>
-                      ))}
-                    </ol>
-                  </div>
-
-                  <div className="text-[11px] font-mono text-neutral-400 italic">
-                    {fmt.rationale}
-                  </div>
-
-                  <div className="flex items-center gap-2 pt-1">
-                    <button
-                      onClick={() => {
-                        if (onSendToPost)
-                          // `rationale` to notatka „dlaczego to działa" po polsku — nigdy opis posta.
-                          onSendToPost(fmt.hook, formatStarkCaption(fmt.hook), fmt.phrases);
-                        else onNavigateToTab(0);
-                      }}
-                      className="flex-1 py-1.5 px-2.5 rounded bg-white hover:bg-neutral-200 text-black text-xs font-mono font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                    >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      <span>Do Posta</span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (onSendToReel) onSendToReel({ hook: fmt.hook, phrases: fmt.phrases });
-                        else onOpenVideoStudio?.(fmt.hook);
-                      }}
-                      className="flex-1 py-1.5 px-2.5 rounded bg-[#161616] hover:bg-white hover:text-black border border-[rgba(255,255,255,0.1)] text-white text-xs font-mono font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                    >
-                      <Film className="w-3.5 h-3.5" />
-                      <span>Do Rolki</span>
-                    </button>
-                    <button
-                      onClick={() => handleCopy(`vf-${fIdx}`, fmt.hook)}
-                      className="p-1.5 rounded bg-[#161616] hover:bg-white hover:text-black text-neutral-300 border border-[rgba(255,255,255,0.1)] text-xs font-mono transition-all cursor-pointer"
-                      title="Kopiuj hook"
-                    >
-                      {copiedId === `vf-${fIdx}` ? (
-                        <Check className="w-4 h-4 text-emerald-400" />
-                      ) : (
-                        <Copy className="w-4 h-4" />
-                      )}
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
           {/* Sekcja: Wątki z niszy */}
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="text-xs font-bold text-white uppercase font-mono tracking-wider flex items-center gap-2">
-                <Bookmark className="w-4 h-4 text-emerald-400" />
-                Wątki, które powtarzają się w niszy ({trends.length})
+                <Bookmark className="w-4 h-4 text-neutral-400" />
+                Propozycje tematów ({trends.length})
               </h3>
               {/* Etykieta wisi tylko na partii z tego kliknięcia — wątki wczytane
                   z pamięci nie niosą znaku pochodzenia i nie udają banku. */}
-              {scanBank && trends.length > 0 && <span className={BANK_TAG}>{BANK_LABEL}</span>}
             </div>
             <p className="text-[10px] font-mono text-neutral-500 leading-relaxed -mt-1">
-              Model układa tu wzorce, które widuje u dużych nadawców w tej niszy: motyw, ból
-              odbiorcy i hooki 0-3 s. To propozycja do napisania, nie pomiar z sieci. O tym, co u
-              nas działa, nie orzekamy procentem z głowy — aplikacja tego nie mierzy, więc zostaje
-              to, co sam widzisz na koncie.
+              Model proponuje materiał do dalszej redakcji: temat, problem odbiorcy i hook.
+              Popularność i skuteczność tych propozycji nie zostały zmierzone.
             </p>
 
             <div className="space-y-3">
@@ -932,8 +660,8 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                 <div className="p-6 text-center bg-[#0E0E0E] border border-[rgba(255,255,255,0.05)] rounded-lg">
                   <p className="text-xs font-mono text-neutral-400">
                     {isScanning
-                      ? "Skanujemy niszę..."
-                      : "Żaden wątek nie trafił do tej karty — skan wrócił pusty albo jeszcze go nie było."}
+                      ? "Przygotowuję propozycje..."
+                      : "Brak propozycji. Wpisz temat i uruchom generację przyciskiem wyżej."}
                   </p>
                 </div>
               ) : (
@@ -949,7 +677,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                     <div className="grid gap-1.5 text-[10px] font-mono">
                       {trend.source_context && (
                         <p className="text-neutral-500">
-                          <span className="uppercase text-neutral-600">Skąd:</span>{" "}
+                          <span className="uppercase text-neutral-600">Uzasadnienie modelu:</span>{" "}
                           <span className="text-neutral-300">{trend.source_context}</span>
                         </p>
                       )}
@@ -966,31 +694,25 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                     <div className="flex flex-wrap items-center gap-2 pt-1">
                       <button
                         onClick={() => {
-                          const text = trend.viral_hooks?.[0] || trend.title;
-                          // `title` i `core_message` są po polsku — to notatka dla
-                          // autora, nie opis pod post. Lista hooków z wątku to
-                          // gotowe kroki, więc idzie razem z tekstem.
-                          const cap = trend.copy_draft?.caption || formatStarkCaption(text);
-                          if (onSendToPost)
-                            onSendToPost(text, cap, (trend.viral_hooks ?? []).slice(1));
-                          else onNavigateToTab(0);
+                          const reel = radarMaterial(trend);
+                          if (reel && onSendToPost)
+                            onSendToPost(reel.hook!, reel.caption, reel.phrases?.slice(1));
                         }}
                         className="flex items-center gap-1.5 py-1.5 px-3 rounded bg-white hover:bg-neutral-200 text-black text-xs font-mono font-bold transition-all cursor-pointer"
                       >
                         <Sparkles className="w-3.5 h-3.5" />
-                        <span>Wyrzuć do Posta</span>
+                        <span>Do posta</span>
                       </button>
 
                       <button
                         onClick={() => {
-                          const hook = trend.viral_hooks?.[0] || trend.title;
-                          if (onSendToReel) onSendToReel(hook);
-                          else onOpenVideoStudio?.(hook);
+                          const reel = radarMaterial(trend);
+                          if (reel) onSendToReel?.(reel);
                         }}
                         className="flex items-center gap-1.5 py-1.5 px-3 rounded bg-[#161616] hover:bg-white hover:text-black border border-[rgba(255,255,255,0.1)] text-white text-xs font-mono font-bold transition-all cursor-pointer"
                       >
                         <Film className="w-3.5 h-3.5" />
-                        <span>Wyrzuć do Rolki</span>
+                        <span>Do rolki</span>
                       </button>
 
                       <button
@@ -1001,7 +723,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                         title="Kopiuj treść"
                       >
                         {copiedId === `tr-${idx}` ? (
-                          <Check className="w-3.5 h-3.5 text-emerald-400" />
+                          <Check className="w-3.5 h-3.5 text-neutral-400" />
                         ) : (
                           <Copy className="w-3.5 h-3.5" />
                         )}
@@ -1043,7 +765,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                 ) : (
                   <>
                     <Zap className="w-3.5 h-3.5" />
-                    <span>Rozbij na 4 Kąty</span>
+                    <span>Generuj spojrzenia · 1 generacja AI</span>
                   </>
                 )}
               </button>
@@ -1060,11 +782,6 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
             </div>
           ) : (
             <>
-              {angleBank && (
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className={BANK_TAG}>{BANK_LABEL}</span>
-                </div>
-              )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {angles.map((ang, idx) => (
                   <div
@@ -1134,7 +851,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                         title="Kopiuj tekst"
                       >
                         {copiedId === `ang-${idx}` ? (
-                          <Check className="w-4 h-4 text-emerald-400" />
+                          <Check className="w-4 h-4 text-neutral-400" />
                         ) : (
                           <Copy className="w-4 h-4" />
                         )}
@@ -1176,7 +893,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                 ) : (
                   <>
                     <Sparkles className="w-3.5 h-3.5" />
-                    <span>Generuj Paradoksy</span>
+                    <span>Generuj kontrast · 1 generacja AI</span>
                   </>
                 )}
               </button>
@@ -1193,11 +910,6 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
             </div>
           ) : (
             <>
-              {frictionBank && (
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className={BANK_TAG}>{BANK_LABEL}</span>
-                </div>
-              )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {paradoxes.map((pdx, idx) => (
                   <div
@@ -1255,7 +967,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                         title="Kopiuj"
                       >
                         {copiedId === `pdx-${idx}` ? (
-                          <Check className="w-4 h-4 text-emerald-400" />
+                          <Check className="w-4 h-4 text-neutral-400" />
                         ) : (
                           <Copy className="w-4 h-4" />
                         )}
@@ -1276,26 +988,20 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <label className="text-[10px] text-neutral-400 font-mono uppercase font-bold flex items-center gap-1.5">
                 <Link className="w-3.5 h-3.5 text-white" />
-                Wklej Bezpośredni Link (Reels, TikTok, Shorts) LUB Wpisz Tekst:
+                Wklej własną myśl, notatkę lub wcześniejszy post:
               </label>
-              {/^(https?:\/\/|[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\/)/i.test(sourceText.trim()) && (
-                <span className="px-2 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 font-mono text-[10px] uppercase font-bold flex items-center gap-1">
-                  <Check className="w-3 h-3" />
-                  Wykryto Bezpośredni Link Social Media
-                </span>
-              )}
             </div>
             <textarea
               rows={3}
               value={sourceText}
               onChange={(e) => setSourceText(e.target.value)}
-              placeholder="Wklej bezpośredni link do posta/rolki (np. https://www.instagram.com/reel/... lub TikTok / YouTube Shorts) ALBO wpisz własną myśl, stary post lub notatkę..."
+              placeholder="Opisz jedną sytuację i myśl, którą chcesz rozwinąć. Link przeanalizujesz w narzędziu „Analiza linku”."
               className="w-full px-3 py-2 bg-[#050505] border border-[rgba(255,255,255,0.1)] rounded text-xs font-mono text-white placeholder-neutral-500 focus:outline-none focus:border-white resize-none"
             />
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <p className="text-[11px] font-mono text-neutral-400">
-                AI zdekonstruuje mechanizm psychologiczny z podanego linku/tekstu i wygeneruje 4
-                kompletne formaty STARK w 100% po angielsku.
+                Model rozwinie tę samą myśl w rolkę, karuzelę i tezę do kadru z opisem. Każdy
+                materiał sprawdzisz w studiu przed eksportem.
               </p>
               <button
                 onClick={handleRecycleContent}
@@ -1305,12 +1011,12 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                 {isRecycling ? (
                   <>
                     <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    <span>Dekonstrukcja & Remiks...</span>
+                    <span>Rozwijam myśl...</span>
                   </>
                 ) : (
                   <>
                     <Repeat className="w-3.5 h-3.5" />
-                    <span>Zremiksuj na 4 Formaty STARK</span>
+                    <span>Rozwiń myśl · 1 generacja AI</span>
                   </>
                 )}
               </button>
@@ -1320,8 +1026,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
           {recycledData && (
             <>
               <div className="flex flex-wrap items-center gap-2">
-                {recycleBank && <span className={BANK_TAG}>{BANK_LABEL}</span>}
-                {!recycleBank && recycleNotice && (
+                {recycleNotice && (
                   <p className="text-[10px] font-mono text-neutral-500">{recycleNotice}</p>
                 )}
               </div>
@@ -1331,10 +1036,10 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                   <div className="flex items-center justify-between border-b border-[rgba(255,255,255,0.1)] pb-2">
                     <span className="text-xs font-mono font-bold text-white uppercase flex items-center gap-1.5">
                       <Film className="w-4 h-4 text-rose-400" />
-                      1. Rolka 7-Sekundowa (Wideo)
+                      1. Rolka
                     </span>
                     <span className="text-[10px] font-mono text-neutral-400">
-                      {recycledData.reel?.duration || 8}s • Climax Hold
+                      {recycledData.reel?.duration || 8}s
                     </span>
                   </div>
 
@@ -1360,13 +1065,16 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                         onSendToReel({
                           hook: reel?.hook || "",
                           phrases: Array.isArray(reel?.phrases) ? reel.phrases : undefined,
+                          duration: reel?.duration,
+                          theme: reel?.suggestedTheme,
+                          caption: recycledData.caption,
                         });
                       else onOpenVideoStudio?.(recycledData.reel?.hook);
                     }}
                     className="w-full py-1.5 px-3 rounded bg-white hover:bg-neutral-200 text-black text-xs font-mono font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                   >
                     <Film className="w-3.5 h-3.5" />
-                    <span>Wyrzuć do Rolki</span>
+                    <span>Do rolki</span>
                   </button>
                 </div>
 
@@ -1375,7 +1083,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                 <div className="p-4 bg-[#0E0E0E] border border-[rgba(255,255,255,0.1)] rounded-lg space-y-3">
                   <div className="flex items-center justify-between border-b border-[rgba(255,255,255,0.1)] pb-2">
                     <span className="text-xs font-mono font-bold text-white uppercase flex items-center gap-1.5">
-                      <Layers className="w-4 h-4 text-emerald-400" />
+                      <Layers className="w-4 h-4 text-neutral-400" />
                       2. Karuzela 4:5
                     </span>
                     <span className="text-[10px] font-mono text-neutral-400">
@@ -1388,7 +1096,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
 
                   <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
                     {recycledData.carousel?.title && (
-                      <div className="p-2 bg-[#050505] rounded border border-[rgba(255,255,255,0.1)] text-[11px] font-mono text-emerald-300 font-bold">
+                      <div className="p-2 bg-[#050505] rounded border border-[rgba(255,255,255,0.1)] text-[11px] font-mono text-neutral-300 font-bold">
                         {recycledData.carousel.title}
                       </div>
                     )}
@@ -1412,7 +1120,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
 
                   <button
                     onClick={() => openCarouselStudio(recycledData.carousel, recycledData.caption)}
-                    className="w-full py-1.5 px-3 rounded bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-300 font-bold uppercase text-xs font-mono transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                    className="w-full py-1.5 px-3 rounded bg-neutral-500/20 hover:bg-neutral-500/30 border border-neutral-500/30 text-neutral-300 font-bold uppercase text-xs font-mono transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                   >
                     <Layers className="w-3.5 h-3.5" />
                     <span>Studio Karuzeli — podgląd i eksport 4:5</span>
@@ -1429,13 +1137,20 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                               ? firstSlide
                               : "";
                         const cap = recycledData.caption || "";
-                        if (onSendToPost) onSendToPost(text, cap);
+                        if (onSendToPost)
+                          onSendToPost(
+                            typeof firstSlide === "object" ? firstSlide?.headline || "" : text,
+                            cap,
+                            typeof firstSlide === "object" && firstSlide?.bodyText
+                              ? [firstSlide.bodyText]
+                              : undefined,
+                          );
                         else onNavigateToTab(0);
                       }}
                       className="flex-1 py-1.5 px-3 rounded bg-white hover:bg-neutral-200 text-black font-bold uppercase text-xs font-mono transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                     >
                       <Sparkles className="w-3.5 h-3.5" />
-                      <span>Wyrzuć do Posta</span>
+                      <span>Do posta</span>
                     </button>
                     <button
                       onClick={() => {
@@ -1446,7 +1161,6 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                           })
                           .join("\n\n");
                         if (text) {
-                          navigator.clipboard.writeText(text);
                           handleCopy("rec-car", text);
                         }
                       }}
@@ -1462,7 +1176,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                 <div className="p-4 bg-[#0E0E0E] border border-[rgba(255,255,255,0.1)] rounded-lg space-y-3">
                   <span className="text-xs font-mono font-bold text-white uppercase flex items-center gap-1.5 border-b border-[rgba(255,255,255,0.1)] pb-2">
                     <BookOpen className="w-4 h-4 text-neutral-300" />
-                    3. Stoicki Manifest (1 Zdanie)
+                    3. Teza do kadru
                   </span>
                   <p className="text-xs font-mono font-bold text-white p-3 bg-[#050505] rounded border border-[rgba(255,255,255,0.1)]">
                     "{recycledData.manifesto}"
@@ -1477,7 +1191,7 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                       className="flex-1 py-1.5 px-3 rounded bg-white hover:bg-neutral-200 text-black font-bold uppercase text-xs font-mono transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                     >
                       <Sparkles className="w-3.5 h-3.5" />
-                      <span>Wyrzuć do Posta</span>
+                      <span>Do posta</span>
                     </button>
                     <button
                       onClick={() => handleCopy("rec-man", recycledData.manifesto)}
@@ -1492,8 +1206,8 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
                 {/* Format 4: Opis Instagram (Caption) */}
                 <div className="p-4 bg-[#0E0E0E] border border-[rgba(255,255,255,0.1)] rounded-lg space-y-3">
                   <span className="text-xs font-mono font-bold text-white uppercase flex items-center gap-1.5 border-b border-[rgba(255,255,255,0.1)] pb-2">
-                    <Zap className="w-4 h-4 text-purple-400" />
-                    4. Gotowy Opis Posta (Instagram)
+                    <Zap className="w-4 h-4 text-neutral-400" />
+                    Opis do rozwinięcia w studiu
                   </span>
                   <p className="text-[11px] font-mono text-neutral-300 p-2.5 bg-[#050505] rounded border border-[rgba(255,255,255,0.1)] max-h-24 overflow-y-auto whitespace-pre-wrap">
                     {recycledData.caption}
@@ -1509,200 +1223,6 @@ export const AiRadarTab: React.FC<AiRadarTabProps> = ({
               </div>
             </>
           )}
-        </div>
-      )}
-
-      {/* SUB-MODUŁ 5: GENEROWANIE MASOWE (BATCH GENERATOR) */}
-      {activeSubModule === "batch" && (
-        <div className="space-y-6 animate-in fade-in">
-          {/* Panel Sterowania Masowego */}
-          <div className="p-4 bg-[#0E0E0E] border border-[rgba(255,255,255,0.1)] rounded-lg space-y-3">
-            <div className="flex flex-col sm:flex-row gap-3 items-end">
-              <div className="flex-1">
-                <label className="text-[10px] text-neutral-400 font-mono uppercase font-bold block mb-1">
-                  Nisza Psychologiczna & Tematyka:
-                </label>
-                <input
-                  type="text"
-                  value={niche}
-                  onChange={(e) => setNiche(e.target.value)}
-                  placeholder="np. dark psychology, ruthless discipline, monk mode"
-                  className="w-full px-3 py-2 bg-[#050505] border border-[rgba(255,255,255,0.1)] rounded text-xs font-mono text-white placeholder-neutral-500 focus:outline-none focus:border-white"
-                />
-              </div>
-
-              <div className="w-full sm:w-48">
-                <label className="text-[10px] text-neutral-400 font-mono uppercase font-bold block mb-1">
-                  Liczba Rolek w Serii:
-                </label>
-                <select
-                  value={batchCount}
-                  onChange={(e) => setBatchCount(Number(e.target.value))}
-                  className="w-full px-3 py-2 bg-[#050505] border border-[rgba(255,255,255,0.1)] rounded text-xs font-mono text-white focus:outline-none focus:border-white"
-                >
-                  <option value={3}>3 Rolki (Szybki pakiet)</option>
-                  <option value={6}>6 Rolek (Standardowy tydzień)</option>
-                  <option value={10}>10 Rolek (Mocna kampania)</option>
-                </select>
-              </div>
-
-              <button
-                onClick={handleGenerateBatch}
-                disabled={isGeneratingBatch}
-                className="w-full sm:w-auto px-5 py-2 rounded bg-white hover:bg-neutral-200 text-black text-xs font-mono font-bold uppercase tracking-wider transition-all disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
-              >
-                {isGeneratingBatch ? (
-                  <>
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    <span>Generuję Serię...</span>
-                  </>
-                ) : (
-                  <>
-                    <Layers className="w-3.5 h-3.5" />
-                    <span>Generuj Masowo AI</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-
-          {/* Lista Wygenerowanych Rolek Masowych */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="text-xs font-bold text-white uppercase font-mono tracking-wider flex items-center gap-2">
-                  <Layers className="w-4 h-4 text-emerald-400" />
-                  <span>Wygenerowane Rolki Masowe ({batchPosts.length})</span>
-                </h3>
-                {/* Cała partia z banku, czy tylko jej część: liczba mówi, ile wpisów
-                    podszedł bank, bo model odpowiedział na resztę. */}
-                {bankLabel(batchBank, batchBankFilled, batchPosts.length) && (
-                  <span className={BANK_TAG}>
-                    {bankLabel(batchBank, batchBankFilled, batchPosts.length)}
-                  </span>
-                )}
-              </div>
-
-              {batchPosts.length > 0 && (
-                <button
-                  onClick={handleAddAllBatchToPipeline}
-                  disabled={batchPosts.every((p) => addedBatchIds.has(p.id))}
-                  className="px-3 py-1.5 rounded bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 text-xs font-mono font-bold uppercase transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
-                >
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>
-                    {batchPosts.every((p) => addedBatchIds.has(p.id))
-                      ? "Wszystkie Dodane"
-                      : "Dodaj Wszystkie do Harmonogramu"}
-                  </span>
-                </button>
-              )}
-            </div>
-
-            {batchPosts.length === 0 ? (
-              <div className="p-8 text-center bg-[#0E0E0E] border border-[rgba(255,255,255,0.05)] rounded-lg">
-                <Layers className="w-8 h-8 text-neutral-600 mx-auto mb-2" />
-                <p className="text-xs font-mono text-neutral-400">
-                  Brak wygenerowanych rolek. Kliknij "Generuj Masowo AI", aby stworzyć spójną serię
-                  publikacji z życiowym uderzeniem.
-                </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {batchPosts.map((post, idx) => {
-                  const isAdded = addedBatchIds.has(post.id);
-                  return (
-                    <div
-                      key={post.id || idx}
-                      className="p-4 bg-[#0E0E0E] border border-[rgba(255,255,255,0.1)] rounded-lg flex flex-col justify-between space-y-3 hover:border-white/20 transition-all"
-                    >
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between text-[10px] font-mono">
-                          <span className="px-2 py-0.5 rounded bg-white/10 text-neutral-300 uppercase font-bold">
-                            {post.pillar}
-                          </span>
-                          <span className="text-neutral-500">#{idx + 1}</span>
-                        </div>
-
-                        {/* Główny Hook */}
-                        <div className="p-3 bg-[#050505] border border-white/5 rounded">
-                          <p className="text-xs font-serif font-bold text-white leading-relaxed">
-                            "{post.sayingMain}"
-                          </p>
-                          {post.sayingSub && (
-                            <p className="text-[11px] font-mono text-neutral-400 mt-1.5 border-t border-white/5 pt-1.5">
-                              {post.sayingSub}
-                            </p>
-                          )}
-                        </div>
-
-                        {/* Skrót Opisu */}
-                        <div className="text-[10px] font-mono text-neutral-400 line-clamp-3 bg-[#080808] p-2 rounded border border-white/5 whitespace-pre-wrap">
-                          {post.caption}
-                        </div>
-                      </div>
-
-                      {/* Akcje dla Rolki */}
-                      <div className="space-y-1.5 pt-2 border-t border-white/10">
-                        <div className="flex gap-1.5">
-                          <button
-                            onClick={() => {
-                              const fullText = post.sayingSub
-                                ? `${post.sayingMain}\n${post.sayingSub}`
-                                : post.sayingMain;
-                              if (onOpenVideoStudio) {
-                                onOpenVideoStudio(fullText);
-                              } else if (onSendToReel) {
-                                onSendToReel(fullText);
-                              }
-                            }}
-                            className="flex-1 py-1.5 px-2 rounded bg-white hover:bg-neutral-200 text-black text-[11px] font-mono font-bold uppercase transition-all flex items-center justify-center gap-1 cursor-pointer"
-                          >
-                            <Film className="w-3 h-3" />
-                            <span>Otwórz w Studio</span>
-                          </button>
-
-                          <button
-                            onClick={() => handleCopy(`batch-${post.id}`, post.caption)}
-                            className="p-1.5 rounded bg-[#161616] hover:bg-white hover:text-black border border-white/10 text-neutral-400 hover:text-black transition-all cursor-pointer"
-                            title="Kopiuj opis"
-                          >
-                            {copiedId === `batch-${post.id}` ? (
-                              <Check className="w-3 h-3 text-emerald-400" />
-                            ) : (
-                              <Copy className="w-3 h-3" />
-                            )}
-                          </button>
-                        </div>
-
-                        <button
-                          onClick={() => handleAddBatchToPipeline(post)}
-                          disabled={isAdded}
-                          className={`w-full py-1.5 px-2 rounded text-[10px] font-mono uppercase transition-all flex items-center justify-center gap-1 cursor-pointer ${
-                            isAdded
-                              ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 cursor-default"
-                              : "bg-[#161616] hover:bg-white/10 text-neutral-300 border border-white/10"
-                          }`}
-                        >
-                          {isAdded ? (
-                            <>
-                              <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                              <span>W harmonogramie</span>
-                            </>
-                          ) : (
-                            <>
-                              <PlusCircle className="w-3 h-3" />
-                              <span>Dodaj do postów</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
         </div>
       )}
 
